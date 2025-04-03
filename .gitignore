@@ -11,6 +11,9 @@ __pycache__
 *.log
 *.csv
 
-Backend/files/*
+
 UI/dist
 UI/build
+
+Backend/.env
+Backend/dist

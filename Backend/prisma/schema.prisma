@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  Admin
+  User
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  displayName String   @db.VarChar(128)
+  email     String   @unique
+  role      UserRole @default(User)
+  avatar_url String?   @db.VarChar(256)
+
+  password  String?   @db.VarChar(256)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions Session[]
+  functions Function[]
+  namespaces Namespace[]
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  hash      String   @db.Text
+
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Function {
+  id Int @id @default(autoincrement())
+  name String @db.VarChar(128)
+  description String @db.VarChar(256)
+  image String @db.VarChar(256)
+
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  max_ram Int @default(512)
+  timeout Int @default(15)
+  allow_http Boolean @default(true)
+  env Json?
+  secure_header String? @db.VarChar(256)
+  
+  retry_on_failure Boolean @default(false)
+  max_retries Int @default(3)
+
+  priority Int @default(0) // 1 to 10, 10 is the highest priority
+  tags String? @db.Text // comma separated tags
+  startup_file String? @db.VarChar(256) // Replaced startup_command with startup_file
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  namespaceId Int
+  namespace Namespace @relation(fields: [namespaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  files FunctionFile[]
+}
+
+model FunctionFile {
+  id Int @id @default(autoincrement())
+  name String @db.VarChar(256)
+  content String @db.Text
+
+  functionId Int
+  function Function @relation(fields: [functionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Namespace {
+  id Int @id @default(autoincrement())
+  name String @db.VarChar(128)
+
+  userId Int
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  functions Function[]
+}

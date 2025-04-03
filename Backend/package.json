@@ -1,0 +1,35 @@
+{
+	"version": "1.0.0",
+	"name": "shsf-backend",
+	"description": "Backend for SHSF",
+	"private": true,
+	"license": "MIT-0",
+	"dependencies": {
+		"@prisma/client": "^6.5.0",
+		"@rjweb/runtime-node": "^1.1.1",
+		"@rjweb/utils": "^1.12.28",
+		"@types/bcrypt": "^5.0.2",
+		"@types/dockerode": "^3.3.37",
+		"@types/node": "^22.13.14",
+		"@types/nodemailer": "^6.4.17",
+		"axios": "^1.8.4",
+		"bcrypt": "^5.1.1",
+		"dockerode": "^4.0.5",
+		"esbuild": "^0.24.2",
+		"file-type": "^19.6.0",
+		"prisma": "^6.5.0",
+		"redis": "^4.7.0",
+		"rjweb-server": "^9.8.6",
+		"tar": "^7.4.3",
+		"typescript": "^5.8.2"
+	},
+	"scripts": {
+		"prism": "npx prisma generate && npx prisma db push",
+		"generate": "npx prisma generate",
+		"build": "rm -rf dist && tsc && cd ..",
+		"start": "cd dist && node index.js && cd ..",
+		"prod": "npm run build && npm run start",
+		"dev": "rm -rf dist && esbuild `find src \\( -name '*.ts' -o -name '*.tsx' \\)` --platform='node' --sourcemap --ignore-annotations --format='cjs' --target='es2022' --outdir='dist' && cd dist && node index.js && cd ..",
+		"test": "npm run build"
+	}
+}
