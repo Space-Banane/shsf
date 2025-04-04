@@ -1,510 +1,689 @@
 import { useParams } from "react-router-dom";
-import { BackendService, FunctionData } from "../../services/backend.service";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
-import Modal from "../../components/modals/Modal";
-import NewFileModal from "../../components/modals/NewFileModal";
+import CreateFileModal from "../../components/modals/CreateFileModal";
 import RenameFileModal from "../../components/modals/RenameFileModal";
+import DeleteFileModal from "../../components/modals/DeleteFileModal";
 import UpdateFunctionModal from "../../components/modals/UpdateFunctionModal";
+import CreateTriggerModal from "../../components/modals/CreateTriggerModal";
+import EditTriggerModal from "../../components/modals/EditTriggerModal";
+import DeleteTriggerModal from "../../components/modals/DeleteTriggerModal";
+import { FunctionFile, XFunction, Trigger } from "../../types/Prisma";
+import {
+	getFunctionById,
+	executeFunction,
+	executeFunctionStreaming,
+} from "../../services/backend.functions";
+import {
+	getFiles,
+	createOrUpdateFile,
+	deleteFile,
+	renameFile,
+} from "../../services/backend.files";
+import {
+	createTrigger,
+	getTriggers,
+	updateTrigger,
+	deleteTrigger,
+} from "../../services/backend.triggers";
 
 function FunctionDetail() {
 	const { id } = useParams<{ id: string }>();
-	const [functionDetail, setFunctionDetail] = useState<FunctionData | null>(
-		null
-	);
-	const [code, setCode] = useState<string>("");
+	const [functionData, setFunctionData] = useState<XFunction | null>(null);
+	const [loading, setLoading] = useState(true);
+	const [files, setFiles] = useState<FunctionFile[]>([]);
+	const [triggers, setTriggers] = useState<Trigger[]>([]);
+	const [showCreateModal, setShowCreateModal] = useState(false);
+	const [showRenameModal, setShowRenameModal] = useState(false);
+	const [showDeleteModal, setShowDeleteModal] = useState(false);
+	const [showUpdateModal, setShowUpdateModal] = useState(false);
+	const [showCreateTriggerModal, setShowCreateTriggerModal] = useState(false);
+	const [showEditTriggerModal, setShowEditTriggerModal] = useState(false);
+	const [showDeleteTriggerModal, setShowDeleteTriggerModal] = useState(false);
+	const [selectedFile, setSelectedFile] = useState<FunctionFile | null>(null);
+	const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(null);
+	const [activeFile, setActiveFile] = useState<FunctionFile | null>(null);
+	const [code, setCode] = useState<string | null>(null); // Updated to allow null
 	const editorRef = useRef<any>(null);
-	const [files, setFiles] = useState<any[]>([]);
-	const [selectedFile, setSelectedFile] = useState<string>("main.py");
-	const [output, setOutput] = useState<string>("");
-	const autosaveTimer = useRef<NodeJS.Timeout | null>(null);
-	
-	// Modal states
-	const [isNewFileModalOpen, setIsNewFileModalOpen] = useState<boolean>(false);
-	const [isRenameModalOpen, setIsRenameModalOpen] = useState<boolean>(false);
-	const [isUpdateModalOpen, setIsUpdateModalOpen] = useState<boolean>(false);
-	const [newFileName, setNewFileName] = useState<string>("");
-	const [oldFileName, setOldFileName] = useState<string>("");
+	const [consoleOutput, setConsoleOutput] = useState<string>("");
+	const [saving, setSaving] = useState<boolean>(false);
+	const [running, setRunning] = useState<boolean>(false);
+	const [runningMode, setRunningMode] = useState<"classic" | "streaming">(
+		"streaming"
+	);
+	const [exitCode, setExitCode] = useState<number | null>(null);
+	const [functionURL, setFunctionURL] = useState<string>("Loading url...");
+	const [executionTime, setExecutionTime] = useState<number | null>(null);
+	const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-    
-	useEffect(() => {
-		fetchFunctionDetail();
-	}, [id]);
-
-	const fetchFunctionDetail = async () => {
-		if (!id) return;
-		const func = await BackendService.getFunction(parseInt(id));
-		setFunctionDetail(func);
-		loadFunctionFiles(parseInt(id));
+	const startTimer = () => {
+		let startTime = Date.now();
+		setExecutionTime(0);
+		timerRef.current = setInterval(() => {
+			setExecutionTime(Math.floor((Date.now() - startTime) / 1000));
+		}, 1000);
 	};
 
-	const loadFunctionFiles = async (functionId: number) => {
-		try {
-			const fileData = await BackendService.getFunctionFiles(functionId);
-			setFiles(fileData);
-
-			// Find main.py or use the first file
-			const mainFile =
-				fileData.find((f: any) => f.name === "main.py") ||
-				(fileData.length > 0 ? fileData[0] : null);
-
-			if (mainFile) {
-				setSelectedFile(mainFile.name);
-				setCode(mainFile.content || "");
-				if (editorRef.current) {
-					editorRef.current.getModel().setValue(mainFile.content || "");
-				}
-			} else {
-				// No files exist, create a default main.py
-				const defaultCode = "# Write your code here\n\nprint('Hello World!')";
-				setCode(defaultCode);
-				setSelectedFile("main.py");
-				if (editorRef.current) {
-					editorRef.current.getModel().setValue(defaultCode);
-				}
-
-				// Create the file on the server
-				createNewFile("main.py", defaultCode);
-			}
-		} catch (error) {
-			console.error("Error loading files:", error);
-			setFiles([]);
-
-			// Set up default file if no files could be loaded
-			const defaultCode = "# Write your code here\n\nprint('Hello World!')";
-			setCode(defaultCode);
-			setSelectedFile("main.py");
-			if (editorRef.current) {
-				editorRef.current.getModel().setValue(defaultCode);
-			}
+	const stopTimer = () => {
+		if (timerRef.current) {
+			clearInterval(timerRef.current);
+			timerRef.current = null;
 		}
+	};
+
+	const handleFileSelect = (file: FunctionFile) => {
+		setActiveFile(file);
+		setCode(file.content || "");
 	};
 
 	const handleEditorChange = (value: string | undefined) => {
 		setCode(value || "");
-		
-		if (autosaveTimer.current) {
-			clearTimeout(autosaveTimer.current);
-		}
-		autosaveTimer.current = setTimeout(() => {
-			autosaveFunction();
-		}, 2000);
 	};
 
 	const handleEditorDidMount = (editor: any) => {
 		editorRef.current = editor;
 	};
-	
-	const autosaveFunction = async () => {
-		if (!id || !selectedFile || !code) {
-			return Promise.resolve();
-		}
-		
+
+	const handleSaveFile = async () => {
+		if (!id || !activeFile) return;
+
+		setSaving(true);
 		try {
-			await BackendService.updateFunctionFile(
-				parseInt(id),
-				selectedFile,
-				code
-			);
-			
-			// Update the file in our list with the new content
-			setFiles((prevFiles) =>
-				prevFiles.map((file) =>
-					file.name === selectedFile ? { ...file, content: code } : file
-				)
-			);
-			return Promise.resolve();
+			const data = await createOrUpdateFile(parseInt(id), {
+				filename: activeFile.name,
+				code: code || "",
+			});
+
+			if (data.status === "OK") {
+				setFiles((prev) =>
+					prev.map((file) =>
+						file.id === activeFile.id ? { ...file, code } : file
+					)
+				);
+			} else {
+				alert("Error saving file: " + data.message);
+			}
 		} catch (error) {
-			console.error("Autosave failed:", error);
-			return Promise.reject(error);
+			console.error("Error saving file:", error);
+			alert("An error occurred while saving the file.");
+		} finally {
+			setSaving(false);
 		}
 	};
 
-	const runCode = () => {
-		if (!id) {
-			setOutput("No function selected.");
-			return;
-		}
-
-		// Save before running
-		autosaveFunction().then(() => {
-			BackendService.executeFunction(parseInt(id))
-				.then((data) => {
-					setOutput(data.output || "No output received.");
-				})
-				.catch((error) => {
-					console.error("Error:", error);
-					setOutput(`Error executing function: ${error.message}`);
-				});
-		});
-	};
-
-	// Function to select a file
-	const selectFile = (fileName: string) => {
+	const handleRunCode = async () => {
 		if (!id) return;
 
-		// If we're changing files, save the current file first
-		if (selectedFile && selectedFile !== fileName) {
-			autosaveFunction().then(() => {
-				const fileToLoad = files.find((f) => f.name === fileName);
-				if (fileToLoad) {
-					setSelectedFile(fileName);
-					setCode(fileToLoad.content || "");
-					if (editorRef.current) {
-						editorRef.current.getModel().setValue(fileToLoad.content || "");
+		setRunning(true);
+		setConsoleOutput("Executing code...");
+		setExitCode(null);
+		startTimer();
+
+		if (runningMode === "classic") {
+			try {
+				const result = await executeFunction(parseInt(id));
+				if (result.status === "OK") {
+					setConsoleOutput(
+						result.data.output || "Execution completed with no output."
+					);
+					setExitCode(result.data.exitCode);
+				} else {
+					setConsoleOutput(
+						`Error: ${result.message}\nDetails: ${
+							result.error || "No additional details."
+						}`
+					);
+				}
+			} catch (error) {
+				console.error("Error executing code:", error);
+				setConsoleOutput("An error occurred while executing the code.");
+			} finally {
+				stopTimer();
+				setRunning(false);
+			}
+		} else {
+			// Streaming mode
+			try {
+				setConsoleOutput(""); // Clear previous logs
+				await executeFunctionStreaming(parseInt(id), (data) => {
+					if (data.type === "output") {
+						setConsoleOutput((prev) => prev + data.content); // Append logs
+					} else if (data.type === "end") {
+						setExitCode(data.exitCode);
+						setConsoleOutput((prev) => prev);
+					} else if (data.type === "error") {
+						setConsoleOutput(
+							(prev) =>
+								prev + `\nError: ${data.error || "No additional details."}`
+						);
 					}
-				}
-			});
-		} else if (selectedFile !== fileName) {
-			const fileToLoad = files.find((f) => f.name === fileName);
-			if (fileToLoad) {
-				setSelectedFile(fileName);
-				setCode(fileToLoad.content || "");
-				if (editorRef.current) {
-					editorRef.current.getModel().setValue(fileToLoad.content || "");
-				}
+				});
+			} catch (error) {
+				console.error("Error streaming execution:", error);
+				setConsoleOutput(
+					(prev) => prev + "\nConnection error: Failed to stream output."
+				);
+			} finally {
+				stopTimer();
+				setRunning(false);
 			}
 		}
 	};
 
-	// Function to create a new file
-	const createNewFile = async (filename = newFileName, content = "# New file\n") => {
-		if (!id || !filename) return;
+	const loadData = () => {
+		if (id) {
+			setLoading(true);
+			Promise.all([
+				getFunctionById(parseInt(id)),
+				getFiles(parseInt(id)),
+				getTriggers(parseInt(id)),
+			])
+				.then(([functionData, filesData, triggersData]) => {
+					if (functionData.status === "OK") {
+						setFunctionData(functionData.data);
+					} else {
+						alert("Error fetching function: " + functionData.message);
+						return;
+					}
+
+					if (filesData.status === "OK") {
+						setFiles(filesData.data);
+						if (functionData.data.allow_http) {
+							setFunctionURL(
+								`${window.origin.replace("3000", "5000")}/api/exec/${
+									functionData.data.namespaceId
+								}/${functionData.data.id}?stream=false`
+							);
+						} else {
+							setFunctionURL(`HTTP ACCESS DISABLED`);
+						}
+						if (filesData.data.length > 0) {
+							// Select the startup file if it exists, otherwise select the first file
+							const startupFile = filesData.data.find(
+								(file) => file.name === functionData.data.startup_file
+							);
+							const initialFile = startupFile || filesData.data[0];
+							// setActiveFile(initialFile);
+							setCode(initialFile.content || "");
+						} else {
+							// Reset when no files exist
+							setActiveFile(null);
+							setCode(null);
+						}
+					} else {
+						alert("Error fetching files: " + filesData.message);
+					}
+
+					if (triggersData.status === "OK") {
+						setTriggers(triggersData.data);
+					} else {
+						console.error("Error fetching triggers:", triggersData.message);
+					}
+				})
+				.catch((error) => {
+					console.error("Error fetching data:", error);
+					alert("An error occurred while fetching data.");
+				})
+				.finally(() => {
+					setLoading(false);
+				});
+		}
+	};
+
+	useEffect(() => {
+		loadData();
+	}, [id]);
+
+	const handleCreateFile = async (
+		filename: string,
+		content: string
+	): Promise<boolean> => {
+		if (!id) {
+			alert("Function ID is missing.");
+			return false;
+		}
 
 		try {
-			await BackendService.updateFunctionFile(parseInt(id), filename, content);
-			// Reload files to get the new file with its ID
-			loadFunctionFiles(parseInt(id));
-			setNewFileName("");
-			setIsNewFileModalOpen(false);
+			const data = await createOrUpdateFile(parseInt(id), {
+				filename,
+				code: content,
+			});
+			if (data.status === "OK") {
+				setFiles((prev) => [...prev, { ...data.data, content }]); // Ensure the new file has the correct content
+				return true;
+			} else {
+				alert("Error creating file: " + data.message);
+				return false;
+			}
 		} catch (error) {
 			console.error("Error creating file:", error);
-			alert("Failed to create file");
+			alert("An error occurred while creating the file.");
+			return false;
 		}
 	};
 
-	// Function to delete a file
-	const deleteFile = (fileName: string) => {
-		if (!id) return;
+	const handleRenameFile = async (newFilename: string): Promise<boolean> => {
+		if (!id || !selectedFile) return false;
 
-		// Confirm before deleting
-		if (!window.confirm(`Are you sure you want to delete ${fileName}?`)) {
-			return;
-		}
-
-		// Don't allow deleting the only file
-		if (files.length <= 1) {
-			alert("You cannot delete the only file in your function.");
-			return;
-		}
-
-		BackendService.deleteFile(parseInt(id), fileName)
-			.then(() => {
-				// If the deleted file was selected, select another file
-				if (selectedFile === fileName) {
-					const newSelectedFile = files.find((f) => f.name !== fileName);
-					if (newSelectedFile) {
-						selectFile(newSelectedFile.name);
-					}
-				}
-				// Reload files to reflect changes
-				loadFunctionFiles(parseInt(id));
-			})
-			.catch((error) => {
-				console.error("Error deleting file:", error);
-				alert("Failed to delete file");
-			});
-	};
-
-	// Function to handle file renaming
-	const handleRenameFile = async (oldName: string, newName: string) => {
-		if (!id) return;
 		try {
-			await BackendService.renameFile(parseInt(id), oldName, newName);
-			loadFunctionFiles(parseInt(id));
-			setIsRenameModalOpen(false);
+			const data = await renameFile(parseInt(id), selectedFile.id, newFilename);
+			if (data.status === "OK") {
+				setFiles((prev) =>
+					prev.map((file) =>
+						file.id === selectedFile.id ? { ...file, name: newFilename } : file
+					)
+				);
+				return true;
+			} else {
+				alert("Error renaming file: " + data.message);
+				return false;
+			}
 		} catch (error) {
 			console.error("Error renaming file:", error);
-			alert("Failed to rename file");
+			alert("An error occurred while renaming the file.");
+			return false;
 		}
 	};
 
-	const updateFunction = async (updatedData: Partial<FunctionData>) => {
-		if (!id) return;
-		
+	const handleDeleteFile = async (): Promise<boolean> => {
+		if (!id || !selectedFile) return false;
+
 		try {
-			const updatedFunction = await BackendService.updateFunction(
-				parseInt(id),
-				updatedData
-			);
-			setFunctionDetail(updatedFunction);
-			setIsUpdateModalOpen(false);
-			alert("Function updated successfully!");
+			const data = await deleteFile(parseInt(id), selectedFile.id);
+			if (data.status === "OK") {
+				setFiles((prev) => prev.filter((file) => file.id !== selectedFile.id));
+				if (activeFile?.id === selectedFile.id) {
+					setActiveFile(null);
+					setCode(null);
+				}
+				return true;
+			} else {
+				alert("Error deleting file: " + data.message);
+				return false;
+			}
 		} catch (error) {
-			console.error("Error updating function:", error);
-			alert("Failed to update function");
+			console.error("Error deleting file:", error);
+			alert("An error occurred while deleting the file.");
+			return false;
 		}
 	};
 
-	const renderHeader = () => {
-		if (functionDetail?.namespace) {
-			return (
-				<div className="flex justify-between items-center">
-					<div>
-						<h1 className="text-2xl font-bold">
-							📂 {functionDetail.namespace.name}
-						</h1>
-						<h2 className="text-xl font-semibold">🚀 {functionDetail.name}</h2>
-					</div>
-					<button
-						onClick={() => setIsUpdateModalOpen(true)}
-						className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded flex items-center"
-					>
-						<svg
-							className="w-4 h-4 mr-2"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth="2"
-								d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-							/>
-						</svg>
-						Modify Function
-					</button>
-				</div>
-			);
+	const handleCreateTrigger = async (
+		name: string,
+		description: string,
+		cron: string,
+		data: string
+	) => {
+		if (!id) return false;
+
+		try {
+			const response = await createTrigger(parseInt(id), {
+				name,
+				description,
+				cron,
+				data,
+			});
+
+			if (response.status === "OK") {
+				// Reload triggers
+				const triggersData = await getTriggers(parseInt(id));
+				if (triggersData.status === "OK") {
+					setTriggers(triggersData.data);
+				}
+				return true;
+			} else {
+				alert("Error creating trigger: " + (response as any).message);
+				return false;
+			}
+		} catch (error) {
+			console.error("Error creating trigger:", error);
+			alert("An error occurred while creating the trigger.");
+			return false;
 		}
-		return (
-			<div className="flex justify-between items-center">
-				<h1 className="text-2xl font-bold mb-4">{functionDetail?.name}</h1>
-				<button
-					onClick={() => setIsUpdateModalOpen(true)}
-					className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded flex items-center"
-				>
-					<svg
-						className="w-4 h-4 mr-2"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-					>
-						<path
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							strokeWidth="2"
-							d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-						/>
-					</svg>
-					Modify Function
-				</button>
-			</div>
-		);
 	};
+
+	const handleUpdateTrigger = async (
+		name: string,
+		description: string,
+		cron: string,
+		data: string
+	) => {
+		if (!id || !selectedTrigger) return false;
+
+		try {
+			const response = await updateTrigger(parseInt(id), selectedTrigger.id, {
+				name,
+				description,
+				cron,
+				data,
+			});
+
+			if (response.status === "OK") {
+				// Update triggers list
+				setTriggers((prev) =>
+					prev.map((trigger) =>
+						trigger.id === selectedTrigger.id ? response.data : trigger
+					)
+				);
+				return true;
+			} else {
+				alert("Error updating trigger: " + (response as any).message);
+				return false;
+			}
+		} catch (error) {
+			console.error("Error updating trigger:", error);
+			alert("An error occurred while updating the trigger.");
+			return false;
+		}
+	};
+
+	const handleDeleteTrigger = async () => {
+		if (!id || !selectedTrigger) return false;
+
+		try {
+			const response = await deleteTrigger(parseInt(id), selectedTrigger.id);
+
+			if (response.status === "OK") {
+				// Remove trigger from list
+				setTriggers((prev) =>
+					prev.filter((trigger) => trigger.id !== selectedTrigger.id)
+				);
+				return true;
+			} else {
+				alert("Error deleting trigger: " + response.message);
+				return false;
+			}
+		} catch (error) {
+			console.error("Error deleting trigger:", error);
+			alert("An error occurred while deleting the trigger.");
+			return false;
+		}
+	};
+
+	if (loading) {
+		return <div className="text-white">Loading...</div>;
+	}
+
+	if (!functionData) {
+		return <div className="text-white">Function not found.</div>;
+	}
 
 	return (
-		<div className="p-4">
-			{renderHeader()}
-			<hr className="my-4" />
-			
-			<div className="flex gap-4 h-[calc(80vh-16rem)]">
-				{/* File Manager */}
-				<div className="w-1/5 bg-gray-800 rounded-xl shadow-md p-4">
-					<div className="flex justify-between items-center mb-4">
-						<h2 className="text-xl font-bold text-gray-100">Files</h2>
+		<div className="flex flex-col items-center w-full">
+			<h1 className="text-white text-2xl mb-4">
+				{functionData.name} ({functionData.namespaceId})
+			</h1>
+
+			<div className="mt-4 w-full px-4 flex flex-row gap-4">
+				<div className="w-1/4">
+					<button
+						className="mb-4 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 w-full"
+						onClick={() => setShowUpdateModal(true)}
+					>
+						Update Function Settings
+					</button>
+
+					<div className="bg-gray-800 p-4 rounded-lg mb-4">
+						<h2 className="text-white text-xl mb-2">File Manager</h2>
+						<ul className="text-white">
+							{files.length > 0 ? (
+								files.map((file) => (
+									<li
+										key={file.id}
+										className={`flex justify-between py-1 px-2 cursor-pointer ${
+											activeFile?.id === file.id ? "bg-gray-700 rounded-md" : ""
+										}`}
+										onClick={() => handleFileSelect(file)}
+									>
+										<span>{file.name}</span>
+										<div>
+											<button
+												className="text-blue-500 mr-2 hover:underline"
+												onClick={(e) => {
+													e.stopPropagation();
+													setSelectedFile(file);
+													setShowRenameModal(true);
+												}}
+											>
+												Rename
+											</button>
+											<button
+												className="text-red-500 hover:underline"
+												onClick={(e) => {
+													e.stopPropagation();
+													setSelectedFile(file);
+													setShowDeleteModal(true);
+												}}
+											>
+												Delete
+											</button>
+										</div>
+									</li>
+								))
+							) : (
+								<li>No files available.</li>
+							)}
+						</ul>
 						<button
-							className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md"
-							onClick={() => setIsNewFileModalOpen(true)}
+							className="mt-4 bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"
+							onClick={() => setShowCreateModal(true)}
 						>
-							<span className="flex items-center">
-								<svg
-									className="w-4 h-4 mr-1"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth="2"
-										d="M12 4v16m8-8H4"
-									/>
-								</svg>
-								New
-							</span>
+							Create File
 						</button>
 					</div>
-					<div className="overflow-y-auto max-h-[calc(100vh-12rem)]">
-						{files.map((file) => (
-							<div
-								key={file.name}
-								className={`relative mb-2 p-2 rounded-lg ${
-									selectedFile === file.name ? "bg-gray-700" : "bg-gray-750"
-								} hover:bg-gray-700 transition-colors`}
-							>
-								<div className="flex justify-between items-center">
-									<div
-										className="flex-grow cursor-pointer"
-										onClick={() => selectFile(file.name)}
+
+					<div className="bg-gray-800 p-4 rounded-lg">
+						<h2 className="text-white text-xl mb-2">Triggers</h2>
+						<ul className="text-white">
+							{triggers.length > 0 ? (
+								triggers.map((trigger) => (
+									<li
+										key={trigger.id}
+										className="border-b border-gray-700 py-2 last:border-0"
 									>
-										<span className="text-gray-100">
-											{file.name}
-										</span>
-									</div>
-									<div className="flex items-center space-x-2">
-										<button
-											className="p-1 rounded hover:bg-gray-600"
-											onClick={() => {
-												setOldFileName(file.name);
-												setIsRenameModalOpen(true);
-											}}
-										>
-											<svg
-												className="w-4 h-4 text-blue-400"
-												fill="none"
-												stroke="currentColor"
-												viewBox="0 0 24 24"
-											>
-												<path
-													strokeLinecap="round"
-													strokeLinejoin="round"
-													strokeWidth="2"
-													d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-												/>
-											</svg>
-										</button>
-										<button
-											className="p-1 rounded hover:bg-gray-600"
-											onClick={() => deleteFile(file.name)}
-										>
-											<svg
-												className="w-4 h-4 text-red-400"
-												fill="none"
-												stroke="currentColor"
-												viewBox="0 0 24 24"
-											>
-												<path
-													strokeLinecap="round"
-													strokeLinejoin="round"
-													strokeWidth="2"
-													d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-												/>
-											</svg>
-										</button>
-									</div>
-								</div>
-							</div>
-						))}
+										<div className="flex justify-between items-center">
+											<div>
+												<h3 className="font-medium">{trigger.name}</h3>
+												<p className="text-gray-400 text-sm">{trigger.cron}</p>
+											</div>
+											<div>
+												<button
+													className="text-blue-500 mr-2 hover:underline"
+													onClick={() => {
+														setSelectedTrigger(trigger);
+														setShowEditTriggerModal(true);
+													}}
+												>
+													Edit
+												</button>
+												<button
+													className="text-red-500 hover:underline"
+													onClick={() => {
+														setSelectedTrigger(trigger);
+														setShowDeleteTriggerModal(true);
+													}}
+												>
+													Delete
+												</button>
+											</div>
+										</div>
+										{trigger.description && (
+											<p className="text-gray-400 text-sm mt-1">
+												{trigger.description}
+											</p>
+										)}
+									</li>
+								))
+							) : (
+								<li>No triggers configured.</li>
+							)}
+						</ul>
+						<button
+							className="mt-4 bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"
+							onClick={() => setShowCreateTriggerModal(true)}
+						>
+							Create Trigger
+						</button>
 					</div>
 				</div>
-				
-				{/* Editor and Console */}
-				<div className="flex-1">
-					<div className="flex justify-between items-center mb-4">
-						<h2 className="text-xl font-bold text-gray-100">
-							Editing: {selectedFile}
+
+				<div className="w-3/4 flex flex-col">
+					<div className="flex justify-between mb-2">
+						<h2 className="text-white text-xl">
+							{activeFile ? activeFile.name : "No file selected"}
 						</h2>
-						<div className="flex items-center space-x-2">
-							<button
-								className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md flex items-center"
-								onClick={autosaveFunction}
-							>
-								<svg
-									className="w-4 h-4 mr-1"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
+						<div className="flex items-center bg-slate-700 px-2 py-1 rounded-md">
+							<span className="text-white mr-2">Function URL:</span>
+							<div className="relative">
+								<input
+									type="text"
+									value={functionURL}
+									readOnly
+									className="bg-slate-800 text-white px-2 py-1 rounded-md w-64"
+									onClick={(e) => e.currentTarget.select()}
+								/>
+								<button
+									className="ml-2 bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-gray-500"
+									onClick={() => {
+										navigator.clipboard.writeText(functionURL);
+									}}
 								>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth="2"
-										d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-									/>
-								</svg>
-								Save
+									Copy
+								</button>
+							</div>
+						</div>
+						<div>
+							<button
+								className={`bg-green-600 text-white px-4 py-1 rounded-md hover:bg-green-700 mr-2 ${
+									!activeFile ? "opacity-50 cursor-not-allowed" : ""
+								}`}
+								onClick={handleSaveFile}
+								disabled={!activeFile || saving}
+							>
+								{saving ? "Saving..." : "💾Save"}
 							</button>
 							<button
-								className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md flex items-center"
-								onClick={runCode}
+								className={`bg-blue-600 text-white px-4 py-1 rounded-md hover:bg-blue-700`}
+								onClick={handleRunCode}
+								disabled={running}
 							>
-								<svg
-									className="w-4 h-4 mr-1"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth="2"
-										d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-									/>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth="2"
-										d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-									/>
-								</svg>
-								Run
+								{running
+									? "Running..."
+									: `🐎Run (${functionData.startup_file})`}
 							</button>
+							<select
+								className="ml-2 bg-gray-700 text-white px-2 py-1 rounded-md"
+								value={runningMode}
+								onChange={(e) =>
+									setRunningMode(e.target.value as "classic" | "streaming")
+								}
+								disabled={running}
+							>
+								<option value="streaming">Stream Output</option>
+								<option value="classic">Wait for Completion</option>
+							</select>
 						</div>
 					</div>
-					
-					{/* Editor */}
-					<div className="h-[70%] mb-4">
-						<Editor
-							theme="vs-dark"
-							height="100%"
-							defaultLanguage="python"
-							value={code}
-							onChange={handleEditorChange}
-							onMount={handleEditorDidMount}
-							options={{
-								readOnly: false,
-								minimap: { enabled: false },
-								scrollBeyondLastLine: false,
-								fontSize: 14,
-								tabSize: 4,
-							}}
-						/>
+
+					<div className="h-96 border border-gray-700 rounded relative">
+						{!activeFile && (
+							<div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 text-white text-lg">
+								No file selected. Please select a file to edit.
+							</div>
+						)}
+						{activeFile && (
+							<Editor
+								theme="vs-dark"
+								height="100%"
+								defaultLanguage="python"
+								value={code || ""}
+								onChange={handleEditorChange}
+								onMount={handleEditorDidMount}
+								options={{
+									readOnly: false,
+									minimap: { enabled: false },
+									scrollBeyondLastLine: false,
+									fontSize: 14,
+									tabSize: 4,
+								}}
+							/>
+						)}
 					</div>
-					
-					{/* Console Output */}
-					<div className="bg-gray-700 rounded-md p-4 h-[30%] overflow-y-auto">
-						<h3 className="text-lg font-semibold text-gray-100 mb-2">Output:</h3>
-						<pre className="text-gray-300 font-mono text-sm whitespace-pre-wrap">
-							{output || "No output to display. Run your code to see results."}
-						</pre>
+
+					<div className="mt-4">
+						<h3 className="text-white text-lg mb-1">
+							Console Output{" "}
+							{exitCode !== null && (
+								<span
+									className={exitCode === 0 ? "text-green-500" : "text-red-500"}
+								>
+									(Exit Code: {exitCode})
+								</span>
+							)}
+						</h3>
+						{executionTime !== null && (
+							<div className="text-white text-sm mb-2">
+								Execution Time: {executionTime}s
+							</div>
+						)}
+						<div className="bg-black p-3 rounded h-48 overflow-auto font-mono text-sm">
+							<pre className="whitespace-pre-wrap">
+								{consoleOutput || "No output to display"}
+							</pre>
+						</div>
 					</div>
 				</div>
 			</div>
-			
-			{/* New File Modal */}
-			<NewFileModal
-				isOpen={isNewFileModalOpen}
-				onClose={() => setIsNewFileModalOpen(false)}
-				onCreateFile={(fileName) => createNewFile(fileName)}
-			/>
 
-			{/* Rename File Modal */}
-			<RenameFileModal
-				isOpen={isRenameModalOpen}
-				onClose={() => setIsRenameModalOpen(false)}
-				currentFileName={oldFileName}
-				onRenameFile={(oldName, newName) => handleRenameFile(oldName, newName)}
-			/>
-			
-			{/* Update Function Modal */}
-			<UpdateFunctionModal
-				isOpen={isUpdateModalOpen}
-				onClose={() => setIsUpdateModalOpen(false)}
-				functionData={functionDetail}
-				onUpdateFunction={updateFunction}
-			/>
+			{/* Modals */}
+			<div>
+				<CreateFileModal
+					isOpen={showCreateModal}
+					onClose={() => setShowCreateModal(false)}
+					onCreate={handleCreateFile}
+				/>
+
+				<RenameFileModal
+					isOpen={showRenameModal}
+					onClose={() => setShowRenameModal(false)}
+					onRename={handleRenameFile}
+					currentFilename={selectedFile?.name || ""}
+				/>
+
+				<DeleteFileModal
+					isOpen={showDeleteModal}
+					onClose={() => setShowDeleteModal(false)}
+					onDelete={handleDeleteFile}
+					filename={selectedFile?.name || ""}
+				/>
+
+				<UpdateFunctionModal
+					isOpen={showUpdateModal}
+					onClose={() => setShowUpdateModal(false)}
+					onSuccess={loadData}
+					functionData={functionData}
+				/>
+
+				<CreateTriggerModal
+					isOpen={showCreateTriggerModal}
+					onClose={() => setShowCreateTriggerModal(false)}
+					onCreate={handleCreateTrigger}
+				/>
+
+				<EditTriggerModal
+					isOpen={showEditTriggerModal}
+					onClose={() => setShowEditTriggerModal(false)}
+					onUpdate={handleUpdateTrigger}
+					trigger={selectedTrigger}
+				/>
+
+				<DeleteTriggerModal
+					isOpen={showDeleteTriggerModal}
+					onClose={() => setShowDeleteTriggerModal(false)}
+					onDelete={handleDeleteTrigger}
+					triggerName={selectedTrigger?.name || ""}
+				/>
+			</div>
 		</div>
 	);
 }

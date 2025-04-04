@@ -1,41 +1,54 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 interface ModalProps {
     isOpen: boolean;
     onClose: () => void;
     title: string;
     children: React.ReactNode;
+    maxWidth?: string;
+    isLoading?: boolean;
 }
 
-function Modal({ isOpen, onClose, title, children }: ModalProps) {
+function Modal({ isOpen, onClose, title, children, maxWidth = "md", isLoading = false }: ModalProps) {
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && !isLoading) onClose();
+        };
+        document.addEventListener('keydown', handleEscape);
+        return () => document.removeEventListener('keydown', handleEscape);
+    }, [onClose, isLoading]);
+
     if (!isOpen) return null;
 
+    const maxWidthClass = {
+        sm: 'max-w-sm',
+        md: 'max-w-md',
+        lg: 'max-w-lg',
+        xl: 'max-w-xl',
+    }[maxWidth] || 'max-w-md';
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-md">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold text-gray-100">{title}</h3>
-                    <button
-                        onClick={onClose}
-                        className="text-gray-400 hover:text-gray-200"
-                    >
-                        <svg
-                            className="w-6 h-6"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 animate-fadeIn p-4">
+            <div className={`bg-gray-800 text-white rounded-lg shadow-xl ${maxWidthClass} w-full animate-slideIn flex flex-col max-h-[90vh]`}>
+                <div className="flex justify-between items-center p-6 border-b border-gray-700">
+                    <h2 className="text-2xl font-semibold">{title}</h2>
+                    {!isLoading && (
+                        <button 
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-gray-200 text-2xl transition-colors"
                         >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M6 18L18 6M6 6l12 12"
-                            ></path>
-                        </svg>
-                    </button>
+                            ×
+                        </button>
+                    )}
                 </div>
-                <div>{children}</div>
+                <div className="overflow-y-auto p-6 relative" style={{ scrollbarWidth: 'thin' }}>
+                    {isLoading && (
+                        <div className="absolute inset-0 bg-gray-800/50 flex items-center justify-center z-10">
+                            <div className="loader"></div>
+                        </div>
+                    )}
+                    {children}
+                </div>
             </div>
         </div>
     );

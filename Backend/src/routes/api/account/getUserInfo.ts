@@ -3,7 +3,6 @@ import { checkAuthentication } from "../../../lib/Authentication";
 
 export = new fileRouter.Path("/").http("GET", "/api/account/getUserInfo", (http) =>
 	http
-		.ratelimit((limit) => limit.hits(5).window(10000).penalty(1000))
 		.onRequest(async (ctr) => {
 			const authCheck = await checkAuthentication(
                 ctr.cookies.get(COOKIE),

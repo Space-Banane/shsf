@@ -8,7 +8,9 @@ function RegisterPage() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const navigate = useNavigate();
-  const { user, refreshUser } = useContext(UserContext);
+  const userContext = useContext(UserContext);
+  const user = userContext?.user;
+  const refreshUser = userContext?.refreshUser;
 
   useEffect(() => {
     // Redirect if user is already logged in

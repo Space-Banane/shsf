@@ -14,6 +14,7 @@
 		"@types/nodemailer": "^6.4.17",
 		"axios": "^1.8.4",
 		"bcrypt": "^5.1.1",
+		"cron-parser": "^5.1.1",
 		"dockerode": "^4.0.5",
 		"esbuild": "^0.24.2",
 		"file-type": "^19.6.0",

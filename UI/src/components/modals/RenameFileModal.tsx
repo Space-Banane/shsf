@@ -1,61 +1,82 @@
-import React, { useRef } from "react";
+import React, { useState, useEffect } from "react";
 import Modal from "./Modal";
 
 interface RenameFileModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    currentFileName: string;
-    onRenameFile: (oldName: string, newName: string) => void;
+	isOpen: boolean;
+	onClose: () => void;
+	onRename: (newFilename: string) => Promise<boolean>;
+	currentFilename: string;
 }
 
-function RenameFileModal({ 
-    isOpen, 
-    onClose, 
-    currentFileName, 
-    onRenameFile 
-}: RenameFileModalProps) {
-    const inputRef = useRef<HTMLInputElement>(null);
+function RenameFileModal({ isOpen, onClose, onRename, currentFilename }: RenameFileModalProps) {
+	const [newFilename, setNewFilename] = useState(currentFilename);
+	const [isLoading, setIsLoading] = useState(false);
 
-    const handleSubmit = () => {
-        const newFileName = inputRef.current?.value.trim();
-        if (newFileName && newFileName !== currentFileName) {
-            onRenameFile(currentFileName, newFileName);
-        }
-    };
+	useEffect(() => {
+		if (isOpen) {
+			setNewFilename(currentFilename);
+		}
+	}, [isOpen, currentFilename]);
 
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Rename File">
-            <div className="mb-4">
-                <p className="text-gray-300 mb-2">
-                    Current name: <span className="font-bold">{currentFileName}</span>
-                </p>
-                <label className="block text-gray-300 mb-2">New File Name</label>
-                <input
-                    ref={inputRef}
-                    type="text"
-                    className="w-full p-2 border border-gray-700 rounded bg-gray-700 text-gray-100"
-                    placeholder="new-name.py"
-                    defaultValue={currentFileName}
-                />
-            </div>
-            <div className="flex justify-end space-x-3">
-                <button
-                    type="button"
-                    className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-                    onClick={onClose}
-                >
-                    Cancel
-                </button>
-                <button
-                    type="button"
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                    onClick={handleSubmit}
-                >
-                    Rename
-                </button>
-            </div>
-        </Modal>
-    );
+	const handleRename = async () => {
+		if (!newFilename.trim() || newFilename.trim().length < 3) {
+			alert("Filename must be at least 3 characters long.");
+			return;
+		}
+
+		if (newFilename === currentFilename) {
+			onClose();
+			return;
+		}
+
+		setIsLoading(true);
+		try {
+			const success = await onRename(newFilename);
+			if (success) {
+				onClose();
+			}
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const handleClose = () => {
+		if (!isLoading) {
+			onClose();
+		}
+	};
+
+	return (
+		<Modal isOpen={isOpen} onClose={handleClose} title="Rename File" isLoading={isLoading}>
+			<div className="space-y-1 mb-4">
+				<label className="text-sm text-gray-300" title="Enter a new name for the file">New Filename</label>
+				<input
+					type="text"
+					placeholder="New filename"
+					value={newFilename}
+					onChange={(e) => setNewFilename(e.target.value)}
+					className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
+					disabled={isLoading}
+				/>
+			</div>
+			<div className="flex justify-end mt-4">
+				<button 
+					className="bg-gray-500 text-white px-4 py-2 rounded-md mr-2" 
+					onClick={handleClose}
+					disabled={isLoading}
+				>
+					Cancel
+				</button>
+				<button 
+					className="bg-blue-500 text-white px-4 py-2 rounded-md" 
+					onClick={handleRename}
+					disabled={isLoading}
+				>
+					Rename
+				</button>
+			</div>
+		</Modal>
+	);
 }
 
 export default RenameFileModal;

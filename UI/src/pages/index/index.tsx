@@ -1,7 +1,7 @@
 const IndexPage = () => {
 	return (
-		<div className="bg-gray-900 p-4 flex items-center justify-center">
-			<div className="max-w-3xl w-full bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
+		<div className="p-4 flex items-center justify-center">
+			<div className="max-w-3xl w-full">
 				<div className="p-6">
 					<h1 className="text-4xl font-extrabold text-white text-center mb-4">
 						Self-Host Serverless Functions (SHSF)

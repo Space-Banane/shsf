@@ -64,11 +64,13 @@ model Function {
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  lastRun DateTime? // Last time the function was executed
 
   namespaceId Int
   namespace Namespace @relation(fields: [namespaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   files FunctionFile[]
+  triggers FunctionTrigger[]
 }
 
 model FunctionFile {
@@ -94,4 +96,20 @@ model Namespace {
   updatedAt DateTime @updatedAt
 
   functions Function[]
+}
+
+model FunctionTrigger {
+  id Int @id @default(autoincrement())
+  name String @db.VarChar(128)
+  description String @db.VarChar(256)
+  cron String? @db.VarChar(128) // Cron expression for scheduling
+  data Json?
+
+  functionId Int
+  function Function @relation(fields: [functionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastRun DateTime? // Last time the trigger was executed
+  nextRun DateTime? // Next time the trigger is scheduled to run
 }

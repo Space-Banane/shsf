@@ -1,19 +1,37 @@
 import React, { useState } from "react";
 import Modal from "./Modal";
-import { createNamespace } from "../../services/backend.namespaces";
+import { renameNamespace } from "../../services/backend.namespaces";
 
-interface CreateNamespaceModalProps {
+interface RenameNamespaceModalProps {
 	isOpen: boolean;
 	onClose: () => void;
-	onSuccess: () => void;
+	onRename: () => void;
+	namespaceId: number | null;
+	currentName: string;
 }
 
-function CreateNamespaceModal({ isOpen, onClose, onSuccess }: CreateNamespaceModalProps) {
-	const [name, setName] = useState("");
+function RenameNamespaceModal({ 
+	isOpen, 
+	onClose, 
+	onRename, 
+	namespaceId,
+	currentName 
+}: RenameNamespaceModalProps) {
+	const [name, setName] = useState(currentName);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
+	
+	// Reset name when modal is opened with new namespace
+	React.useEffect(() => {
+		setName(currentName);
+	}, [currentName, isOpen]);
 
 	const handleSubmit = async () => {
+		if (!namespaceId) {
+			setError("No namespace selected");
+			return;
+		}
+		
 		if (!name.trim()) {
 			setError("Please enter a namespace name");
 			return;
@@ -22,13 +40,12 @@ function CreateNamespaceModal({ isOpen, onClose, onSuccess }: CreateNamespaceMod
 		setError("");
 		setIsLoading(true);
 		try {
-			const response = await createNamespace(name);
+			const response = await renameNamespace(namespaceId, name);
 			if (response.status === "OK") {
-				onSuccess();
+				onRename();
 				onClose();
-				setName("");
 			} else {
-				setError("Error creating namespace: " + response.message);
+				setError("Error renaming namespace: " + response.message);
 			}
 		} catch (err) {
 			setError("An unexpected error occurred");
@@ -46,11 +63,11 @@ function CreateNamespaceModal({ isOpen, onClose, onSuccess }: CreateNamespaceMod
 	};
 
 	return (
-		<Modal isOpen={isOpen} onClose={handleClose} title="Create Namespace" isLoading={isLoading}>
+		<Modal isOpen={isOpen} onClose={handleClose} title="Rename Namespace" isLoading={isLoading}>
 			{error && <div className="bg-red-500/20 border border-red-500 p-2 rounded-md text-red-300 mb-4">{error}</div>}
 			<div>
 				<div className="space-y-1 mb-4">
-					<label className="text-sm text-gray-300" title="Enter a unique name for your new namespace">Namespace Name</label>
+					<label className="text-sm text-gray-300" title="The new name for your namespace">Namespace Name</label>
 					<input
 						type="text"
 						placeholder="Namespace Name"
@@ -73,7 +90,7 @@ function CreateNamespaceModal({ isOpen, onClose, onSuccess }: CreateNamespaceMod
 						className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-md"
 						disabled={isLoading}
 					>
-						Create
+						Rename
 					</button>
 				</div>
 			</div>
@@ -81,4 +98,4 @@ function CreateNamespaceModal({ isOpen, onClose, onSuccess }: CreateNamespaceMod
 	);
 }
 
-export default CreateNamespaceModal;
+export default RenameNamespaceModal;

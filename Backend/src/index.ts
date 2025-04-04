@@ -4,10 +4,12 @@ import { Runtime } from "@rjweb/runtime-node";
 import { network } from "@rjweb/utils";
 import { env } from "process";
 import { createClient } from "redis";
+import { CronExpressionParser } from "cron-parser";
+import { executeFunction } from "./lib/Runner";
 
 export const WhereAreWe = env.WENV!;
 export const URL = env.UI_URL!;
-export const COOKIE=env.COOKIE!;
+export const COOKIE = env.COOKIE!;
 export const DOMAIN = env.DOMAIN!;
 export const API_KEY_HEADER = env.API_KEY_HEADER!;
 export const prisma = new PrismaClient({
@@ -87,7 +89,7 @@ export const server = new Server(
 			allowAll: false,
 			origins: ["http://localhost:3000"],
 			methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-			credentials: true
+			credentials: true,
 		}),
 	]
 );
@@ -117,11 +119,11 @@ server
 				console.error(err);
 			});
 
-		console.log(
-			`Started a "${WhereAreWe}" Instance on port ${port}; https://${
-				WhereAreWe === "dev" ? "dev." : WhereAreWe === "beta" ? "beta." : ""
-			}betternews.app`
-		);
+		console.log(`Started a "${WhereAreWe}" Instance on port ${port}`);
+
+		setInterval(async () => {
+			await processCrons();
+		}, 1000); // Every second
 	})
 	.catch(console.error);
 
@@ -145,3 +147,91 @@ server.error("httpRequest", async (ctr, error) => {
 		.status(ctr.$status.INTERNAL_SERVER_ERROR)
 		.print({ status: "ERROR", message: "An Unknown Server Error has occured" });
 });
+
+// Crons
+async function processCrons() {
+	const now = new Date();
+	const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+
+	const crons = await prisma.functionTrigger.findMany({
+		where: {
+			cron: { not: null },
+			OR: [
+				{
+					nextRun: {
+						gte: now,
+						lte: fiveMinutesFromNow,
+					},
+				},
+				{
+					nextRun: null,
+				},
+			],
+		},
+		include: {
+			function: true,
+		},
+	});
+
+	for (const cron of crons) {
+		const interval = CronExpressionParser.parse(cron.cron!, {
+			currentDate: now,
+		});
+
+		try {
+			// If nextRun is null, calculate and set it
+			if (cron.nextRun === null) {
+				const next = interval.next().toDate();
+				await prisma.functionTrigger.update({
+					where: { id: cron.id },
+					data: { nextRun: next },
+				});
+				console.log(
+					`Cron ${cron.name} (${
+						cron.id
+					}) nextRun initialized to ${next.toString()}`
+				);
+				continue; // Skip further processing for this iteration
+			}
+
+			const next = interval.next();
+
+			// Adjusted logic to ensure the cron fires correctly
+			if (next.getTime() <= now.getTime() + 1000) {
+				// Allow a 1-second buffer
+				// Execute the function
+				await prisma.functionTrigger.update({
+					where: { id: cron.id },
+					data: {
+						lastRun: now,
+						nextRun: interval.next().toDate(), // Update nextRun to the following occurrence
+					},
+				});
+
+				// console.log(`Cron ${cron.name} (${cron.id}) executed at ${now.toString()}`);
+				console.log(`Cron ${cron.name} (${cron.id}) executed`);
+				const files = await prisma.functionFile.findMany({
+					where: { functionId: cron.functionId },
+				});
+
+				await executeFunction(cron.functionId, cron.function, files, {
+					enabled: false,
+				});
+			} else {
+				const secondsUntilNextRun = Math.round(
+					(next.getTime() - now.getTime()) / 1000
+				);
+				const DisableConsoleLog = false; // Set to true to disable console log
+				if (secondsUntilNextRun <= 3 && !DisableConsoleLog) {
+					console.log(
+						`Cron ${cron.name} (${
+							cron.id
+						}) will run at ${next.toString()} (in ${secondsUntilNextRun} seconds)`
+					);
+				}
+			}
+		} catch (error) {
+			console.error(`Error processing cron ${cron.name} (${cron.id}):`, error);
+		}
+	}
+}
