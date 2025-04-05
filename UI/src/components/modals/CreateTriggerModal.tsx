@@ -1,6 +1,19 @@
 import { useState } from "react";
 import Modal from "./Modal";
 
+export const cronPresets:{label:string;value:string}[] = [
+  { label: "Every minute", value: "* * * * *" },
+  { label: "Every hour", value: "0 * * * *" },
+  { label: "Every day at midnight", value: "0 0 * * *" },
+  { label: "Every Monday at 9 AM", value: "0 9 * * 1" },
+  { label: "Every weekday at 5 PM", value: "0 17 * * 1-5" },
+  { label: "Every Sunday at noon", value: "0 12 * * 0" },
+  { label: "Every first day of the month", value: "0 0 1 * *" },
+  { label: "Every last day of the month", value: "0 0 L * *" },
+  { label: "Every year on January 1st", value: "0 0 1 1 *" },
+  { label: "Every month on the 1st", value: "0 0 1 * *" },
+];
+
 interface CreateTriggerModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -13,14 +26,6 @@ function CreateTriggerModal({ isOpen, onClose, onCreate }: CreateTriggerModalPro
   const [cron, setCron] = useState("0 * * * *");
   const [data, setData] = useState("{}");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const cronPresets = [
-    { label: "Every minute", value: "* * * * *" },
-    { label: "Every hour", value: "0 * * * *" },
-    { label: "Every day at midnight", value: "0 0 * * *" },
-    { label: "Every Monday at 9 AM", value: "0 9 * * 1" },
-    { label: "Every month on the 1st", value: "0 0 1 * *" },
-  ];
 
   const handleSubmit = async () => {
     if (!name.trim() || !cron.trim()) {
@@ -84,7 +89,7 @@ function CreateTriggerModal({ isOpen, onClose, onCreate }: CreateTriggerModalPro
                 <button
                   key={preset.value}
                   className="bg-gray-600 hover:bg-gray-500 text-white text-xs py-1 px-2 rounded"
-                  onClick={() => setCron(preset.value)}
+                  onClick={() => {setCron(preset.value); setName(preset.label);}}
                   type="button"
                 >
                   {preset.label}

@@ -26,6 +26,7 @@ function UpdateFunctionModal({
 	const [startupFile, setStartupFile] = useState<string | undefined>();
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
+	const [secureHeader, setSecureHeader] = useState<string | undefined>();
 
 	// Initialize form with existing function data
 	useEffect(() => {
@@ -38,6 +39,7 @@ function UpdateFunctionModal({
 			setAllowHttp(functionData.allow_http || false);
 			setPriority(functionData.priority);
 			setStartupFile(functionData.startup_file || "");
+			setSecureHeader(functionData.secure_header || undefined);
 		}
 	}, [functionData, isOpen]);
 
@@ -66,6 +68,7 @@ function UpdateFunctionModal({
 					timeout,
 					allow_http: allowHttp,
 					priority,
+					secure_header: secureHeader?.length === 0 ? null : secureHeader,
 				},
 			});
 
@@ -126,11 +129,14 @@ function UpdateFunctionModal({
 						className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
 						disabled={isLoading}
 					>
-						{ImagesAsArray.map((img) => (
-							<option key={img} value={img}>
-								{img}
-							</option>
-						))}
+						{ImagesAsArray.map((img) => {
+							const isDisabled = img.split(":")[0] !== image.split(":")[0];
+							return (
+								<option key={img} value={img} disabled={isDisabled}>
+									{img}
+								</option>
+							);
+						})}
 					</select>
 				</div>
 				
@@ -168,6 +174,18 @@ function UpdateFunctionModal({
 						id="allow-http"
 					/>
 					<label htmlFor="allow-http" className="text-white" title="Allow the function to make HTTP requests">Allow HTTP</label>
+				</div>
+
+				<div className="space-y-1">
+					<label className="text-sm text-gray-300" title="Secure header for the function">Secure Header</label>
+					<input
+						type="text"
+						placeholder="Secure Header"
+						value={secureHeader || ""}
+						onChange={(e) => setSecureHeader(e.target.value)}
+						className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
+						disabled={isLoading}
+					/>
 				</div>
 				
 				<div className="space-y-1">

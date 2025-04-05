@@ -221,13 +221,8 @@ async function processCrons() {
 				const secondsUntilNextRun = Math.round(
 					(next.getTime() - now.getTime()) / 1000
 				);
-				const DisableConsoleLog = false; // Set to true to disable console log
-				if (secondsUntilNextRun <= 3 && !DisableConsoleLog) {
-					console.log(
-						`Cron ${cron.name} (${
-							cron.id
-						}) will run at ${next.toString()} (in ${secondsUntilNextRun} seconds)`
-					);
+				if (secondsUntilNextRun <= 3) {
+					console.log(`Cron #${cron.id} will run in ${secondsUntilNextRun} seconds`);
 				}
 			}
 		} catch (error) {

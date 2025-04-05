@@ -52,7 +52,7 @@ model Function {
   max_ram Int @default(512)
   timeout Int @default(15)
   allow_http Boolean @default(true)
-  env Json?
+  env String? @db.Text // Environment variables in JSON format (comma separated key=value pairs)
   secure_header String? @db.VarChar(256)
   
   retry_on_failure Boolean @default(false)

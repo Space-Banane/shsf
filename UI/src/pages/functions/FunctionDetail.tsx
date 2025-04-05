@@ -8,11 +8,13 @@ import UpdateFunctionModal from "../../components/modals/UpdateFunctionModal";
 import CreateTriggerModal from "../../components/modals/CreateTriggerModal";
 import EditTriggerModal from "../../components/modals/EditTriggerModal";
 import DeleteTriggerModal from "../../components/modals/DeleteTriggerModal";
+import UpdateEnvModal from "../../components/modals/UpdateEnvModal";
 import { FunctionFile, XFunction, Trigger } from "../../types/Prisma";
 import {
 	getFunctionById,
 	executeFunction,
 	executeFunctionStreaming,
+	updateFunction,
 } from "../../services/backend.functions";
 import {
 	getFiles,
@@ -40,6 +42,7 @@ function FunctionDetail() {
 	const [showCreateTriggerModal, setShowCreateTriggerModal] = useState(false);
 	const [showEditTriggerModal, setShowEditTriggerModal] = useState(false);
 	const [showDeleteTriggerModal, setShowDeleteTriggerModal] = useState(false);
+	const [showEnvModal, setShowEnvModal] = useState(false);
 	const [selectedFile, setSelectedFile] = useState<FunctionFile | null>(null);
 	const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(null);
 	const [activeFile, setActiveFile] = useState<FunctionFile | null>(null);
@@ -54,7 +57,15 @@ function FunctionDetail() {
 	const [exitCode, setExitCode] = useState<number | null>(null);
 	const [functionURL, setFunctionURL] = useState<string>("Loading url...");
 	const [executionTime, setExecutionTime] = useState<number | null>(null);
+	const [functionResult, setFunctionResult] = useState<any>(null);
+	const [runParams, setRunParams] = useState<string>("");
+	const [showRunParams, setShowRunParams] = useState<boolean>(false);
 	const timerRef = useRef<NodeJS.Timeout | null>(null);
+	const [activeFileLanguage, setActiveFileLanguage] = useState<string>("");
+
+	useEffect(() => {
+		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
+	}, [activeFile]);
 
 	const startTimer = () => {
 		let startTime = Date.now();
@@ -71,6 +82,33 @@ function FunctionDetail() {
 		}
 	};
 
+	const getDefaultLanguage = (filename: string): string => {
+		const extensionMapping: { [key: string]: string } = {
+			".py": "python",
+			".js": "javascript",
+			".ts": "typescript",
+			".json": "json",
+			".html": "html",
+			".css": "css",
+			".md": "markdown",
+		};
+		const nameMapping: { [key: string]: string } = {
+			Dockerfile: "dockerfile",
+			Makefile: "makefile",
+		};
+
+		// Check for exact name match first
+		if (nameMapping[filename]) {
+			return nameMapping[filename];
+		}
+
+		// Check for extension match
+		const extension = Object.keys(extensionMapping).find((ext) =>
+			filename.endsWith(ext)
+		);
+		return extension ? extensionMapping[extension] : "plaintext";
+	};
+
 	const handleFileSelect = (file: FunctionFile) => {
 		setActiveFile(file);
 		setCode(file.content || "");
@@ -82,92 +120,6 @@ function FunctionDetail() {
 
 	const handleEditorDidMount = (editor: any) => {
 		editorRef.current = editor;
-	};
-
-	const handleSaveFile = async () => {
-		if (!id || !activeFile) return;
-
-		setSaving(true);
-		try {
-			const data = await createOrUpdateFile(parseInt(id), {
-				filename: activeFile.name,
-				code: code || "",
-			});
-
-			if (data.status === "OK") {
-				setFiles((prev) =>
-					prev.map((file) =>
-						file.id === activeFile.id ? { ...file, code } : file
-					)
-				);
-			} else {
-				alert("Error saving file: " + data.message);
-			}
-		} catch (error) {
-			console.error("Error saving file:", error);
-			alert("An error occurred while saving the file.");
-		} finally {
-			setSaving(false);
-		}
-	};
-
-	const handleRunCode = async () => {
-		if (!id) return;
-
-		setRunning(true);
-		setConsoleOutput("Executing code...");
-		setExitCode(null);
-		startTimer();
-
-		if (runningMode === "classic") {
-			try {
-				const result = await executeFunction(parseInt(id));
-				if (result.status === "OK") {
-					setConsoleOutput(
-						result.data.output || "Execution completed with no output."
-					);
-					setExitCode(result.data.exitCode);
-				} else {
-					setConsoleOutput(
-						`Error: ${result.message}\nDetails: ${
-							result.error || "No additional details."
-						}`
-					);
-				}
-			} catch (error) {
-				console.error("Error executing code:", error);
-				setConsoleOutput("An error occurred while executing the code.");
-			} finally {
-				stopTimer();
-				setRunning(false);
-			}
-		} else {
-			// Streaming mode
-			try {
-				setConsoleOutput(""); // Clear previous logs
-				await executeFunctionStreaming(parseInt(id), (data) => {
-					if (data.type === "output") {
-						setConsoleOutput((prev) => prev + data.content); // Append logs
-					} else if (data.type === "end") {
-						setExitCode(data.exitCode);
-						setConsoleOutput((prev) => prev);
-					} else if (data.type === "error") {
-						setConsoleOutput(
-							(prev) =>
-								prev + `\nError: ${data.error || "No additional details."}`
-						);
-					}
-				});
-			} catch (error) {
-				console.error("Error streaming execution:", error);
-				setConsoleOutput(
-					(prev) => prev + "\nConnection error: Failed to stream output."
-				);
-			} finally {
-				stopTimer();
-				setRunning(false);
-			}
-		}
 	};
 
 	const loadData = () => {
@@ -192,7 +144,7 @@ function FunctionDetail() {
 							setFunctionURL(
 								`${window.origin.replace("3000", "5000")}/api/exec/${
 									functionData.data.namespaceId
-								}/${functionData.data.id}?stream=false`
+								}/${functionData.data.id}`
 							);
 						} else {
 							setFunctionURL(`HTTP ACCESS DISABLED`);
@@ -227,6 +179,127 @@ function FunctionDetail() {
 				.finally(() => {
 					setLoading(false);
 				});
+		}
+	};
+
+	const handleSaveFile = async () => {
+		if (!id || !activeFile) return;
+
+		setSaving(true);
+		try {
+			const data = await createOrUpdateFile(parseInt(id), {
+				filename: activeFile.name,
+				code: code || "",
+			});
+
+			if (data.status === "OK") {
+				setFiles((prev) =>
+					prev.map((file) =>
+						file.id === activeFile.id ? { ...file, code } : file
+					)
+				);
+				loadData(); // Reload files to ensure the latest content is displayed
+			} else {
+				alert("Error saving file: " + data.message);
+			}
+		} catch (error) {
+			console.error("Error saving file:", error);
+			alert("An error occurred while saving the file.");
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	const handleRunCode = async () => {
+		if (!id) return;
+
+		setRunning(true);
+		setConsoleOutput("Executing code...");
+		setExitCode(null);
+		setFunctionResult(null);
+		startTimer();
+
+		// Parse run params if provided
+		let parsedRunParams = null;
+		if (showRunParams && runParams.trim()) {
+			try {
+				parsedRunParams = JSON.parse(runParams);
+			} catch (error) {
+				setConsoleOutput("Error parsing run parameters: Invalid JSON");
+				setRunning(false);
+				stopTimer();
+				return;
+			}
+		}
+
+		if (runningMode === "classic") {
+			try {
+				const result = await executeFunction(
+					parseInt(id),
+					parsedRunParams ? { run: parsedRunParams } : undefined
+				);
+				if (result.status === "OK") {
+					setConsoleOutput(
+						result.data.output || "Execution completed with no output."
+					);
+					setExitCode(result.data.exitCode);
+
+					// Display result if available
+					if (result.data.result !== undefined) {
+						setFunctionResult(result.data.result);
+					}
+				} else {
+					setConsoleOutput(
+						`Error: ${result.message}\nDetails: ${
+							result.error || "No additional details."
+						}`
+					);
+				}
+			} catch (error) {
+				console.error("Error executing code:", error);
+				setConsoleOutput("An error occurred while executing the code.");
+			} finally {
+				stopTimer();
+				setRunning(false);
+			}
+		} else {
+			// Streaming mode
+			try {
+				setConsoleOutput(""); // Clear previous logs
+				await executeFunctionStreaming(
+					parseInt(id),
+					(data) => {
+						if (data.type === "output" && data.content) {
+							// Ensure we're dealing with a string
+							const content =
+								typeof data.content === "string"
+									? data.content
+									: JSON.stringify(data.content);
+							setConsoleOutput((prev) => prev + content);
+						} else if (data.type === "end") {
+							setExitCode(data.exitCode);
+							// Handle function result if present
+							if (data.result !== undefined) {
+								setFunctionResult(data.result);
+							}
+						} else if (data.type === "error") {
+							setConsoleOutput(
+								(prev) =>
+									prev + `\nError: ${data.error || "No additional details."}`
+							);
+						}
+					},
+					parsedRunParams ? { run: parsedRunParams } : undefined
+				);
+			} catch (error) {
+				console.error("Error streaming execution:", error);
+				setConsoleOutput(
+					(prev) => prev + "\nConnection error: Failed to stream output."
+				);
+			} finally {
+				stopTimer();
+				setRunning(false);
+			}
 		}
 	};
 
@@ -400,6 +473,34 @@ function FunctionDetail() {
 		}
 	};
 
+	const handleUpdateEnvironment = async (
+		env: { name: string; value: string }[]
+	) => {
+		if (!id) return false;
+
+		try {
+			const response = await updateFunction(parseInt(id), {
+				environment: env,
+			});
+
+			if (response.status === "OK") {
+				// Update the function data with the new environment variables
+				setFunctionData((prev) => {
+					if (!prev) return prev;
+					return { ...prev, ...response.data };
+				});
+				return true;
+			} else {
+				alert("Error updating environment variables: " + response.message);
+				return false;
+			}
+		} catch (error) {
+			console.error("Error updating environment variables:", error);
+			alert("An error occurred while updating environment variables.");
+			return false;
+		}
+	};
+
 	if (loading) {
 		return <div className="text-white">Loading...</div>;
 	}
@@ -421,6 +522,12 @@ function FunctionDetail() {
 						onClick={() => setShowUpdateModal(true)}
 					>
 						Update Function Settings
+					</button>
+					<button
+						className="mb-4 bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600 w-full"
+						onClick={() => setShowEnvModal(true)}
+					>
+						Edit Environment Variables
 					</button>
 
 					<div className="bg-gray-800 p-4 rounded-lg mb-4">
@@ -567,9 +674,7 @@ function FunctionDetail() {
 								onClick={handleRunCode}
 								disabled={running}
 							>
-								{running
-									? "Running..."
-									: `🐎Run (${functionData.startup_file})`}
+								{running ? "Running..." : `🐎Run`}
 							</button>
 							<select
 								className="ml-2 bg-gray-700 text-white px-2 py-1 rounded-md"
@@ -582,10 +687,33 @@ function FunctionDetail() {
 								<option value="streaming">Stream Output</option>
 								<option value="classic">Wait for Completion</option>
 							</select>
+							<button
+								className={`ml-2 px-2 py-1 rounded-md ${
+									showRunParams
+										? "bg-yellow-600 text-white hover:bg-yellow-700"
+										: "bg-gray-600 text-white hover:bg-gray-700"
+								}`}
+								onClick={() => setShowRunParams(!showRunParams)}
+							>
+								{showRunParams ? "Hide Params" : "Run Params"}
+							</button>
 						</div>
 					</div>
 
-					<div className="h-96 border border-gray-700 rounded relative">
+					{/* Run Parameters Input */}
+					{showRunParams && (
+						<div className="mb-2">
+							<textarea
+								className="w-full h-20 bg-gray-800 text-white p-2 rounded-md border border-gray-600"
+								placeholder="Enter JSON run parameters..."
+								value={runParams}
+								onChange={(e) => setRunParams(e.target.value)}
+								spellCheck={false}
+							/>
+						</div>
+					)}
+
+					<div className="h-[28rem] border border-gray-700 rounded relative">
 						{!activeFile && (
 							<div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 text-white text-lg">
 								No file selected. Please select a file to edit.
@@ -595,7 +723,7 @@ function FunctionDetail() {
 							<Editor
 								theme="vs-dark"
 								height="100%"
-								defaultLanguage="python"
+								defaultLanguage={activeFileLanguage}
 								value={code || ""}
 								onChange={handleEditorChange}
 								onMount={handleEditorDidMount}
@@ -605,32 +733,69 @@ function FunctionDetail() {
 									scrollBeyondLastLine: false,
 									fontSize: 14,
 									tabSize: 4,
+									"semanticHighlighting.enabled": true,
+									codeLens:true,
+									automaticLayout: true,
+									language:activeFileLanguage,
+									smoothScrolling: true,
+									overviewRulerBorder: false,
 								}}
 							/>
 						)}
 					</div>
 
 					<div className="mt-4">
-						<h3 className="text-white text-lg mb-1">
-							Console Output{" "}
-							{exitCode !== null && (
-								<span
-									className={exitCode === 0 ? "text-green-500" : "text-red-500"}
-								>
-									(Exit Code: {exitCode})
+						<h3 className="text-white text-lg mb-1 flex justify-between">
+							<span>
+								Console Output{" "}
+								{exitCode !== null && (
+									<span
+										className={
+											exitCode === 0 ? "text-green-500" : "text-red-500"
+										}
+									>
+										(Exit Code: {exitCode})
+									</span>
+								)}{" "}
+								{executionTime !== null && (
+									<span
+										className={
+											exitCode === 0
+												? "text-gray-500"
+												: exitCode === null
+												? "text-gray-400"
+												: "text-red-500"
+										}
+									>
+										Execution Time: {executionTime}s/{functionData.timeout}s
+									</span>
+								)}
+							</span>
+							{functionResult !== null && (
+								<span className="text-green-400">
+									Function Return Value Available
 								</span>
 							)}
 						</h3>
-						{executionTime !== null && (
-							<div className="text-white text-sm mb-2">
-								Execution Time: {executionTime}s
-							</div>
-						)}
-						<div className="bg-black p-3 rounded h-48 overflow-auto font-mono text-sm">
+
+						<div className="bg-gray-950 p-3 rounded h-36 max-h-42 overflow-auto font-mono text-sm">
 							<pre className="whitespace-pre-wrap">
 								{consoleOutput || "No output to display"}
 							</pre>
 						</div>
+
+						{functionResult !== null && (
+							<div className="mt-2">
+								<h3 className="text-white text-lg mb-1">Function Result</h3>
+								<div className="bg-gray-950 p-3 rounded max-h-40 overflow-auto font-mono text-sm">
+									<pre className="whitespace-pre-wrap text-green-400">
+										{typeof functionResult === "object"
+											? JSON.stringify(functionResult, null, 2)
+											: String(functionResult)}
+									</pre>
+								</div>
+							</div>
+						)}
 					</div>
 				</div>
 			</div>
@@ -662,6 +827,17 @@ function FunctionDetail() {
 					onClose={() => setShowUpdateModal(false)}
 					onSuccess={loadData}
 					functionData={functionData}
+				/>
+
+				<UpdateEnvModal
+					isOpen={showEnvModal}
+					onClose={() => setShowEnvModal(false)}
+					onUpdate={handleUpdateEnvironment}
+					envString={
+						typeof functionData.env === "string"
+							? functionData.env
+							: JSON.stringify(functionData.env ?? [])
+					}
 				/>
 
 				<CreateTriggerModal

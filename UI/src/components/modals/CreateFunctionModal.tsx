@@ -205,7 +205,7 @@ function CreateFunctionModal({
 				
 				<div className="space-y-1">
 					<label className="text-sm text-gray-300" title="The main file that will be executed when your function runs">
-						Startup File <span title="In NodeJS, the startup file might not matter. It's safer to use a script to start.">⚠️</span>
+						Startup File
 					</label>
 					<input
 						type="text"

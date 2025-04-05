@@ -9,7 +9,7 @@ interface CreateFileModalProps {
 
 function CreateFileModal({ isOpen, onClose, onCreate }: CreateFileModalProps) {
 	const [filename, setFilename] = useState("");
-	const [content, setContent] = useState("Hello World!");
+	const [content, setContent] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 
 	const handleCreate = async () => {

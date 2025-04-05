@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Modal from "./Modal";
 import { Trigger } from "../../types/Prisma";
+import { cronPresets as ImportedcronPresets } from "./CreateTriggerModal";
 
 interface EditTriggerModalProps {
   isOpen: boolean;
@@ -16,13 +17,7 @@ function EditTriggerModal({ isOpen, onClose, onUpdate, trigger }: EditTriggerMod
   const [data, setData] = useState("{}");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const cronPresets = [
-    { label: "Every minute", value: "* * * * *" },
-    { label: "Every hour", value: "0 * * * *" },
-    { label: "Every day at midnight", value: "0 0 * * *" },
-    { label: "Every Monday at 9 AM", value: "0 9 * * 1" },
-    { label: "Every month on the 1st", value: "0 0 1 * *" },
-  ];
+  const cronPresets = ImportedcronPresets;
 
   useEffect(() => {
     if (trigger) {

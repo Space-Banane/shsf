@@ -139,7 +139,7 @@ async function updateFunction(id: number, newdata: {
 		max_ram?: number;
 		timeout?: number;
 		allow_http?: boolean;
-		secure_header?: string;
+		secure_header?: string | null;
 		priority?: number;
 		tags?: string[];
 		retry_on_failure?: boolean;
@@ -163,62 +163,84 @@ async function updateFunction(id: number, newdata: {
 	return data;
 }
 
-async function executeFunction(id:number) {
-	const response = await fetch(`${BASE_URL}/api/function/${id}/execute?stream=false`, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-		},
-		credentials: "include",
-	});
-
-	const data = await response.json() as ExecuteFunctionResponse | ExecuteFunctionErrorResponse;
-	return data;
+async function executeFunction(id: number, data?: any) {
+	try {
+		const response = await fetch(`${BASE_URL}/api/function/${id}/execute?stream=false`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
+			body: data ? JSON.stringify(data) : undefined,
+		});
+		return await response.json();
+	} catch (error) {
+		console.error("Error executing function:", error);
+		throw error;
+	}
 }
 
-// New function for streaming execution
-async function executeFunctionStreaming(id: number, onChunk: (data: any) => void): Promise<void> {
-	const response = await fetch(`${BASE_URL}/api/function/${id}/execute?stream=true`, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-		},
-		credentials: "include",
-	});
-
-	if (!response.body) {
-		throw new Error("Response body is null");
-	}
-
-	const reader = response.body.getReader();
-	const decoder = new TextDecoder();
-	
+async function executeFunctionStreaming(id: number, onChunk: (data: any) => void, data?: any) {
 	try {
+		const response = await fetch(`${BASE_URL}/api/function/${id}/execute?stream=true`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
+			body: data ? JSON.stringify(data) : undefined,
+		});
+
+		if (!response.body) {
+			throw new Error("ReadableStream not supported in this browser.");
+		}
+
+		const reader = response.body.getReader();
+		const decoder = new TextDecoder();
+		let buffer = "";
+
 		while (true) {
 			const { value, done } = await reader.read();
 			if (done) break;
-			
-			const chunk = decoder.decode(value, { stream: true });
+
+			const text = decoder.decode(value);
+			buffer += text;
+
+			// Process complete JSON objects
+			let startIndex = 0;
+			let endIndex = buffer.indexOf("}{");
+
+			while (endIndex !== -1) {
+				// Process the JSON object
+				try {
+					const jsonString = buffer.substring(startIndex, endIndex + 1);
+					const data = JSON.parse(jsonString);
+					onChunk(data);
+				} catch (e) {
+					console.error("Error parsing JSON:", e);
+				}
+
+				// Move to the next JSON object
+				startIndex = endIndex + 1;
+				endIndex = buffer.indexOf("}{", startIndex);
+			}
+
 			try {
-				// Each chunk might contain multiple JSON objects
-				const lines = chunk.split('\n').filter(line => line.trim());
-				for (const line of lines) {
-					if (line.trim()) {
-						try {
-							const data = JSON.parse(line);
-							onChunk(data);
-						} catch (e) {
-							console.error("Error parsing JSON line:", e, "Line:", line);
-						}
-					}
+				// Process any remaining complete JSON
+				if (startIndex < buffer.length) {
+					const jsonString = buffer.substring(startIndex);
+					const data = JSON.parse(jsonString);
+					onChunk(data);
+					buffer = "";
 				}
 			} catch (e) {
-				console.error("Error processing chunk:", e);
+				// Incomplete JSON, keep in buffer
+				buffer = buffer.substring(startIndex);
 			}
 		}
 	} catch (error) {
-		console.error("Stream reading error:", error);
-		onChunk({ type: 'error', error: 'Stream reading error' });
+		console.error("Error streaming function execution:", error);
+		throw error;
 	}
 }
 

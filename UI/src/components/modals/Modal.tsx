@@ -41,7 +41,7 @@ function Modal({ isOpen, onClose, title, children, maxWidth = "md", isLoading = 
                         </button>
                     )}
                 </div>
-                <div className="overflow-y-auto p-6 relative" style={{ scrollbarWidth: 'thin' }}>
+                <div className="overflow-y-auto py-4 px-4 relative" style={{ scrollbarWidth: 'thin' }}>
                     {isLoading && (
                         <div className="absolute inset-0 bg-gray-800/50 flex items-center justify-center z-10">
                             <div className="loader"></div>

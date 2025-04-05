@@ -1,6 +1,6 @@
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
-import { executeFunction } from "../../lib/Runner";
+import { buildPayloadFromGET, buildPayloadFromPOST, executeFunction } from "../../lib/Runner";
 import Docker from "dockerode";
 import * as fs from "fs";
 import * as path from "path";
@@ -326,7 +326,7 @@ export = new fileRouter.Path("/")
 							max_ram: z.number().min(128).max(1024).optional(),
 							timeout: z.number().positive().min(1).max(60).optional(),
 							allow_http: z.boolean().optional(),
-							secure_header: z.string().min(1).max(256).optional(),
+							secure_header: z.string().min(1).max(256).optional().or(z.null()),
 							priority: z.number().min(1).max(10).positive().optional(),
 							tags: z.array(z.string().min(1).max(32)).optional(),
 							retry_on_failure: z.boolean().optional(),
@@ -392,7 +392,7 @@ export = new fileRouter.Path("/")
 				}),
 				...(data.settings?.max_ram && { max_ram: data.settings.max_ram }),
 				...(data.settings?.timeout && { timeout: data.settings.timeout }),
-				...(data.settings?.secure_header && {
+				...(data.settings?.secure_header !== undefined && {
 					secure_header: data.settings.secure_header,
 				}),
 				...(data.settings?.priority && {
@@ -444,6 +444,21 @@ export = new fileRouter.Path("/")
 				});
 			}
 
+			// Extract optional run parameter from request body
+			const [runData] = await ctr.bindBody((z) => 
+				z.object({
+					run: z.any().optional(),
+				}).optional()
+			);
+			
+			// Convert run data to string for passing to executeFunction
+			const runPayload = JSON.stringify({
+				body: runData?.run || {},
+				headers: Object.fromEntries(ctr.headers.entries()),
+				queries: Object.fromEntries(ctr.queries.entries()),
+				source_ip: ctr.client.ip.usual(),
+			});
+
 			const functionData = await prisma.function.findFirst({
 				where: {
 					id: functionId,
@@ -490,7 +505,6 @@ export = new fileRouter.Path("/")
 						(print) =>
 							new Promise<void>((end) => {
 								let output = "";
-								
 								executeFunction(
 									functionId,
 									functionData,
@@ -499,35 +513,40 @@ export = new fileRouter.Path("/")
 										enabled: true,
 										onChunk: async (text) => {
 											output += text;
+											// Ensure text is properly stringified before sending
 											await print(
 												JSON.stringify({
 													type: "output",
-													content: text,
+													content: text
 												})
 											);
-										}
-									}
-								).then(async () => {
-									// Successfully completed
-									await print(
-										JSON.stringify({
-											type: "end",
-											exitCode: 0,
-											output: output,
-										})
-									);
-									end();
-								}).catch(async (error) => {
-									// Handle errors
-									await print(
-										JSON.stringify({
-											type: "error",
-											error: error.message || "Execution failed",
-										})
-									);
-									end();
-								});
-								
+										},
+									},
+									runPayload
+								)
+									.then(async (result) => {
+										// Successfully completed - include result if available
+										await print(
+											JSON.stringify({
+												type: "end",
+												exitCode: 0,
+												output: output,
+												result: result?.result
+											})
+										);
+										end();
+									})
+									.catch(async (error) => {
+										// Handle errors
+										await print(
+											JSON.stringify({
+												type: "error",
+												error: error.message || "Execution failed",
+											})
+										);
+										end();
+									});
+
 								ctr.$abort(() => {
 									// Handle abort, nothing specific needed as Runner.ts handles cleanup
 									end();
@@ -540,15 +559,16 @@ export = new fileRouter.Path("/")
 						functionId,
 						functionData,
 						files,
-						{ enabled: false }
+						{ enabled: false },
+						runPayload
 					);
-					
+
 					return ctr.print({
 						status: "OK",
 						data: {
-							output: result,
-							raw: result,
-							exitCode: 0,
+							output: result?.logs || "No output",
+							exitCode: result?.exit_code || 0,
+							result: result?.result
 						},
 					});
 				}
@@ -609,21 +629,108 @@ export = new fileRouter.Path("/")
 				});
 			}
 
+			if (functionData.secure_header) {
+				if (!ctr.headers.has("x-secure-header")) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "Missing secure header",
+					});
+				}
+
+				const secureHeader = ctr.headers.get("x-secure-header");
+				if (secureHeader !== functionData.secure_header) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "Invalid secure header",
+					});
+				}
+			}
+
+			// Build the payload from GET request
+			const payload = await buildPayloadFromGET(ctr);
+			
+			// Execute with run parameter instead of inject.json
 			const result = await executeFunction(
 				functionId,
 				functionData,
 				functionData.files,
-				{ enabled: false }
+				{ enabled: false },
+				JSON.stringify(payload)
 			);
-			
-			return ctr.print({
-				status: "OK",
-				data: {
-					output: result,
-					raw: result,
-					exitCode: 0,
+
+			// Return result if available from main function, otherwise output OK
+			return ctr.print(result?.result ?? "OK");
+		})
+	)
+	.http("POST", "/api/exec/{namespaceId}/{functionId}", (http) =>
+		http.onRequest(async (ctr) => {
+			const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
+			const functionId = parseInt(ctr.params.get("functionId") || "");
+
+			if (isNaN(namespaceId) || isNaN(functionId)) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Invalid namespace or function ID",
+				});
+			}
+
+			const functionData = await prisma.function.findFirst({
+				where: {
+					id: functionId,
+					namespaceId: namespaceId,
+				},
+				include: {
+					namespace: {
+						select: {
+							name: true,
+							id: true,
+						},
+					},
+					files: true,
 				},
 			});
 
-		}
-	));
+			if (!functionData) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: 404,
+					message: "Function not found",
+				});
+			}
+
+			if (!functionData.allow_http) {
+				return ctr.status(ctr.$status.FORBIDDEN).print({
+					status: 403,
+					message: "HTTP execution is not allowed for this function",
+				});
+			}
+
+			if (functionData.secure_header) {
+				if (!ctr.headers.has("x-secure-header")) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "Missing secure header",
+					});
+				}
+
+				const secureHeader = ctr.headers.get("x-secure-header");
+				if (secureHeader !== functionData.secure_header) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "Invalid secure header",
+					});
+				}
+			}
+
+			const payload = await buildPayloadFromPOST(ctr);
+
+			const result = await executeFunction(
+				functionId,
+				functionData,
+				functionData.files,
+				{ enabled: false },
+				JSON.stringify(payload)
+			);
+
+			return ctr.print(result?.result ?? "OK");
+		})
+	);

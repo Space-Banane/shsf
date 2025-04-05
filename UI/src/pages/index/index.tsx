@@ -13,7 +13,7 @@ const IndexPage = () => {
 						The system is scalable using Docker and Kubernetes, with a focus on flexibility, security, and user-friendliness.
 					</p>
 					<div className="mt-6 flex justify-center">
-						<button className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition">
+						<button className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition" onClick={() => window.location.href = '/functions'}>
 							Get Started
 						</button>
 					</div>
