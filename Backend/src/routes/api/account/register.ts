@@ -107,10 +107,21 @@ export = new fileRouter.Path("/").http(
 					});
 				if (!user) return;
 
+				let newdomain="";
+				if (DOMAIN === "localhost") {
+					newdomain = "localhost";
+				} else {
+					if (DOMAIN.split(".").length > 2) { // we are on a subdomain
+						newdomain = DOMAIN.split(".").slice(1).join("."); // Ex. "sub.domain.com" => "domain.com"
+					} else {
+						newdomain = "." + DOMAIN;
+					}
+				}
+
 				ctr.cookies.set(
                     COOKIE,
                     new Cookie(hash, {
-                      domain: DOMAIN != "localhost" ? "."+DOMAIN : "localhost",
+                      domain: newdomain,
                       expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30), // 30 days
                     })
                   );
