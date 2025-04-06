@@ -4,7 +4,7 @@ services:
     working_dir: /app
     volumes:
       - ./UI:/app
-    command: sh -c "npm install -g pnpm && pnpm i && pnpm build && pnpm serve" 
+    command: sh -c "npm install -g pnpm && pnpm i && pnpm tailwind:build && pnpm build && pnpm serve" 
     ports:
       - "3000:3000"
 
