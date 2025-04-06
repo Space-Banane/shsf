@@ -65,6 +65,12 @@ server.notFound(async (ctr) => {
 	});
 });
 
+server.finish("httpRequest", async (ctr) => {
+	console.log(
+		`[SHSF API] ${ctr.client.ip} [${ctr.url.method}] ➡️ ${ctr.url.href}`
+	);
+});
+
 server
 	.start()
 	.then(async (port) => {
