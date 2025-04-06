@@ -4,7 +4,7 @@ export = new fileRouter.Path("/").http("PATCH", "/api/logout", (http) =>
 	http
 		.ratelimit((limit) => limit.hits(1).window(2000).penalty(100))
 		.onRequest(async (ctr) => {
-			if (ctr.cookies.has(COOKIE)) {
+			if (!ctr.cookies.has(COOKIE)) {
 				return ctr
 					.status(403)
 					.print({ status: "FAILED", message: "You're not logged in!" });
