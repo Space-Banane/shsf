@@ -15,6 +15,7 @@ services:
     working_dir: /app
     volumes:
       - ./Backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
     command: sh -c "npm install -g pnpm && pnpm i && npx prisma generate && pnpm dev"
     ports:
       - "5000:5000"
