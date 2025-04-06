@@ -1,6 +1,7 @@
 import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserContext } from "../../App";
+import { BASE_URL } from "../..";
 
 function RegisterPage() {
   const [displayName, setDisplayName] = useState("");
@@ -19,7 +20,7 @@ function RegisterPage() {
   }, [user, navigate]);
 
   const handleRegister = () => {
-    fetch("http://localhost:5000/api/account/register", {
+    fetch(BASE_URL+"/api/account/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include", // Important for cookies

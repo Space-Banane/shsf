@@ -1,6 +1,7 @@
 import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserContext } from "../../App";
+import { BASE_URL } from "../..";
 
 function LoginPage() {
   const [email, setEmail] = useState("");
@@ -16,7 +17,7 @@ function LoginPage() {
   }, [user, navigate]);
   
   const handleLogin = () => {
-    fetch("http://localhost:5000/api/account/login", {
+    fetch(BASE_URL+"/api/account/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
