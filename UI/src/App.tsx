@@ -5,55 +5,30 @@ import { User } from "./types/Prisma";
 
 const funnyMessages = [
   "Debugging is like being the detective in a crime movie where you are also the murderer.",
-  "There are 10 types of people in the world: those who understand binary and those who don’t.",
-  "Why do programmers prefer dark mode? Because light attracts bugs!",
   "Programming is 10% writing code and 90% figuring out why it doesn’t work.",
   "To understand recursion, you must first understand recursion.",
-  "A SQL query walks into a bar, walks up to two tables, and asks: 'Can I join you?'",
-  "There’s no place like 127.0.0.1.",
+  "Ain't no place like 127.0.0.1.",
   "I have a joke about UDP, but I’m not sure if you’ll get it.",
   "I'm not a magician, but I can see why your code disappeared.",
   "My code doesn't have bugs, it just develops random features.",
+  "\"rm -rf / --no-preserve-root\" to remove the French Language Pack",
   "I don't always test my code, but when I do, I do it in production.",
   "Keep calm and code on.",
   "Life is too short for bad code.",
-  "Coding: where 'it works on my machine' is a valid excuse.",
-  "I'm not lazy, I'm just in power-saving mode.",
-  "Will code for coffee.",
-  "If at first you don't succeed, call it version 1.0.",
-  "I used to have a handle on life, but then my code crashed.",
+  "Will code for a redbull",
   "It's not a bug, it's an undocumented feature.",
-  "My code is so clean, you can eat off it... if you're into that.",
-  "Real programmers count from 0.",
-  "I code, therefore I am.",
-  "Keyboard: the modern-day magic wand.",
   "Coding is like riding a bike... except the bike is on fire, you're on fire, everything's on fire.",
-  "I'm not a code monkey, I'm a code slinger.",
-  "You had me at 'Hello, World!'",
-  "Running late is my default state, just like my infinite loops.",
   "I break code, not hearts.",
-  "My source control is my safety net.",
   "Always code as if the guy who ends up maintaining your code will be a violent psychopath who knows where you live.",
-  "I don't always write comments, but when I do, I ensure no one reads them.",
-  "You can’t handle the truth() of my code!",
-  "Programmer by day, bug fixer by night.",
   "My code compiles, therefore I do nothing wrong.",
   "Commit early, commit often, but never commit regret.",
-  "Hello, world! I'm back with more bugs.",
-  "I may not be perfect, but my code is error-free... in my dreams.",
-  "I write code; I solve problems; I conquer bugs.",
-  "Optimism is my default state, even when code fails.",
   "Keep calm and blame the compiler.",
   "Don’t worry, my code is just like your ex—complicated and a bit broken.",
-  "Let’s make our code as sassy as our comments.",
-  "In code we trust, in coffee we must.",
+  "In code we trust, in redbull we must.",
   "I code in the shower, and yes, my logic is wet.",
   "I like my code like I like my humor: dry and unexpected.",
   "My code is like a fine wine; it only gets better with debugging.",
-  "I’m here to turn coffee into code and code into chaos.",
-  "Don't worry, if my code crashes, it’s just taking a coffee break.",
   "May your bugs be few and your commits be many.",
-  "Every line of code is a new adventure... into madness."
 ];
 
 // Create a context for user data
@@ -230,7 +205,7 @@ function App() {
               </a>
               </p>
               <p className="text-sm text-blue-300">
-              {funnyMessage} <button onClick={() => newMessage()} className="text-blue-400 hover:text-blue-300 ml-2">
+              <span className="italic">"{funnyMessage}"</span> <button onClick={() => newMessage()} className="text-blue-400 hover:text-blue-300 ml-2">
                 <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"

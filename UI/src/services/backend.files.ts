@@ -74,6 +74,5 @@ async function renameFile(functionId: number, fileId: number, newFilename: strin
 	return data;
 }
 
-
 export { getFiles, createOrUpdateFile, deleteFile, renameFile };
 export type { OKResponse, ErrorResponse, FileListResponse, CreateOrUpdateFileResponse };

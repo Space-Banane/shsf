@@ -15,6 +15,7 @@ interface XFunction {
     name: string;
     description: string;
     image: string;
+    executionId: string;
 
     userId: number;
 
@@ -86,6 +87,7 @@ interface Trigger {
     description: string;
     cron: string;
     data: string;
+    enabled: boolean;
     functionId: number;
     createdAt: string;
     updatedAt: string;

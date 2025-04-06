@@ -10,6 +10,7 @@ export = new fileRouter.Path("/")
 					description: z.string().min(4).max(256),
 					cron: z.string().max(128).optional(),
 					data: z.string().optional(),
+                    enabled: z.boolean().optional(),
 				})
 			);
 
@@ -68,6 +69,7 @@ export = new fileRouter.Path("/")
 					description: data.description,
 					cron: data.cron,
 					data: data.data,
+                    enabled: data.enabled,
 				},
 			});
 
@@ -289,6 +291,7 @@ export = new fileRouter.Path("/")
                     description: z.string().min(4).max(256),
                     cron: z.string().max(128).optional(),
                     data: z.string().optional(),
+                    enabled: z.boolean().optional(),
                 })
             );
 
@@ -372,6 +375,7 @@ export = new fileRouter.Path("/")
                     cron: data.cron,
                     data: data.data,
                     nextRun:null, // Reset nextRun to null when updating the trigger
+                    enabled: data.enabled,
                 },
             });
             return ctr.print({

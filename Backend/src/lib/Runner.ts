@@ -24,6 +24,12 @@ export async function executeFunction(
 	const containerName = `code_runner_${functionData.id}_${Date.now()}`;
 	const tempDir = `/tmp/shsf/${containerName}`;
 	fs.mkdirSync(tempDir, { recursive: true });
+	
+	// Create permanent cache directories
+	fs.mkdirSync("/tmp/shsf/.cache", { recursive: true });
+	fs.mkdirSync("/tmp/shsf/.cache/pnpm", { recursive: true });
+	fs.mkdirSync("/tmp/shsf/.cache/pip", { recursive: true });
+	fs.mkdirSync("/tmp/shsf/.cache/pip/packages", { recursive: true });
 
 	const runtimeType = functionData.image.startsWith("python")
 		? "python"
@@ -44,8 +50,19 @@ export async function executeFunction(
 	if (runtimeType === "python") {
 		initScript += `
 if [ -f "requirements.txt" ]; then 
-	echo "Installing dependencies with pip..."
-	pip install -r requirements.txt
+	echo "[SHSF] --> Using Python Cache"
+	
+	# Create and use a local package index
+	mkdir -p /pip-cache/packages
+	
+	# Quietly download packages to our cache if they don't exist
+	echo "Checking packages from cache..."
+	pip download --quiet --dest /pip-cache/packages -r requirements.txt > /dev/null 2>&1
+	
+	# Then quietly install from our local cache
+	echo "Installing packages from cache..."
+	pip install --quiet --no-index --find-links /pip-cache/packages -r requirements.txt > /dev/null 2>&1
+	echo "Dependencies installed."
 fi
 `;
 		// New wrapper script for Python that handles main function return values
@@ -61,7 +78,12 @@ sys.path.append('/app')
 target_module_name = "${startupFile.replace(".py", "")}"
 
 try:
-	# First try to load the module with a direct import 
+	# First try to load the module with a direct import, but protect against immediate execution
+	# Save the original __name__ variable to prevent immediate script execution on import
+	original_name = __name__
+	__name__ = 'imported_module'  # This prevents code in the global scope from running if guarded by if __name__ == "__main__"
+	
+	# Import the module - this should prevent automatic execution of global code
 	target_module = __import__(target_module_name)
 	
 	# Check if RUN data was provided via environment variable
@@ -79,17 +101,9 @@ try:
 			# Write result to eject file
 			with open('eject.json', 'w') as f:
 				json.dump(result, f)
-			
-			# Also print the result to stdout
-			# print("\\nFunction returned:", result)
 		except Exception as e:
 			print(f"Error executing main function: {str(e)}")
 			traceback.print_exc()
-	# If no main function, just execute the module as normal
-	else:
-		# Execute the original startup file
-		exec(open("${startupFile}").read())
-
 except Exception as e:
 	print(f"Error importing module {target_module_name}: {str(e)}")
 	traceback.print_exc()
@@ -103,6 +117,7 @@ except Exception as e:
 		initScript += `
 # Check if package.json exists
 if [ -f "package.json" ]; then 
+	echo "[SHSF] --> Using Node Cache"
 	# Install pnpm if not already installed
 	if ! command -v pnpm &> /dev/null
 	then
@@ -110,7 +125,9 @@ if [ -f "package.json" ]; then
 		npm install -g pnpm
 	fi
 	echo "Installing dependencies with pnpm..."
-	pnpm install
+	# Use a shared pnpm cache directory
+	mkdir -p /tmp/shsf/.cache/pnpm/store
+	pnpm install --store-dir /tmp/shsf/.cache/pnpm/store --prefer-offline
 fi
 `;
 		// Create Node wrapper script that handles main function return values
@@ -207,9 +224,6 @@ try {
 		fs.chmodSync(path.join(tempDir, "init.sh"), "755");
 	}
 
-	// Instead of writing inject.json, provide the payload as an environment variable
-	// This will be read by the wrapper scripts
-
 	const CMD = ["/bin/sh", "/app/init.sh"];
 
 	try {
@@ -239,7 +253,11 @@ try {
 		Cmd: CMD,
 		Env: ENV,
 		HostConfig: {
-			Binds: [`${tempDir}:/app`],
+			Binds: [
+				`${tempDir}:/app`,
+				// Mount the pip cache directory as a volume
+				`/tmp/shsf/.cache/pip:/pip-cache`
+			],
 			Memory: (functionData.max_ram || 128) * 1024 * 1024,
 		},
 	});
@@ -373,6 +391,10 @@ try {
 				lastRun: new Date(),
 			},
 		});
+
+		console.log(
+			`[SHSF CRONS] Function ${functionData.id} (${functionData.name}) executed.`	
+		);
 	}
 }
 

@@ -6,7 +6,7 @@ import { cronPresets as ImportedcronPresets } from "./CreateTriggerModal";
 interface EditTriggerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUpdate: (name: string, description: string, cron: string, data: string) => Promise<boolean>;
+  onUpdate: (name: string, description: string, cron: string, data: string, enabled: boolean) => Promise<boolean>;
   trigger: Trigger | null;
 }
 
@@ -15,6 +15,7 @@ function EditTriggerModal({ isOpen, onClose, onUpdate, trigger }: EditTriggerMod
   const [description, setDescription] = useState("");
   const [cron, setCron] = useState("0 * * * *");
   const [data, setData] = useState("{}");
+  const [enabled, setEnabled] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const cronPresets = ImportedcronPresets;
@@ -25,6 +26,7 @@ function EditTriggerModal({ isOpen, onClose, onUpdate, trigger }: EditTriggerMod
       setDescription(trigger.description || "");
       setCron(trigger.cron);
       setData(trigger.data || "{}");
+      setEnabled(trigger.enabled ?? true);
     }
   }, [trigger]);
 
@@ -36,7 +38,7 @@ function EditTriggerModal({ isOpen, onClose, onUpdate, trigger }: EditTriggerMod
 
     setIsSubmitting(true);
     try {
-      const success = await onUpdate(name, description, cron, data);
+      const success = await onUpdate(name, description, cron, data, enabled);
       if (success) {
         onClose();
       }
@@ -105,6 +107,19 @@ function EditTriggerModal({ isOpen, onClose, onUpdate, trigger }: EditTriggerMod
             placeholder="{}"
             rows={4}
           />
+        </div>
+        
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="enabled"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+            className="w-4 h-4 text-blue-500 rounded focus:ring-blue-500"
+          />
+          <label htmlFor="enabled" className="ml-2 text-white">
+            Enabled
+          </label>
         </div>
         
         <div className="flex justify-end gap-2 mt-6">

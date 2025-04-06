@@ -17,6 +17,7 @@
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.4.0",
     "react-scripts": "5.0.1",
+    "serve": "^14.2.4",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },
@@ -25,7 +26,8 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "release": "bash release.sh"
+    "release": "bash release.sh",
+    "serve": "serve -s build"
   },
   "eslintConfig": {
     "extends": [

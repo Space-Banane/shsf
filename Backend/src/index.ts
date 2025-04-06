@@ -3,57 +3,18 @@ import { Cors, Middleware, Server } from "rjweb-server";
 import { Runtime } from "@rjweb/runtime-node";
 import { network } from "@rjweb/utils";
 import { env } from "process";
-import { createClient } from "redis";
 import { CronExpressionParser } from "cron-parser";
 import { executeFunction } from "./lib/Runner";
 
-export const WhereAreWe = env.WENV!;
 export const URL = env.UI_URL!;
-export const COOKIE = env.COOKIE!;
+export const COOKIE = "shsf_session";
 export const DOMAIN = env.DOMAIN!;
-export const API_KEY_HEADER = env.API_KEY_HEADER!;
+export const API_KEY_HEADER = "x-api-key";
 export const prisma = new PrismaClient({
 	log: ["info", "error", "warn"],
 	errorFormat: "pretty",
 	transactionOptions: { timeout: 30000, maxWait: 20000 },
 });
-
-export const redis = createClient({
-	url: env.REDIS_URL,
-	disableOfflineQueue: false,
-	pingInterval: 1000,
-});
-
-export const middleware = new Middleware<
-	{},
-	{
-		allow: boolean;
-		date: Date;
-	}
->("MIDDLEMAN", "1.0.3")
-	.load((config) => {
-		console.log(`Primary Middle Ware loaded`);
-	})
-	.httpRequest(async (config, server, context, ctr, end) => {
-		context.data(middleware).allow = true;
-		context.data(middleware).date = new Date();
-	})
-	.httpRequestFinish(async (config, server, context, ctr, ms) => {
-		const now = context.data(middleware).date;
-		const formattedDate = `${now.getHours()}:${now.getMinutes()}:${
-			now.getSeconds().toString().length === 1
-				? "0" + now.getSeconds()
-				: now.getSeconds()
-		}`;
-
-		console.log(
-			`${formattedDate} : ${ctr.client.ip.usual()} (${ms.toFixed(3)}ms) --> (${
-				ctr.url.method
-			}) ${ctr.url.href}`
-		);
-	})
-	.export()
-	.use({});
 
 export const server = new Server(
 	Runtime,
@@ -84,10 +45,9 @@ export const server = new Server(
 		},
 	},
 	[
-		middleware,
 		Cors.use({
 			allowAll: false,
-			origins: ["http://localhost:3000"],
+			origins: [URL],
 			methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
 			credentials: true,
 		}),
@@ -110,16 +70,7 @@ server
 	.then(async (port) => {
 		await prisma.$connect();
 
-		await redis
-			.connect()
-			.then(() => {
-				console.log(`Redis connected to DB ${redis.options?.database}`);
-			})
-			.catch((err) => {
-				console.error(err);
-			});
-
-		console.log(`Started a "${WhereAreWe}" Instance on port ${port}`);
+		console.log(`[SHSF API] Running on ${port}`);
 
 		setInterval(async () => {
 			await processCrons();
@@ -127,25 +78,12 @@ server
 	})
 	.catch(console.error);
 
-server
-	.rateLimit("httpRequest", (ctr) => {
-		return ctr.status(ctr.$status.TOO_MANY_REQUESTS).print({
-			status: "FAILED",
-			message: `This feature is on cooldown. Please retry after ${
-				(ctr.getRateLimit()?.endsIn ?? 0) / 1000
-			} seconds`,
-			time_left: (ctr.getRateLimit()?.endsIn ?? 0) / 1000, // Time left in seconds
-		});
-	})
-	.rateLimit("wsMessage", (ctr) => {
-		return ctr.close(1008, "You are making too many requests! Slow down.");
-	});
-
 server.error("httpRequest", async (ctr, error) => {
 	console.error(error);
-	ctr
-		.status(ctr.$status.INTERNAL_SERVER_ERROR)
-		.print({ status: "ERROR", message: "An Unknown Server Error has occured" });
+	ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+		status: "ERROR",
+		message: "An Unknown Server Error has occurred",
+	});
 });
 
 // Crons
@@ -155,7 +93,6 @@ async function processCrons() {
 
 	const crons = await prisma.functionTrigger.findMany({
 		where: {
-			cron: { not: null },
 			OR: [
 				{
 					nextRun: {
@@ -167,6 +104,7 @@ async function processCrons() {
 					nextRun: null,
 				},
 			],
+			enabled: true,
 		},
 		include: {
 			function: true,
@@ -186,11 +124,7 @@ async function processCrons() {
 					where: { id: cron.id },
 					data: { nextRun: next },
 				});
-				console.log(
-					`Cron ${cron.name} (${
-						cron.id
-					}) nextRun initialized to ${next.toString()}`
-				);
+				console.log(`Cron #${cron.id} nextRun set to ${next.toISOString()}`);
 				continue; // Skip further processing for this iteration
 			}
 
@@ -198,8 +132,6 @@ async function processCrons() {
 
 			// Adjusted logic to ensure the cron fires correctly
 			if (next.getTime() <= now.getTime() + 1000) {
-				// Allow a 1-second buffer
-				// Execute the function
 				await prisma.functionTrigger.update({
 					where: { id: cron.id },
 					data: {
@@ -208,25 +140,40 @@ async function processCrons() {
 					},
 				});
 
-				// console.log(`Cron ${cron.name} (${cron.id}) executed at ${now.toString()}`);
-				console.log(`Cron ${cron.name} (${cron.id}) executed`);
+				console.log(`[SHSF CRONS] Cron #${cron.id} executed`);
 				const files = await prisma.functionFile.findMany({
 					where: { functionId: cron.functionId },
 				});
 
-				await executeFunction(cron.functionId, cron.function, files, {
-					enabled: false,
-				});
+				await executeFunction(
+					cron.functionId,
+					cron.function,
+					files,
+					{
+						enabled: false,
+					},
+					JSON.stringify({})
+				);
+
+				console.log(
+					`[SHSF CRONS] Function for Cron #${cron.id} executed successfully.`
+				);
 			} else {
 				const secondsUntilNextRun = Math.round(
 					(next.getTime() - now.getTime()) / 1000
 				);
-				if (secondsUntilNextRun <= 3) {
-					console.log(`Cron #${cron.id} will run in ${secondsUntilNextRun} seconds`);
+
+				if (secondsUntilNextRun <= 12) {
+					console.log(
+						`[SHSF CRONS] Cron #${cron.id} will run in ${secondsUntilNextRun} seconds`
+					);
 				}
 			}
 		} catch (error) {
-			console.error(`Error processing cron ${cron.name} (${cron.id}):`, error);
+			console.error(
+				`[SHSF CRONS] Error processing cron ${cron.name} (${cron.id}):`,
+				error
+			);
 		}
 	}
 }

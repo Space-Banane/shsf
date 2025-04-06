@@ -22,6 +22,7 @@ async function createTrigger(functionId:number,config: {
     description: string;
     cron: string;
     data?: string;
+    enabled?: boolean;
 }) {
     const response = await fetch(`${BASE_URL}/api/functions/${functionId}/triggers`, {
         method: "POST",
@@ -80,6 +81,7 @@ async function updateTrigger(functionId:number, triggerId:number, config: {
     description: string;
     cron: string;
     data?: string;
+    enabled?: boolean;
 }) {
     const response = await fetch(`${BASE_URL}/api/functions/${functionId}/triggers/${triggerId}`, {
         method: "PUT",

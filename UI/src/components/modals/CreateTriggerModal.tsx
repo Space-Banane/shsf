@@ -17,7 +17,7 @@ export const cronPresets:{label:string;value:string}[] = [
 interface CreateTriggerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, description: string, cron: string, data: string) => Promise<boolean>;
+  onCreate: (name: string, description: string, cron: string, data: string, enabled: boolean) => Promise<boolean>;
 }
 
 function CreateTriggerModal({ isOpen, onClose, onCreate }: CreateTriggerModalProps) {
@@ -25,6 +25,7 @@ function CreateTriggerModal({ isOpen, onClose, onCreate }: CreateTriggerModalPro
   const [description, setDescription] = useState("");
   const [cron, setCron] = useState("0 * * * *");
   const [data, setData] = useState("{}");
+  const [enabled, setEnabled] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -35,12 +36,13 @@ function CreateTriggerModal({ isOpen, onClose, onCreate }: CreateTriggerModalPro
 
     setIsSubmitting(true);
     try {
-      const success = await onCreate(name, description, cron, data);
+      const success = await onCreate(name, description, cron, data, enabled);
       if (success) {
         setName("");
         setDescription("");
         setCron("0 * * * *");
         setData("{}");
+        setEnabled(true);
         onClose();
       }
     } catch (error) {
@@ -108,6 +110,19 @@ function CreateTriggerModal({ isOpen, onClose, onCreate }: CreateTriggerModalPro
             placeholder="{}"
             rows={4}
           />
+        </div>
+        
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="enabled"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+            className="w-4 h-4 text-blue-500 rounded focus:ring-blue-500"
+          />
+          <label htmlFor="enabled" className="ml-2 text-white">
+            Enabled
+          </label>
         </div>
         
         <div className="flex justify-end gap-2 mt-6">

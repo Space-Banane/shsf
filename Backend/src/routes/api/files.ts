@@ -30,6 +30,18 @@ export = new fileRouter.Path("/")
 				});
 			}
 
+			const DisallowedFiles = [
+				"_runner.py",
+				"_runner.js",
+				"init.sh"
+			];
+			if (DisallowedFiles.includes(data.filename)) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: `File name "${data.filename}" is not allowed`,
+				});
+			}
+
 			const id = ctr.params.get("id");
 			if (!id) {
 				return ctr.status(ctr.$status.BAD_REQUEST).print({

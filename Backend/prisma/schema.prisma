@@ -45,6 +45,7 @@ model Function {
   name String @db.VarChar(128)
   description String @db.VarChar(256)
   image String @db.VarChar(256)
+  executionId String @db.VarChar(256) @unique // Unique identifier for the function execution
 
   userId Int
   user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -102,8 +103,10 @@ model FunctionTrigger {
   id Int @id @default(autoincrement())
   name String @db.VarChar(128)
   description String @db.VarChar(256)
-  cron String? @db.VarChar(128) // Cron expression for scheduling
+  cron String @db.VarChar(128) // Cron expression for scheduling
   data Json?
+
+  enabled Boolean @default(true)
 
   functionId Int
   function Function @relation(fields: [functionId], references: [id], onDelete: Cascade, onUpdate: Cascade)

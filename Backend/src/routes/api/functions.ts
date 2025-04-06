@@ -1,6 +1,11 @@
+import { createHash, randomUUID } from "crypto";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
-import { buildPayloadFromGET, buildPayloadFromPOST, executeFunction } from "../../lib/Runner";
+import {
+	buildPayloadFromGET,
+	buildPayloadFromPOST,
+	executeFunction,
+} from "../../lib/Runner";
 import Docker from "dockerode";
 import * as fs from "fs";
 import * as path from "path";
@@ -144,6 +149,7 @@ export = new fileRouter.Path("/")
 						  )
 						: undefined,
 					userId: authCheck.user.id,
+					executionId: randomUUID(),
 				},
 			});
 
@@ -445,12 +451,14 @@ export = new fileRouter.Path("/")
 			}
 
 			// Extract optional run parameter from request body
-			const [runData] = await ctr.bindBody((z) => 
-				z.object({
-					run: z.any().optional(),
-				}).optional()
+			const [runData] = await ctr.bindBody((z) =>
+				z
+					.object({
+						run: z.any().optional(),
+					})
+					.optional()
 			);
-			
+
 			// Convert run data to string for passing to executeFunction
 			const runPayload = JSON.stringify({
 				body: runData?.run || {},
@@ -517,7 +525,7 @@ export = new fileRouter.Path("/")
 											await print(
 												JSON.stringify({
 													type: "output",
-													content: text
+													content: text,
 												})
 											);
 										},
@@ -531,7 +539,7 @@ export = new fileRouter.Path("/")
 												type: "end",
 												exitCode: 0,
 												output: output,
-												result: result?.result
+												result: result?.result,
 											})
 										);
 										end();
@@ -568,7 +576,7 @@ export = new fileRouter.Path("/")
 						data: {
 							output: result?.logs || "No output",
 							exitCode: result?.exit_code || 0,
-							result: result?.result
+							result: result?.result,
 						},
 					});
 				}
@@ -590,18 +598,18 @@ export = new fileRouter.Path("/")
 	.http("GET", "/api/exec/{namespaceId}/{functionId}", (http) =>
 		http.onRequest(async (ctr) => {
 			const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
-			const functionId = parseInt(ctr.params.get("functionId") || "");
+			const functionId = ctr.params.get("functionId") || "";
 
-			if (isNaN(namespaceId) || isNaN(functionId)) {
+			if (isNaN(namespaceId)) {
 				return ctr.status(ctr.$status.BAD_REQUEST).print({
 					status: 400,
-					message: "Invalid namespace or function ID",
+					message: "Invalid namespace",
 				});
 			}
 
 			const functionData = await prisma.function.findFirst({
 				where: {
-					id: functionId,
+					executionId: functionId,
 					namespaceId: namespaceId,
 				},
 				include: {
@@ -648,10 +656,10 @@ export = new fileRouter.Path("/")
 
 			// Build the payload from GET request
 			const payload = await buildPayloadFromGET(ctr);
-			
+
 			// Execute with run parameter instead of inject.json
 			const result = await executeFunction(
-				functionId,
+				functionData.id,
 				functionData,
 				functionData.files,
 				{ enabled: false },
@@ -665,18 +673,18 @@ export = new fileRouter.Path("/")
 	.http("POST", "/api/exec/{namespaceId}/{functionId}", (http) =>
 		http.onRequest(async (ctr) => {
 			const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
-			const functionId = parseInt(ctr.params.get("functionId") || "");
+			const functionId = ctr.params.get("functionId") || "";
 
-			if (isNaN(namespaceId) || isNaN(functionId)) {
+			if (isNaN(namespaceId)) {
 				return ctr.status(ctr.$status.BAD_REQUEST).print({
 					status: 400,
-					message: "Invalid namespace or function ID",
+					message: "Invalid namespace",
 				});
 			}
 
 			const functionData = await prisma.function.findFirst({
 				where: {
-					id: functionId,
+					executionId: functionId,
 					namespaceId: namespaceId,
 				},
 				include: {
@@ -724,7 +732,7 @@ export = new fileRouter.Path("/")
 			const payload = await buildPayloadFromPOST(ctr);
 
 			const result = await executeFunction(
-				functionId,
+				functionData.id,
 				functionData,
 				functionData.files,
 				{ enabled: false },

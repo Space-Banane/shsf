@@ -62,10 +62,32 @@ function FunctionDetail() {
 	const [showRunParams, setShowRunParams] = useState<boolean>(false);
 	const timerRef = useRef<NodeJS.Timeout | null>(null);
 	const [activeFileLanguage, setActiveFileLanguage] = useState<string>("");
+	const consoleOutputRef = useRef<HTMLDivElement>(null);
+	const [autoScroll, setAutoScroll] = useState<boolean>(true);
 
 	useEffect(() => {
 		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
 	}, [activeFile]);
+
+	// Handle console auto-scrolling
+	useEffect(() => {
+		if (autoScroll && consoleOutputRef.current) {
+			consoleOutputRef.current.scrollTop =
+				consoleOutputRef.current.scrollHeight;
+		}
+	}, [consoleOutput, autoScroll]);
+
+	const handleConsoleScroll = () => {
+		if (consoleOutputRef.current) {
+			const { scrollTop, scrollHeight, clientHeight } =
+				consoleOutputRef.current;
+			// If user scrolls up, disable auto-scrolling
+			// If user scrolls to bottom, re-enable auto-scrolling
+			const isScrolledToBottom =
+				Math.abs(scrollHeight - clientHeight - scrollTop) < 10;
+			setAutoScroll(isScrolledToBottom);
+		}
+	};
 
 	const startTimer = () => {
 		let startTime = Date.now();
@@ -144,7 +166,7 @@ function FunctionDetail() {
 							setFunctionURL(
 								`${window.origin.replace("3000", "5000")}/api/exec/${
 									functionData.data.namespaceId
-								}/${functionData.data.id}`
+								}/${functionData.data.executionId}`
 							);
 						} else {
 							setFunctionURL(`HTTP ACCESS DISABLED`);
@@ -385,7 +407,8 @@ function FunctionDetail() {
 		name: string,
 		description: string,
 		cron: string,
-		data: string
+		data: string,
+		enabled: boolean
 	) => {
 		if (!id) return false;
 
@@ -395,6 +418,7 @@ function FunctionDetail() {
 				description,
 				cron,
 				data,
+				enabled,
 			});
 
 			if (response.status === "OK") {
@@ -419,7 +443,8 @@ function FunctionDetail() {
 		name: string,
 		description: string,
 		cron: string,
-		data: string
+		data: string,
+		enabled: boolean
 	) => {
 		if (!id || !selectedTrigger) return false;
 
@@ -429,6 +454,7 @@ function FunctionDetail() {
 				description,
 				cron,
 				data,
+				enabled,
 			});
 
 			if (response.status === "OK") {
@@ -590,7 +616,9 @@ function FunctionDetail() {
 									>
 										<div className="flex justify-between items-center">
 											<div>
-												<h3 className="font-medium">{trigger.name}</h3>
+												<h3 className={`font-medium ${!trigger.enabled ? 'text-gray-400' : ''}`}>
+													{trigger.name} {!trigger.enabled && '(Disabled)'}
+												</h3>
 												<p className="text-gray-400 text-sm">{trigger.cron}</p>
 											</div>
 											<div>
@@ -734,9 +762,9 @@ function FunctionDetail() {
 									fontSize: 14,
 									tabSize: 4,
 									"semanticHighlighting.enabled": true,
-									codeLens:true,
+									codeLens: true,
 									automaticLayout: true,
-									language:activeFileLanguage,
+									language: activeFileLanguage,
 									smoothScrolling: true,
 									overviewRulerBorder: false,
 								}}
@@ -778,7 +806,11 @@ function FunctionDetail() {
 							)}
 						</h3>
 
-						<div className="bg-gray-950 p-3 rounded h-36 max-h-42 overflow-auto font-mono text-sm">
+						<div
+							className="bg-gray-950 p-3 rounded h-36 max-h-42 overflow-auto font-mono text-sm"
+							ref={consoleOutputRef}
+							onScroll={handleConsoleScroll}
+						>
 							<pre className="whitespace-pre-wrap">
 								{consoleOutput || "No output to display"}
 							</pre>
@@ -794,6 +826,23 @@ function FunctionDetail() {
 											: String(functionResult)}
 									</pre>
 								</div>
+							</div>
+						)}
+
+						{!autoScroll && consoleOutput && (
+							<div className="mt-1 text-xs text-gray-400 flex justify-end">
+								<button
+									className="hover:text-white"
+									onClick={() => {
+										setAutoScroll(true);
+										if (consoleOutputRef.current) {
+											consoleOutputRef.current.scrollTop =
+												consoleOutputRef.current.scrollHeight;
+										}
+									}}
+								>
+									↓ Resume auto-scroll
+								</button>
 							</div>
 						)}
 					</div>
