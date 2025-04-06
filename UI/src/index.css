@@ -8,3 +8,6 @@
 	color: rgba(229, 231, 235, var(--tw-text-opacity)); /* text-gray-200 */
 }
 
+button:hover, a:hover {
+	cursor: pointer
+}

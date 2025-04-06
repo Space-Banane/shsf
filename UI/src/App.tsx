@@ -92,6 +92,7 @@ function App() {
         if (data.status === "OK") {
           setUser(null);
           window.location.href = "/login"; // Redirect to login
+          document.cookie = "shsf_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
         }
       })
       .catch((err) => console.error("Logout error:", err));
