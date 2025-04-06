@@ -2,6 +2,7 @@ import { useState, useEffect, createContext } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { routes } from "./Routes";
 import { User } from "./types/Prisma";
+import { BASE_URL } from ".";
 
 const funnyMessages = [
   "Debugging is like being the detective in a crime movie where you are also the murderer.",
@@ -63,7 +64,7 @@ function App() {
 
   const fetchUserData = () => {
     setLoading(true);
-    fetch("http://localhost:5000/api/account/getUserInfo", {
+    fetch(`${BASE_URL}/api/account/getUserInfo`, {
       credentials: "include",
     })
       .then((res) => res.json())
@@ -82,7 +83,7 @@ function App() {
   };
 
   const handleLogout = () => {
-    fetch("http://localhost:5000/api/logout", {
+    fetch(`${BASE_URL}/api/logout`, {
       method: "PATCH",
       credentials: "include",
     })

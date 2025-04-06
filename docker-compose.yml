@@ -2,6 +2,8 @@ services:
   ui:
     image: node:22
     working_dir: /app
+    env_file:
+      - .env
     volumes:
       - ./UI:/app
     command: sh -c "npm install -g pnpm && pnpm i && pnpm tailwind:build && pnpm build && pnpm serve" 
