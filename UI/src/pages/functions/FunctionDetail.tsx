@@ -34,6 +34,7 @@ import {
 	deleteTrigger,
 } from "../../services/backend.triggers";
 import { getNamespace } from "../../services/backend.namespaces";
+import { BASE_URL } from "../..";
 
 // Define the timing entry interface
 interface TimingEntry {
@@ -192,7 +193,7 @@ function FunctionDetail() {
 						setFiles(filesData.data);
 						if (functionData.data.allow_http) {
 							setFunctionURL(
-								`${window.origin.replace("3000", "5000")}/api/exec/${
+								`${BASE_URL}/api/exec/${
 									functionData.data.namespaceId
 								}/${functionData.data.executionId}`
 							);
