@@ -5,14 +5,16 @@ import { prisma } from "..";
 import { HttpRequestContext } from "rjweb-server";
 import { DataContext } from "rjweb-server/lib/typings/types/internal";
 import { UsableMiddleware } from "rjweb-server/lib/typings/classes/Middleware";
+import { env } from "process";
 
 const fs = require("fs");
 const path = require("path");
+const tar = require("tar");
 
 interface TimingEntry {
-  timestamp: number;
-  value: number;
-  description: string;
+	timestamp: number;
+	value: number;
+	description: string;
 }
 
 export async function executeFunction(
@@ -26,19 +28,17 @@ export async function executeFunction(
 ) {
 	const starting_time = Date.now();
 	const tooks: TimingEntry[] = [];
-	
+
 	// Helper function to record timing information
 	const recordTiming = (timestamp: number, description: string) => {
 		const value = (timestamp - starting_time) / 1000; // Convert to seconds
 		tooks.push({ timestamp, value, description });
 	};
-	
+
 	const docker = new Docker();
 	const containerName = `code_runner_${functionData.id}_${Date.now()}`;
 	const tempDir = `/tmp/shsf/${containerName}`;
-	const runtimeType = functionData.image.startsWith("python")
-		? "python"
-		: "node";
+	const runtimeType = functionData.image.split(":")[0];
 	await fs.promises.mkdir(tempDir, { recursive: true });
 
 	const cacheDirs = [
@@ -62,7 +62,7 @@ export async function executeFunction(
 	await Promise.all(
 		cacheDirs.map((dir) => fs.promises.mkdir(dir, { recursive: true }))
 	);
-	
+
 	recordTiming(Date.now(), "Directory creation");
 
 	let defaultStartupFile = runtimeType === "python" ? "main.py" : "index.js";
@@ -368,8 +368,15 @@ try {
 		return {
 			logs: "Unsupported runtime type",
 			exit_code: 1,
-			tooks: [...tooks, { timestamp: Date.now(), value: (Date.now() - starting_time) / 1000, description: "Total execution time" }],
-		}
+			tooks: [
+				...tooks,
+				{
+					timestamp: Date.now(),
+					value: (Date.now() - starting_time) / 1000,
+					description: "Total execution time",
+				},
+			],
+		};
 	}
 
 	const containerStart = Date.now();
@@ -387,9 +394,22 @@ try {
 		},
 	});
 
+	if (env.CONTAINERED === "true") {
+		// Because we are in a container already, this is a fucked up workaround but it works i guess
+		const tarStream = tar.c(
+			{
+				gzip: true,
+				cwd: tempDir,
+			},
+			fs.readdirSync(tempDir)
+		); // Create a tar stream of the temp directory
+		await container.putArchive(tarStream, { path: "/app" }); // Upload the tar stream to the container
+		recordTiming(Date.now(), "File upload (extra)");
+	}
+
 	await container.start();
-	recordTiming(Date.now(), "Container creation and start");
-	
+	recordTiming(Date.now(), "Container start");
+
 	const timeout = functionData.timeout || 15;
 	let logs = "";
 
@@ -449,9 +469,9 @@ try {
 			}
 
 			recordTiming(Date.now(), "Total execution time");
-			return { 
+			return {
 				logs,
-				tooks, 
+				tooks,
 				exit_code: 0, // We don't have the exit code in streaming mode, but we can assume success
 			};
 		} else {
@@ -461,7 +481,7 @@ try {
 					setTimeout(() => reject(new Error("Timeout")), timeout * 1000)
 				),
 			]); // Wait for the container to finish or timeout
-			
+
 			const containerRunTime = Date.now();
 			recordTiming(containerRunTime, "Container execution");
 
