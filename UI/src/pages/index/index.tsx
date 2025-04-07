@@ -97,8 +97,8 @@ const IndexPage = () => {
 						Supported Languages
 					</h2>
 					<div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-3xl mx-auto mb-16">
-						<SupportedLanguage language="NodeJS🟢" tag="Limited Support" />
-						<SupportedLanguage language="Python🐍" />
+						<SupportedLanguage language="NodeJS🟢" tag="Fastest" />
+						<SupportedLanguage language="Python🐍" tag="Slow Package Manager" tagcolor="bg-red-600" />
 						<SupportedLanguage language="Go💨" soon={true} />
 						<SupportedLanguage language="Lua🟣" soon={true} />
 					</div>
@@ -111,24 +111,27 @@ const IndexPage = () => {
 	);
 };
 
-function SupportedLanguage({ language, soon, tag }: { language: string; soon?: boolean; tag?: string }) {
+function SupportedLanguage({ language, soon, tag, tagcolor }: { language: string; soon?: boolean; tag?: string; tagcolor?: string }) {
 	return (
 		<div
-			className={`relative flex items-center justify-center text-2xl font-bold text-subhead bg-primary/10 rounded-lg p-4 shadow-md ${
-				soon ? 'filter grayscale opacity-70' : ''
-			}`}
+			className={`relative flex items-center justify-center text-2xl font-bold text-subhead 
+				bg-primary/5 rounded-2xl p-6 shadow-lg hover:shadow-xl 
+				hover:bg-primary/10 transition-all duration-300 
+				${soon ? 'filter grayscale opacity-70 hover:opacity-80' : 'hover:scale-105'}`}
 		>
 			{soon && (
-				<span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-bl-lg rounded-tr-lg">
+				<span className="absolute -top-2 -right-2 bg-red-500/90 text-white text-xs font-bold 
+					px-3 py-1.5 rounded-xl shadow-md transform hover:scale-110 transition-transform">
 					Coming Soon
 				</span>
 			)}
 			{tag && (
-				<span className="absolute top-0 right-0 bg-blue-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-bl-lg rounded-tr-lg">
+				<span className={`absolute -top-2 -right-2 ${tagcolor ? tagcolor : "bg-blue-600"} text-white text-xs font-bold 
+					px-3 py-1.5 rounded-xl shadow-md transform hover:scale-110 transition-transform`}>
 					{tag}
 				</span>
 			)}
-			<span>{language}</span>
+			<span className="drop-shadow-sm">{language}</span>
 		</div>
 	);
 }
