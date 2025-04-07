@@ -60,14 +60,14 @@ function CreateFileModal({ isOpen, onClose, onCreate }: CreateFileModalProps) {
 			</div>
 			<div className="flex justify-end mt-4">
 				<button 
-					className="bg-gray-500 text-white px-4 py-2 rounded-md mr-2" 
+					className="bg-grayed text-white px-4 py-2 rounded-md mr-2" 
 					onClick={handleClose}
 					disabled={isLoading}
 				>
 					Cancel
 				</button>
 				<button 
-					className="bg-green-500 text-white px-4 py-2 rounded-md" 
+					className="bg-primary text-white px-4 py-2 rounded-md" 
 					onClick={handleCreate}
 					disabled={isLoading}
 				>

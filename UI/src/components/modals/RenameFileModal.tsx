@@ -49,7 +49,7 @@ function RenameFileModal({ isOpen, onClose, onRename, currentFilename }: RenameF
 	return (
 		<Modal isOpen={isOpen} onClose={handleClose} title="Rename File" isLoading={isLoading}>
 			<div className="space-y-1 mb-4">
-				<label className="text-sm text-gray-300" title="Enter a new name for the file">New Filename</label>
+				<label className="text-base text-gray-300" title="Enter a new name for the file">New Filename</label>
 				<input
 					type="text"
 					placeholder="New filename"
@@ -61,14 +61,14 @@ function RenameFileModal({ isOpen, onClose, onRename, currentFilename }: RenameF
 			</div>
 			<div className="flex justify-end mt-4">
 				<button 
-					className="bg-gray-500 text-white px-4 py-2 rounded-md mr-2" 
+					className="bg-grayed hover:bg-grayed/70 text-white px-4 py-2 rounded-md mr-2" 
 					onClick={handleClose}
 					disabled={isLoading}
 				>
 					Cancel
 				</button>
 				<button 
-					className="bg-blue-500 text-white px-4 py-2 rounded-md" 
+					className="bg-primary hover:bg-primary/70 text-white px-4 py-2 rounded-md" 
 					onClick={handleRename}
 					disabled={isLoading}
 				>

@@ -50,7 +50,7 @@ function CreateNamespaceModal({ isOpen, onClose, onSuccess }: CreateNamespaceMod
 			{error && <div className="bg-red-500/20 border border-red-500 p-2 rounded-md text-red-300 mb-4">{error}</div>}
 			<div>
 				<div className="space-y-1 mb-4">
-					<label className="text-sm text-gray-300" title="Enter a unique name for your new namespace">Namespace Name</label>
+					<label className="text-base text-gray-300" title="Enter a unique name for your new namespace">Namespace Name</label>
 					<input
 						type="text"
 						placeholder="Namespace Name"
@@ -63,14 +63,14 @@ function CreateNamespaceModal({ isOpen, onClose, onSuccess }: CreateNamespaceMod
 				<div className="flex justify-end">
 					<button 
 						onClick={handleClose} 
-						className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded-md mr-2"
+						className="bg-grayed hover:bg-grayed/70 text-white px-4 py-2 rounded-md mr-2"
 						disabled={isLoading}
 					>
 						Cancel
 					</button>
 					<button 
 						onClick={handleSubmit} 
-						className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-md"
+						className="bg-primary hover:bg-primary/70 text-white px-4 py-2 rounded-md"
 						disabled={isLoading}
 					>
 						Create

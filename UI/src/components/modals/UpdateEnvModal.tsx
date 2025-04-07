@@ -126,7 +126,7 @@ function UpdateEnvModal({
 
 			<div className="mt-4 flex justify-between">
 				<button
-					className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+					className="bg-primary hover:bg-primary/70 text-white font-bold py-2 px-4 rounded"
 					onClick={handleAddVariable}
 				>
 					Add Variable
@@ -134,13 +134,13 @@ function UpdateEnvModal({
 
 				<div>
 					<button
-						className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mr-2"
+						className="bg-grayed hover:bg-grayed/70 text-white font-bold py-2 px-4 rounded mr-2"
 						onClick={onClose}
 					>
 						Cancel
 					</button>
 					<button
-						className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+						className="bg-primary hover:bg-primary/70 text-white font-bold py-2 px-4 rounded"
 						onClick={handleSubmit}
 						disabled={loading}
 					>

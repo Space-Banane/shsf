@@ -98,7 +98,7 @@ function CreateFunctionModal({
 				{error && <div className="bg-red-500/20 border border-red-500 p-2 rounded-md text-red-300">{error}</div>}
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="A unique name for your function">Function Name</label>
+					<label className="text-base text-gray-300" title="A unique name for your function">Function Name</label>
 					<input
 						type="text"
 						placeholder="Function Name"
@@ -110,7 +110,7 @@ function CreateFunctionModal({
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="A brief description of what the function does">Description</label>
+					<label className="text-base text-gray-300" title="A brief description of what the function does">Description</label>
 					<textarea
 						placeholder="Function Description"
 						value={description}
@@ -121,7 +121,7 @@ function CreateFunctionModal({
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="The runtime environment for your function">Runtime Image</label>
+					<label className="text-base text-gray-300" title="The runtime environment for your function">Runtime Image</label>
 					<select
 						value={image}
 						onChange={(e) => setImage(e.target.value as Image)}
@@ -137,7 +137,7 @@ function CreateFunctionModal({
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="The namespace that will contain this function">Namespace</label>
+					<label className="text-base text-gray-300" title="The namespace that will contain this function">Namespace</label>
 					<select
 						value={namespaceId || ""}
 						onChange={(e) => setNamespaceId(Number(e.target.value))}
@@ -156,7 +156,7 @@ function CreateFunctionModal({
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="Maximum memory allocation in megabytes">Max RAM (MB)</label>
+					<label className="text-base text-gray-300" title="Maximum memory allocation in megabytes">Max RAM (MB)</label>
 					<input
 						type="number"
 						placeholder="Max RAM (MB)"
@@ -168,7 +168,7 @@ function CreateFunctionModal({
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="Maximum execution time in seconds">Timeout (seconds)</label>
+					<label className="text-base text-gray-300" title="Maximum execution time in seconds">Timeout (seconds)</label>
 					<input
 						type="number"
 						placeholder="Timeout (seconds)"
@@ -179,20 +179,29 @@ function CreateFunctionModal({
 					/>
 				</div>
 				
-				<div className="flex items-center">
-					<input
-						type="checkbox"
-						checked={allowHttp}
-						onChange={(e) => setAllowHttp(e.target.checked)}
-						className="mr-2"
-						disabled={isLoading}
-						id="allow-http-create"
-					/>
-					<label htmlFor="allow-http-create" className="text-white" title="Allow the function to make HTTP requests">Allow HTTP</label>
+				<div className="flex items-center space-x-3">
+					<div className="relative">
+						<input
+							type="checkbox"
+							checked={allowHttp}
+							onChange={(e) => setAllowHttp(e.target.checked)}
+							className="peer absolute opacity-0 w-0 h-0"
+							disabled={isLoading}
+							id="allow-http-create"
+						/>
+						<label
+							htmlFor="allow-http-create"
+							className="w-10 h-5 bg-gray-600 rounded-full peer-checked:bg-blue-600 transition-colors cursor-pointer block"
+						></label>
+						<div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-md peer-checked:translate-x-5 transition-transform"></div>
+					</div>
+					<label htmlFor="allow-http-create" className="text-white cursor-pointer" title="Allow the function to make HTTP requests">
+						Allow HTTP
+					</label>
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="Function execution priority (higher values = higher priority)">Priority</label>
+					<label className="text-base text-gray-300" title="Function execution priority (higher values = higher priority)">Priority</label>
 					<input
 						type="number"
 						placeholder="Priority"
@@ -204,7 +213,7 @@ function CreateFunctionModal({
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="The main file that will be executed when your function runs">
+					<label className="text-base text-gray-300" title="The main file that will be executed when your function runs">
 						Startup File
 					</label>
 					<input
@@ -220,14 +229,14 @@ function CreateFunctionModal({
 				<div className="flex justify-end space-x-3 mt-6">
 					<button
 						onClick={handleClose}
-						className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-md transition-colors"
+						className="px-4 py-2 bg-grayed hover:bg-grayed/70 text-white rounded-md transition-colors"
 						disabled={isLoading}
 					>
 						Cancel
 					</button>
 					<button
 						onClick={handleSubmit}
-						className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors"
+						className="px-4 py-2 bg-primary hover:bg-primary/70 text-white rounded-md transition-colors"
 						disabled={isLoading}
 					>
 						Create

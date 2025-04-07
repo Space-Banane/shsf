@@ -76,7 +76,6 @@ function FunctionDetail() {
 	const [paramInputColor, setParamInputColor] = useState<string>("text-white");
 	const [realTimeTaken, setRealTimeTaken] = useState<number | null>(null);
 
-
 	useEffect(() => {
 		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
 	}, [activeFile]);
@@ -164,7 +163,7 @@ function FunctionDetail() {
 				getFiles(parseInt(id)),
 				getTriggers(parseInt(id)),
 			])
-				.then(([functionData, filesData, triggersData,]) => {
+				.then(([functionData, filesData, triggersData]) => {
 					if (functionData.status === "OK") {
 						setFunctionData(functionData.data);
 
@@ -324,7 +323,9 @@ function FunctionDetail() {
 							// Handle function result if present
 							if (data.result !== undefined) {
 								setFunctionResult(data.result);
-								if (data.took != 0) {setRealTimeTaken(data.took);}
+								if (data.took != 0) {
+									setRealTimeTaken(data.took);
+								}
 							}
 						} else if (data.type === "error") {
 							setConsoleOutput(
@@ -586,31 +587,33 @@ function FunctionDetail() {
 									<li
 										key={file.id}
 										className={`flex justify-between py-1 px-2 cursor-pointer ${
-											activeFile?.id === file.id ? "bg-slate-700 rounded-md" : ""
+											activeFile?.id === file.id
+												? "bg-slate-700 rounded-md"
+												: ""
 										}`}
 										onClick={() => handleFileSelect(file)}
 									>
 										<span>{file.name}</span>
 										<div>
 											<button
-												className="text-blue-500 mr-2 hover:bg-slate-600 bg-slate-700 rounded-md px-2"
+												className="text-blue-500 mr-2 outline rounded-md px-2 bg-gray-800"
 												onClick={(e) => {
 													e.stopPropagation();
 													setSelectedFile(file);
 													setShowRenameModal(true);
 												}}
 											>
-												📝Rename
+												✏️
 											</button>
 											<button
-												className="text-red-500 hover:bg-slate-600 bg-slate-700 rounded-md px-2 "
+												className="text-red-500 outline rounded-md px-2 bg-gray-800"
 												onClick={(e) => {
 													e.stopPropagation();
 													setSelectedFile(file);
 													setShowDeleteModal(true);
 												}}
 											>
-												🗑️Delete
+												🗑️
 											</button>
 										</div>
 									</li>
@@ -732,7 +735,9 @@ function FunctionDetail() {
 								{saving ? "Saving..." : "💾Save"}
 							</button>
 							<button
-								className={`bg-primary text-white px-4 py-1.5 rounded-md hover:bg-primary/80 ${!activeFile ? "opacity-50 cursor-not-allowed" : ""}`}
+								className={`bg-primary text-white px-4 py-1.5 rounded-md hover:bg-primary/80 ${
+									!activeFile ? "opacity-50 cursor-not-allowed" : ""
+								}`}
 								onClick={handleRunCode}
 								disabled={running || !activeFile}
 							>
@@ -857,7 +862,7 @@ function FunctionDetail() {
 							className="bg-gray-950 p-3 rounded min-h-[38px] max-h-[200px] overflow-auto font-mono text-sm text-white scrollbar-none"
 							ref={consoleOutputRef}
 							onScroll={handleConsoleScroll}
-							style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+							style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
 						>
 							<pre className="whitespace-pre-wrap text-white/90">
 								{consoleOutput || "No output to display"}
@@ -893,8 +898,6 @@ function FunctionDetail() {
 								</div>
 							</div>
 						)}
-
-						
 					</div>
 				</div>
 			</div>

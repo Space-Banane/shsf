@@ -56,7 +56,7 @@ function CreateTriggerModal({ isOpen, onClose, onCreate }: CreateTriggerModalPro
     <Modal isOpen={isOpen} onClose={onClose} title="Create Trigger">
       <div className="space-y-4">
         <div>
-          <label className="block text-white mb-1">Name:</label>
+          <label className="block text-base text-white mb-1">Name:</label>
           <input
             className="w-full bg-gray-700 text-white px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={name}
@@ -66,7 +66,7 @@ function CreateTriggerModal({ isOpen, onClose, onCreate }: CreateTriggerModalPro
         </div>
         
         <div>
-          <label className="block text-white mb-1">Description:</label>
+          <label className="block text-base text-white mb-1">Description:</label>
           <textarea
             className="w-full bg-gray-700 text-white px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={description}
@@ -77,7 +77,7 @@ function CreateTriggerModal({ isOpen, onClose, onCreate }: CreateTriggerModalPro
         </div>
         
         <div>
-          <label className="block text-white mb-1">Cron Expression:</label>
+          <label className="block text-base text-white mb-1">Cron Expression:</label>
           <input
             className="w-full bg-gray-700 text-white px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={cron}
@@ -85,7 +85,7 @@ function CreateTriggerModal({ isOpen, onClose, onCreate }: CreateTriggerModalPro
             placeholder="*/5 * * * *"
           />
           <div className="mt-2">
-            <label className="block text-white mb-1 text-sm">Presets:</label>
+            <label className="block text-base text-white mb-1">Presets:</label>
             <div className="flex flex-wrap gap-2">
               {cronPresets.map((preset) => (
                 <button
@@ -102,7 +102,7 @@ function CreateTriggerModal({ isOpen, onClose, onCreate }: CreateTriggerModalPro
         </div>
         
         <div>
-          <label className="block text-white mb-1">Data (JSON):</label>
+          <label className="block text-base text-white mb-1">Data (JSON):</label>
           <textarea
             className="w-full bg-gray-700 text-white px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
             value={data}
@@ -127,13 +127,13 @@ function CreateTriggerModal({ isOpen, onClose, onCreate }: CreateTriggerModalPro
         
         <div className="flex justify-end gap-2 mt-6">
           <button
-            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+            className="bg-grayed hover:bg-grayed/70 text-white px-4 py-2 rounded"
             onClick={onClose}
           >
             Cancel
           </button>
           <button
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+            className="bg-primary hover:bg-primary/70 text-white px-4 py-2 rounded"
             onClick={handleSubmit}
             disabled={isSubmitting}
           >

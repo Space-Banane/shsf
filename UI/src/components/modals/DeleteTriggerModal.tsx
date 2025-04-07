@@ -28,7 +28,7 @@ function DeleteTriggerModal({ isOpen, onClose, onDelete, triggerName }: DeleteTr
         </p>
         <div className="flex justify-end gap-2">
           <button
-            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+            className="bg-grayed hover:bg-grayed/70 text-white px-4 py-2 rounded"
             onClick={onClose}
           >
             Cancel

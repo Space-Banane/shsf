@@ -14,7 +14,8 @@ module.exports = {
 				secondary: '#96baff',
 				accent: '#7dedff',
 				footer: '#121325',
-				navbar: '#121325'
+				navbar: '#121325',
+				grayed:"#6a7282"
 			},
 			animation: {
 				fadeIn: 'fadeIn 0.2s ease-in-out',

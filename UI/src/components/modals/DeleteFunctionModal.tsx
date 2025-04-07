@@ -41,7 +41,7 @@ function DeleteFunctionModal({
         </p>
         <div className="flex justify-end space-x-2">
           <button
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            className="px-4 py-2 bg-grayed hover:bg-grayed/70 text-white rounded"
             onClick={onClose}
             disabled={isDeleting}
           >

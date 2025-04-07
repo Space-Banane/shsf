@@ -58,14 +58,14 @@ function DeleteNamespaceModal({ isOpen, onClose, onDelete, namespaceId, namespac
         <div className="flex justify-end space-x-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500"
+            className="px-4 py-2 bg-grayed hover:bg-grayed/70 text-white rounded-lg"
             disabled={isDeleting}
           >
             Cancel
           </button>
           <button
             onClick={handleDelete}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
             disabled={isDeleting}
           >
             {isDeleting ? "Deleting..." : "Delete Namespace"}

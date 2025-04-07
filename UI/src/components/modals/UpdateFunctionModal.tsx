@@ -99,7 +99,7 @@ function UpdateFunctionModal({
 				{error && <div className="bg-red-500/20 border border-red-500 p-2 rounded-md text-red-300">{error}</div>}
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="The name of your function">Function Name</label>
+					<label className="text-base text-gray-300" title="The name of your function">Function Name</label>
 					<input
 						type="text"
 						placeholder="Function Name"
@@ -111,7 +111,7 @@ function UpdateFunctionModal({
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="A brief description of what the function does">Description</label>
+					<label className="text-base text-gray-300" title="A brief description of what the function does">Description</label>
 					<textarea
 						placeholder="Function Description"
 						value={description}
@@ -122,7 +122,7 @@ function UpdateFunctionModal({
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="The runtime environment for your function">Runtime Image</label>
+					<label className="text-base text-gray-300" title="The runtime environment for your function">Runtime Image</label>
 					<select
 						value={image}
 						onChange={(e) => setImage(e.target.value as Image)}
@@ -141,7 +141,7 @@ function UpdateFunctionModal({
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="Maximum memory allocation in megabytes">Max RAM (MB)</label>
+					<label className="text-base text-gray-300" title="Maximum memory allocation in megabytes">Max RAM (MB)</label>
 					<input
 						type="number"
 						placeholder="Max RAM (MB)"
@@ -153,7 +153,7 @@ function UpdateFunctionModal({
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="Maximum execution time in seconds">Timeout (seconds)</label>
+					<label className="text-base text-gray-300" title="Maximum execution time in seconds">Timeout (seconds)</label>
 					<input
 						type="number"
 						placeholder="Timeout (seconds)"
@@ -177,7 +177,7 @@ function UpdateFunctionModal({
 				</div>
 
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="Secure header for the function">Secure Header</label>
+					<label className="text-base text-gray-300" title="Secure header for the function">Secure Header</label>
 					<input
 						type="text"
 						placeholder="Secure Header"
@@ -189,7 +189,7 @@ function UpdateFunctionModal({
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="Function execution priority (higher values = higher priority)">Priority</label>
+					<label className="text-base text-gray-300" title="Function execution priority (higher values = higher priority)">Priority</label>
 					<input
 						type="number"
 						placeholder="Priority"
@@ -201,7 +201,7 @@ function UpdateFunctionModal({
 				</div>
 				
 				<div className="space-y-1">
-					<label className="text-sm text-gray-300" title="The main file that will be executed when your function runs">Startup File</label>
+					<label className="text-base text-gray-300" title="The main file that will be executed when your function runs">Startup File</label>
 					<input
 						type="text"
 						placeholder="Startup File"
@@ -215,14 +215,14 @@ function UpdateFunctionModal({
 				<div className="flex justify-end space-x-3 mt-6">
 					<button
 						onClick={handleClose}
-						className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-md transition-colors"
+						className="px-4 py-2 bg-grayed hover:bg-grayed/70 text-white rounded-md transition-colors"
 						disabled={isLoading}
 					>
 						Cancel
 					</button>
 					<button
 						onClick={handleSubmit}
-						className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors"
+						className="px-4 py-2 bg-primary hover:bg-primary/70 text-white rounded-md transition-colors"
 						disabled={isLoading}
 					>
 						Update
