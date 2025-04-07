@@ -173,6 +173,7 @@ function CreateFunctionModal({
 						type="number"
 						placeholder="Timeout (seconds)"
 						value={timeout || ""}
+						max={300}
 						onChange={(e) => setTimeout(Number(e.target.value))}
 						className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
 						disabled={isLoading}

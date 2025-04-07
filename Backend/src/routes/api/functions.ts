@@ -49,7 +49,7 @@ export = new fileRouter.Path("/")
 					settings: z
 						.object({
 							max_ram: z.number().min(128).max(1024).optional(),
-							timeout: z.number().positive().min(1).max(60).optional(),
+							timeout: z.number().positive().min(1).max(300).optional(), // Increased max timeout to 300 seconds : 5 minutes
 							allow_http: z.boolean().optional(),
 							secure_header: z.string().min(1).max(256).optional(),
 							priority: z.number().min(1).max(10).positive().optional(),
@@ -330,10 +330,10 @@ export = new fileRouter.Path("/")
 					settings: z
 						.object({
 							max_ram: z.number().min(128).max(1024).optional(),
-							timeout: z.number().positive().min(1).max(60).optional(),
+							timeout: z.number().positive().min(1).max(500).optional(),
 							allow_http: z.boolean().optional(),
 							secure_header: z.string().min(1).max(256).optional().or(z.null()),
-							priority: z.number().min(1).max(10).positive().optional(),
+							priority: z.number().min(1).max(10).positive().optional().default(7),
 							tags: z.array(z.string().min(1).max(32)).optional(),
 							retry_on_failure: z.boolean().optional(),
 							retry_count: z.number().min(1).max(10).positive().optional(),
