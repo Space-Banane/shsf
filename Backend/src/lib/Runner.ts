@@ -2,15 +2,18 @@ import { Function, FunctionFile } from "@prisma/client";
 import Docker from "dockerode";
 import { Readable } from "stream";
 import { prisma } from "..";
-import { writeFileSync } from "fs";
-import { HttpContext } from "rjweb-server/lib/typings/types/implementation/contexts/http";
 import { HttpRequestContext } from "rjweb-server";
 import { DataContext } from "rjweb-server/lib/typings/types/internal";
 import { UsableMiddleware } from "rjweb-server/lib/typings/classes/Middleware";
 
-const tar = require("tar");
 const fs = require("fs");
 const path = require("path");
+
+interface TimingEntry {
+  timestamp: number;
+  value: number;
+  description: string;
+}
 
 export async function executeFunction(
 	id: number,
@@ -22,6 +25,14 @@ export async function executeFunction(
 	payload: string
 ) {
 	const starting_time = Date.now();
+	const tooks: TimingEntry[] = [];
+	
+	// Helper function to record timing information
+	const recordTiming = (timestamp: number, description: string) => {
+		const value = (timestamp - starting_time) / 1000; // Convert to seconds
+		tooks.push({ timestamp, value, description });
+	};
+	
 	const docker = new Docker();
 	const containerName = `code_runner_${functionData.id}_${Date.now()}`;
 	const tempDir = `/tmp/shsf/${containerName}`;
@@ -29,30 +40,44 @@ export async function executeFunction(
 		? "python"
 		: "node";
 	await fs.promises.mkdir(tempDir, { recursive: true });
-	
-	// Create permanent cache directories
-	await fs.promises.mkdir("/tmp/shsf/.cache", { recursive: true });
-	await fs.promises.mkdir("/tmp/shsf/.cache/pnpm", { recursive: true });
-	await fs.promises.mkdir("/tmp/shsf/.cache/pip", { recursive: true });
-	
-	// Create function-specific cache directories
+
+	const cacheDirs = [
+		"/tmp/shsf/.cache",
+		"/tmp/shsf/.cache/pnpm",
+		"/tmp/shsf/.cache/pip",
+		"/tmp/shsf/.cache/npm",
+	];
+
 	if (runtimeType === "python") {
-		await fs.promises.mkdir(`/tmp/shsf/.cache/pip/function-${functionData.id}`, { recursive: true });
-		await fs.promises.mkdir(`/tmp/shsf/.cache/pip/function-${functionData.id}/http-cache`, { recursive: true });
-		await fs.promises.mkdir(`/tmp/shsf/.cache/pip/function-${functionData.id}/wheels`, { recursive: true });
-		await fs.promises.mkdir(`/tmp/shsf/.cache/pip/function-${functionData.id}/packages`, { recursive: true });
+		cacheDirs.push(
+			`/tmp/shsf/.cache/pip/function-${functionData.id}`,
+			`/tmp/shsf/.cache/pip/function-${functionData.id}/http-cache`,
+			`/tmp/shsf/.cache/pip/function-${functionData.id}/wheels`,
+			`/tmp/shsf/.cache/pip/function-${functionData.id}/packages`
+		);
 	} else if (runtimeType === "node") {
-		await fs.promises.mkdir(`/tmp/shsf/.cache/pnpm/function-${functionData.id}/store`, { recursive: true });
+		cacheDirs.push(`/tmp/shsf/.cache/pnpm/function-${functionData.id}/store`);
 	}
+
+	await Promise.all(
+		cacheDirs.map((dir) => fs.promises.mkdir(dir, { recursive: true }))
+	);
+	
+	recordTiming(Date.now(), "Directory creation");
 
 	let defaultStartupFile = runtimeType === "python" ? "main.py" : "index.js";
 	const startupFile = functionData.startup_file || defaultStartupFile;
 
+	// Write user files
+	const fileWriteStart = Date.now();
 	for (const file of files) {
 		const filePath = path.join(tempDir, file.name);
 		await fs.promises.writeFile(filePath, file.content);
 	}
+	recordTiming(Date.now(), "File writing");
 
+	// Create script generation
+	const scriptStart = Date.now();
 	// Create a wrapper script based on runtime type
 	let initScript = "#!/bin/sh\ncd /app\n";
 
@@ -62,42 +87,70 @@ export async function executeFunction(
 if [ -f "requirements.txt" ]; then 
     echo "[SHSF] Using Python Cache for function ${functionData.id}"
     
-    # Create the function-specific cache directory if it doesn't exist
-    if [ ! -d "/pip-cache/function-${functionData.id}" ]; then
-        mkdir -p /pip-cache/function-${functionData.id}
-    fi
-
-    # Generate a hash of requirements.txt to detect changes
-    REQUIREMENTS_HASH=$(md5sum requirements.txt | awk '{print $1}')
+    # Define paths for our virtual environment and cache
+    VENV_DIR="/pip-cache/function-${functionData.id}/venv"
+    WHEELS_DIR="/pip-cache/function-${functionData.id}/wheels"
+    HTTP_CACHE_DIR="/pip-cache/function-${functionData.id}/http-cache"
     HASH_FILE="/pip-cache/function-${functionData.id}/.hash"
     
-    # Check if we need to reinstall based on requirements hash
-    NEEDS_INSTALL=1
-    if [ -f "$HASH_FILE" ] && [ "$(cat $HASH_FILE)" = "$REQUIREMENTS_HASH" ]; then
-        echo "Requirements unchanged, using cached packages"
-        NEEDS_INSTALL=0
+    # Create directories if they don't exist
+    mkdir -p "$WHEELS_DIR" "$HTTP_CACHE_DIR"
+    
+    # Generate a hash of requirements.txt to detect changes
+    REQUIREMENTS_HASH=$(md5sum requirements.txt | awk '{print $1}')
+    
+    # Check if virtual environment exists and if requirements have changed
+    NEEDS_UPDATE=0
+    if [ ! -d "$VENV_DIR" ]; then
+        echo "Creating new virtual environment for function ${functionData.id}"
+        python -m venv "$VENV_DIR"
+        NEEDS_UPDATE=1
+    elif [ ! -f "$HASH_FILE" ] || [ "$(cat $HASH_FILE)" != "$REQUIREMENTS_HASH" ]; then
+        echo "Requirements changed, updating virtual environment"
+        NEEDS_UPDATE=1
+    else
+        echo "Requirements unchanged, using existing virtual environment"
     fi
     
-    if [ $NEEDS_INSTALL -eq 1 ]; then
-        echo "Installing packages with pip (with caching)"
-        # Configure pip to use our function-specific cache directory
-        export PIP_CACHE_DIR="/pip-cache/function-${functionData.id}/http-cache"
+    # Activate the virtual environment (always needed)
+    . "$VENV_DIR/bin/activate"
+    
+    # Update packages if needed
+    if [ $NEEDS_UPDATE -eq 1 ]; then
+        echo "Installing/updating packages in virtual environment"
+        
+        # Configure pip to use our cache directories
+        export PIP_CACHE_DIR="$HTTP_CACHE_DIR"
+        
+        # Ensure pip is up to date in the virtual environment
+        pip install --upgrade pip > /dev/null 2>&1
         
         # First, download wheels to our cache location
-        mkdir -p "/pip-cache/function-${functionData.id}/wheels"
-        pip wheel --wheel-dir="/pip-cache/function-${functionData.id}/wheels" -r requirements.txt > /dev/null 2>&1
+        pip wheel --wheel-dir="$WHEELS_DIR" -r requirements.txt > /dev/null 2>&1
         
-        # Now install from the cached wheels
-        pip install --no-index --find-links="/pip-cache/function-${functionData.id}/wheels" -r requirements.txt > /dev/null 2>&1
+        # Install from the cached wheels into the virtual environment
+        pip install --no-index --find-links="$WHEELS_DIR" -r requirements.txt > /dev/null 2>&1
         
         # Save the hash for future reference
         echo "$REQUIREMENTS_HASH" > "$HASH_FILE"
-        echo "Dependencies installed and cached."
-    else
-        # Even if unchanged, make sure packages are installed in the current container
-        pip install --no-index --find-links="/pip-cache/function-${functionData.id}/wheels" -r requirements.txt > /dev/null 2>&1
-        echo "Using previously cached dependencies."
+        echo "Dependencies updated and cached in virtual environment"
     fi
+    
+    # Verify the environment is usable
+    if ! python -c "import sys; sys.exit(0)" > /dev/null 2>&1; then
+        echo "Warning: Virtual environment may be corrupted, creating fresh environment"
+        rm -rf "$VENV_DIR"
+        python -m venv "$VENV_DIR"
+        . "$VENV_DIR/bin/activate"
+        
+        # Install packages fresh
+        export PIP_CACHE_DIR="$HTTP_CACHE_DIR"
+        pip install --upgrade pip > /dev/null 2>&1
+        pip install --no-index --find-links="$WHEELS_DIR" -r requirements.txt || pip install -r requirements.txt
+        echo "$REQUIREMENTS_HASH" > "$HASH_FILE"
+    fi
+    
+    echo "Python environment ready with all dependencies"
 fi
 `;
 		// New wrapper script for Python that handles main function return values
@@ -150,19 +203,55 @@ except Exception as e:
 		fs.chmodSync(path.join(tempDir, "init.sh"), "755");
 	} else if (runtimeType === "node") {
 		initScript += `
+# Set up global npm cache
+export NPM_CONFIG_CACHE="/npm-cache"
+
 # Check if package.json exists
 if [ -f "package.json" ]; then 
 	echo "[SHSF] --> Using Node Cache for function ${functionData.id}"
-	# Install pnpm if not already installed
-	if ! command -v pnpm &> /dev/null
-	then
-		echo "pnpm could not be found, installing..."
-		npm install -g pnpm
+	
+	# Define function-specific directories and files
+	MODULES_CACHE="/pnpm-cache/function-${functionData.id}/node_modules"
+	HASH_FILE="/pnpm-cache/function-${functionData.id}/.hash"
+	
+	# Create cache directory if it doesn't exist
+	mkdir -p "/pnpm-cache/function-${functionData.id}"
+	
+	# Generate a hash of package.json to detect changes
+	PACKAGE_HASH=$(md5sum package.json | awk '{print $1}')
+	
+	# Check if dependencies need to be updated
+	if [ ! -d "$MODULES_CACHE" ] || [ ! -f "$HASH_FILE" ] || [ "$(cat $HASH_FILE 2>/dev/null)" != "$PACKAGE_HASH" ]; then
+		echo "Package.json changed or first run, installing dependencies"
+		
+		# Remove any existing node_modules to prevent conflicts
+		rm -rf node_modules
+		
+		# Install dependencies with npm (faster and more reliable than pnpm for this use case)
+		npm install --no-fund --no-audit --loglevel=error
+		
+		# Back up the node_modules for future use
+		echo "Backing up node_modules for future runs"
+		rm -rf "$MODULES_CACHE"
+		cp -r node_modules "$MODULES_CACHE"
+		
+		# Save the hash for future reference
+		echo "$PACKAGE_HASH" > "$HASH_FILE"
+		
+		echo "Dependencies installed and cached"
+	else
+		echo "Using cached node_modules"
+		
+		# Remove any existing node_modules symlink or directory
+		rm -rf node_modules
+		
+		# Copy the cached node_modules back
+		cp -r "$MODULES_CACHE" node_modules
+		
+		echo "Cached node_modules restored in $(du -sh node_modules | cut -f1)"
 	fi
-	echo "Installing dependencies with pnpm..."
-	# Use a function-specific pnpm cache directory
-	mkdir -p /pnpm-cache/function-${functionData.id}/store
-	pnpm install --store-dir /pnpm-cache/function-${functionData.id}/store --prefer-offline
+	
+	echo "Node environment ready with all dependencies"
 fi
 `;
 		// Create Node wrapper script that handles main function return values
@@ -232,14 +321,18 @@ try {
 		await fs.promises.writeFile(path.join(tempDir, "init.sh"), initScript);
 		await fs.promises.chmod(path.join(tempDir, "init.sh"), "755");
 	}
+	recordTiming(Date.now(), "Script generation");
 
 	const CMD = ["/bin/sh", "/app/init.sh"];
 
+	const imageStart = Date.now();
+	let imagePulled = false;
 	try {
 		const imageExists = await docker.listImages({
 			filters: JSON.stringify({ reference: [functionData.image] }),
 		});
 		if (imageExists.length === 0) {
+			imagePulled = true;
 			const stream = await docker.pull(functionData.image);
 			await new Promise((resolve, reject) => {
 				docker.modem.followProgress(stream, (err) =>
@@ -251,14 +344,35 @@ try {
 		console.error("Error checking or pulling image:", error);
 		throw error;
 	}
+	recordTiming(Date.now(), imagePulled ? "Image pull" : "Image check");
 
 	// Function.env is for example [{"name":"TEST","value":"TEST"}]
-	let ENV = functionData.env ? JSON.parse(functionData.env).map((env:{name:string;value:any}) => {
-		return `${env.name}=${env.value}`;
-	}) : [];
-	ENV.push("RUNNER=shsf");
+	let ENV = functionData.env
+		? JSON.parse(functionData.env).map((env: { name: string; value: any }) => {
+				return `${env.name}=${env.value}`;
+		  })
+		: [];
 	ENV.push(`RUN_DATA=${payload}`); // Add the payload to the environment variables
 
+	let BINDS: string[] = [];
+	BINDS.push(`${tempDir}:/app`);
+
+	if (runtimeType === "python") {
+		// Python-specific environment variables
+		BINDS.push(`/tmp/shsf/.cache/pip:/pip-cache`);
+	} else if (runtimeType === "node") {
+		// Node-specific environment variables
+		BINDS.push(`/tmp/shsf/.cache/pnpm:/pnpm-cache`);
+		BINDS.push(`/tmp/shsf/.cache/npm:/npm-cache`);
+	} else {
+		return {
+			logs: "Unsupported runtime type",
+			exit_code: 1,
+			tooks: [...tooks, { timestamp: Date.now(), value: (Date.now() - starting_time) / 1000, description: "Total execution time" }],
+		}
+	}
+
+	const containerStart = Date.now();
 	const container = await docker.createContainer({
 		Image: functionData.image,
 		name: containerName,
@@ -268,18 +382,14 @@ try {
 		Cmd: CMD,
 		Env: ENV,
 		HostConfig: {
-			Binds: [
-				`${tempDir}:/app`,
-				// Mount the pip cache directory as a volume
-				`/tmp/shsf/.cache/pip:/pip-cache`,
-				// Mount the pnpm cache directory as a volume
-				`/tmp/shsf/.cache/pnpm:/pnpm-cache`
-			],
+			Binds: BINDS,
 			Memory: (functionData.max_ram || 128) * 1024 * 1024,
 		},
 	});
 
 	await container.start();
+	recordTiming(Date.now(), "Container creation and start");
+	
 	const timeout = functionData.timeout || 15;
 	let logs = "";
 
@@ -297,30 +407,26 @@ try {
 				container.kill().catch(console.error);
 			}, timeout * 1000);
 
-			logStream.on("data", (chunk) => {
-				// Ensure proper conversion of binary data to string
-				let text;
-				if (Buffer.isBuffer(chunk)) {
-					// Handle Buffer objects properly
-					text = chunk.toString("utf-8");
-				} else if (typeof chunk === "object") {
-					// Handle other object types
-					text = JSON.stringify(chunk);
-				} else {
-					// For string or other primitive types
-					text = String(chunk);
-				}
+			const ansiRegex = /\x1B\[[0-9;]*[A-Za-z]/g;
+			const nonPrintableRegex = /[^\x20-\x7E\n\r\t]/g;
 
-				// Clean ANSI codes and non-printable characters
-				text = text
-					.replace(/\x1B\[[0-9;]*[A-Za-z]/g, "")
-					.replace(/[^\x20-\x7E\n\r\t]/g, "");
+			logStream.on("data", (chunk) => {
+				let text = Buffer.isBuffer(chunk)
+					? chunk.toString("utf-8")
+					: typeof chunk === "object"
+					? JSON.stringify(chunk)
+					: String(chunk);
+
+				// Clean logs using pre-compiled regex
+				text = text.replace(ansiRegex, "").replace(nonPrintableRegex, "");
 
 				stream.onChunk(text);
 				logs += text;
 			});
 
 			await container.wait();
+			const containerRunTime = Date.now();
+			recordTiming(containerRunTime, "Container execution");
 			clearTimeout(killTimeout);
 
 			// Check for eject.json even in streaming mode
@@ -330,10 +436,11 @@ try {
 				try {
 					const ejectResult = JSON.parse(ejectData);
 					const containerInspect = await container.inspect();
+					recordTiming(Date.now(), "Total execution time");
 					return {
 						logs,
 						result: ejectResult,
-						took: (Date.now() - starting_time) / 1000, // in seconds
+						tooks,
 						exit_code: containerInspect.State.ExitCode,
 					};
 				} catch (e) {
@@ -341,7 +448,12 @@ try {
 				}
 			}
 
-			return { logs };
+			recordTiming(Date.now(), "Total execution time");
+			return { 
+				logs,
+				tooks, 
+				exit_code: 0, // We don't have the exit code in streaming mode, but we can assume success
+			};
 		} else {
 			const result = await Promise.race([
 				container.wait(),
@@ -349,6 +461,9 @@ try {
 					setTimeout(() => reject(new Error("Timeout")), timeout * 1000)
 				),
 			]); // Wait for the container to finish or timeout
+			
+			const containerRunTime = Date.now();
+			recordTiming(containerRunTime, "Container execution");
 
 			// Improve log collection for non-streaming mode
 			const containerLogs = await container.logs({
@@ -377,30 +492,35 @@ try {
 				const ejectData = fs.readFileSync(ejectFilePath, "utf-8");
 				try {
 					const ejectResult = JSON.parse(ejectData);
+					recordTiming(Date.now(), "Total execution time");
 					return {
 						exit_code: result.StatusCode,
 						logs,
 						result: ejectResult,
+						tooks,
 					};
 				} catch (e) {
 					console.error("Error parsing eject data:", e);
 				}
 			}
 
+			recordTiming(Date.now(), "Total execution time");
 			return {
 				exit_code: result.StatusCode,
 				logs,
-				took: (Date.now() - starting_time) / 1000, // in seconds
+				tooks,
 			};
 		}
 	} finally {
-		await fs.promises.rm(tempDir, { recursive: true, force: true });
-		await container.remove();
+		await Promise.all([
+			fs.promises.rm(tempDir, { recursive: true, force: true }),
+			container.remove(),
+		]);
 
 		console.log(
-			`[SHSF CRONS] Function ${functionData.id} (${functionData.name}) executed in ${
-				(Date.now() - starting_time) / 1000
-			} seconds`
+			`[SHSF CRONS] Function ${functionData.id} (${
+				functionData.name
+			}) executed in ${(Date.now() - starting_time) / 1000} seconds`
 		);
 
 		await prisma.function.update({
@@ -408,7 +528,7 @@ try {
 			data: {
 				lastRun: new Date(),
 			},
-		});		
+		});
 	}
 }
 

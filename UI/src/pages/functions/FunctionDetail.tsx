@@ -35,6 +35,13 @@ import {
 } from "../../services/backend.triggers";
 import { getNamespace } from "../../services/backend.namespaces";
 
+// Define the timing entry interface
+interface TimingEntry {
+	timestamp: number;
+	value: number;
+	description: string;
+}
+
 function FunctionDetail() {
 	const { id } = useParams<{ id: string }>();
 	const [functionData, setFunctionData] = useState<XFunction | null>(null);
@@ -75,6 +82,8 @@ function FunctionDetail() {
 	const [copyUrltext, setCopyUrlText] = useState<string>("Copy📎");
 	const [paramInputColor, setParamInputColor] = useState<string>("text-white");
 	const [realTimeTaken, setRealTimeTaken] = useState<number | null>(null);
+	const [tooks, setTooks] = useState<TimingEntry[]>([]);
+	const [showTimingDetails, setShowTimingDetails] = useState<boolean>(false);
 
 	useEffect(() => {
 		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
@@ -104,8 +113,8 @@ function FunctionDetail() {
 		let startTime = Date.now();
 		setExecutionTime(0);
 		timerRef.current = setInterval(() => {
-			setExecutionTime(Math.floor((Date.now() - startTime) / 1000));
-		}, 1000);
+			setExecutionTime((Date.now() - startTime) / 1000);
+		}, 1);
 	};
 
 	const stopTimer = () => {
@@ -258,6 +267,7 @@ function FunctionDetail() {
 		setConsoleOutput("Executing code...");
 		setExitCode(null);
 		setFunctionResult(null);
+		setTooks([]);
 		startTimer();
 
 		// Parse run params if provided
@@ -284,7 +294,18 @@ function FunctionDetail() {
 						result.data.output || "Execution completed with no output."
 					);
 					setExitCode(result.data.exitCode);
-					setRealTimeTaken(result.data.took);
+					// Handle both old took and new tooks data
+					if (result.data.took) {
+						setTooks(result.data.took);
+						// Find the total execution time entry
+						const totalExecution = result.data.took.find(
+							(entry: TimingEntry) =>
+								entry.description === "Total execution time"
+						);
+						if (totalExecution) {
+							setRealTimeTaken(totalExecution.value);
+						}
+					}
 
 					// Display result if available
 					if (result.data.result !== undefined) {
@@ -320,12 +341,23 @@ function FunctionDetail() {
 							setConsoleOutput((prev) => prev + content);
 						} else if (data.type === "end") {
 							setExitCode(data.exitCode);
+
+							// Handle both old took and new tooks data
+							if (data.took) {
+								setTooks(data.took);
+								// Find the total execution time entry
+								const totalExecution = data.took.find(
+									(entry: TimingEntry) =>
+										entry.description === "Total execution time"
+								);
+								if (totalExecution) {
+									setRealTimeTaken(totalExecution.value);
+								}
+							}
+
 							// Handle function result if present
 							if (data.result !== undefined) {
 								setFunctionResult(data.result);
-								if (data.took != 0) {
-									setRealTimeTaken(data.took);
-								}
 							}
 						} else if (data.type === "error") {
 							setConsoleOutput(
@@ -560,8 +592,15 @@ function FunctionDetail() {
 
 	return (
 		<div className="flex flex-col items-center w-full">
-			<h1 className="text-primary text-center text-4xl font-bold mb-2">
-				📂{nameSpace?.name}/🚀{functionData.name}
+			<h1 className="text-primary text-center text-3xl font-bold mb-2">
+				 📂
+				<span className="bg-gray-950 py-1 px-2 rounded-2xl">
+					{nameSpace?.name}
+				</span>
+				/🚀
+				<span className="bg-gray-950 py-1 px-2 rounded-xl">
+					{functionData.name}
+				</span>
 			</h1>
 
 			<div className="mt-4 w-full px-4 flex flex-row gap-4">
@@ -603,7 +642,7 @@ function FunctionDetail() {
 													setShowRenameModal(true);
 												}}
 											>
-												✏️
+												 ✏️
 											</button>
 											<button
 												className="text-red-500 outline rounded-md px-2 bg-gray-800"
@@ -613,7 +652,7 @@ function FunctionDetail() {
 													setShowDeleteModal(true);
 												}}
 											>
-												🗑️
+												 🗑️
 											</button>
 										</div>
 									</li>
@@ -630,7 +669,7 @@ function FunctionDetail() {
 						</button>
 					</div>
 
-					<div className="bg-gray-800 p-4 rounded-lg">
+					<div className="bg-gray-800 p-4 rounded-lg mb-4">
 						<h2 className="text-secondary text-xl mb-2">Triggers</h2>
 						<ul className="text-white">
 							{triggers.length > 0 ? (
@@ -688,6 +727,58 @@ function FunctionDetail() {
 						>
 							Create Trigger
 						</button>
+					</div>
+
+					{/* New Timing Details Card */}
+					<div className="bg-gray-800 p-4 rounded-lg">
+						<div
+							className="flex justify-between items-center cursor-pointer"
+							onClick={() => setShowTimingDetails(!showTimingDetails)}
+						>
+							<h2 className="text-secondary text-xl">
+								Execution Timing Details
+							</h2>
+							<span className="text-white text-xl">
+								{showTimingDetails ? "📂" : "📁"}
+							</span>
+						</div>
+
+						{showTimingDetails && tooks.length > 0 && (
+							<div className="mt-1 text-white">
+								<table className="w-full text-sm">
+									<thead>
+										<tr className="border-b border-gray-700">
+											<th className="text-left py-1">Operation</th>
+											<th className="text-right py-1">Duration (s)</th>
+										</tr>
+									</thead>
+									<tbody>
+										{tooks.map((entry, index) => (
+											<tr
+												key={index}
+												className={`border-b border-gray-700 ${
+													entry.description === "Total execution time"
+														? "font-bold text-primary"
+														: ""
+												}`}
+											>
+												<td className="py-1">{String(entry.description)}</td>
+												<td className="text-right py-1">
+													{typeof entry.value === "number" ? entry.value.toFixed(3) : String(entry.value)} {/* Ensure value is a number or string */}
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
+						)}
+
+						{showTimingDetails && tooks.length === 0 && (
+							<p className="mt-3 text-gray-400">
+								No timing data available. Run your function to see execution
+								timing details.
+							</p>
+						)}
 					</div>
 				</div>
 
@@ -821,41 +912,54 @@ function FunctionDetail() {
 
 					<div className="mt-4">
 						<h3 className="text-white text-lg mb-1 flex justify-between">
-							<span className="space-x-5">
-								Console Output{" "}
-								{exitCode !== null && (
-									<span
-										className={
-											exitCode === 0 ? "text-green-500" : "text-red-500"
-										}
-									>
-										(Exit Code: {exitCode})
-									</span>
-								)}{" "}
-								{executionTime !== null && (
-									<span
-										className={
-											exitCode === 0
-												? "text-gray-500"
-												: exitCode === null
-												? "text-gray-400"
-												: "text-red-500"
-										}
-									>
-										Execution Time: {executionTime}s/{functionData.timeout}s
-									</span>
-								)}
-								{realTimeTaken !== 0 && realTimeTaken !== null && (
-									<span className="text-gray-500">
-										Real Time Taken: {realTimeTaken}s
-									</span>
-								)}
-							</span>
-							{functionResult !== null && (
-								<span className="text-green-400">
-									Function Return Value Available
+							<div className="flex space-x-5">
+								<span className="text-primary font-semibold text-xl">
+									Console Output
 								</span>
-							)}
+								<span
+									className={`${
+										exitCode === null
+											? "text-gray-400"
+											: exitCode === 0
+											? "text-green-500"
+											: "text-red-500"
+									}`}
+								>
+									(Exit Code: {exitCode !== null ? exitCode : "N/A"})
+								</span>
+								<span
+									title="Call to Return Time"
+									className={`${
+										executionTime !== null &&
+										executionTime > functionData.timeout
+											? "text-red-500"
+											: "text-gray-400"
+									}`}
+								>
+									CR Time: {executionTime !== null ? executionTime : "N/A"}s/
+									{functionData.timeout}s
+								</span>
+								<span
+									className="text-gray-500"
+									title="The time taken to run the function"
+								>
+									Container: {realTimeTaken !== null ? realTimeTaken : "N/A"}s
+								</span>
+								<span
+									title={`${
+										functionResult !== null
+											? "Your Code has returned readable data!"
+											: "We could not find any data returned from your code."
+									}`}
+									className={`${
+										functionResult !== null ? "text-green-400" : "text-gray-400"
+									}`}
+								>
+									{functionResult !== null
+										? "Function returned data!"
+										: "No data returned."}
+								</span>
+							</div>
 						</h3>
 
 						<div
@@ -888,7 +992,9 @@ function FunctionDetail() {
 
 						{functionResult !== null && (
 							<div className="mt-2">
-								<h3 className="text-white text-lg mb-1">Function Result</h3>
+								<span className="text-primary font-semibold text-xl mb-1">
+									Function Result
+								</span>
 								<div className="bg-gray-950 p-3 rounded max-h-40 overflow-auto font-mono text-sm">
 									<pre className="whitespace-pre-wrap text-green-400">
 										{typeof functionResult === "object"

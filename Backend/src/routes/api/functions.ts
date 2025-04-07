@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "crypto";
+import { randomUUID } from "crypto";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
 import {
@@ -540,7 +540,7 @@ export = new fileRouter.Path("/")
 												exitCode: 0,
 												output: output,
 												result: result?.result,
-												took: result?.took || 0,
+												took: result?.tooks,
 											})
 										);
 										end();
@@ -578,7 +578,7 @@ export = new fileRouter.Path("/")
 							output: result?.logs || "No output",
 							exitCode: result?.exit_code || 0,
 							result: result?.result,
-							took: result?.took || 0,
+							took: result?.tooks,
 						},
 					});
 				}
