@@ -394,19 +394,6 @@ try {
 		},
 	});
 
-	if (env.CONTAINERED === "true") {
-		// Because we are in a container already, this is a fucked up workaround but it works i guess
-		const tarStream = tar.c(
-			{
-				gzip: true,
-				cwd: tempDir,
-			},
-			fs.readdirSync(tempDir)
-		); // Create a tar stream of the temp directory
-		await container.putArchive(tarStream, { path: "/app" }); // Upload the tar stream to the container
-		recordTiming(Date.now(), "File upload (extra)");
-	}
-
 	await container.start();
 	recordTiming(Date.now(), "Container start");
 
