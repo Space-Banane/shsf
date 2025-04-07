@@ -16,6 +16,10 @@ export const prisma = new PrismaClient({
 	transactionOptions: { timeout: 30000, maxWait: 20000 },
 });
 
+const CORS_DOMAINS = env.CORS_URLS!.split(",");
+CORS_DOMAINS.push(URL)
+console.log(CORS_DOMAINS);
+
 export const server = new Server(
 	Runtime,
 	{
@@ -46,10 +50,10 @@ export const server = new Server(
 	},
 	[
 		Cors.use({
-			allowAll: true,
-			// origins: [URL],
-			// methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-			// credentials: true,
+			allowAll: false,
+			origins: CORS_DOMAINS,
+			methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+			credentials: true,
 		}),
 	]
 );
