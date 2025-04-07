@@ -46,10 +46,10 @@ export const server = new Server(
 	},
 	[
 		Cors.use({
-			allowAll: false,
-			origins: [URL],
-			methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-			credentials: true,
+			allowAll: true,
+			// origins: [URL],
+			// methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+			// credentials: true,
 		}),
 	]
 );
