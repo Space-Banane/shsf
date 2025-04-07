@@ -446,7 +446,7 @@ export = new fileRouter.Path("/")
 				limit
 					.hits(1)
 					.window(1000)
-					.penalty(500)
+					.penalty(0)
 			)
 			.onRequest(async (ctr) => {
 				const id = ctr.params.get("id");
