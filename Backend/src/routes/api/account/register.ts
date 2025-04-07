@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "crypto";
 import { COOKIE, DOMAIN, fileRouter, prisma } from "../../..";
 import { Cookie } from "rjweb-server";
 import * as bcrypt from "bcrypt";
+import { env } from "process";
 
 export = new fileRouter.Path("/").http(
 	"POST",
@@ -10,6 +11,11 @@ export = new fileRouter.Path("/").http(
 		http
 			.ratelimit((limit) => limit.hits(1).window(20000).penalty(2000))
 			.onRequest(async (ctr) => {
+				if (env.REGISTER_DISABLED === "true") {
+					return ctr
+						.status(ctr.$status.BAD_REQUEST)
+						.print("Registration is disabled");
+				} 
 				const [data, error] = await ctr.bindBody((z) =>
 					z.object({
 						display_name: z.string().max(128),
