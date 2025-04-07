@@ -64,7 +64,7 @@ async function getNamespace(namespaceId: number) {
 		credentials: "include",
 	});
 
-	const data = (await response.json()) as OKResponse | ErrorResponse;
+	const data = (await response.json()) as {status:"OK",data:Namespace} | ErrorResponse;
 	return data;
 }
 

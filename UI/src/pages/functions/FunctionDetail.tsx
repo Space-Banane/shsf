@@ -9,7 +9,12 @@ import CreateTriggerModal from "../../components/modals/CreateTriggerModal";
 import EditTriggerModal from "../../components/modals/EditTriggerModal";
 import DeleteTriggerModal from "../../components/modals/DeleteTriggerModal";
 import UpdateEnvModal from "../../components/modals/UpdateEnvModal";
-import { FunctionFile, XFunction, Trigger } from "../../types/Prisma";
+import {
+	FunctionFile,
+	XFunction,
+	Trigger,
+	Namespace,
+} from "../../types/Prisma";
 import {
 	getFunctionById,
 	executeFunction,
@@ -28,10 +33,12 @@ import {
 	updateTrigger,
 	deleteTrigger,
 } from "../../services/backend.triggers";
+import { getNamespace } from "../../services/backend.namespaces";
 
 function FunctionDetail() {
 	const { id } = useParams<{ id: string }>();
 	const [functionData, setFunctionData] = useState<XFunction | null>(null);
+	const [nameSpace, setNamespace] = useState<Namespace | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [files, setFiles] = useState<FunctionFile[]>([]);
 	const [triggers, setTriggers] = useState<Trigger[]>([]);
@@ -64,6 +71,11 @@ function FunctionDetail() {
 	const [activeFileLanguage, setActiveFileLanguage] = useState<string>("");
 	const consoleOutputRef = useRef<HTMLDivElement>(null);
 	const [autoScroll, setAutoScroll] = useState<boolean>(true);
+	const [copyUrlColor, setCopyUrlColor] = useState<string>("text-stone-300");
+	const [copyUrltext, setCopyUrlText] = useState<string>("Copy📎");
+	const [paramInputColor, setParamInputColor] = useState<string>("text-white");
+	const [realTimeTaken, setRealTimeTaken] = useState<number | null>(null);
+
 
 	useEffect(() => {
 		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
@@ -152,9 +164,17 @@ function FunctionDetail() {
 				getFiles(parseInt(id)),
 				getTriggers(parseInt(id)),
 			])
-				.then(([functionData, filesData, triggersData]) => {
+				.then(([functionData, filesData, triggersData,]) => {
 					if (functionData.status === "OK") {
 						setFunctionData(functionData.data);
+
+						getNamespace(functionData.data.namespaceId).then(
+							(namespaceData) => {
+								if (namespaceData.status === "OK") {
+									setNamespace(namespaceData.data);
+								}
+							}
+						);
 					} else {
 						alert("Error fetching function: " + functionData.message);
 						return;
@@ -220,7 +240,7 @@ function FunctionDetail() {
 						file.id === activeFile.id ? { ...file, code } : file
 					)
 				);
-				loadData(); // Reload files to ensure the latest content is displayed
+				window.location.reload(); // Reload the page to reflect changes
 			} else {
 				alert("Error saving file: " + data.message);
 			}
@@ -265,6 +285,7 @@ function FunctionDetail() {
 						result.data.output || "Execution completed with no output."
 					);
 					setExitCode(result.data.exitCode);
+					setRealTimeTaken(result.data.took);
 
 					// Display result if available
 					if (result.data.result !== undefined) {
@@ -303,6 +324,7 @@ function FunctionDetail() {
 							// Handle function result if present
 							if (data.result !== undefined) {
 								setFunctionResult(data.result);
+								if (data.took != 0) {setRealTimeTaken(data.took);}
 							}
 						} else if (data.type === "error") {
 							setConsoleOutput(
@@ -537,58 +559,58 @@ function FunctionDetail() {
 
 	return (
 		<div className="flex flex-col items-center w-full">
-			<h1 className="text-white text-2xl mb-4">
-				{functionData.name} ({functionData.namespaceId})
+			<h1 className="text-primary text-center text-4xl font-bold mb-2">
+				📂{nameSpace?.name}/🚀{functionData.name}
 			</h1>
 
 			<div className="mt-4 w-full px-4 flex flex-row gap-4">
 				<div className="w-1/4">
 					<button
-						className="mb-4 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 w-full"
+						className="mb-4 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80 w-full"
 						onClick={() => setShowUpdateModal(true)}
 					>
 						Update Function Settings
 					</button>
 					<button
-						className="mb-4 bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600 w-full"
+						className="mb-4 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80 w-full"
 						onClick={() => setShowEnvModal(true)}
 					>
 						Edit Environment Variables
 					</button>
 
 					<div className="bg-gray-800 p-4 rounded-lg mb-4">
-						<h2 className="text-white text-xl mb-2">File Manager</h2>
+						<h2 className="text-secondary text-xl mb-2">File Manager</h2>
 						<ul className="text-white">
 							{files.length > 0 ? (
 								files.map((file) => (
 									<li
 										key={file.id}
 										className={`flex justify-between py-1 px-2 cursor-pointer ${
-											activeFile?.id === file.id ? "bg-gray-700 rounded-md" : ""
+											activeFile?.id === file.id ? "bg-slate-700 rounded-md" : ""
 										}`}
 										onClick={() => handleFileSelect(file)}
 									>
 										<span>{file.name}</span>
 										<div>
 											<button
-												className="text-blue-500 mr-2 hover:underline"
+												className="text-blue-500 mr-2 hover:bg-slate-600 bg-slate-700 rounded-md px-2"
 												onClick={(e) => {
 													e.stopPropagation();
 													setSelectedFile(file);
 													setShowRenameModal(true);
 												}}
 											>
-												Rename
+												📝Rename
 											</button>
 											<button
-												className="text-red-500 hover:underline"
+												className="text-red-500 hover:bg-slate-600 bg-slate-700 rounded-md px-2 "
 												onClick={(e) => {
 													e.stopPropagation();
 													setSelectedFile(file);
 													setShowDeleteModal(true);
 												}}
 											>
-												Delete
+												🗑️Delete
 											</button>
 										</div>
 									</li>
@@ -598,7 +620,7 @@ function FunctionDetail() {
 							)}
 						</ul>
 						<button
-							className="mt-4 bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"
+							className="mt-4 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80"
 							onClick={() => setShowCreateModal(true)}
 						>
 							Create File
@@ -606,7 +628,7 @@ function FunctionDetail() {
 					</div>
 
 					<div className="bg-gray-800 p-4 rounded-lg">
-						<h2 className="text-white text-xl mb-2">Triggers</h2>
+						<h2 className="text-secondary text-xl mb-2">Triggers</h2>
 						<ul className="text-white">
 							{triggers.length > 0 ? (
 								triggers.map((trigger) => (
@@ -616,8 +638,12 @@ function FunctionDetail() {
 									>
 										<div className="flex justify-between items-center">
 											<div>
-												<h3 className={`font-medium ${!trigger.enabled ? 'text-gray-400' : ''}`}>
-													{trigger.name} {!trigger.enabled && '(Disabled)'}
+												<h3
+													className={`font-medium ${
+														!trigger.enabled ? "text-gray-400" : ""
+													}`}
+												>
+													{trigger.name} {!trigger.enabled && "(Disabled)"}
 												</h3>
 												<p className="text-gray-400 text-sm">{trigger.cron}</p>
 											</div>
@@ -654,7 +680,7 @@ function FunctionDetail() {
 							)}
 						</ul>
 						<button
-							className="mt-4 bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"
+							className="mt-4 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80"
 							onClick={() => setShowCreateTriggerModal(true)}
 						>
 							Create Trigger
@@ -664,32 +690,40 @@ function FunctionDetail() {
 
 				<div className="w-3/4 flex flex-col">
 					<div className="flex justify-between mb-2">
-						<h2 className="text-white text-xl">
+						<h2 className="text-primary text-xl">
 							{activeFile ? activeFile.name : "No file selected"}
 						</h2>
-						<div className="flex items-center bg-slate-700 px-2 py-1 rounded-md">
-							<span className="text-white mr-2">Function URL:</span>
-							<div className="relative">
+						<div className="flex items-center bg-stone-100/10 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg">
+							<span className="text-stone-300 text-sm font-light mr-3">
+								URL
+							</span>
+							<div className="relative flex items-center space-x-2">
 								<input
 									type="text"
 									value={functionURL}
 									readOnly
-									className="bg-slate-800 text-white px-2 py-1 rounded-md w-64"
+									className="bg-stone-800/50 text-stone-100 text-sm px-4 py-1.5 rounded-md w-72 outline-none ring-1 ring-stone-400/30"
 									onClick={(e) => e.currentTarget.select()}
 								/>
 								<button
-									className="ml-2 bg-blue-600 text-white px-2 py-1 rounded-md hover:bg-gray-500"
+									className="transition-all duration-200 bg-stone-700/50 hover:bg-stone-600/50 px-3 py-1.5 rounded-md text-sm font-light"
 									onClick={() => {
 										navigator.clipboard.writeText(functionURL);
+										setCopyUrlColor("text-green-400");
+										setCopyUrlText("✅ Copied!");
+										setTimeout(() => {
+											setCopyUrlColor("text-stone-300");
+											setCopyUrlText("Copy📎");
+										}, 2000);
 									}}
 								>
-									Copy
+									<span className={copyUrlColor}>{copyUrltext}</span>
 								</button>
 							</div>
 						</div>
 						<div>
 							<button
-								className={`bg-green-600 text-white px-4 py-1 rounded-md hover:bg-green-700 mr-2 ${
+								className={`bg-green-600 text-white px-4 py-1.5 rounded-md hover:bg-green-700 mr-2 ${
 									!activeFile ? "opacity-50 cursor-not-allowed" : ""
 								}`}
 								onClick={handleSaveFile}
@@ -698,32 +732,32 @@ function FunctionDetail() {
 								{saving ? "Saving..." : "💾Save"}
 							</button>
 							<button
-								className={`bg-blue-600 text-white px-4 py-1 rounded-md hover:bg-blue-700`}
+								className={`bg-primary text-white px-4 py-1.5 rounded-md hover:bg-primary/80 ${!activeFile ? "opacity-50 cursor-not-allowed" : ""}`}
 								onClick={handleRunCode}
-								disabled={running}
+								disabled={running || !activeFile}
 							>
 								{running ? "Running..." : `🐎Run`}
 							</button>
 							<select
-								className="ml-2 bg-gray-700 text-white px-2 py-1 rounded-md"
+								className="ml-2 bg-gray-700 text-white px-2 py-1.5 rounded-md"
 								value={runningMode}
 								onChange={(e) =>
 									setRunningMode(e.target.value as "classic" | "streaming")
 								}
 								disabled={running}
 							>
-								<option value="streaming">Stream Output</option>
-								<option value="classic">Wait for Completion</option>
+								<option value="streaming">Stream</option>
+								<option value="classic">Completion</option>
 							</select>
 							<button
-								className={`ml-2 px-2 py-1 rounded-md ${
+								className={`ml-2 px-2 py-1.5 rounded-md ${
 									showRunParams
 										? "bg-yellow-600 text-white hover:bg-yellow-700"
 										: "bg-gray-600 text-white hover:bg-gray-700"
 								}`}
 								onClick={() => setShowRunParams(!showRunParams)}
 							>
-								{showRunParams ? "Hide Params" : "Run Params"}
+								{showRunParams ? "Params" : "Params"}
 							</button>
 						</div>
 					</div>
@@ -732,10 +766,18 @@ function FunctionDetail() {
 					{showRunParams && (
 						<div className="mb-2">
 							<textarea
-								className="w-full h-20 bg-gray-800 text-white p-2 rounded-md border border-gray-600"
+								className={`w-full h-20 bg-gray-800 ${paramInputColor} p-2 rounded-md border border-gray-600`}
 								placeholder="Enter JSON run parameters..."
 								value={runParams}
-								onChange={(e) => setRunParams(e.target.value)}
+								onChange={(e) => {
+									setRunParams(e.target.value);
+									try {
+										JSON.parse(e.target.value);
+										setParamInputColor("text-white");
+									} catch {
+										setParamInputColor("text-red-500");
+									}
+								}}
 								spellCheck={false}
 							/>
 						</div>
@@ -743,7 +785,7 @@ function FunctionDetail() {
 
 					<div className="h-[28rem] border border-gray-700 rounded relative">
 						{!activeFile && (
-							<div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 text-white text-lg">
+							<div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 text-text text-lg">
 								No file selected. Please select a file to edit.
 							</div>
 						)}
@@ -774,7 +816,7 @@ function FunctionDetail() {
 
 					<div className="mt-4">
 						<h3 className="text-white text-lg mb-1 flex justify-between">
-							<span>
+							<span className="space-x-5">
 								Console Output{" "}
 								{exitCode !== null && (
 									<span
@@ -798,6 +840,11 @@ function FunctionDetail() {
 										Execution Time: {executionTime}s/{functionData.timeout}s
 									</span>
 								)}
+								{realTimeTaken !== 0 && realTimeTaken !== null && (
+									<span className="text-gray-500">
+										Real Time Taken: {realTimeTaken}s
+									</span>
+								)}
 							</span>
 							{functionResult !== null && (
 								<span className="text-green-400">
@@ -807,27 +854,15 @@ function FunctionDetail() {
 						</h3>
 
 						<div
-							className="bg-gray-950 p-3 rounded h-36 max-h-42 overflow-auto font-mono text-sm"
+							className="bg-gray-950 p-3 rounded min-h-[38px] max-h-[200px] overflow-auto font-mono text-sm text-white scrollbar-none"
 							ref={consoleOutputRef}
 							onScroll={handleConsoleScroll}
+							style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
 						>
-							<pre className="whitespace-pre-wrap">
+							<pre className="whitespace-pre-wrap text-white/90">
 								{consoleOutput || "No output to display"}
 							</pre>
 						</div>
-
-						{functionResult !== null && (
-							<div className="mt-2">
-								<h3 className="text-white text-lg mb-1">Function Result</h3>
-								<div className="bg-gray-950 p-3 rounded max-h-40 overflow-auto font-mono text-sm">
-									<pre className="whitespace-pre-wrap text-green-400">
-										{typeof functionResult === "object"
-											? JSON.stringify(functionResult, null, 2)
-											: String(functionResult)}
-									</pre>
-								</div>
-							</div>
-						)}
 
 						{!autoScroll && consoleOutput && (
 							<div className="mt-1 text-xs text-gray-400 flex justify-end">
@@ -845,6 +880,21 @@ function FunctionDetail() {
 								</button>
 							</div>
 						)}
+
+						{functionResult !== null && (
+							<div className="mt-2">
+								<h3 className="text-white text-lg mb-1">Function Result</h3>
+								<div className="bg-gray-950 p-3 rounded max-h-40 overflow-auto font-mono text-sm">
+									<pre className="whitespace-pre-wrap text-green-400">
+										{typeof functionResult === "object"
+											? JSON.stringify(functionResult, null, 2)
+											: String(functionResult)}
+									</pre>
+								</div>
+							</div>
+						)}
+
+						
 					</div>
 				</div>
 			</div>

@@ -1,26 +1,146 @@
 const IndexPage = () => {
 	return (
-		<div className="p-4 flex items-center justify-center">
-			<div className="max-w-3xl w-full">
-				<div className="p-6">
-					<h1 className="text-4xl font-extrabold text-white text-center mb-4">
-						Self-Host Serverless Functions (SHSF)
-					</h1>
-					<p className="text-lg text-gray-300 leading-relaxed text-center">
-						This app is a self-hosted serverless function platform, designed to provide an alternative to cloud solutions like AWS Lambda or DigitalOcean Functions. It allows users to execute code on demand with features like event-driven architecture, cron jobs, and a web-based UI for managing functions, triggers, and databases.
+		<div className="min-h-screen bg-background">
+			{/* Hero Section */}
+			<div className="h-[90vh] flex items-center justify-center px-4 pt-[-10vh]">
+				<div className="text-center space-y-8">
+					<h1 className="text-7xl font-bold text-primary">{"<SHSF/>"}</h1>
+					<p className="text-2xl text-text/80 max-w-2xl mx-auto">
+						Self Hostable Serverless Functions.
 					</p>
-					<p className="mt-2 text-lg text-gray-300 leading-relaxed text-center">
-						The system is scalable using Docker and Kubernetes, with a focus on flexibility, security, and user-friendliness.
-					</p>
-					<div className="mt-6 flex justify-center">
-						<button className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition" onClick={() => window.location.href = '/functions'}>
+					<div className="flex gap-6 justify-center mt-12">
+						<a
+							className="px-6 py-4 bg-primary text-background text-xl font-bold rounded-xl 
+		  hover:shadow-[0_0_30px_rgba(124,131,253,0.3)] hover:scale-105 transition-all duration-300"
+							href="/functions"
+						>
 							Get Started
-						</button>
+						</a>
+						<a
+							className="px-6 py-4 border-2 border-primary text-primary text-xl font-bold rounded-xl 
+		  hover:bg-primary/10 hover:shadow-lg transition-all duration-300"
+							href="/docs"
+						>
+							Documentation
+						</a>
 					</div>
 				</div>
 			</div>
+
+			{/* Cloud Functions Intro Section */}
+			<section className="py-24 px-4">
+				<div className="max-w-3xl mx-auto">
+					<h2 className="text-5xl font-bold text-primary text-center mb-8 ">
+						Introduction to Cloud Functions
+					</h2>
+					<p className="text-xl text-text/80 text-center max-w-2xl mx-auto">
+						Cloud Functions are single-purpose, serverless operations that run
+						in response to events. Write code that solves one specific problem,
+						without worrying about the underlying infrastructure.
+					</p>
+				</div>
+			</section>
+
+			{/* How to execute a function Section */}
+			<section className="py-24 px-4">
+				<div className="max-w-3xl mx-auto">
+					<h2 className="text-5xl font-bold text-primary text-center mb-8 ">
+						How to Execute a Function
+					</h2>
+					<p className="text-xl text-text/80 text-center max-w-2xl mx-auto">
+						In SHSF, you can execute a Function using a HTTP Request. <br />
+						You can also setup a trigger, which is like a cron job, to run your function at a specific time or interval.
+					</p>
+				</div>
+				<div className="flex justify-center mt-8">
+					<a
+						className="px-4 py-2 bg-primary text-background text-xl font-bold rounded-xl
+						 hover:shadow-[0_0_30px_rgba(124,131,253,0.3)] hover:scale-105 transition-all duration-300"
+						href="/functions"
+					>
+						Deploy a Function
+					</a>
+				</div>
+			</section>
+
+			{/* Use Case Section */}
+			<section className="py-24 px-4">
+				<div className="max-w-7xl mx-auto">
+					<h2 className="text-5xl font-bold text-primary text-center mb-10">
+						Real World Example
+					</h2>
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+						<RealWorldExample title="Image Processing Pipeline🖼️" description="
+							Use Cloud Functions to process images in real time. Upload an image,
+							and trigger a function to resize, filter, or analyze it.
+						" />
+						<RealWorldExample title="Data Processing🛠️" description="
+							Leverage Cloud Functions to process large datasets efficiently. 
+							Trigger functions on data uploads or scheduled events.
+						" />
+						<RealWorldExample title="Quick Response to User Actions👥" description="
+							Use Cloud Functions to respond to user actions, such as sending
+							email notifications or updating databases.
+						" extra="Very possible, but not recommended for big tech." />
+						<RealWorldExample title="Webhook Handling🕸️" description="
+							Use Cloud Functions to handle webhooks from third-party services.
+							Process incoming data and trigger further actions.
+						" />
+					</div>
+				</div>
+			</section>
+
+			{/* Supported Languages Section */}
+			<section className="py-24 px-4">
+				<div className="max-w-6xl mx-auto text-center">
+					<h2 className="text-5xl font-bold text-primary mb-16">
+						Supported Languages
+					</h2>
+					<div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-3xl mx-auto mb-16">
+						<SupportedLanguage language="NodeJS🟢" tag="Limited Support" />
+						<SupportedLanguage language="Python🐍" />
+						<SupportedLanguage language="Go💨" soon={true} />
+						<SupportedLanguage language="Lua🟣" soon={true} />
+					</div>
+					<p className="text-xl text-text/80 italic">
+						Have fun building amazing serverless applications!
+					</p>
+				</div>
+			</section>
 		</div>
 	);
 };
+
+function SupportedLanguage({ language, soon, tag }: { language: string; soon?: boolean; tag?: string }) {
+	return (
+		<div
+			className={`relative flex items-center justify-center text-2xl font-bold text-subhead bg-primary/10 rounded-lg p-4 shadow-md ${
+				soon ? 'filter grayscale opacity-70' : ''
+			}`}
+		>
+			{soon && (
+				<span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-bl-lg rounded-tr-lg">
+					Coming Soon
+				</span>
+			)}
+			{tag && (
+				<span className="absolute top-0 right-0 bg-blue-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-bl-lg rounded-tr-lg">
+					{tag}
+				</span>
+			)}
+			<span>{language}</span>
+		</div>
+	);
+}
+
+function RealWorldExample({ title, description, extra }: { title: string; description: string; extra?: string }) {
+	return (
+		<div className="bg-primary/5 rounded-3xl p-12">
+			<h3 className="text-2xl font-bold text-subhead mb-6">{title}</h3>
+			<p className="text-xl text-text/80 mb-4">{description}</p>
+			{extra && <p className="text-lg text-text/60 italic">{extra}</p>}
+		</div>
+	);
+}
 
 export default IndexPage;

@@ -7,6 +7,7 @@ import { HttpContext } from "rjweb-server/lib/typings/types/implementation/conte
 import { HttpRequestContext } from "rjweb-server";
 import { DataContext } from "rjweb-server/lib/typings/types/internal";
 import { UsableMiddleware } from "rjweb-server/lib/typings/classes/Middleware";
+
 const tar = require("tar");
 const fs = require("fs");
 const path = require("path");
@@ -20,27 +21,36 @@ export async function executeFunction(
 		| { enabled: false },
 	payload: string
 ) {
+	const starting_time = Date.now();
 	const docker = new Docker();
 	const containerName = `code_runner_${functionData.id}_${Date.now()}`;
 	const tempDir = `/tmp/shsf/${containerName}`;
-	fs.mkdirSync(tempDir, { recursive: true });
-	
-	// Create permanent cache directories
-	fs.mkdirSync("/tmp/shsf/.cache", { recursive: true });
-	fs.mkdirSync("/tmp/shsf/.cache/pnpm", { recursive: true });
-	fs.mkdirSync("/tmp/shsf/.cache/pip", { recursive: true });
-	fs.mkdirSync("/tmp/shsf/.cache/pip/packages", { recursive: true });
-
 	const runtimeType = functionData.image.startsWith("python")
 		? "python"
 		: "node";
+	await fs.promises.mkdir(tempDir, { recursive: true });
+	
+	// Create permanent cache directories
+	await fs.promises.mkdir("/tmp/shsf/.cache", { recursive: true });
+	await fs.promises.mkdir("/tmp/shsf/.cache/pnpm", { recursive: true });
+	await fs.promises.mkdir("/tmp/shsf/.cache/pip", { recursive: true });
+	
+	// Create function-specific cache directories
+	if (runtimeType === "python") {
+		await fs.promises.mkdir(`/tmp/shsf/.cache/pip/function-${functionData.id}`, { recursive: true });
+		await fs.promises.mkdir(`/tmp/shsf/.cache/pip/function-${functionData.id}/http-cache`, { recursive: true });
+		await fs.promises.mkdir(`/tmp/shsf/.cache/pip/function-${functionData.id}/wheels`, { recursive: true });
+		await fs.promises.mkdir(`/tmp/shsf/.cache/pip/function-${functionData.id}/packages`, { recursive: true });
+	} else if (runtimeType === "node") {
+		await fs.promises.mkdir(`/tmp/shsf/.cache/pnpm/function-${functionData.id}/store`, { recursive: true });
+	}
 
 	let defaultStartupFile = runtimeType === "python" ? "main.py" : "index.js";
 	const startupFile = functionData.startup_file || defaultStartupFile;
 
 	for (const file of files) {
 		const filePath = path.join(tempDir, file.name);
-		fs.writeFileSync(filePath, file.content);
+		await fs.promises.writeFile(filePath, file.content);
 	}
 
 	// Create a wrapper script based on runtime type
@@ -50,19 +60,44 @@ export async function executeFunction(
 	if (runtimeType === "python") {
 		initScript += `
 if [ -f "requirements.txt" ]; then 
-	echo "[SHSF] --> Using Python Cache"
-	
-	# Create and use a local package index
-	mkdir -p /pip-cache/packages
-	
-	# Quietly download packages to our cache if they don't exist
-	echo "Checking packages from cache..."
-	pip download --quiet --dest /pip-cache/packages -r requirements.txt > /dev/null 2>&1
-	
-	# Then quietly install from our local cache
-	echo "Installing packages from cache..."
-	pip install --quiet --no-index --find-links /pip-cache/packages -r requirements.txt > /dev/null 2>&1
-	echo "Dependencies installed."
+    echo "[SHSF] Using Python Cache for function ${functionData.id}"
+    
+    # Create the function-specific cache directory if it doesn't exist
+    if [ ! -d "/pip-cache/function-${functionData.id}" ]; then
+        mkdir -p /pip-cache/function-${functionData.id}
+    fi
+
+    # Generate a hash of requirements.txt to detect changes
+    REQUIREMENTS_HASH=$(md5sum requirements.txt | awk '{print $1}')
+    HASH_FILE="/pip-cache/function-${functionData.id}/.hash"
+    
+    # Check if we need to reinstall based on requirements hash
+    NEEDS_INSTALL=1
+    if [ -f "$HASH_FILE" ] && [ "$(cat $HASH_FILE)" = "$REQUIREMENTS_HASH" ]; then
+        echo "Requirements unchanged, using cached packages"
+        NEEDS_INSTALL=0
+    fi
+    
+    if [ $NEEDS_INSTALL -eq 1 ]; then
+        echo "Installing packages with pip (with caching)"
+        # Configure pip to use our function-specific cache directory
+        export PIP_CACHE_DIR="/pip-cache/function-${functionData.id}/http-cache"
+        
+        # First, download wheels to our cache location
+        mkdir -p "/pip-cache/function-${functionData.id}/wheels"
+        pip wheel --wheel-dir="/pip-cache/function-${functionData.id}/wheels" -r requirements.txt > /dev/null 2>&1
+        
+        # Now install from the cached wheels
+        pip install --no-index --find-links="/pip-cache/function-${functionData.id}/wheels" -r requirements.txt > /dev/null 2>&1
+        
+        # Save the hash for future reference
+        echo "$REQUIREMENTS_HASH" > "$HASH_FILE"
+        echo "Dependencies installed and cached."
+    else
+        # Even if unchanged, make sure packages are installed in the current container
+        pip install --no-index --find-links="/pip-cache/function-${functionData.id}/wheels" -r requirements.txt > /dev/null 2>&1
+        echo "Using previously cached dependencies."
+    fi
 fi
 `;
 		// New wrapper script for Python that handles main function return values
@@ -109,15 +144,15 @@ except Exception as e:
 	traceback.print_exc()
 `;
 
-		fs.writeFileSync(wrapperPath, wrapperContent);
+		await fs.promises.writeFile(wrapperPath, wrapperContent);
 		initScript += `python /app/_runner.py\n`;
-		fs.writeFileSync(path.join(tempDir, "init.sh"), initScript);
+		await fs.promises.writeFile(path.join(tempDir, "init.sh"), initScript);
 		fs.chmodSync(path.join(tempDir, "init.sh"), "755");
 	} else if (runtimeType === "node") {
 		initScript += `
 # Check if package.json exists
 if [ -f "package.json" ]; then 
-	echo "[SHSF] --> Using Node Cache"
+	echo "[SHSF] --> Using Node Cache for function ${functionData.id}"
 	# Install pnpm if not already installed
 	if ! command -v pnpm &> /dev/null
 	then
@@ -125,9 +160,9 @@ if [ -f "package.json" ]; then
 		npm install -g pnpm
 	fi
 	echo "Installing dependencies with pnpm..."
-	# Use a shared pnpm cache directory
-	mkdir -p /tmp/shsf/.cache/pnpm/store
-	pnpm install --store-dir /tmp/shsf/.cache/pnpm/store --prefer-offline
+	# Use a function-specific pnpm cache directory
+	mkdir -p /pnpm-cache/function-${functionData.id}/store
+	pnpm install --store-dir /pnpm-cache/function-${functionData.id}/store --prefer-offline
 fi
 `;
 		// Create Node wrapper script that handles main function return values
@@ -138,107 +173,87 @@ const path = require('path');
 const vm = require('vm');
 
 try {
-    // First try to load the module
-    const targetModule = require(path.join('/app', '${startupFile}'));
-    const runData = process.env.RUN_DATA;
-    let mainFunction;
-    
-    // Check if the module exports a main function directly
-    if (typeof targetModule === 'function') {
-        mainFunction = targetModule;
-    } 
-    // Check if the module has a main function as a property
-    else if (targetModule && typeof targetModule.main === 'function') {
-        mainFunction = targetModule.main;
-    }
-    // If no main function found in exports, try evaluating the file contents
-    else {
-        console.log("No exported main function found. Checking for global main function...");
-        const fileContent = fs.readFileSync(path.join('/app', '${startupFile}'), 'utf8');
-        
-        // Create a sandbox with global objects
-        const sandbox = {
-            console,
-            require,
-            __dirname: '/app',
-            __filename: path.join('/app', '${startupFile}'),
-            module: { exports: {} },
-            exports: {},
-            process,
-            setTimeout,
-            clearTimeout,
-            setInterval,
-            clearInterval,
-            Buffer,
-            main: undefined
-        };
-        
-        // Run the script in the sandbox
-        vm.runInNewContext(fileContent, sandbox);
-        
-        // Check if a main function was defined
-        if (typeof sandbox.main === 'function') {
-            mainFunction = sandbox.main;
-            console.log("Found global main function");
-        } else {
-            console.log("No main function found in module or global scope");
-        }
-    }
-    
-    // Execute main function if found
-    if (mainFunction) {
-        try {
-            // Call the main function with the run data if provided
-            let result;
-            if (runData) {
-                result = mainFunction(JSON.parse(runData));
-            } else {
-                result = mainFunction();
-            }
-            
-            // Handle Promise results
-            if (result instanceof Promise) {
-                result
-                    .then(finalResult => {
-                        fs.writeFileSync('eject.json', JSON.stringify(finalResult));
-                    })
-                    .catch(err => {
-                        console.error("Error in async main function:", err);
-                    });
-            } else {
-                // Handle synchronous results
-                fs.writeFileSync('eject.json', JSON.stringify(result));
-            }
-        } catch(e) {
-            console.error("Error executing main function:", e);
-        }
-    }
+	console.log("Executing script...");
+	const fileContent = fs.readFileSync(path.join('/app', '${startupFile}'), 'utf8');
+	
+	// Create a sandbox with global objects
+	const sandbox = {
+		console,
+		require,
+		__dirname: '/app',
+		__filename: path.join('/app', '${startupFile}'),
+		module: { exports: {} },
+		exports: {},
+		process,
+		setTimeout,
+		clearTimeout,
+		setInterval,
+		clearInterval,
+		Buffer,
+		main: undefined
+	};
+	
+	// Run the script in the sandbox
+	vm.runInNewContext(fileContent, sandbox);
+	
+	// Check if a main function was defined and execute it
+	if (typeof sandbox.main === 'function') {
+		const runData = process.env.RUN_DATA;
+		try {
+			let result;
+			if (runData) {
+				result = sandbox.main(JSON.parse(runData));
+			} else {
+				result = sandbox.main();
+			}
+			
+			if (result instanceof Promise) {
+				result
+					.then(finalResult => {
+						fs.writeFileSync('eject.json', JSON.stringify(finalResult));
+					})
+					.catch(err => {
+						console.error("Error in async main function:", err);
+					});
+			} else {
+				fs.writeFileSync('eject.json', JSON.stringify(result));
+			}
+		} catch(e) {
+			console.error("Error executing main function:", e);
+		}
+	}
 } catch (e) {
-    console.error("Error in runner script:", e);
+	console.error("Error in runner script:", e);
 }
 `;
 
-		fs.writeFileSync(wrapperPath, wrapperContent);
+		await fs.promises.writeFile(wrapperPath, wrapperContent);
 		initScript += `node /app/_runner.js\n`;
-		fs.writeFileSync(path.join(tempDir, "init.sh"), initScript);
-		fs.chmodSync(path.join(tempDir, "init.sh"), "755");
+		await fs.promises.writeFile(path.join(tempDir, "init.sh"), initScript);
+		await fs.promises.chmod(path.join(tempDir, "init.sh"), "755");
 	}
 
 	const CMD = ["/bin/sh", "/app/init.sh"];
 
 	try {
-		await docker.getImage(functionData.image).inspect();
-	} catch {
-		const stream = await docker.pull(functionData.image);
-		await new Promise((resolve, reject) => {
-			docker.modem.followProgress(stream, (err) =>
-				err ? reject(err) : resolve(null)
-			);
+		const imageExists = await docker.listImages({
+			filters: JSON.stringify({ reference: [functionData.image] }),
 		});
+		if (imageExists.length === 0) {
+			const stream = await docker.pull(functionData.image);
+			await new Promise((resolve, reject) => {
+				docker.modem.followProgress(stream, (err) =>
+					err ? reject(err) : resolve(null)
+				);
+			});
+		}
+	} catch (error) {
+		console.error("Error checking or pulling image:", error);
+		throw error;
 	}
 
 	// Function.env is for example [{"name":"TEST","value":"TEST"}]
-	let ENV = functionData.env ?JSON.parse(functionData.env).map((env:{name:string;value:any}) => {
+	let ENV = functionData.env ? JSON.parse(functionData.env).map((env:{name:string;value:any}) => {
 		return `${env.name}=${env.value}`;
 	}) : [];
 	ENV.push("RUNNER=shsf");
@@ -256,20 +271,13 @@ try {
 			Binds: [
 				`${tempDir}:/app`,
 				// Mount the pip cache directory as a volume
-				`/tmp/shsf/.cache/pip:/pip-cache`
+				`/tmp/shsf/.cache/pip:/pip-cache`,
+				// Mount the pnpm cache directory as a volume
+				`/tmp/shsf/.cache/pnpm:/pnpm-cache`
 			],
 			Memory: (functionData.max_ram || 128) * 1024 * 1024,
 		},
 	});
-
-	const tarStream = tar.c(
-		{
-			gzip: true,
-			cwd: tempDir,
-		},
-		fs.readdirSync(tempDir)
-	); // Create a tar stream of the temp directory
-	await container.putArchive(tarStream, { path: "/app" }); // Upload the tar stream to the container
 
 	await container.start();
 	const timeout = functionData.timeout || 15;
@@ -321,9 +329,12 @@ try {
 				const ejectData = fs.readFileSync(ejectFilePath, "utf-8");
 				try {
 					const ejectResult = JSON.parse(ejectData);
+					const containerInspect = await container.inspect();
 					return {
 						logs,
 						result: ejectResult,
+						took: (Date.now() - starting_time) / 1000, // in seconds
+						exit_code: containerInspect.State.ExitCode,
 					};
 				} catch (e) {
 					console.error("Error parsing eject data:", e);
@@ -379,22 +390,25 @@ try {
 			return {
 				exit_code: result.StatusCode,
 				logs,
+				took: (Date.now() - starting_time) / 1000, // in seconds
 			};
 		}
 	} finally {
-		fs.rmSync(tempDir, { recursive: true, force: true });
+		await fs.promises.rm(tempDir, { recursive: true, force: true });
 		await container.remove();
+
+		console.log(
+			`[SHSF CRONS] Function ${functionData.id} (${functionData.name}) executed in ${
+				(Date.now() - starting_time) / 1000
+			} seconds`
+		);
 
 		await prisma.function.update({
 			where: { id },
 			data: {
 				lastRun: new Date(),
 			},
-		});
-
-		console.log(
-			`[SHSF CRONS] Function ${functionData.id} (${functionData.name}) executed.`	
-		);
+		});		
 	}
 }
 
