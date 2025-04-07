@@ -791,7 +791,13 @@ export = new fileRouter.Path("/")
 				},
 			});
 			if (functionData.image.startsWith("python:")) {
-				fs.rmdirSync(`/tmp/shsf/.cache/pip`, {
+				fs.rmdirSync(`/tmp/shsf/.cache/pip/function-${functionId}`, {
+					maxRetries: 3,
+					recursive: true,
+					retryDelay: 1000,
+				});
+			} else {
+				fs.rmdirSync(`/tmp/shsf/.cache/pnpm/function-${functionId}`, {
 					maxRetries: 3,
 					recursive: true,
 					retryDelay: 1000,
