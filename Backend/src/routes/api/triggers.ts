@@ -67,7 +67,7 @@ export = new fileRouter.Path("/")
 					functionId: func.id,
 					name: data.name,
 					description: data.description,
-					cron: data.cron,
+					cron: data.cron || "{}",
 					data: data.data,
                     enabled: data.enabled,
 				},
