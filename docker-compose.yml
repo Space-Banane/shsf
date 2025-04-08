@@ -1,6 +1,7 @@
 services:
   ui:
     image: node:22
+    restart: always
     working_dir: /app
     env_file:
       - .env
@@ -14,6 +15,7 @@ services:
 
   backend:
     image: node:22
+    restart: always
     working_dir: /app
     volumes:
       - ./Backend:/app
