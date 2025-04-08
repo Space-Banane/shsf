@@ -16,7 +16,7 @@
 		"bcrypt": "^5.1.1",
 		"cron-parser": "^5.1.1",
 		"dockerode": "^4.0.5",
-		"esbuild": "^0.24.2",
+		"esbuild": "^0.25.0",
 		"file-type": "^19.6.0",
 		"prisma": "^6.5.0",
 		"rjweb-server": "^9.8.6",
