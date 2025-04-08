@@ -9,54 +9,6 @@ on:
       - main
 
 jobs:
-  ui_build:
-    name: Build UI
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - name: Get NodeJs Ready
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: "pnpm"
-      - name: Install dependencies and build
-        run: |
-          cd UI
-          pnpm install
-      - name: Run Builds
-        run: |
-          cd UI
-          pnpm build
-
-
-  backend:
-    name: Build Backend
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - name: Get NodeJs Ready
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: "pnpm"
-      - name: Install dependencies and build
-        run: |
-          cd Backend
-          pnpm install
-      - name: Run Builds
-        run: |
-          cd Backend
-          pnpm build
   compose_validation:
     name: Validate Docker Compose
     runs-on: ubuntu-latest
@@ -69,3 +21,41 @@ jobs:
           sudo apt-get install docker-compose
       - name: Validate Docker Compose files
         run: docker-compose config
+
+  build_backend:
+    name: Build Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 7
+      - name: Install dependencies
+        run: cd Backend && pnpm install
+      - name: Build Backend
+        run: cd Backend && pnpm build
+
+  build_frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 7
+      - name: Install dependencies
+        run: cd UI && pnpm install
+      - name: Build Frontend
+        run: cd UI && pnpm build
