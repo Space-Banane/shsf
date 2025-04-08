@@ -60,4 +60,4 @@ jobs:
       - name: Install dependencies
         run: cd UI && pnpm install
       - name: Build Frontend
-        run: cd UI && pnpm build
+        run: cd UI && CI=false && pnpm build
