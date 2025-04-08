@@ -15,8 +15,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Configure Working Directory
-        run: cd UI
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -26,18 +24,22 @@ jobs:
         with:
           node-version: 22
           cache: "pnpm"
-      - name: Install dependencies
-        run: pnpm install
-      - name: Attempt to build
-        run: pnpm build
+      - name: Install dependencies and build
+        run: |
+          cd UI
+          pnpm install
+      - name: Run Builds
+        run: |
+          cd UI
+          pnpm build
+
+
   backend:
     name: Build Backend
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Configure Working Directory
-        run: cd Backend
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -47,10 +49,14 @@ jobs:
         with:
           node-version: 22
           cache: "pnpm"
-      - name: Install dependencies
-        run: pnpm install
-      - name: Attempt to build
-        run: pnpm
+      - name: Install dependencies and build
+        run: |
+          cd Backend
+          pnpm install
+      - name: Run Builds
+        run: |
+          cd Backend
+          pnpm build
   compose_validation:
     name: Validate Docker Compose
     runs-on: ubuntu-latest
