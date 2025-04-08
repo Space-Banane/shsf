@@ -19,6 +19,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install docker-compose
+      - name: Set up Docker Build
+        run: touch .env
       - name: Validate Docker Compose files
         run: docker-compose config
 
