@@ -634,28 +634,6 @@ function FunctionDetail() {
 		}
 	}, [running, exitCode, showLogsModal]);
 
-	// Format date for logs display
-	const formatDate = (dateString: string) => {
-		const date = new Date(dateString);
-		return date.toLocaleString();
-	};
-
-	// Get status icon and color based on status
-	const getStatusDisplay = (status: string) => {
-		switch (status) {
-			case "success":
-				return { icon: "✅", color: "text-green-500" };
-			case "error":
-				return { icon: "⚠️", color: "text-red-500" };
-			case "failed":
-				return { icon: "❌", color: "text-red-500" };
-			case "running":
-				return { icon: "⏳", color: "text-yellow-500" };
-			default:
-				return { icon: "❔", color: "text-gray-400" };
-		}
-	};
-
 	if (loading) {
 		return <div className="text-white">Loading...</div>;
 	}
