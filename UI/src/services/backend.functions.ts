@@ -1,5 +1,5 @@
 import { BASE_URL } from "..";
-import { Image, XFunction } from "../types/Prisma";
+import { Image, TriggerLog, XFunction } from "../types/Prisma";
 
 interface OKResponse {
 	status: "OK";
@@ -55,6 +55,11 @@ interface ExecuteFunctionErrorResponse {
 	status: number;
 	message: string;
 	error?: string;
+}
+
+interface getFunctionLogsOK {
+	status: "OK";
+	data: TriggerLog[]
 }
 
 async function createFunction(config: {
@@ -127,6 +132,19 @@ async function getFunctionById(id: number) {
 	});
 
 	const data = await response.json() as getFunctionByIdOkResponse | ErrorResponse
+	return data;
+}
+
+async function getLogsByFuncId(id: number) {
+	const response = await fetch(`${BASE_URL}/api/function/${id}/logs`, {
+		method: "GET",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		credentials: "include",
+	});
+
+	const data = await response.json() as getFunctionLogsOK | ErrorResponse
 	return data;
 }
 
@@ -244,6 +262,6 @@ async function executeFunctionStreaming(id: number, onChunk: (data: any) => void
 	}
 }
 
-export { createFunction, deleteFunction, getFunctions, getFunctionById, updateFunction, executeFunction, executeFunctionStreaming };
+export { createFunction, deleteFunction, getFunctions, getFunctionById, updateFunction, executeFunction, executeFunctionStreaming, getLogsByFuncId };
 export type { OKResponse, ErrorResponse };
 export type { CreateFunctionResponse, FunctionListResponse, getFunctionByIdOkResponse, UpdateFunctionResponse, ExecuteFunctionResponse, ExecuteFunctionErrorResponse };

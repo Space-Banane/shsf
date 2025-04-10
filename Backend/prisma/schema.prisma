@@ -13,85 +13,86 @@ enum UserRole {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   displayName String   @db.VarChar(128)
-  email     String   @unique
-  role      UserRole @default(User)
-  avatar_url String?   @db.VarChar(256)
+  email       String   @unique
+  role        UserRole @default(User)
+  avatar_url  String?  @db.VarChar(256)
 
-  password  String?   @db.VarChar(256)
+  password String? @db.VarChar(256)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions Session[]
-  functions Function[]
+  sessions   Session[]
+  functions  Function[]
   namespaces Namespace[]
 }
 
 model Session {
-  id        Int      @id @default(autoincrement())
-  hash      String   @db.Text
+  id   Int    @id @default(autoincrement())
+  hash String @db.Text
 
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Function {
-  id Int @id @default(autoincrement())
-  name String @db.VarChar(128)
+  id          Int    @id @default(autoincrement())
+  name        String @db.VarChar(128)
   description String @db.VarChar(256)
-  image String @db.VarChar(256)
-  executionId String @db.VarChar(256) @unique // Unique identifier for the function execution
+  image       String @db.VarChar(256)
+  executionId String @unique @db.VarChar(256) // Unique identifier for the function execution
 
   userId Int
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  max_ram Int @default(512)
-  timeout Int @default(15)
-  allow_http Boolean @default(true)
-  env String? @db.Text // Environment variables in JSON format (comma separated key=value pairs)
+  max_ram       Int     @default(512)
+  timeout       Int     @default(15)
+  allow_http    Boolean @default(true)
+  env           String? @db.Text // Environment variables in JSON format (comma separated key=value pairs)
   secure_header String? @db.VarChar(256)
-  
-  retry_on_failure Boolean @default(false)
-  max_retries Int @default(3)
 
-  priority Int @default(0) // 1 to 10, 10 is the highest priority
-  tags String? @db.Text // comma separated tags
+  retry_on_failure Boolean @default(false)
+  max_retries      Int     @default(3)
+
+  priority     Int     @default(0) // 1 to 10, 10 is the highest priority
+  tags         String? @db.Text // comma separated tags
   startup_file String? @db.VarChar(256) // Replaced startup_command with startup_file
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  lastRun DateTime? // Last time the function was executed
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  lastRun   DateTime? // Last time the function was executed
 
   namespaceId Int
-  namespace Namespace @relation(fields: [namespaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  namespace   Namespace @relation(fields: [namespaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  files FunctionFile[]
-  triggers FunctionTrigger[]
+  files      FunctionFile[]
+  triggers   FunctionTrigger[]
+  TriggerLog TriggerLog[]
 }
 
 model FunctionFile {
-  id Int @id @default(autoincrement())
-  name String @db.VarChar(256)
+  id      Int    @id @default(autoincrement())
+  name    String @db.VarChar(256)
   content String @db.Text
 
   functionId Int
-  function Function @relation(fields: [functionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  function   Function @relation(fields: [functionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Namespace {
-  id Int @id @default(autoincrement())
+  id   Int    @id @default(autoincrement())
   name String @db.VarChar(128)
 
   userId Int
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -100,19 +101,30 @@ model Namespace {
 }
 
 model FunctionTrigger {
-  id Int @id @default(autoincrement())
-  name String @db.VarChar(128)
+  id          Int    @id @default(autoincrement())
+  name        String @db.VarChar(128)
   description String @db.VarChar(256)
-  cron String @db.VarChar(128) // Cron expression for scheduling
-  data Json?
+  cron        String @db.VarChar(128) // Cron expression for scheduling
+  data        Json?
 
   enabled Boolean @default(true)
 
   functionId Int
-  function Function @relation(fields: [functionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  function   Function @relation(fields: [functionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  lastRun    DateTime? // Last time the trigger was executed
+  nextRun    DateTime? // Next time the trigger is scheduled to run
+}
+
+model TriggerLog {
+  id         Int      @id @default(autoincrement())
+  functionId Int
+  function   Function @relation(fields: [functionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  result String? @db.Text // Result of the function execution
+  logs  String @db.Text // Logs from the function execution
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  lastRun DateTime? // Last time the trigger was executed
-  nextRun DateTime? // Next time the trigger is scheduled to run
 }

@@ -95,6 +95,16 @@ interface Trigger {
     lastRun: string | null;
 }
 
+interface TriggerLog {
+    id: number;
+    functionId: number;
+    result: string | null;
+    logs: string | null;
+
+    createdAt: Date;
+    updatedAt: Date;
+}
+
 type Image = 
     | "python:2.9"
     | "python:3.0"
@@ -151,6 +161,7 @@ export type {
     UserRole,
     Namespace,
     Image,
-    Trigger
+    Trigger,
+    TriggerLog
 };
 export { ImagesAsArray, ImagesAsArraySet };

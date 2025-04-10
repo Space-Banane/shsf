@@ -9,17 +9,20 @@ import CreateTriggerModal from "../../components/modals/CreateTriggerModal";
 import EditTriggerModal from "../../components/modals/EditTriggerModal";
 import DeleteTriggerModal from "../../components/modals/DeleteTriggerModal";
 import UpdateEnvModal from "../../components/modals/UpdateEnvModal";
+import TriggerLogsModal from "../../components/modals/TriggerLogsModal";
 import {
 	FunctionFile,
 	XFunction,
 	Trigger,
 	Namespace,
+	TriggerLog,
 } from "../../types/Prisma";
 import {
 	getFunctionById,
 	executeFunction,
 	executeFunctionStreaming,
 	updateFunction,
+	getLogsByFuncId,
 } from "../../services/backend.functions";
 import {
 	getFiles,
@@ -85,6 +88,12 @@ function FunctionDetail() {
 	const [realTimeTaken, setRealTimeTaken] = useState<number | null>(null);
 	const [tooks, setTooks] = useState<TimingEntry[]>([]);
 	const [showTimingDetails, setShowTimingDetails] = useState<boolean>(false);
+	const [logs, setLogs] = useState<TriggerLog[]>([]);
+	const [showLogsDetails, setShowLogsDetails] = useState<boolean>(false);
+	const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(false);
+	const logPollingRef = useRef<NodeJS.Timeout | null>(null);
+	const [showTriggersDetails, setShowTriggersDetails] = useState<boolean>(true);
+	const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
 
 	useEffect(() => {
 		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
@@ -193,9 +202,7 @@ function FunctionDetail() {
 						setFiles(filesData.data);
 						if (functionData.data.allow_http) {
 							setFunctionURL(
-								`${BASE_URL}/api/exec/${
-									functionData.data.namespaceId
-								}/${functionData.data.executionId}`
+								`${BASE_URL}/api/exec/${functionData.data.namespaceId}/${functionData.data.executionId}`
 							);
 						} else {
 							setFunctionURL(`HTTP ACCESS DISABLED`);
@@ -583,6 +590,72 @@ function FunctionDetail() {
 		}
 	};
 
+	// Function to fetch logs
+	const fetchLogs = async () => {
+		if (!id) return;
+
+		setIsLoadingLogs(true);
+		try {
+			const logsData = await getLogsByFuncId(parseInt(id));
+			if (logsData.status === "OK") {
+				setLogs(logsData.data);
+			} else {
+				console.error("Error fetching logs:", logsData.message);
+			}
+		} catch (error) {
+			console.error("Error fetching logs:", error);
+		} finally {
+			setIsLoadingLogs(false);
+		}
+	};
+
+	// Set up polling for logs
+	useEffect(() => {
+		if (id && !showLogsModal) {
+			fetchLogs(); // Fetch immediately on component mount
+
+			// Set up interval to fetch logs
+			logPollingRef.current = setInterval(fetchLogs, 10000); // Poll every 10 seconds
+
+			// Clean up interval on unmount
+			return () => {
+				if (logPollingRef.current) {
+					clearInterval(logPollingRef.current);
+				}
+			};
+		}
+	}, [id, showLogsModal]);
+
+	// Also fetch logs after running code
+	useEffect(() => {
+		if (!running && exitCode !== null && !showLogsModal) {
+			// Function execution just finished, refresh logs
+			fetchLogs();
+		}
+	}, [running, exitCode, showLogsModal]);
+
+	// Format date for logs display
+	const formatDate = (dateString: string) => {
+		const date = new Date(dateString);
+		return date.toLocaleString();
+	};
+
+	// Get status icon and color based on status
+	const getStatusDisplay = (status: string) => {
+		switch (status) {
+			case "success":
+				return { icon: "✅", color: "text-green-500" };
+			case "error":
+				return { icon: "⚠️", color: "text-red-500" };
+			case "failed":
+				return { icon: "❌", color: "text-red-500" };
+			case "running":
+				return { icon: "⏳", color: "text-yellow-500" };
+			default:
+				return { icon: "❔", color: "text-gray-400" };
+		}
+	};
+
 	if (loading) {
 		return <div className="text-white">Loading...</div>;
 	}
@@ -594,7 +667,7 @@ function FunctionDetail() {
 	return (
 		<div className="flex flex-col items-center w-full">
 			<h1 className="text-primary text-center text-3xl font-bold mb-2">
-				 📂
+				📂
 				<span className="bg-gray-950 py-1 px-2 rounded-2xl">
 					{nameSpace?.name}
 				</span>
@@ -606,19 +679,20 @@ function FunctionDetail() {
 
 			<div className="mt-4 w-full px-4 flex flex-row gap-4">
 				<div className="w-1/4">
-					<button
-						className="mb-4 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80 w-full"
-						onClick={() => setShowUpdateModal(true)}
-					>
-						Update Function Settings
-					</button>
-					<button
-						className="mb-4 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80 w-full"
-						onClick={() => setShowEnvModal(true)}
-					>
-						Edit Environment Variables
-					</button>
-
+					<div className="flex space-x-2 mb-4">
+						<button
+							className="bg-primary text-white px-1 py-2 rounded-md hover:bg-primary/80 w-1/2"
+							onClick={() => setShowUpdateModal(true)}
+						>
+							Update Function
+						</button>
+						<button
+							className="bg-primary text-white px-1 py-2 rounded-md hover:bg-primary/80 w-1/2"
+							onClick={() => setShowEnvModal(true)}
+						>
+							Edit Environment
+						</button>
+					</div>
 					<div className="bg-gray-800 p-4 rounded-lg mb-4">
 						<h2 className="text-secondary text-xl mb-2">File Manager</h2>
 						<ul className="text-white">
@@ -643,7 +717,7 @@ function FunctionDetail() {
 													setShowRenameModal(true);
 												}}
 											>
-												 ✏️
+												✏️
 											</button>
 											<button
 												className="text-red-500 outline rounded-md px-2 bg-gray-800"
@@ -653,7 +727,7 @@ function FunctionDetail() {
 													setShowDeleteModal(true);
 												}}
 											>
-												 🗑️
+												🗑️
 											</button>
 										</div>
 									</li>
@@ -671,67 +745,82 @@ function FunctionDetail() {
 					</div>
 
 					<div className="bg-gray-800 p-4 rounded-lg mb-4">
-						<h2 className="text-secondary text-xl mb-2">Triggers</h2>
-						<ul className="text-white">
-							{triggers.length > 0 ? (
-								triggers.map((trigger) => (
-									<li
-										key={trigger.id}
-										className="border-b border-gray-700 py-2 last:border-0"
-									>
-										<div className="flex justify-between items-center">
-											<div>
-												<h3
-													className={`font-medium ${
-														!trigger.enabled ? "text-gray-400" : ""
-													}`}
-												>
-													{trigger.name} {!trigger.enabled && "(Disabled)"}
-												</h3>
-												<p className="text-gray-400 text-sm">{trigger.cron}</p>
-											</div>
-											<div>
-												<button
-													className="text-blue-500 mr-2 hover:underline"
-													onClick={() => {
-														setSelectedTrigger(trigger);
-														setShowEditTriggerModal(true);
-													}}
-												>
-													Edit
-												</button>
-												<button
-													className="text-red-500 hover:underline"
-													onClick={() => {
-														setSelectedTrigger(trigger);
-														setShowDeleteTriggerModal(true);
-													}}
-												>
-													Delete
-												</button>
-											</div>
-										</div>
-										{trigger.description && (
-											<p className="text-gray-400 text-sm mt-1">
-												{trigger.description}
-											</p>
-										)}
-									</li>
-								))
-							) : (
-								<li>No triggers configured.</li>
-							)}
-						</ul>
-						<button
-							className="mt-4 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80"
-							onClick={() => setShowCreateTriggerModal(true)}
+						<div
+							className="flex justify-between items-center cursor-pointer"
+							onClick={() => setShowTriggersDetails(!showTriggersDetails)}
 						>
-							Create Trigger
-						</button>
+							<h2 className="text-secondary text-xl">Triggers</h2>
+							<span className="text-white text-xl">
+								{showTriggersDetails ? "📂" : "📁"}
+							</span>
+						</div>
+
+						{showTriggersDetails && (
+							<>
+								<ul className="text-white">
+									{triggers.length > 0 ? (
+										triggers.map((trigger) => (
+											<li
+												key={trigger.id}
+												className="border-b border-gray-700 py-2 last:border-0"
+											>
+												<div className="flex justify-between items-center">
+													<div>
+														<h3
+															className={`font-medium ${
+																!trigger.enabled ? "text-gray-400" : ""
+															}`}
+														>
+															{trigger.name} {!trigger.enabled && "(Disabled)"}
+														</h3>
+														<p className="text-gray-400 text-sm">
+															{trigger.cron}
+														</p>
+													</div>
+													<div>
+														<button
+															className="text-blue-500 mr-2 hover:underline"
+															onClick={() => {
+																setSelectedTrigger(trigger);
+																setShowEditTriggerModal(true);
+															}}
+														>
+															Edit
+														</button>
+														<button
+															className="text-red-500 hover:underline"
+															onClick={() => {
+																setSelectedTrigger(trigger);
+																setShowDeleteTriggerModal(true);
+															}}
+														>
+															Delete
+														</button>
+													</div>
+												</div>
+												{trigger.description && (
+													<p className="text-gray-400 text-sm mt-1">
+														{trigger.description}
+													</p>
+												)}
+											</li>
+										))
+									) : (
+										<li>No triggers configured.</li>
+									)}
+								</ul>
+								<button
+									className="mt-4 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80"
+									onClick={() => setShowCreateTriggerModal(true)}
+								>
+									Create Trigger
+								</button>
+							</>
+						)}
 					</div>
 
 					{/* New Timing Details Card */}
-					<div className="bg-gray-800 p-4 rounded-lg">
+					<div className="bg-gray-800 p-4 rounded-lg mb-4">
 						<div
 							className="flex justify-between items-center cursor-pointer"
 							onClick={() => setShowTimingDetails(!showTimingDetails)}
@@ -765,7 +854,10 @@ function FunctionDetail() {
 											>
 												<td className="py-1">{String(entry.description)}</td>
 												<td className="text-right py-1">
-													{typeof entry.value === "number" ? entry.value.toFixed(3) : String(entry.value)} {/* Ensure value is a number or string */}
+													{typeof entry.value === "number"
+														? entry.value.toFixed(3)
+														: String(entry.value)}{" "}
+													{/* Ensure value is a number or string */}
 												</td>
 											</tr>
 										))}
@@ -779,6 +871,41 @@ function FunctionDetail() {
 								No timing data available. Run your function to see execution
 								timing details.
 							</p>
+						)}
+					</div>
+
+					{/* Function Logs Card */}
+					<div className="bg-gray-800 p-4 rounded-lg">
+						<div
+							className="flex justify-between items-center cursor-pointer"
+							onClick={() => setShowLogsDetails(!showLogsDetails)}
+						>
+							<h2 className="text-secondary text-xl">Function Logs</h2>
+							<div className="flex items-center">
+								{isLoadingLogs && (
+									<div className="animate-spin mr-2 text-xs">⟳</div>
+								)}
+								<span className="text-white text-xl">
+									{showLogsDetails ? "📂" : "📁"}
+								</span>
+							</div>
+						</div>
+
+						{showLogsDetails && (
+							<div className="flex justify-between mt-4 space-x-4">
+								<button
+									className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80 w-1/2 text-sm"
+									onClick={() => fetchLogs()}
+								>
+									Refresh Logs
+								</button>
+								<button
+									className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80 w-1/2 text-sm"
+									onClick={() => setShowLogsModal(true)}
+								>
+									View Logs
+								</button>
+							</div>
 						)}
 					</div>
 				</div>
@@ -1067,6 +1194,13 @@ function FunctionDetail() {
 					onClose={() => setShowDeleteTriggerModal(false)}
 					onDelete={handleDeleteTrigger}
 					triggerName={selectedTrigger?.name || ""}
+				/>
+
+				<TriggerLogsModal
+					isOpen={showLogsModal}
+					onClose={() => setShowLogsModal(false)}
+					logs={logs}
+					isLoading={isLoadingLogs}
 				/>
 			</div>
 		</div>

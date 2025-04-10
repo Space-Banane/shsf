@@ -28,6 +28,7 @@ export async function executeFunction(
 ) {
 	const starting_time = Date.now();
 	const tooks: TimingEntry[] = [];
+	let func_result:string = "";
 
 	// Helper function to record timing information
 	const recordTiming = (timestamp: number, description: string) => {
@@ -444,6 +445,7 @@ try {
 					const ejectResult = JSON.parse(ejectData);
 					const containerInspect = await container.inspect();
 					recordTiming(Date.now(), "Total execution time");
+					func_result = JSON.stringify(ejectResult);
 					return {
 						logs,
 						result: ejectResult,
@@ -500,6 +502,7 @@ try {
 				try {
 					const ejectResult = JSON.parse(ejectData);
 					recordTiming(Date.now(), "Total execution time");
+					func_result = JSON.stringify(ejectResult);
 					return {
 						exit_code: result.StatusCode,
 						logs,
@@ -536,6 +539,19 @@ try {
 				lastRun: new Date(),
 			},
 		});
+
+		await prisma.triggerLog.create({
+			data: {
+				functionId: id,
+				logs: logs,
+				result: JSON.stringify({
+					payload: payload,
+					exit_code: 0,
+					tooks,
+					output: func_result,
+				})
+			}
+		})
 	}
 }
 

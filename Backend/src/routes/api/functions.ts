@@ -305,6 +305,57 @@ export = new fileRouter.Path("/")
 			});
 		})
 	)
+	.http("GET", "/api/function/{id}/logs", (http) =>
+		http.onRequest(async (ctr) => {
+			const authCheck = await checkAuthentication(
+				ctr.cookies.get(COOKIE),
+				ctr.headers.get(API_KEY_HEADER)
+			);
+
+			if (!authCheck.success) {
+				return ctr.print({
+					status: 401,
+					message: authCheck.message,
+				});
+			}
+
+			const id = ctr.params.get("id");
+			if (!id) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Missing function id",
+				});
+			}
+			const functionId = parseInt(id);
+			if (isNaN(functionId)) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Invalid function id",
+				});
+			}
+
+			const logs = await prisma.triggerLog.findMany({
+				where: {
+					functionId: functionId,
+				},
+				orderBy: {
+					createdAt: "desc",
+				},
+				take: 10,
+			});
+			if (!logs) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: 404,
+					message: "No logs found",
+				});
+			}
+
+			return ctr.print({
+				status: "OK",
+				data: logs,
+			});
+		})
+	)
 	.http("PATCH", "/api/function/{id}", (http) =>
 		http.onRequest(async (ctr) => {
 			const id = ctr.params.get("id");
