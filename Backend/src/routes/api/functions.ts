@@ -337,11 +337,13 @@ export = new fileRouter.Path("/")
 			const logs = await prisma.triggerLog.findMany({
 				where: {
 					functionId: functionId,
+					createdAt: {
+						gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7), // 7 days
+					}
 				},
 				orderBy: {
 					createdAt: "desc",
 				},
-				take: 10,
 			});
 			if (!logs) {
 				return ctr.status(ctr.$status.NOT_FOUND).print({
