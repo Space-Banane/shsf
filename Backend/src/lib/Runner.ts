@@ -114,55 +114,75 @@ export async function executeFunction(
 	if (runtimeType === "python") {
 		initScript += `
 if [ -f "requirements.txt" ]; then 
-    echo "[SHSF] Using Python Cache for function ${functionData.id}"
-    
-    VENV_DIR="/pip-cache/function-${functionData.id}/venv"
-    WHEELS_DIR="/pip-cache/function-${functionData.id}/wheels"
-    HTTP_CACHE_DIR="/pip-cache/function-${functionData.id}/http-cache"
-    HASH_FILE="/pip-cache/function-${functionData.id}/.hash"
-    
-    mkdir -p "$WHEELS_DIR" "$HTTP_CACHE_DIR"
-    
-    REQUIREMENTS_HASH=$(md5sum requirements.txt | awk '{print $1}')
-    
-    NEEDS_UPDATE=0
-    if [ ! -d "$VENV_DIR" ]; then
-        echo "Creating new virtual environment for function ${functionData.id}"
-        python -m venv "$VENV_DIR"
-        NEEDS_UPDATE=1
-    elif [ ! -f "$HASH_FILE" ] || [ "$(cat $HASH_FILE)" != "$REQUIREMENTS_HASH" ]; then
-        echo "Requirements changed, updating virtual environment"
-        NEEDS_UPDATE=1
-    else
-        echo "Requirements unchanged, using existing virtual environment"
-    fi
-    
-    . "$VENV_DIR/bin/activate"
-    
-    if [ $NEEDS_UPDATE -eq 1 ]; then
-        echo "Installing/updating packages in virtual environment"
-        export PIP_CACHE_DIR="$HTTP_CACHE_DIR"
-        pip install --upgrade pip > /dev/null 2>&1
-        pip wheel --wheel-dir="$WHEELS_DIR" -r requirements.txt > /dev/null 2>&1
-        pip install --no-index --find-links="$WHEELS_DIR" -r requirements.txt > /dev/null 2>&1
-        echo "$REQUIREMENTS_HASH" > "$HASH_FILE"
-        echo "Dependencies updated and cached in virtual environment"
-    fi
-    
-    if ! python -c "import sys; sys.exit(0)" > /dev/null 2>&1; then
-        echo "Warning: Virtual environment may be corrupted, creating fresh environment"
-        rm -rf "$VENV_DIR"
-        python -m venv "$VENV_DIR"
-        . "$VENV_DIR/bin/activate"
-        export PIP_CACHE_DIR="$HTTP_CACHE_DIR"
-        pip install --upgrade pip > /dev/null 2>&1
-        pip install --no-index --find-links="$WHEELS_DIR" -r requirements.txt || pip install -r requirements.txt
-        echo "$REQUIREMENTS_HASH" > "$HASH_FILE"
-    fi
-    
-    echo "Python environment ready with all dependencies"
+	echo "[SHSF] Using Python Cache for function ${functionData.id}"
+	
+	# Define paths for our virtual environment and cache
+	VENV_DIR="/pip-cache/function-${functionData.id}/venv"
+	WHEELS_DIR="/pip-cache/function-${functionData.id}/wheels"
+	HTTP_CACHE_DIR="/pip-cache/function-${functionData.id}/http-cache"
+	HASH_FILE="/pip-cache/function-${functionData.id}/.hash"
+	
+	# Create directories if they don't exist
+	mkdir -p "$WHEELS_DIR" "$HTTP_CACHE_DIR"
+	
+	# Generate a hash of requirements.txt to detect changes
+	REQUIREMENTS_HASH=$(md5sum requirements.txt | awk '{print $1}')
+	
+	# Check if virtual environment exists and if requirements have changed
+	NEEDS_UPDATE=0
+	if [ ! -d "$VENV_DIR" ]; then
+		echo "Creating new virtual environment for function ${functionData.id}"
+		python -m venv "$VENV_DIR"
+		NEEDS_UPDATE=1
+	elif [ ! -f "$HASH_FILE" ] || [ "$(cat $HASH_FILE)" != "$REQUIREMENTS_HASH" ]; then
+		echo "Requirements changed, updating virtual environment"
+		NEEDS_UPDATE=1
+	else
+		echo "Requirements unchanged, using existing virtual environment"
+	fi
+	
+	# Activate the virtual environment (always needed)
+	. "$VENV_DIR/bin/activate"
+	
+	# Update packages if needed
+	if [ $NEEDS_UPDATE -eq 1 ]; then
+		echo "Installing/updating packages in virtual environment"
+		
+		# Configure pip to use our cache directories
+		export PIP_CACHE_DIR="$HTTP_CACHE_DIR"
+		
+		# Ensure pip is up to date in the virtual environment
+		pip install --upgrade pip
+		
+		 # Instead of pip wheel, download package archives into our wheels folder
+		pip download --dest="$WHEELS_DIR" -r requirements.txt
+		
+		# Install from the cached packages into the virtual environment
+		pip install --find-links="$WHEELS_DIR" -r requirements.txt
+		
+		# Save the hash for future reference
+		echo "$REQUIREMENTS_HASH" > "$HASH_FILE"
+		echo "Dependencies updated and cached in virtual environment"
+	fi
+	
+	# Verify the environment is usable
+	if ! python -c "import sys; sys.exit(0)"; then
+		echo "Warning: Virtual environment may be corrupted, creating fresh environment"
+		rm -rf "$VENV_DIR"
+		python -m venv "$VENV_DIR"
+		. "$VENV_DIR/bin/activate"
+		
+		# Install packages fresh
+		export PIP_CACHE_DIR="$HTTP_CACHE_DIR"
+		pip install --upgrade pip
+		pip install --find-links="$WHEELS_DIR" -r requirements.txt || pip install -r requirements.txt
+		echo "$REQUIREMENTS_HASH" > "$HASH_FILE"
+	fi
+	
+	echo "Python environment ready with all dependencies"
 fi
 `;
+		// New wrapper script for Python that handles main function return values
 		const wrapperPath = path.join(tempDir, "_runner.py");
 		const wrapperContent = `
 import json
@@ -170,23 +190,32 @@ import sys
 import os
 import traceback
 
+# Import the target module
 sys.path.append('/app')
 target_module_name = "${startupFile.replace(".py", "")}"
 
 try:
+	# First try to load the module with a direct import, but protect against immediate execution
+	# Save the original __name__ variable to prevent immediate script execution on import
 	original_name = __name__
-	__name__ = 'imported_module'
+	__name__ = 'imported_module'  # This prevents code in the global scope from running if guarded by if __name__ == "__main__"
+	
+	# Import the module - this should prevent automatic execution of global code
 	target_module = __import__(target_module_name)
 	
+	# Check if RUN data was provided via environment variable
 	run_data = os.environ.get('RUN_DATA')
 	
+	# Look for a main function to execute
 	if hasattr(target_module, 'main') and callable(target_module.main):
 		try:
+			# Call the main function with the run data if provided
 			if run_data:
 				result = target_module.main(json.loads(run_data))
 			else:
 				result = target_module.main()
-			
+				
+			# Write result to eject file
 			with open('eject.json', 'w') as f:
 				json.dump(result, f)
 		except Exception as e:
@@ -196,10 +225,11 @@ except Exception as e:
 	print(f"Error importing module {target_module_name}: {str(e)}")
 	traceback.print_exc()
 `;
+
 		await fs.writeFile(wrapperPath, wrapperContent);
 		initScript += `python /app/_runner.py\n`;
 		await fs.writeFile(path.join(tempDir, "init.sh"), initScript);
-		await fs.chmod(path.join(tempDir, "init.sh"), "755");
+		await fs.chmod(path.join(tempDir, "init.sh"), 0o755);
 	} else if (runtimeType === "node") {
 		initScript += `
 export NPM_CONFIG_CACHE="/npm-cache"
