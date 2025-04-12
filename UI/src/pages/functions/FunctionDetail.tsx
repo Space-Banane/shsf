@@ -253,10 +253,9 @@ function FunctionDetail() {
 			if (data.status === "OK") {
 				setFiles((prev) =>
 					prev.map((file) =>
-						file.id === activeFile.id ? { ...file, code } : file
+						file.id === activeFile.id ? { ...file, content: code || "" } : file
 					)
 				);
-				window.location.reload(); // Reload the page to reflect changes
 			} else {
 				alert("Error saving file: " + data.message);
 			}
@@ -645,7 +644,7 @@ function FunctionDetail() {
 	return (
 		<div className="flex flex-col items-center w-full">
 			<h1 className="text-primary text-center text-3xl font-bold mb-2">
-				📂
+				 📂
 				<span className="bg-gray-950 py-1 px-2 rounded-2xl">
 					{nameSpace?.name}
 				</span>
@@ -655,8 +654,8 @@ function FunctionDetail() {
 				</span>
 			</h1>
 
-			<div className="mt-4 w-full px-4 flex flex-row gap-4">
-				<div className="w-1/4">
+			<div className="mt-4 w-full px-4 flex flex-col lg:flex-row gap-4">
+				<div className="lg:w-1/4 w-full">
 					<div className="flex space-x-2 mb-4">
 						<button
 							className="bg-primary text-white px-1 py-2 rounded-md hover:bg-primary/80 w-1/2"
@@ -685,7 +684,7 @@ function FunctionDetail() {
 										}`}
 										onClick={() => handleFileSelect(file)}
 									>
-										<span>{file.name}</span>
+										 <span className="truncate">{file.name}</span>
 										<div>
 											<button
 												className="text-blue-500 mr-2 outline rounded-md px-2 bg-gray-800"
@@ -695,7 +694,7 @@ function FunctionDetail() {
 													setShowRenameModal(true);
 												}}
 											>
-												✏️
+												 ✏️
 											</button>
 											<button
 												className="text-red-500 outline rounded-md px-2 bg-gray-800"
@@ -705,7 +704,7 @@ function FunctionDetail() {
 													setShowDeleteModal(true);
 												}}
 											>
-												🗑️
+												 🗑️
 											</button>
 										</div>
 									</li>
@@ -715,7 +714,7 @@ function FunctionDetail() {
 							)}
 						</ul>
 						<button
-							className="mt-4 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80"
+							className="mt-4 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/80 w-full"
 							onClick={() => setShowCreateModal(true)}
 						>
 							Create File
@@ -888,79 +887,79 @@ function FunctionDetail() {
 					</div>
 				</div>
 
-				<div className="w-3/4 flex flex-col">
-					<div className="flex justify-between mb-2">
-						<h2 className="text-primary text-xl">
+				<div className="lg:w-3/4 w-full flex flex-col">
+					<div className="flex flex-col lg:flex-row justify-between mb-2">
+						<h2 className="text-primary text-xl truncate">
 							{activeFile ? activeFile.name : "No file selected"}
 						</h2>
-						<div className="flex items-center bg-stone-100/10 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg">
-							<span className="text-stone-300 text-sm font-light mr-3">
-								URL
-							</span>
-							<div className="relative flex items-center space-x-2">
-								<input
-									type="text"
-									value={functionURL}
-									readOnly
-									className="bg-stone-800/50 text-stone-100 text-sm px-4 py-1.5 rounded-md w-72 outline-none ring-1 ring-stone-400/30"
-									onClick={(e) => e.currentTarget.select()}
-								/>
+						<div className="flex flex-col lg:flex-row items-start lg:items-center gap-2">
+							<div className="flex items-center bg-stone-100/10 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg w-full lg:w-auto">
+								<span className="text-stone-300 text-sm font-light mr-3">
+									URL
+								</span>
+								<div className="relative flex items-center space-x-2 w-full">
+									<input
+										type="text"
+										value={functionURL}
+										readOnly
+										className="bg-stone-800/50 text-stone-100 text-sm px-4 py-1.5 rounded-md w-full lg:w-72 outline-none ring-1 ring-stone-400/30"
+										onClick={(e) => e.currentTarget.select()}
+									/>
+									<button
+										className="transition-all duration-200 bg-stone-700/50 hover:bg-stone-600/50 px-3 py-1.5 rounded-md text-sm font-light"
+										onClick={() => {
+											navigator.clipboard.writeText(functionURL);
+											setCopyUrlColor("text-green-400");
+											setCopyUrlText("✅ Copied!");
+											setTimeout(() => {
+												setCopyUrlColor("text-stone-300");
+												setCopyUrlText("Copy📎");
+											}, 2000);
+										}}
+									>
+										<span className={copyUrlColor}>{copyUrltext}</span>
+									</button>
+								</div>
+							</div>
+							<div className="flex items-center gap-2">
 								<button
-									className="transition-all duration-200 bg-stone-700/50 hover:bg-stone-600/50 px-3 py-1.5 rounded-md text-sm font-light"
-									onClick={() => {
-										navigator.clipboard.writeText(functionURL);
-										setCopyUrlColor("text-green-400");
-										setCopyUrlText("✅ Copied!");
-										setTimeout(() => {
-											setCopyUrlColor("text-stone-300");
-											setCopyUrlText("Copy📎");
-										}, 2000);
-									}}
+									className={`bg-green-600 text-white px-4 py-1.5 rounded-md hover:bg-green-700 ${
+										!activeFile ? "opacity-50 cursor-not-allowed" : ""
+									}`}
+									onClick={handleSaveFile}
+									disabled={!activeFile || saving}
 								>
-									<span className={copyUrlColor}>{copyUrltext}</span>
+									{saving ? "Saving..." : "💾Save"}
+								</button>
+								<button
+									className={`bg-primary text-white px-4 py-1.5 rounded-md hover:bg-primary/80`}
+									onClick={handleRunCode}
+									disabled={running}
+								>
+									{running ? "Running..." : `🐎Run`}
+								</button>
+								<select
+									className="bg-gray-700 text-white px-2 py-1.5 rounded-md"
+									value={runningMode}
+									onChange={(e) =>
+										setRunningMode(e.target.value as "classic" | "streaming")
+									}
+									disabled={running}
+								>
+									<option value="streaming">Stream</option>
+									<option value="classic">Completion</option>
+								</select>
+								<button
+									className={`px-2 py-1.5 rounded-md ${
+										showRunParams
+											? "bg-yellow-600 text-white hover:bg-yellow-700"
+											: "bg-gray-600 text-white hover:bg-gray-700"
+									}`}
+									onClick={() => setShowRunParams(!showRunParams)}
+								>
+									{showRunParams ? "Params" : "Params"}
 								</button>
 							</div>
-						</div>
-						<div>
-							<button
-								className={`bg-green-600 text-white px-4 py-1.5 rounded-md hover:bg-green-700 mr-2 ${
-									!activeFile ? "opacity-50 cursor-not-allowed" : ""
-								}`}
-								onClick={handleSaveFile}
-								disabled={!activeFile || saving}
-							>
-								{saving ? "Saving..." : "💾Save"}
-							</button>
-							<button
-								className={`bg-primary text-white px-4 py-1.5 rounded-md hover:bg-primary/80 ${
-									!activeFile ? "opacity-50 cursor-not-allowed" : ""
-								}`}
-								onClick={handleRunCode}
-								disabled={running || !activeFile}
-							>
-								{running ? "Running..." : `🐎Run`}
-							</button>
-							<select
-								className="ml-2 bg-gray-700 text-white px-2 py-1.5 rounded-md"
-								value={runningMode}
-								onChange={(e) =>
-									setRunningMode(e.target.value as "classic" | "streaming")
-								}
-								disabled={running}
-							>
-								<option value="streaming">Stream</option>
-								<option value="classic">Completion</option>
-							</select>
-							<button
-								className={`ml-2 px-2 py-1.5 rounded-md ${
-									showRunParams
-										? "bg-yellow-600 text-white hover:bg-yellow-700"
-										: "bg-gray-600 text-white hover:bg-gray-700"
-								}`}
-								onClick={() => setShowRunParams(!showRunParams)}
-							>
-								{showRunParams ? "Params" : "Params"}
-							</button>
 						</div>
 					</div>
 

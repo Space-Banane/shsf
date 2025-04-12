@@ -493,12 +493,6 @@ export = new fileRouter.Path("/")
 	)
 	.http("POST", "/api/function/{id}/execute", (http) =>
 		http
-			.ratelimit((limit) =>
-				limit
-					.hits(1)
-					.window(1000)
-					.penalty(0)
-			)
 			.onRequest(async (ctr) => {
 				const id = ctr.params.get("id");
 				if (!id) {
@@ -664,12 +658,6 @@ export = new fileRouter.Path("/")
 	)
 	.http("GET", "/api/exec/{namespaceId}/{functionId}", (http) =>
 		http
-			.ratelimit((limit) =>
-				limit
-					.hits(1)
-					.window(parseInt(env.RATELIMIT || "3000"))
-					.penalty(1500)
-			)
 			.onRequest(async (ctr) => {
 				const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
 				const functionId = ctr.params.get("functionId") || "";
@@ -746,12 +734,6 @@ export = new fileRouter.Path("/")
 	)
 	.http("POST", "/api/exec/{namespaceId}/{functionId}", (http) =>
 		http
-			.ratelimit((limit) =>
-				limit
-					.hits(1)
-					.window(parseInt(env.RATELIMIT || "3000"))
-					.penalty(1500)
-			)
 			.onRequest(async (ctr) => {
 				const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
 				const functionId = ctr.params.get("functionId") || "";
@@ -819,6 +801,7 @@ export = new fileRouter.Path("/")
 					{ enabled: false },
 					JSON.stringify(payload)
 				);
+				
 				return ctr.print(result?.result ?? "OK");
 			})
 	)
