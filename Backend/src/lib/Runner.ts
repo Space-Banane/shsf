@@ -111,6 +111,9 @@ export async function executeFunction(
 	// Generate the wrapper script and init.sh
 	let initScript = "#!/bin/sh\ncd /app\n";
 
+	// NEW: Declare BINDS early to allow usage in runtime branches.
+	let BINDS: string[] = [];
+
 	if (runtimeType === "python") {
 		initScript += `
 if [ -f "requirements.txt" ]; then 
@@ -210,7 +213,7 @@ try:
 	if hasattr(target_module, 'main') and callable(target_module.main):
 		try:
 			# Call the main function with the run data if provided
-			if run_data:
+			if (run_data):
 				result = target_module.main(json.loads(run_data))
 			else:
 				result = target_module.main()
@@ -229,9 +232,51 @@ except Exception as e:
 		await fs.writeFile(wrapperPath, wrapperContent);
 		initScript += `python /app/_runner.py\n`;
 		await fs.writeFile(path.join(tempDir, "init.sh"), initScript);
-		await fs.chmod(path.join(tempDir, "init.sh"), 0o755);
+		await fs.chmod(path.join(tempDir, "init.sh"), "755");
 	} else if (runtimeType === "node") {
-		initScript += `
+				// Define host paths for standard apt cache directories
+				const aptCacheBase = `/tmp/shsf/.cache/apt/function-${functionData.id}`;
+				const aptArchivesCacheHost = path.join(aptCacheBase, 'var/cache/apt/archives');
+				const aptListsCacheHost = path.join(aptCacheBase, 'var/lib/apt/lists');
+
+				// Create these directories on the host
+				await fs.mkdir(aptArchivesCacheHost, { recursive: true });
+				await fs.mkdir(aptListsCacheHost, { recursive: true });
+
+				// Add binds for the standard apt cache locations
+				BINDS.push(`${aptArchivesCacheHost}:/var/cache/apt/archives`);
+				BINDS.push(`${aptListsCacheHost}:/var/lib/apt/lists`);
+
+				// Check if there is a shsf.apt_deps in package.json
+				const aptDepsFile = files.find((file) => file.name === "package.json");
+				if (aptDepsFile) {
+					try {
+						const pkg = JSON.parse(aptDepsFile.content);
+						if (pkg.shsf && pkg.shsf.apt_deps) {
+								// Update and install using default (mounted) cache locations
+								initScript += `
+# Ensure apt directories exist inside container (might be needed on first run)
+mkdir -p /var/cache/apt/archives /var/lib/apt/lists/partial
+
+# Update package lists (should hit the mounted cache)
+echo "[SHSF] Updating apt lists using mounted cache..."
+apt-get update
+`;
+								const aptDeps = pkg.shsf.apt_deps;
+								if (Array.isArray(aptDeps) && aptDeps.length > 0) {
+									initScript += `echo "[SHSF] Installing apt dependencies using mounted cache: ${aptDeps.join(' ')}..."\n`;
+									// Install dependencies (should use cached .deb files)
+									const installCmd = `apt-get install -y ${aptDeps.join(' ')}`;
+									initScript += `${installCmd}\n`;
+								} else {
+									initScript += `echo "[SHSF] No apt dependencies listed."\n`;
+								}
+						}
+					} catch (e) {
+						console.error("Error parsing package.json for apt_deps:", e);
+					}
+				}
+				initScript += `
 export NPM_CONFIG_CACHE="/npm-cache"
 
 if [ -f "package.json" ]; then 
@@ -242,22 +287,83 @@ if [ -f "package.json" ]; then
 	
 	mkdir -p "/pnpm-cache/function-${functionData.id}"
 	
-	PACKAGE_HASH=$(md5sum package.json | awk '{print $1}')
+	# Calculate hash based only on dependency-related sections to avoid reinstalling for unrelated changes (like 'shsf')
+	# Use node to extract relevant parts and pipe to md5sum
+	# Sort keys within dependencies/devDependencies for consistency
+	PACKAGE_HASH=$(node -p " \
+	  try { \
+		const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); \
+		const relevantParts = { \
+		  dependencies: pkg.dependencies || {}, \
+		  devDependencies: pkg.devDependencies || {}, \
+		  peerDependencies: pkg.peerDependencies || {}, \
+		  optionalDependencies: pkg.optionalDependencies || {}, \
+		  /* Add other dependency types if needed */ \
+		}; \
+		/* Stable stringify: sort keys */ \
+		const stringified = JSON.stringify(relevantParts, (key, value) => { \
+		  if (value && typeof value === 'object' && !Array.isArray(value)) { \
+			return Object.keys(value).sort().reduce((sorted, k) => { sorted[k] = value[k]; return sorted; }, {}); \
+		  } \
+		  return value; \
+		}); \
+		crypto.createHash('md5').update(stringified).digest('hex'); \
+	  } catch (e) { \
+		/* Fallback: hash the whole file if parsing/processing fails */ \
+		crypto.createHash('md5').update(fs.readFileSync('package.json')).digest('hex'); \
+	  } \
+	")
 	
+	# Check if node command failed, fallback to simple md5sum if it did
+	if [ -z "$PACKAGE_HASH" ]; then
+	  echo "Warning: Failed to calculate dependency hash using Node. Falling back to full file hash."
+	  PACKAGE_HASH=$(md5sum package.json | awk '{print $1}')
+	fi
+	
+	echo "Calculated dependency hash: $PACKAGE_HASH"
+
 	if [ ! -d "$MODULES_CACHE" ] || [ ! -f "$HASH_FILE" ] || [ "$(cat $HASH_FILE 2>/dev/null)" != "$PACKAGE_HASH" ]; then
-		echo "Package.json changed or first run, installing dependencies"
+		echo "Dependencies changed or first run (hash: $PACKAGE_HASH), installing dependencies"
 		rm -rf node_modules
-		npm install --no-fund --no-audit --loglevel=error
-		echo "Backing up node_modules for future runs"
-		rm -rf "$MODULES_CACHE"
-		cp -r node_modules "$MODULES_CACHE"
-		echo "$PACKAGE_HASH" > "$HASH_FILE"
-		echo "Dependencies installed and cached"
+		# Use npm ci for potentially faster and more reliable installs from lock file if available
+		if [ -f "package-lock.json" ]; then
+			echo "Using npm ci for installation"
+			npm ci --no-fund --no-audit --loglevel=error
+		elif [ -f "pnpm-lock.yaml" ]; then
+			echo "Using pnpm install for installation"
+			# Ensure pnpm is available or install it if needed (might require adding pnpm install to the base image or here)
+			# Assuming pnpm is available:
+			pnpm install --frozen-lockfile --prod # Adjust flags as needed
+		else
+			echo "Using npm install for installation"
+			npm install --no-fund --no-audit --loglevel=error
+		fi
+		
+		# Check if install succeeded before caching
+		if [ $? -eq 0 ]; then
+			echo "Backing up node_modules for future runs"
+			rm -rf "$MODULES_CACHE"
+			# Ensure the target directory exists before copying
+			mkdir -p "$(dirname "$MODULES_CACHE")"
+			cp -r node_modules "$MODULES_CACHE"
+			echo "$PACKAGE_HASH" > "$HASH_FILE"
+			echo "Dependencies installed and cached"
+		else
+			echo "Error during dependency installation. Cache not updated."
+			# Decide if we should exit or continue without cache
+		fi
 	else
-		echo "Using cached node_modules"
+		echo "Using cached node_modules (hash: $PACKAGE_HASH)"
 		rm -rf node_modules
-		cp -r "$MODULES_CACHE" node_modules
-		echo "Cached node_modules restored in $(du -sh node_modules | cut -f1)"
+		# Ensure the source cache directory exists before copying
+		if [ -d "$MODULES_CACHE" ]; then
+			cp -r "$MODULES_CACHE" node_modules
+			echo "Cached node_modules restored in $(du -sh node_modules | cut -f1)"
+		else
+			echo "Warning: Cache directory $MODULES_CACHE not found. Cannot restore modules."
+			# Optionally trigger a fresh install here if cache is expected but missing
+			# npm install --no-fund --no-audit --loglevel=error 
+		fi
 	fi
 	
 	echo "Node environment ready with all dependencies"
@@ -268,6 +374,7 @@ fi
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const crypto = require('crypto');
 
 try {
 	console.log("Executing script...");
@@ -318,6 +425,18 @@ try {
 }
 `;
 		await fs.writeFile(wrapperPath, wrapperContent);
+		// Lets check if there is a shsf_startup script in package.json
+		const startupScript = files.find((file) => file.name === "package.json");
+		if (startupScript) {
+			try {
+				const pkg = JSON.parse(startupScript.content);
+				if (pkg.shsf && pkg.shsf.startup) {
+					initScript += `${pkg.shsf.startup}\n`;
+				}
+			} catch (e) {
+				console.error("Error parsing package.json:", e);
+			}
+		}
 		initScript += `node /app/_runner.js\n`;
 		await fs.writeFile(path.join(tempDir, "init.sh"), initScript);
 		await fs.chmod(path.join(tempDir, "init.sh"), "755");
@@ -352,7 +471,6 @@ try {
 		: [];
 	ENV.push(`RUN_DATA=${payload}`);
 
-	let BINDS: string[] = [];
 	BINDS.push(`${tempDir}:/app`);
 
 	if (runtimeType === "python") {
@@ -360,6 +478,28 @@ try {
 	} else if (runtimeType === "node") {
 		BINDS.push(`/tmp/shsf/.cache/pnpm:/pnpm-cache`);
 		BINDS.push(`/tmp/shsf/.cache/npm:/npm-cache`);
+		
+		// Check for puppeteer in package.json dependencies
+		let hasPuppeteer = false;
+		for (const file of files) {
+			if (file.name === "package.json") {
+				try {
+					const pkg = JSON.parse(file.content);
+					if (
+						(pkg.dependencies && Object.keys(pkg.dependencies).some(dep => dep.toLowerCase().includes("puppeteer"))) ||
+						(pkg.devDependencies && Object.keys(pkg.devDependencies).some(dep => dep.toLowerCase().includes("puppeteer")))
+					) {
+						hasPuppeteer = true;
+						break;
+					}
+				} catch (e) { }
+			}
+		}
+		if (hasPuppeteer) {
+			const puppeteerCacheHost = `/tmp/shsf/.cache/puppeteer/function-${functionData.id}`;
+			await fs.mkdir(puppeteerCacheHost, { recursive: true });
+			BINDS.push(`${puppeteerCacheHost}:/root/.cache/puppeteer`);
+		}
 	} else {
 		return {
 			logs: "Unsupported runtime type",
