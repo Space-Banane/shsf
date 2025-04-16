@@ -339,7 +339,7 @@ export = new fileRouter.Path("/")
 					functionId: functionId,
 					createdAt: {
 						gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7), // 7 days
-					}
+					},
 				},
 				orderBy: {
 					createdAt: "desc",
@@ -494,318 +494,606 @@ export = new fileRouter.Path("/")
 		})
 	)
 	.http("POST", "/api/function/{id}/execute", (http) =>
-		http
-			.onRequest(async (ctr) => {
-				const id = ctr.params.get("id");
-				if (!id) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: "Missing function id",
-					});
-				}
-				const functionId = parseInt(id);
-				if (isNaN(functionId)) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: "Invalid function id",
-					});
-				}
-
-				// Extract optional run parameter from request body
-				const [runData] = await ctr.bindBody((z) =>
-					z
-						.object({
-							run: z.any().optional(),
-						})
-						.optional()
-				);
-
-				// Convert run data to string for passing to executeFunction
-				const runPayload = JSON.stringify({
-					body: runData?.run || {},
-					headers: Object.fromEntries(ctr.headers.entries()),
-					queries: Object.fromEntries(ctr.queries.entries()),
-					source_ip: ctr.client.ip.usual(),
+		http.onRequest(async (ctr) => {
+			const id = ctr.params.get("id");
+			if (!id) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Missing function id",
 				});
-
-				const functionData = await prisma.function.findFirst({
-					where: {
-						id: functionId,
-					},
+			}
+			const functionId = parseInt(id);
+			if (isNaN(functionId)) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Invalid function id",
 				});
-				if (!functionData) {
-					return ctr.status(ctr.$status.NOT_FOUND).print({
-						status: 404,
-						message: "Function not found",
-					});
-				}
+			}
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER)
-				);
+			// Extract optional run parameter from request body
+			const [runData] = await ctr.bindBody((z) =>
+				z
+					.object({
+						run: z.any().optional(),
+					})
+					.optional()
+			);
 
-				if (!authCheck.success) {
-					return ctr.print({
-						status: 401,
-						message: "Unauthorized",
-					});
-				}
+			// Convert run data to string for passing to executeFunction
+			const runPayload = JSON.stringify({
+				// if there is a .method we will remove it
+				body: runData?.run ? runData.run : {},
+				headers: Object.fromEntries(ctr.headers.entries()),
+				queries: Object.fromEntries(ctr.queries.entries()),
+				raw_body: await ctr.$body().text(),
+				source_ip: ctr.client.ip.usual(),
+				route: runData?.run
+					? runData.run.route
+						? runData.run.route
+						: "default"
+					: "default",
+				method: runData?.run
+					? runData.run.method
+						? runData.run.method
+						: "POST"
+					: "POST",
+			});
 
-				const files = await prisma.functionFile.findMany({
-					where: {
-						functionId: functionData.id,
-					},
+			const functionData = await prisma.function.findFirst({
+				where: {
+					id: functionId,
+				},
+			});
+			if (!functionData) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: 404,
+					message: "Function not found",
 				});
-				if (!files || files.length === 0) {
-					return ctr.status(ctr.$status.NOT_FOUND).print({
-						status: 404,
-						message: "Function has no files",
-					});
-				}
+			}
 
-				// Check execution mode from query parameter
-				const streamMode = ctr.queries.get("stream") !== "false";
+			const authCheck = await checkAuthentication(
+				ctr.cookies.get(COOKIE),
+				ctr.headers.get(API_KEY_HEADER)
+			);
 
-				try {
-					if (streamMode) {
-						// Streaming mode
-						return ctr.printChunked(
-							(print) =>
-								new Promise<void>((end) => {
-									let output = "";
-									executeFunction(
-										functionId,
-										functionData,
-										files,
-										{
-											enabled: true,
-											onChunk: async (text) => {
-												output += text;
-												// Ensure text is properly stringified before sending
-												await print(
-													JSON.stringify({
-														type: "output",
-														content: text,
-													})
-												);
-											},
+			if (!authCheck.success) {
+				return ctr.print({
+					status: 401,
+					message: "Unauthorized",
+				});
+			}
+
+			const files = await prisma.functionFile.findMany({
+				where: {
+					functionId: functionData.id,
+				},
+			});
+			if (!files || files.length === 0) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: 404,
+					message: "Function has no files",
+				});
+			}
+
+			// Check execution mode from query parameter
+			const streamMode = ctr.queries.get("stream") !== "false";
+
+			try {
+				if (streamMode) {
+					// Streaming mode
+					return ctr.printChunked(
+						(print) =>
+							new Promise<void>((end) => {
+								let output = "";
+								executeFunction(
+									functionId,
+									functionData,
+									files,
+									{
+										enabled: true,
+										onChunk: async (text) => {
+											output += text;
+											// Ensure text is properly stringified before sending
+											await print(
+												JSON.stringify({
+													type: "output",
+													content: text,
+												})
+											);
 										},
-										runPayload
-									)
-										.then(async (result) => {
-											// Successfully completed - include result if available
-											await print(
-												JSON.stringify({
-													type: "end",
-													exitCode: 0,
-													output: output,
-													result: result?.result,
-													took: result?.tooks,
-												})
-											);
-											end();
-										})
-										.catch(async (error) => {
-											// Handle errors
-											await print(
-												JSON.stringify({
-													type: "error",
-													error: error.message || "Execution failed",
-												})
-											);
-											end();
-										});
-
-									ctr.$abort(() => {
-										// Handle abort, nothing specific needed as Runner.ts handles cleanup
+									},
+									runPayload
+								)
+									.then(async (result) => {
+										// Successfully completed - include result if available
+										await print(
+											JSON.stringify({
+												type: "end",
+												exitCode: 0,
+												output: output,
+												result: result?.result,
+												took: result?.tooks,
+											})
+										);
+										end();
+									})
+									.catch(async (error) => {
+										// Handle errors
+										await print(
+											JSON.stringify({
+												type: "error",
+												error: error.message || "Execution failed",
+											})
+										);
 										end();
 									});
-								})
-						);
-					} else {
-						// Synchronous mode
-						const result = await executeFunction(
-							functionId,
-							functionData,
-							files,
-							{ enabled: false },
-							runPayload
-						);
 
-						return ctr.print({
-							status: "OK",
-							data: {
-								output: result?.logs || "No output",
-								exitCode: result?.exit_code || 0,
-								result: result?.result,
-								took: result?.tooks,
-							},
-						});
-					}
-				} catch (error: any) {
-					if (error.message === "Timeout") {
-						return ctr.status(ctr.$status.REQUEST_TIMEOUT).print({
-							status: 408,
-							message: "Code execution timed out",
-						});
-					}
-					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
-						status: 500,
-						message: "Failed to execute code",
-						error: error.message,
+								ctr.$abort(() => {
+									// Handle abort, nothing specific needed as Runner.ts handles cleanup
+									end();
+								});
+							})
+					);
+				} else {
+					// Synchronous mode
+					const result = await executeFunction(
+						functionId,
+						functionData,
+						files,
+						{ enabled: false },
+						runPayload
+					);
+
+					return ctr.print({
+						status: "OK",
+						data: {
+							output: result?.logs || "No output",
+							exitCode: result?.exit_code || 0,
+							result: result?.result,
+							took: result?.tooks,
+						},
 					});
 				}
-			})
+			} catch (error: any) {
+				if (error.message === "Timeout") {
+					return ctr.status(ctr.$status.REQUEST_TIMEOUT).print({
+						status: 408,
+						message: "Code execution timed out",
+					});
+				}
+				return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+					status: 500,
+					message: "Failed to execute code",
+					error: error.message,
+				});
+			}
+		})
 	)
 	.http("GET", "/api/exec/{namespaceId}/{functionId}", (http) =>
-		http
-			.onRequest(async (ctr) => {
-				const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
-				const functionId = ctr.params.get("functionId") || "";
+		http.onRequest(async (ctr) => {
+			const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
+			const functionId = ctr.params.get("functionId") || "";
 
-				if (isNaN(namespaceId)) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: "Invalid namespace",
-					});
-				}
-
-				const functionData = await prisma.function.findFirst({
-					where: {
-						executionId: functionId,
-						namespaceId: namespaceId,
-					},
-					include: {
-						namespace: {
-							select: {
-								name: true,
-								id: true,
-							},
-						},
-						files: true,
-					},
+			if (isNaN(namespaceId)) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Invalid namespace",
 				});
+			}
 
-				if (!functionData) {
-					return ctr.status(ctr.$status.NOT_FOUND).print({
-						status: 404,
-						message: "Function not found",
-					});
-				}
+			const functionData = await prisma.function.findFirst({
+				where: {
+					executionId: functionId,
+					namespaceId: namespaceId,
+				},
+				include: {
+					namespace: {
+						select: {
+							name: true,
+							id: true,
+						},
+					},
+					files: true,
+				},
+			});
 
-				if (!functionData.allow_http) {
+			if (!functionData) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: 404,
+					message: "Function not found",
+				});
+			}
+
+			if (!functionData.allow_http) {
+				return ctr.status(ctr.$status.FORBIDDEN).print({
+					status: 403,
+					message: "HTTP execution is not allowed for this function",
+				});
+			}
+
+			if (functionData.secure_header) {
+				if (!ctr.headers.has("x-secure-header")) {
 					return ctr.status(ctr.$status.FORBIDDEN).print({
 						status: 403,
-						message: "HTTP execution is not allowed for this function",
+						message: "Missing secure header",
 					});
 				}
 
-				if (functionData.secure_header) {
-					if (!ctr.headers.has("x-secure-header")) {
-						return ctr.status(ctr.$status.FORBIDDEN).print({
-							status: 403,
-							message: "Missing secure header",
+				const secureHeader = ctr.headers.get("x-secure-header");
+				if (secureHeader !== functionData.secure_header) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "Invalid secure header",
+					});
+				}
+			}
+
+			// Build the payload from GET request
+			const payload = await buildPayloadFromGET(ctr);
+
+			// Execute with run parameter instead of inject.json
+			const result = await executeFunction(
+				functionData.id,
+				functionData,
+				functionData.files,
+				{ enabled: false },
+				JSON.stringify(payload)
+			);
+
+			// we might be able to do magic here
+			if (typeof result?.result === "object") {
+				const out = result.result; // quicker to write and access
+
+				if ("_shsf" in out) {
+					const version: "v2" = out._shsf; // always v2 currently
+					const headers: { key: string; value: any }[] | null =
+						"_headers" in out
+							? Object.entries(out._headers).map(([key, value]) => ({
+									key,
+									value,
+							  }))
+							: null;
+					const response_code: number | null =
+						"_code" in out ? out._code : null;
+					const response: any | null = "_res" in out ? out._res : null;
+
+					ctr.status(response_code || 200);
+
+					if (headers) {
+						headers.forEach(({ key, value }) => {
+							ctr.headers.set(key, value);
 						});
 					}
 
-					const secureHeader = ctr.headers.get("x-secure-header");
-					if (secureHeader !== functionData.secure_header) {
-						return ctr.status(ctr.$status.FORBIDDEN).print({
-							status: 403,
-							message: "Invalid secure header",
-						});
+					if (response) {
+						return ctr.print(response);
+					} else {
+						return ctr.print("[SHSF_BACK] OK");
 					}
 				}
+			}
 
-				// Build the payload from GET request
-				const payload = await buildPayloadFromGET(ctr);
-
-				// Execute with run parameter instead of inject.json
-				const result = await executeFunction(
-					functionData.id,
-					functionData,
-					functionData.files,
-					{ enabled: false },
-					JSON.stringify(payload)
-				);
-
-				// Return result if available from main function, otherwise output OK
-				return ctr.print(result?.result ?? "OK");
-			})
+			// Return result if available from main function, otherwise output OK
+			return ctr.print(result?.result ?? "[SHSF_BACK] OK");
+		})
 	)
 	.http("POST", "/api/exec/{namespaceId}/{functionId}", (http) =>
-		http
-			.onRequest(async (ctr) => {
-				const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
-				const functionId = ctr.params.get("functionId") || "";
+		http.onRequest(async (ctr) => {
+			const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
+			const functionId = ctr.params.get("functionId") || "";
 
-				if (isNaN(namespaceId)) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: "Invalid namespace",
-					});
-				}
-
-				const functionData = await prisma.function.findFirst({
-					where: {
-						executionId: functionId,
-						namespaceId: namespaceId,
-					},
-					include: {
-						namespace: {
-							select: {
-								name: true,
-								id: true,
-							},
-						},
-						files: true,
-					},
+			if (isNaN(namespaceId)) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Invalid namespace",
 				});
+			}
 
-				if (!functionData) {
-					return ctr.status(ctr.$status.NOT_FOUND).print({
-						status: 404,
-						message: "Function not found",
-					});
-				}
+			const functionData = await prisma.function.findFirst({
+				where: {
+					executionId: functionId,
+					namespaceId: namespaceId,
+				},
+				include: {
+					namespace: {
+						select: {
+							name: true,
+							id: true,
+						},
+					},
+					files: true,
+				},
+			});
 
-				if (!functionData.allow_http) {
+			if (!functionData) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: 404,
+					message: "Function not found",
+				});
+			}
+
+			if (!functionData.allow_http) {
+				return ctr.status(ctr.$status.FORBIDDEN).print({
+					status: 403,
+					message: "HTTP execution is not allowed for this function",
+				});
+			}
+
+			if (functionData.secure_header) {
+				if (!ctr.headers.has("x-secure-header")) {
 					return ctr.status(ctr.$status.FORBIDDEN).print({
 						status: 403,
-						message: "HTTP execution is not allowed for this function",
+						message: "Missing secure header",
 					});
 				}
 
-				if (functionData.secure_header) {
-					if (!ctr.headers.has("x-secure-header")) {
-						return ctr.status(ctr.$status.FORBIDDEN).print({
-							status: 403,
-							message: "Missing secure header",
+				const secureHeader = ctr.headers.get("x-secure-header");
+				if (secureHeader !== functionData.secure_header) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "Invalid secure header",
+					});
+				}
+			}
+
+			const payload = await buildPayloadFromPOST(ctr);
+
+			const result = await executeFunction(
+				functionData.id,
+				functionData,
+				functionData.files,
+				{ enabled: false },
+				JSON.stringify(payload)
+			);
+
+			// we might be able to do magic here
+			if (typeof result?.result === "object") {
+				const out = result.result; // quicker to write and access
+
+				if ("_shsf" in out) {
+					const version: "v2" = out._shsf; // always v2 currently
+					const headers: { key: string; value: any }[] | null =
+						"_headers" in out
+							? Object.entries(out._headers).map(([key, value]) => ({
+									key,
+									value,
+							  }))
+							: null;
+					const response_code: number | null =
+						"_code" in out ? out._code : null;
+					const response: any | null = "_res" in out ? out._res : null;
+
+					ctr.status(response_code || 200);
+
+					if (headers) {
+						headers.forEach(({ key, value }) => {
+							ctr.headers.set(key, value);
 						});
 					}
 
-					const secureHeader = ctr.headers.get("x-secure-header");
-					if (secureHeader !== functionData.secure_header) {
-						return ctr.status(ctr.$status.FORBIDDEN).print({
-							status: 403,
-							message: "Invalid secure header",
-						});
+					if (response) {
+						return ctr.print(response);
+					} else {
+						return ctr.print("[SHSF_BACK] OK");
 					}
 				}
+			}
 
-				const payload = await buildPayloadFromPOST(ctr);
+			return ctr.print(result?.result ?? "[SHSF_BACK] OK");
+		})
+	)
+	.http("GET", "/api/exec/{namespaceId}/{functionId}/{route}", (http) =>
+		http.onRequest(async (ctr) => {
+			const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
+			const functionId = ctr.params.get("functionId") || "";
 
-				const result = await executeFunction(
-					functionData.id,
-					functionData,
-					functionData.files,
-					{ enabled: false },
-					JSON.stringify(payload)
-				);
-				
-				return ctr.print(result?.result ?? "OK");
-			})
+			if (isNaN(namespaceId)) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Invalid namespace",
+				});
+			}
+
+			const functionData = await prisma.function.findFirst({
+				where: {
+					executionId: functionId,
+					namespaceId: namespaceId,
+				},
+				include: {
+					namespace: {
+						select: {
+							name: true,
+							id: true,
+						},
+					},
+					files: true,
+				},
+			});
+
+			if (!functionData) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: 404,
+					message: "Function not found",
+				});
+			}
+
+			if (!functionData.allow_http) {
+				return ctr.status(ctr.$status.FORBIDDEN).print({
+					status: 403,
+					message: "HTTP execution is not allowed for this function",
+				});
+			}
+
+			if (functionData.secure_header) {
+				if (!ctr.headers.has("x-secure-header")) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "Missing secure header",
+					});
+				}
+
+				const secureHeader = ctr.headers.get("x-secure-header");
+				if (secureHeader !== functionData.secure_header) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "Invalid secure header",
+					});
+				}
+			}
+
+			// Build the payload from GET request
+			const payload = await buildPayloadFromGET(ctr);
+
+			// Execute with run parameter instead of inject.json
+			const result = await executeFunction(
+				functionData.id,
+				functionData,
+				functionData.files,
+				{ enabled: false },
+				JSON.stringify(payload)
+			);
+
+			// we might be able to do magic here
+			if (typeof result?.result === "object") {
+				const out = result.result; // quicker to write and access
+
+				if ("_shsf" in out) {
+					const version: "v2" = out._shsf; // always v2 currently
+					const headers: { key: string; value: any }[] | null =
+						"_headers" in out
+							? Object.entries(out._headers).map(([key, value]) => ({
+									key,
+									value,
+							  }))
+							: null;
+					const response_code: number | null =
+						"_code" in out ? out._code : null;
+					const response: any | null = "_res" in out ? out._res : null;
+
+					ctr.status(response_code || 200);
+
+					if (headers) {
+						headers.forEach(({ key, value }) => {
+							ctr.headers.set(key, value);
+						});
+					}
+
+					if (response) {
+						return ctr.print(response);
+					} else {
+						return ctr.print("[SHSF_BACK] OK");
+					}
+				}
+			}
+
+			// Return result if available from main function, otherwise output OK
+			return ctr.print(result?.result ?? "[SHSF_BACK] OK");
+		})
+	)
+	.http("POST", "/api/exec/{namespaceId}/{functionId}/{route}", (http) =>
+		http.onRequest(async (ctr) => {
+			const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
+			const functionId = ctr.params.get("functionId") || "";
+
+			if (isNaN(namespaceId)) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Invalid namespace",
+				});
+			}
+
+			const functionData = await prisma.function.findFirst({
+				where: {
+					executionId: functionId,
+					namespaceId: namespaceId,
+				},
+				include: {
+					namespace: {
+						select: {
+							name: true,
+							id: true,
+						},
+					},
+					files: true,
+				},
+			});
+
+			if (!functionData) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: 404,
+					message: "Function not found",
+				});
+			}
+
+			if (!functionData.allow_http) {
+				return ctr.status(ctr.$status.FORBIDDEN).print({
+					status: 403,
+					message: "HTTP execution is not allowed for this function",
+				});
+			}
+
+			if (functionData.secure_header) {
+				if (!ctr.headers.has("x-secure-header")) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "Missing secure header",
+					});
+				}
+
+				const secureHeader = ctr.headers.get("x-secure-header");
+				if (secureHeader !== functionData.secure_header) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "Invalid secure header",
+					});
+				}
+			}
+
+			const payload = await buildPayloadFromPOST(ctr);
+
+			const result = await executeFunction(
+				functionData.id,
+				functionData,
+				functionData.files,
+				{ enabled: false },
+				JSON.stringify(payload)
+			);
+
+			// we might be able to do magic here
+			if (typeof result?.result === "object") {
+				const out = result.result; // quicker to write and access
+
+				if ("_shsf" in out) {
+					const version: "v2" = out._shsf; // always v2 currently
+					const headers: { key: string; value: any }[] | null =
+						"_headers" in out
+							? Object.entries(out._headers).map(([key, value]) => ({
+									key,
+									value,
+							  }))
+							: null;
+					const response_code: number | null =
+						"_code" in out ? out._code : null;
+					const response: any | null = "_res" in out ? out._res : null;
+
+					ctr.status(response_code || 200);
+
+					if (headers) {
+						headers.forEach(({ key, value }) => {
+							ctr.headers.set(key, value);
+						});
+					}
+
+					if (response) {
+						return ctr.print(response);
+					} else {
+						return ctr.print("[SHSF_BACK] OK");
+					}
+				}
+			}
+
+			return ctr.print(result?.result ?? "[SHSF_BACK] OK");
+		})
 	)
 	.http("DELETE", "/api/function/{id}", (http) =>
 		http.onRequest(async (ctr) => {

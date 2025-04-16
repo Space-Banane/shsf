@@ -83,7 +83,7 @@ server
 		console.log(`[SHSF API] Running on ${port}`);
 
 		setInterval(async () => {
-			await processCrons();
+			// await processCrons();
 		}, 1000); // Every second
 	})
 	.catch(console.error);
