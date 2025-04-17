@@ -984,7 +984,7 @@ function FunctionDetail() {
 						</div>
 					)}
 
-					<div className="h-[28rem] border border-gray-700 rounded relative">
+					<div className="h-[32rem] border border-gray-700 rounded relative">
 						{!activeFile && (
 							<div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-75 text-text text-lg">
 								No file selected. Please select a file to edit.
