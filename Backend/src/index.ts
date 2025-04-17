@@ -162,7 +162,7 @@ async function processCrons() {
 					{
 						enabled: false,
 					},
-					JSON.stringify({body:cron.data})
+					JSON.stringify(cron.data)
 				);
 
 				console.log(
