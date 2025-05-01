@@ -143,6 +143,10 @@ function FunctionDetail() {
 			".html": "html",
 			".css": "css",
 			".md": "markdown",
+			".go": "go",
+			".mod": "go",
+			".rs": "rust",
+			".lua": "lua",
 		};
 		const nameMapping: { [key: string]: string } = {
 			Dockerfile: "dockerfile",

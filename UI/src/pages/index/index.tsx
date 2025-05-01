@@ -73,11 +73,11 @@ const IndexPage = () => {
 						<RealWorldExample title="Image Processing Pipeline🖼️" description="
 							Use Cloud Functions to process images in real time. Upload an image,
 							and trigger a function to resize, filter, or analyze it.
-						" />
+						" extra="Speed obviously depends on the backend."/>
 						<RealWorldExample title="Data Processing🛠️" description="
 							Leverage Cloud Functions to process large datasets efficiently. 
 							Trigger functions on data uploads or scheduled events.
-						" />
+						" extra="A very nice addition to what you can do!"/>
 						<RealWorldExample title="Quick Response to User Actions👥" description="
 							Use Cloud Functions to respond to user actions, such as sending
 							email notifications or updating databases.
@@ -85,7 +85,7 @@ const IndexPage = () => {
 						<RealWorldExample title="Webhook Handling🕸️" description="
 							Use Cloud Functions to handle webhooks from third-party services.
 							Process incoming data and trigger further actions.
-						" />
+						" extra="This is the main idea"/>
 					</div>
 				</div>
 			</section>
@@ -97,8 +97,8 @@ const IndexPage = () => {
 						Supported Languages
 					</h2>
 					<div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-3xl mx-auto mb-16">
-						<SupportedLanguage language="NodeJS🟢" tag="Fastest" />
-						<SupportedLanguage language="Python🐍" tag="Slow Package Manager" tagcolor="bg-red-600" />
+						<SupportedLanguage language="NodeJS🟢" tag="Slow Packaging" tagcolor="bg-yellow-500"/>
+						<SupportedLanguage language="Python🐍" tag="Perfect" tagcolor="bg-green-600" />
 						<SupportedLanguage language="Go💨" soon={true} />
 						<SupportedLanguage language="Lua🟣" soon={true} />
 					</div>
