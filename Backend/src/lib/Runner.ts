@@ -1,6 +1,6 @@
 import { Function, FunctionFile } from "@prisma/client";
 import Docker from "dockerode";
-import { Readable } from "stream";
+import { PassThrough } from "stream"; // Added PassThrough
 import { prisma } from "..";
 import { HttpRequestContext } from "rjweb-server";
 import { DataContext } from "rjweb-server/lib/typings/types/internal";
@@ -14,67 +14,6 @@ interface TimingEntry {
 	description: string;
 }
 
-/**
- * Optimized polling function to check for the existence and content of eject.json.
- * It polls frequently for a short duration to detect the file as soon as possible
- * after the container likely writes it.
- *
- * @param tempDir The directory where eject.json is expected.
- * @param pollInterval Milliseconds between checks. Lower values increase CPU load but decrease detection latency. Defaults to 1ms.
- * @param maxDuration Maximum milliseconds to poll before giving up. Defaults to 500ms.
- * @returns The parsed content of eject.json, or null if not found/parsed within the duration.
- */
-async function pollForEject(
-	tempDir: string,
-	pollInterval = 1, // Poll very frequently for minimum latency
-	maxDuration = 500 // Reasonably short duration, assuming file appears quickly post-execution
-): Promise<any | null> {
-	const start = Date.now();
-	let attempts = 0;
-
-	while (Date.now() - start < maxDuration) {
-		attempts++;
-		try {
-			// Directly attempt to read and parse. This avoids the extra fs.access call.
-			// If the file doesn't exist or isn't readable yet, readFile will throw.
-			const ejectFilePath = path.join(tempDir, "eject.json");
-			const ejectData = await fs.readFile(ejectFilePath, "utf-8");
-
-			// If readFile succeeds, try parsing immediately.
-			try {
-				const result = JSON.parse(ejectData);
-				// console.log(`[pollForEject] Found after ${Date.now() - start}ms and ${attempts} attempts.`); // Optional debug log
-				return result; // Success!
-			} catch (parseError) {
-				// File exists but content is invalid/incomplete. Log and treat as not found yet.
-				console.error(`[pollForEject] Error parsing eject.json (attempt ${attempts}): ${parseError}`);
-				// Continue polling, maybe the file write wasn't atomic.
-			}
-		} catch (err: any) {
-			// Most common error will be ENOENT (file not found). Ignore it and continue polling.
-			if (err.code !== 'ENOENT') {
-				// Log unexpected errors (permissions, etc.) but still continue polling.
-				console.error(`[pollForEject] Error reading eject.json (attempt ${attempts}): ${err}`);
-			}
-			// File not found or other read error, continue polling.
-		}
-
-		// Wait before the next attempt.
-		await new Promise((resolve) => setTimeout(resolve, pollInterval));
-	}
-
-	// console.log(`[pollForEject] Not found after ${maxDuration}ms and ${attempts} attempts.`); // Optional debug log
-	// Timeout reached, file was not found or successfully parsed.
-	// Perform one final check in case it appeared exactly at the timeout boundary.
-	try {
-		const ejectFilePath = path.join(tempDir, "eject.json");
-		const ejectData = await fs.readFile(ejectFilePath, "utf-8");
-		return JSON.parse(ejectData);
-	} catch {
-		return null; // Really not found or parsable.
-	}
-}
-
 export async function executeFunction(
 	id: number,
 	functionData: Function,
@@ -86,592 +25,496 @@ export async function executeFunction(
 ) {
 	const starting_time = Date.now();
 	const tooks: TimingEntry[] = [];
-	let func_result: string = "";
+	let func_result: string = ""; // Stores the JSON string result from the function
+	let logs: string = ""; // Stores logs from the function execution
 
-	// Updated recordTiming function
 	const recordTiming = (() => {
 		let lastTimestamp = starting_time;
 		return (description: string) => {
 			const currentTimestamp = Date.now();
 			const value = (currentTimestamp - lastTimestamp) / 1000;
 			tooks.push({ timestamp: currentTimestamp, value, description });
-			lastTimestamp = currentTimestamp;
 			console.log(`[SHSF CRONS] ${description}: ${value.toFixed(3)} seconds`);
 		};
 	})();
 
 	const docker = new Docker();
-	const containerName = `code_runner_${functionData.id}_${Date.now()}`;
-	const tempDir = `/tmp/shsf/${containerName}`;
+	const functionIdStr = String(functionData.id);
+	const containerName = `shsf_func_${functionIdStr}`;
+	// Persistent directory on the host for this function's app files
+	const funcAppDir = path.join("/opt/shsf_data/functions", functionIdStr, "app");
 	const runtimeType = functionData.image.split(":")[0];
-	await fs.mkdir(tempDir, { recursive: true });
+	let exitCode = 0; // Default exit code
 
-	const cacheDirs = [
-		"/tmp/shsf/.cache",
-		"/tmp/shsf/.cache/pnpm",
-		"/tmp/shsf/.cache/pip",
-		"/tmp/shsf/.cache/npm",
-	];
+	try {
+		let container = docker.getContainer(containerName);
+		let containerJustCreated = false;
 
-	if (runtimeType === "python") {
-		cacheDirs.push(
-			`/tmp/shsf/.cache/pip/function-${functionData.id}`,
-			`/tmp/shsf/.cache/pip/function-${functionData.id}/http-cache`,
-			`/tmp/shsf/.cache/pip/function-${functionData.id}/wheels`,
-			`/tmp/shsf/.cache/pip/function-${functionData.id}/packages`
-		);
-	} else if (runtimeType === "node") {
-		cacheDirs.push(`/tmp/shsf/.cache/pnpm/function-${functionData.id}/store`);
-	}
+		try {
+			const inspectInfo = await container.inspect();
+			if (!inspectInfo.State.Running) {
+				recordTiming("Starting existing stopped container");
+				await container.start();
+				recordTiming("Container started");
+			} else {
+				recordTiming("Found existing running container");
+			}
+		} catch (error: any) {
+			if (error.statusCode === 404) { // Container not found, create it
+				containerJustCreated = true;
+				recordTiming("Container not found, preparing for creation");
 
-	await Promise.all(cacheDirs.map((dir) => fs.mkdir(dir, { recursive: true })));
-	recordTiming("Directory creation");
+				await fs.mkdir(funcAppDir, { recursive: true });
+				recordTiming(`Function app directory ${funcAppDir} created/ensured`);
 
-	let defaultStartupFile = runtimeType === "python" ? "main.py" : "index.js";
-	const startupFile = functionData.startup_file || defaultStartupFile;
+				// Cache directories setup on host (ensure these base paths exist)
+				const baseCacheDir = "/opt/shsf_data/cache"; // Centralized cache on host
+				await fs.mkdir(baseCacheDir, { recursive: true });
+				const pipCacheHost = path.join(baseCacheDir, "pip");
+				const pnpmCacheHost = path.join(baseCacheDir, "pnpm");
+				const npmCacheHost = path.join(baseCacheDir, "npm");
+				const aptCacheBaseHost = path.join(baseCacheDir, "apt", `function-${functionIdStr}`);
+				const puppeteerCacheHostDir = path.join(baseCacheDir, "puppeteer", `function-${functionIdStr}`);
 
-	// Write user files concurrently for speed
-	await Promise.all(
-		files.map(async (file) => {
-			const filePath = path.join(tempDir, file.name);
-			await fs.writeFile(filePath, file.content);
-		})
-	);
-	recordTiming("File writing");
+				await Promise.all([
+					fs.mkdir(pipCacheHost, { recursive: true }),
+					fs.mkdir(pnpmCacheHost, { recursive: true }),
+					fs.mkdir(npmCacheHost, { recursive: true }),
+					fs.mkdir(path.join(aptCacheBaseHost, 'var/cache/apt/archives'), { recursive: true }),
+					fs.mkdir(path.join(aptCacheBaseHost, 'var/lib/apt/lists'), { recursive: true }),
+				]);
+				recordTiming("Host cache directories ensured");
+				
+				let BINDS: string[] = [`${funcAppDir}:/app`];
 
-	// Generate the wrapper script and init.sh
-	let initScript = "#!/bin/sh\ncd /app\n";
+				// Write user files to funcAppDir
+				await Promise.all(
+					files.map(async (file) => {
+						const filePath = path.join(funcAppDir, file.name);
+						await fs.writeFile(filePath, file.content);
+					})
+				);
+				recordTiming("User files written to host app directory");
 
-	// NEW: Declare BINDS early to allow usage in runtime branches.
-	let BINDS: string[] = [];
+				let initScript = "#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
+				const startupFile = functionData.startup_file || (runtimeType === "python" ? "main.py" : "index.js");
 
-	if (runtimeType === "python") {
-		initScript += `
+				if (runtimeType === "python") {
+					BINDS.push(`${pipCacheHost}:/pip-cache`); // Mount persistent pip cache
+					initScript += `
 if [ -f "requirements.txt" ]; then 
-	echo "[SHSF] Setting up Python environment for function ${functionData.id}"
-	
-	# Define paths for virtual environment and cache
-	VENV_DIR="/pip-cache/function-${functionData.id}/venv"
-	# PIP_CACHE_DIR is automatically used by pip when the volume is mounted
-	HASH_FILE="/pip-cache/function-${functionData.id}/.reqhash"
-	
-	# Create base directory for venv and hash
-	mkdir -p "$(dirname "$VENV_DIR")"
-	
-	# Generate a hash of requirements.txt
+	echo "[SHSF INIT] Setting up Python environment for function ${functionData.id}"
+	VENV_DIR="/pip-cache/venv/function-${functionData.id}" 
+	HASH_FILE="/pip-cache/hashes/function-${functionData.id}/req.hash"
+	mkdir -p "$(dirname "$VENV_DIR")" "$(dirname "$HASH_FILE")"
 	REQUIREMENTS_HASH=$(md5sum requirements.txt | awk '{print $1}')
-	
 	NEEDS_UPDATE=0
-	# Check if venv exists and if requirements hash matches
-	if [ ! -d "$VENV_DIR" ]; then
-		echo "[SHSF] No existing virtual environment found. Creating..."
-		NEEDS_UPDATE=1
-	elif [ ! -f "$HASH_FILE" ] || [ "$(cat "$HASH_FILE")" != "$REQUIREMENTS_HASH" ]; then
-		echo "[SHSF] Requirements changed (new hash: $REQUIREMENTS_HASH). Updating virtual environment..."
-		NEEDS_UPDATE=1
-	else
-		echo "[SHSF] Requirements unchanged (hash: $REQUIREMENTS_HASH). Using existing virtual environment."
-	fi
+	if [ ! -d "$VENV_DIR" ]; then NEEDS_UPDATE=1; echo "[SHSF INIT] No venv. Creating."; fi
+	if [ ! -f "$HASH_FILE" ] || [ "$(cat "$HASH_FILE")" != "$REQUIREMENTS_HASH" ]; then NEEDS_UPDATE=1; echo "[SHSF INIT] Hash mismatch. Updating."; fi
 	
-	# Create or update the virtual environment if needed
 	if [ $NEEDS_UPDATE -eq 1 ]; then
-		# Remove old venv if it exists to ensure clean state
 		rm -rf "$VENV_DIR"
-		echo "[SHSF] Creating virtual environment in $VENV_DIR"
 		python -m venv "$VENV_DIR"
-		
-		# Activate the new environment
 		. "$VENV_DIR/bin/activate"
-		
-		echo "[SHSF] Upgrading pip..."
 		pip install --upgrade pip
-		
-		echo "[SHSF] Installing dependencies from requirements.txt using pip cache..."
-		# Pip will automatically use the mounted /pip-cache volume
 		if pip install -r requirements.txt; then
-			# Save the hash on successful installation
 			echo "$REQUIREMENTS_HASH" > "$HASH_FILE"
-			echo "[SHSF] Dependencies installed and hash saved."
+			echo "[SHSF INIT] Python dependencies installed."
 		else
-			echo "[SHSF] Error installing dependencies. Environment might be incomplete."
-			# Optionally exit here: exit 1
+			echo "[SHSF INIT] Error installing Python dependencies." >&2
+			exit 1
 		fi
 	else
-		# Activate the existing environment
-		. "$VENV_DIR/bin/activate"
+		echo "[SHSF INIT] Python venv up-to-date."
 	fi
-	
-	# Verify the environment is usable (optional but recommended)
-	if ! python -c "import sys; sys.exit(0)"; then
-		echo "[SHSF] Warning: Python environment activation failed or is corrupted. Attempting recovery..."
-		# Attempt a full reinstall as recovery
-		rm -rf "$VENV_DIR" "$HASH_FILE"
-		python -m venv "$VENV_DIR"
-		. "$VENV_DIR/bin/activate"
-		pip install --upgrade pip
-		pip install -r requirements.txt && echo "$REQUIREMENTS_HASH" > "$HASH_FILE"
-	fi
-	
-	echo "[SHSF] Python environment ready."
+	. "$VENV_DIR/bin/activate" # Ensure activated for subsequent exec
 fi
+echo "[SHSF INIT] Python setup complete."
 `;
-		const wrapperPath = path.join(tempDir, "_runner.py");
-		const wrapperContent = `
+					const wrapperPath = path.join(funcAppDir, "_runner.py");
+					const wrapperContent = `
 import json
 import sys
 import os
 import traceback
 
-# Import the target module
 sys.path.append('/app')
 target_module_name = "${startupFile.replace(".py", "")}"
+run_data_json = os.getenv('RUN_DATA')
+run_data = None
+
+if run_data_json:
+	try:
+		run_data = json.loads(run_data_json)
+	except json.JSONDecodeError as e:
+		sys.stderr.write(f"Error decoding RUN_DATA JSON: {str(e)}\\n")
+		sys.exit(1)
 
 try:
-	# First try to load the module with a direct import, but protect against immediate execution
-	# Save the original __name__ variable to prevent immediate script execution on import
 	original_name = __name__
-	__name__ = 'imported_module'  # This prevents code in the global scope from running if guarded by if __name__ == "__main__"
-	
-	# Import the module - this should prevent automatic execution of global code
+	__name__ = 'imported_module'
 	target_module = __import__(target_module_name)
-	
-	# Check if RUN data was provided via environment variable
-	run_data = os.getenv('RUN_DATA')
-	
-	# Look for a main function to execute
+	__name__ = original_name # Restore __name__
+
 	if hasattr(target_module, 'main') and callable(target_module.main):
 		try:
-			# Call the main function with the run data if provided
-			if (run_data):
-				result = target_module.main(json.loads(run_data))
+			if run_data is not None:
+				result = target_module.main(run_data)
 			else:
 				result = target_module.main()
-				
-			# Write result to eject file
-			with open('eject.json', 'w') as f:
-				json.dump(result, f)
+			
+			sys.stdout.write(json.dumps(result))
+			sys.stdout.flush()
 		except Exception as e:
-			print(f"Error executing main function: {str(e)}")
-			traceback.print_exc()
+			sys.stderr.write(f"Error executing main function: {str(e)}\\n")
+			traceback.print_exc(file=sys.stderr)
+			sys.exit(1)
+	else:
+		sys.stderr.write(f"No 'main' function found in {target_module_name}.py\\n")
+		sys.exit(1)
 except Exception as e:
-	print(f"Error importing module {target_module_name}: {str(e)}")
-	traceback.print_exc()
+	sys.stderr.write(f"Error importing module {target_module_name}: {str(e)}\\n")
+	traceback.print_exc(file=sys.stderr)
+	sys.exit(1)
 `;
+					await fs.writeFile(wrapperPath, wrapperContent);
+				} else if (runtimeType === "node") {
+					BINDS.push(`${pnpmCacheHost}:/pnpm-cache`);
+					BINDS.push(`${npmCacheHost}:/npm-cache`);
 
-		await fs.writeFile(wrapperPath, wrapperContent);
-		initScript += `python /app/_runner.py\n`;
-		await fs.writeFile(path.join(tempDir, "init.sh"), initScript);
-		await fs.chmod(path.join(tempDir, "init.sh"), "755");
-	} else if (runtimeType === "node") {
-				// Define host paths for standard apt cache directories
-				const aptCacheBase = `/tmp/shsf/.cache/apt/function-${functionData.id}`;
-				const aptArchivesCacheHost = path.join(aptCacheBase, 'var/cache/apt/archives');
-				const aptListsCacheHost = path.join(aptCacheBase, 'var/lib/apt/lists');
-
-				// Create these directories on the host
-				await fs.mkdir(aptArchivesCacheHost, { recursive: true });
-				await fs.mkdir(aptListsCacheHost, { recursive: true });
-
-				// Add binds for the standard apt cache locations
-				BINDS.push(`${aptArchivesCacheHost}:/var/cache/apt/archives`);
-				BINDS.push(`${aptListsCacheHost}:/var/lib/apt/lists`);
-
-				// Check if there is a shsf.apt_deps in package.json
-				const aptDepsFile = files.find((file) => file.name === "package.json");
-				if (aptDepsFile) {
-					try {
-						const pkg = JSON.parse(aptDepsFile.content);
-						if (pkg.shsf && pkg.shsf.apt_deps) {
-								// Update and install using default (mounted) cache locations
+					const aptArchivesCacheContainer = '/var/cache/apt/archives';
+					const aptListsCacheContainer = '/var/lib/apt/lists';
+					BINDS.push(`${path.join(aptCacheBaseHost, 'var/cache/apt/archives')}:${aptArchivesCacheContainer}`);
+					BINDS.push(`${path.join(aptCacheBaseHost, 'var/lib/apt/lists')}:${aptListsCacheContainer}`);
+					
+					const pkgJsonFile = files.find((file) => file.name === "package.json");
+					if (pkgJsonFile) {
+						try {
+							const pkg = JSON.parse(pkgJsonFile.content);
+							if (pkg.shsf && pkg.shsf.apt_deps && Array.isArray(pkg.shsf.apt_deps) && pkg.shsf.apt_deps.length > 0) {
 								initScript += `
-# Ensure apt directories exist inside container (might be needed on first run)
-mkdir -p /var/cache/apt/archives /var/lib/apt/lists/partial
-
-# Update package lists (should hit the mounted cache)
-echo "[SHSF] Updating apt lists using mounted cache..."
-apt-get update
+echo "[SHSF INIT] Checking for apt dependencies..."
+mkdir -p ${aptArchivesCacheContainer} ${aptListsCacheContainer}/partial
+apt-get update -o Dir::Cache::archives="${aptArchivesCacheContainer}" -o Dir::State::lists="${aptListsCacheContainer}"
+apt-get install -y ${pkg.shsf.apt_deps.join(' ')} -o Dir::Cache::archives="${aptArchivesCacheContainer}"
+echo "[SHSF INIT] Apt dependencies installed."
 `;
-								const aptDeps = pkg.shsf.apt_deps;
-								if (Array.isArray(aptDeps) && aptDeps.length > 0) {
-									initScript += `echo "[SHSF] Installing apt dependencies using mounted cache: ${aptDeps.join(' ')}..."\n`;
-									// Install dependencies (should use cached .deb files)
-									const installCmd = `apt-get install -y ${aptDeps.join(' ')}`;
-									initScript += `${installCmd}\n`;
-								} else {
-									initScript += `echo "[SHSF] No apt dependencies listed."\n`;
-								}
-						}
-					} catch (e) {
-						console.error("Error parsing package.json for apt_deps:", e);
+							}
+						} catch (e) { console.error("Error parsing package.json for apt_deps in init script:", e); }
 					}
-				}
-				initScript += `
-# Set cache directories for npm and pnpm (volumes mounted by host)
+
+					initScript += `
 export NPM_CONFIG_CACHE="/npm-cache"
-export PNPM_HOME="/pnpm-cache" # pnpm uses this for its store
-
+export PNPM_HOME="/pnpm-cache"
 if [ -f "package.json" ]; then 
-	echo "[SHSF] Setting up Node.js environment for function ${functionData.id}"
-	
-	# Define cache base and hash file location
-	CACHE_BASE="/pnpm-cache/function-${functionData.id}" # Using pnpm-cache dir for consistency
-	HASH_FILE="$CACHE_BASE/.depshash"
+	echo "[SHSF INIT] Setting up Node.js environment for function ${functionData.id}"
+	CACHE_BASE="/pnpm-cache/hashes/function-${functionData.id}"
+	HASH_FILE="$CACHE_BASE/dep.hash"
 	mkdir -p "$CACHE_BASE"
-
 	CURRENT_HASH=""
 	INSTALL_CMD=""
 	LOCK_FILE_TYPE="none"
-
-	# 1. Check for pnpm lock file
-	if [ -f "pnpm-lock.yaml" ]; then
-		echo "[SHSF] Found pnpm-lock.yaml"
-		CURRENT_HASH=$(md5sum pnpm-lock.yaml | awk '{print $1}')
-		INSTALL_CMD="pnpm install --frozen-lockfile --prod" # Use --prod or adjust as needed
-		LOCK_FILE_TYPE="pnpm"
-	# 2. Check for npm lock file
-	elif [ -f "package-lock.json" ]; then
-		echo "[SHSF] Found package-lock.json"
-		CURRENT_HASH=$(md5sum package-lock.json | awk '{print $1}')
-		INSTALL_CMD="npm ci --no-fund --no-audit --loglevel=error"
-		LOCK_FILE_TYPE="npm-lock"
-	# 3. Fallback to package.json
-	else
-		echo "[SHSF] No lock file found. Using package.json"
-		# Hashing package.json is less reliable for cache invalidation
-		# Consider generating a lock file in the build step if possible
-		CURRENT_HASH=$(md5sum package.json | awk '{print $1}')
-		INSTALL_CMD="npm install --no-fund --no-audit --loglevel=error"
-		LOCK_FILE_TYPE="npm-pkg"
-	fi
-
-	echo "[SHSF] Current dependency hash ($LOCK_FILE_TYPE): $CURRENT_HASH"
-	STORED_HASH=$(cat "$HASH_FILE" 2>/dev/null)
-	echo "[SHSF] Stored dependency hash: $STORED_HASH"
-
-	# Check if installation is needed
-	if [ "$CURRENT_HASH" != "$STORED_HASH" ]; then
-		echo "[SHSF] Dependencies changed or first run. Installing using '$INSTALL_CMD'..."
-		rm -rf node_modules 
-		
-		# Execute the determined install command
-		if $INSTALL_CMD; then
-			echo "[SHSF] Dependencies installed successfully."
-			# Save the new hash
-			echo "$CURRENT_HASH" > "$HASH_FILE"
-			echo "[SHSF] Updated dependency hash stored."
-		else
-			echo "[SHSF] Error during dependency installation. Environment might be incomplete."
-			# Optionally exit: exit 1
-		fi
-	else
-		echo "[SHSF] Dependencies hash matches. Skipping installation."
-		# Ensure node_modules exists if using pnpm (it creates links)
-		if [ "$LOCK_FILE_TYPE" = "pnpm" ] && [ ! -d "node_modules" ]; then
-			echo "[SHSF] pnpm detected, ensuring node_modules links exist..."
-			pnpm install --frozen-lockfile --prod --prefer-offline
-		elif [ ! -d "node_modules" ]; then
-			# This case might happen if node_modules was manually deleted or if 
-			# the previous run failed after deleting node_modules but before install finished.
-			# Re-running install is safer.
-			echo "[SHSF] node_modules directory not found despite matching hash. Re-running install..."
-			if $INSTALL_CMD; then
-				echo "[SHSF] Dependencies installed successfully."
-				echo "$CURRENT_HASH" > "$HASH_FILE" # Re-save hash just in case
-			else
-				echo "[SHSF] Error during dependency installation recovery."
-			fi
-		fi
-	fi
+	if [ -f "pnpm-lock.yaml" ]; then CURRENT_HASH=$(md5sum pnpm-lock.yaml | awk '{print $1}'); INSTALL_CMD="pnpm install --frozen-lockfile --prod"; LOCK_FILE_TYPE="pnpm";
+	elif [ -f "package-lock.json" ]; then CURRENT_HASH=$(md5sum package-lock.json | awk '{print $1}'); INSTALL_CMD="npm ci --no-fund --no-audit --loglevel=error"; LOCK_FILE_TYPE="npm-lock";
+	else CURRENT_HASH=$(md5sum package.json | awk '{print $1}'); INSTALL_CMD="npm install --no-fund --no-audit --loglevel=error"; LOCK_FILE_TYPE="npm-pkg"; fi
 	
-	echo "[SHSF] Node.js environment ready."
+	if [ "$CURRENT_HASH" != "$(cat "$HASH_FILE" 2>/dev/null)" ]; then
+		echo "[SHSF INIT] Node dependencies changed or first run ($LOCK_FILE_TYPE). Installing..."
+		rm -rf node_modules
+		if $INSTALL_CMD; then echo "$CURRENT_HASH" > "$HASH_FILE"; echo "[SHSF INIT] Node dependencies installed.";
+		else echo "[SHSF INIT] Error installing Node dependencies." >&2; exit 1; fi
+	else echo "[SHSF INIT] Node dependencies up-to-date ($LOCK_FILE_TYPE)."; fi
+	if [ "$LOCK_FILE_TYPE" = "pnpm" ] && [ ! -d "node_modules" ]; then pnpm install --frozen-lockfile --prod --prefer-offline; fi
 fi
+echo "[SHSF INIT] Node.js setup complete."
 `;
-		const wrapperPath = path.join(tempDir, "_runner.js");
-		const wrapperContent = `
+					const wrapperPath = path.join(funcAppDir, "_runner.js");
+					const wrapperContent = `
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const crypto = require('crypto');
 
 try {
-	console.log("Executing script...");
 	const fileContent = fs.readFileSync(path.join('/app', '${startupFile}'), 'utf8');
 	const sandbox = {
-		console,
-		require,
-		__dirname: '/app',
-		__filename: path.join('/app', '${startupFile}'),
-		module: { exports: {} },
-		exports: {},
-		process,
-		setTimeout,
-		clearTimeout,
-		setInterval,
-		clearInterval,
-		Buffer,
-		main: undefined
+		console: { // Route console.log/error to stderr for logs
+			log: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
+			error: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
+			warn: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
+			info: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
+			debug: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
+		},
+		require, __dirname: '/app', __filename: path.join('/app', '${startupFile}'),
+		module: { exports: {} }, exports: {}, process,
+		setTimeout, clearTimeout, setInterval, clearInterval, Buffer, main: undefined
 	};
 	vm.runInNewContext(fileContent, sandbox);
+
 	if (typeof sandbox.main === 'function') {
-		const runData = process.env.RUN_DATA;
-		try {
-			let result;
-			if (runData) {
-				result = sandbox.main(JSON.parse(runData));
-			} else {
-				result = sandbox.main();
-			}
-			
-			if (result instanceof Promise) {
-				result
-					.then(finalResult => {
-						fs.writeFileSync('eject.json', JSON.stringify(finalResult));
-					})
-					.catch(err => {
-						console.error("Error in async main function:", err);
-					});
-			} else {
-				fs.writeFileSync('eject.json', JSON.stringify(result));
-			}
-		} catch(e) {
-			console.error("Error executing main function:", e);
-		}
-	}
-} catch (e) {
-	console.error("Error in runner script:", e);
-}
-`;
-		await fs.writeFile(wrapperPath, wrapperContent);
-		// Lets check if there is a shsf_startup script in package.json
-		const startupScript = files.find((file) => file.name === "package.json");
-		if (startupScript) {
+		const runDataJson = process.env.RUN_DATA;
+		let runData = undefined;
+		if (runDataJson) {
 			try {
-				const pkg = JSON.parse(startupScript.content);
-				if (pkg.shsf && pkg.shsf.startup) {
-					initScript += `${pkg.shsf.startup}\n`;
-				}
+				runData = JSON.parse(runDataJson);
 			} catch (e) {
-				console.error("Error parsing package.json:", e);
+				process.stderr.write('Error parsing RUN_DATA JSON: ' + e.message + '\\n');
+				process.exit(1);
 			}
 		}
-		initScript += `node /app/_runner.js\n`;
-		await fs.writeFile(path.join(tempDir, "init.sh"), initScript);
-		await fs.chmod(path.join(tempDir, "init.sh"), "755");
-	}
-	recordTiming("Script generation");
-
-	const CMD = ["/bin/sh", "/app/init.sh"];
-
-	const imageStart = Date.now();
-	let imagePulled = false;
-	try {
-		const imageExists = await docker.listImages({
-			filters: JSON.stringify({ reference: [functionData.image] }),
-		});
-		if (imageExists.length === 0) {
-			imagePulled = true;
-			const streamPull = await docker.pull(functionData.image);
-			await new Promise((resolve, reject) => {
-				docker.modem.followProgress(streamPull, (err) =>
-					err ? reject(err) : resolve(null)
-				);
-			});
-		}
-	} catch (error) {
-		console.error("Error checking or pulling image:", error);
-		throw error;
-	}
-	recordTiming(imagePulled ? "Image pull" : "Image check");
-
-	let ENV = functionData.env
-		? JSON.parse(functionData.env).map((env: { name: string; value: any }) => `${env.name}=${env.value}`)
-		: [];
-	ENV.push(`RUN_DATA=${payload}`);
-
-	BINDS.push(`${tempDir}:/app`);
-
-	if (runtimeType === "python") {
-		// Mount the persistent pip cache directory
-		BINDS.push(`/tmp/shsf/.cache/pip:/pip-cache`);
-	} else if (runtimeType === "node") {
-		// Mount persistent caches for pnpm and npm
-		BINDS.push(`/tmp/shsf/.cache/pnpm:/pnpm-cache`);
-		BINDS.push(`/tmp/shsf/.cache/npm:/npm-cache`);
 		
-		// Check for puppeteer in package.json dependencies
-		let hasPuppeteer = false;
-		for (const file of files) {
-			if (file.name === "package.json") {
-				try {
-					const pkg = JSON.parse(file.content);
-					if (
-						(pkg.dependencies && Object.keys(pkg.dependencies).some(dep => dep.toLowerCase().includes("puppeteer"))) ||
-						(pkg.devDependencies && Object.keys(pkg.devDependencies).some(dep => dep.toLowerCase().includes("puppeteer")))
-					) {
-						hasPuppeteer = true;
-						break;
-					}
-				} catch (e) { }
-			}
-		}
-		if (hasPuppeteer) {
-			const puppeteerCacheHost = `/tmp/shsf/.cache/puppeteer/function-${functionData.id}`;
-			await fs.mkdir(puppeteerCacheHost, { recursive: true });
-			BINDS.push(`${puppeteerCacheHost}:/root/.cache/puppeteer`);
+		let result = runData !== undefined ? sandbox.main(runData) : sandbox.main();
+		
+		if (result instanceof Promise) {
+			result.then(finalResult => {
+				process.stdout.write(JSON.stringify(finalResult));
+			}).catch(err => {
+				process.stderr.write('Error in async main function: ' + (err.stack || err) + '\\n');
+				process.exit(1);
+			});
+		} else {
+			process.stdout.write(JSON.stringify(result));
 		}
 	} else {
-		return {
-			logs: "Unsupported runtime type",
-			exit_code: 1,
-			tooks: [
-				...tooks,
-				{ timestamp: Date.now(), value: (Date.now() - starting_time) / 1000, description: "Total execution time" },
-			],
-		};
+		process.stderr.write("No 'main' function exported from " + '${startupFile}' + ".\\n");
+		process.exit(1);
 	}
+} catch (e) {
+	process.stderr.write('Error in runner script: ' + (e.stack || e) + '\\n');
+	process.exit(1);
+}
+`;
+					await fs.writeFile(wrapperPath, wrapperContent);
+					if (pkgJsonFile) { // Check for shsf.startup in package.json for Node
+						try {
+							const pkg = JSON.parse(pkgJsonFile.content);
+							if (pkg.shsf && pkg.shsf.startup) {
+								initScript += `echo "[SHSF INIT] Running shsf.startup script: ${pkg.shsf.startup}"\n${pkg.shsf.startup}\n`;
+							}
+						} catch (e) { console.error("Error parsing package.json for shsf.startup:", e); }
+					}
+				} else {
+					throw new Error(`Unsupported runtime type for init script: ${runtimeType}`);
+				}
+				
+				initScript += "\necho '[SHSF INIT] Environment setup finished successfully.'\n";
+				await fs.writeFile(path.join(funcAppDir, "init.sh"), initScript);
+				await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
+				recordTiming("init.sh and runner script generated on host");
 
-	const container = await docker.createContainer({
-		Image: functionData.image,
-		name: containerName,
-		AttachStderr: true,
-		AttachStdout: true,
-		Tty: true,
-		Cmd: CMD,
-		Env: ENV,
-		HostConfig: {
-			Binds: BINDS,
-			AutoRemove: true,
-			Memory: (functionData.max_ram || 128) * 1024 * 1024,
-		},
-	});
+				// Image pull logic (same as original)
+				const imageStart = Date.now();
+				let imagePulled = false;
+				try {
+					const imageExists = await docker.listImages({ filters: JSON.stringify({ reference: [functionData.image] }) });
+					if (imageExists.length === 0) {
+						imagePulled = true;
+						recordTiming("Pulling image: " + functionData.image);
+						const pullStream = await docker.pull(functionData.image);
+						await new Promise((resolve, reject) => {
+							docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(null));
+						});
+					}
+				} catch (imgError) {
+					console.error("Error checking or pulling image:", imgError);
+					throw imgError;
+				}
+				recordTiming(imagePulled ? "Image pull complete" : "Image check complete");
 
-	await container.start();
-	recordTiming("Container start");
+				// Add puppeteer cache bind if node and puppeteer is a dependency
+				if (runtimeType === "node") {
+					let hasPuppeteer = false;
+					for (const file of files) {
+						if (file.name === "package.json") {
+							try {
+								const pkg = JSON.parse(file.content);
+								if ((pkg.dependencies && Object.keys(pkg.dependencies).some(dep => dep.toLowerCase().includes("puppeteer"))) ||
+										(pkg.devDependencies && Object.keys(pkg.devDependencies).some(dep => dep.toLowerCase().includes("puppeteer")))) {
+									hasPuppeteer = true; break;
+								}
+							} catch (e) { /* ignore parsing error */ }
+						}
+					}
+					if (hasPuppeteer) {
+						await fs.mkdir(puppeteerCacheHostDir, { recursive: true });
+						BINDS.push(`${puppeteerCacheHostDir}:/root/.cache/puppeteer`);
+						recordTiming("Puppeteer cache bind added");
+					}
+				}
+				
+				const initialEnv = functionData.env ? JSON.parse(functionData.env).map((env: { name: string; value: any }) => `${env.name}=${env.value}`) : [];
 
-	const timeout = functionData.timeout || 15;
-	let logs = "";
-
-	try {
-		if (stream.enabled) {
-			const logStream = await new Promise<Readable>((resolve, reject) => {
-				container.attach({ stream: true, stdout: true, stderr: true }, (err, stream) =>
-					err ? reject(err) : resolve(stream as unknown as Readable)
-				);
-			});
-
-			const killTimeout = setTimeout(() => {
-				container.kill().catch(console.error);
-			}, timeout * 1000);
-
-			const ansiRegex = /\x1B\[[0-9;]*[A-Za-z]/g;
-			const nonPrintableRegex = /[^\x20-\x7E\n\r\t]/g;
-
-			logStream.on("data", (chunk) => {
-				let text = Buffer.isBuffer(chunk)
-					? chunk.toString("utf-8")
-					: typeof chunk === "object"
-					? JSON.stringify(chunk)
-					: String(chunk);
-
-				text = text.replace(ansiRegex, "").replace(nonPrintableRegex, "");
-				stream.onChunk(text);
-				logs += text;
-			});
-
-			await container.wait();
-			recordTiming("Container execution");
-			clearTimeout(killTimeout);
-
-			// Poll for the eject file every few ms to ensure we grab it ASAP
-			const ejectResult = await pollForEject(tempDir, 5, 500);
-			if (ejectResult !== null) {
-				func_result = JSON.stringify(ejectResult);
-				const containerInspect = await container.inspect();
-				recordTiming("Container cleanup");
-				tooks.push({
-					timestamp: Date.now(),
-					value: (Date.now() - starting_time) / 1000,
-					description: "Total execution time",
+				container = await docker.createContainer({
+					Image: functionData.image,
+					name: containerName,
+					Env: initialEnv,
+					HostConfig: {
+						Binds: BINDS,
+						AutoRemove: false, // CRITICAL: Container is persistent
+						Memory: (functionData.max_ram || 128) * 1024 * 1024,
+					},
+					// Run init.sh once, then keep container alive
+					Cmd: ["/bin/sh", "-c", "/app/init.sh && echo '[SHSF] Container initialized and idling.' && tail -f /dev/null"],
+					Tty: false, // No TTY needed for background container
 				});
-				return {
-					logs,
-					result: ejectResult,
-					tooks,
-					exit_code: containerInspect.State.ExitCode,
-				};
+				recordTiming("Container created");
+				await container.start();
+				recordTiming("New container started after init");
+			} else { // Some other error inspecting container
+				throw error;
 			}
-
-			recordTiming("Container cleanup");
-			tooks.push({
-				timestamp: Date.now(),
-				value: (Date.now() - starting_time) / 1000,
-				description: "Total execution time",
-			});
-			return { logs, tooks, exit_code: 0 };
-		} else {
-			const result = await Promise.race([
-				container.wait(),
-				new Promise((_, reject) =>
-					setTimeout(() => reject(new Error("Timeout")), timeout * 1000)
-				),
-			]);
-			recordTiming("Container execution");
-
-			let containerLogs = await container.logs({ stdout: true, stderr: true, follow: false });
-			if (Buffer.isBuffer(containerLogs)) {
-				logs = containerLogs.toString("utf-8");
-			} else if (typeof containerLogs === "object") {
-				logs = JSON.stringify(containerLogs);
-			} else {
-				logs = String(containerLogs);
-			}
-
-			logs = logs.replace(/\x1B\[[0-9;]*[A-Za-z]/g, "").replace(/[^\x20-\x7E\n\r\t]/g, "");
-
-			// Again, poll for the eject file at high frequency
-			const ejectResult = await pollForEject(tempDir, 5, 500);
-			if (ejectResult !== null) {
-				func_result = JSON.stringify(ejectResult);
-				recordTiming("Container cleanup");
-				tooks.push({
-					timestamp: Date.now(),
-					value: (Date.now() - starting_time) / 1000,
-					description: "Total execution time",
-				});
-				return { exit_code: result.StatusCode, logs, result: ejectResult, tooks };
-			}
-
-			recordTiming("Container cleanup");
-			tooks.push({
-				timestamp: Date.now(),
-				value: (Date.now() - starting_time) / 1000,
-				description: "Total execution time",
-			});
-			return { exit_code: result.StatusCode, logs, tooks };
 		}
-	} finally {
-		const cleanupStart = Date.now();
-		await Promise.all([fs.rm(tempDir, { recursive: true, force: true })]);
-		recordTiming("Container cleanup");
+
+		// At this point, container is running (either existing or newly created and initialized)
+		// Now, execute the function logic using docker exec
+
+		const execEnv = [`RUN_DATA=${payload}`]; // Pass payload to exec
+		// Add function-specific env vars to exec as well, in case they are needed by the runner script directly
+		// and not just by the init.sh environment.
+		if (functionData.env) {
+			try {
+				const parsedEnv = JSON.parse(functionData.env);
+				if (Array.isArray(parsedEnv)) {
+					parsedEnv.forEach((envVar: {name: string, value: any}) => execEnv.push(`${envVar.name}=${envVar.value}`));
+				}
+			} catch (e) {
+				console.error("Failed to parse functionData.env for exec:", e);
+			}
+		}
+
+
+		const execCmd = runtimeType === "python"
+			? ["python", "/app/_runner.py"]
+			: ["node", "/app/_runner.js"];
+
+		const exec = await container.exec({
+			Cmd: execCmd,
+			Env: execEnv,
+			AttachStdout: true,
+			AttachStderr: true,
+			Tty: false
+		});
+		recordTiming("Exec created");
+
+		const execStream = await exec.start({ hijack: true, stdin: false });
+		recordTiming("Exec started");
+
+		const execOutput = { stdout: "", stderr: "" };
+		const stdoutMultiplex = new PassThrough();
+		const stderrMultiplex = new PassThrough();
+
+		stdoutMultiplex.on('data', (chunk) => execOutput.stdout += chunk.toString('utf8'));
+		stderrMultiplex.on('data', (chunk) => {
+			const text = chunk.toString('utf8');
+			execOutput.stderr += text;
+			if (stream.enabled) {
+				const ansiRegex = /\x1B\[[0-9;]*[A-Za-z]/g;
+				const nonPrintableRegex = /[^\x20-\x7E\n\r\t]/g;
+				const cleanText = text.replace(ansiRegex, "").replace(nonPrintableRegex, "");
+				stream.onChunk(cleanText);
+			}
+		});
+
+		docker.modem.demuxStream(execStream, stdoutMultiplex, stderrMultiplex);
+
+		const execTimeoutMs = (functionData.timeout || 15) * 1000; // Timeout for the exec itself
+
+		const execPromise = new Promise<Docker.ExecInspectInfo>((resolve, reject) => {
+			execStream.on('end', () => {
+				exec.inspect().then(resolve).catch(reject);
+			});
+			execStream.on('error', reject);
+		});
+
+		const timeoutPromise = new Promise<Docker.ExecInspectInfo>((_, reject) =>
+			setTimeout(() => reject(new Error(`Execution timed out after ${execTimeoutMs / 1000}s`)), execTimeoutMs)
+		);
+		
+		let execResultDetails: Docker.ExecInspectInfo;
+		try {
+			execResultDetails = await Promise.race([execPromise, timeoutPromise]);
+			exitCode = execResultDetails.ExitCode ?? 1; // Default to 1 if null/undefined
+			logs = execOutput.stderr;
+			if (exitCode === 0 && execOutput.stdout) {
+				func_result = execOutput.stdout.trim();
+			} else if (exitCode !== 0) {
+				logs = `Exit Code: ${exitCode}\n${execOutput.stderr}\n${execOutput.stdout}`; // Combine outputs on error
+				console.error(`[executeFunction] Exec failed with code ${exitCode}. Logs: ${logs}`);
+			}
+		} catch (execError: any) { // Catches timeout or stream errors
+			console.error("[executeFunction] Exec failed or timed out:", execError.message);
+			logs = `${execOutput.stderr}\nExecution Error: ${execError.message}`;
+			exitCode = -1; // Custom code for timeout or critical exec error
+			func_result = ""; // No result on timeout/error
+		}
+		recordTiming("Container execution via exec finished");
+
+		// Process result if successful
+		let parsedResult: any = null;
+		if (exitCode === 0 && func_result) {
+			try {
+				parsedResult = JSON.parse(func_result);
+			} catch (e: any) {
+				console.error(`[executeFunction] Failed to parse JSON result from stdout: ${e.message}. Raw output: ${func_result}`);
+				logs += `\nError parsing result JSON: ${e.message}`;
+				exitCode = -2; // Custom code for result parsing error
+			}
+		}
+		
 		tooks.push({
 			timestamp: Date.now(),
 			value: (Date.now() - starting_time) / 1000,
-			description: "Total execution time",
+			description: "Total execution time (including potential setup)",
 		});
+
+		return {
+			logs,
+			result: parsedResult, // Return parsed object or null
+			tooks,
+			exit_code: exitCode,
+		};
+
+	} catch (error: any) {
+		console.error(`[executeFunction] Critical error during execution of function ${id}:`, error);
+		recordTiming("Critical error occurred");
+		tooks.push({
+			timestamp: Date.now(),
+			value: (Date.now() - starting_time) / 1000,
+			description: "Total execution time until error",
+		});
+		return {
+			logs: `${logs}\nCritical Error: ${error.message}\n${error.stack}`,
+			result: null,
+			tooks,
+			exit_code: error.statusCode || -3, // Custom code for unhandled errors
+		};
+	} finally {
+		recordTiming("Finalizing execution log");
+		// Container and funcAppDir are not removed here as they are persistent.
+		// Cleanup of old/unused containers/directories would be a separate process/tool.
+
 		console.log(
-			`[SHSF CRONS] Function ${functionData.id} (${functionData.name}) executed in ${(Date.now() - starting_time) / 1000} seconds`
+			`[SHSF CRONS] Function ${functionData.id} (${functionData.name}) processed. Resulting exit code: ${exitCode}. Total time: ${(Date.now() - starting_time) / 1000} seconds`
 		);
-		await prisma.function.update({ where: { id }, data: { lastRun: new Date() } });
+		
 		try {
+			await prisma.function.update({ where: { id }, data: { lastRun: new Date() } });
+		} catch (dbError) {
+			console.error("Error updating function lastRun:", dbError);
+		}
+
+		try {
+			// Ensure func_result is a string for the DB, even if it's an error message or empty
+			const resultForDb = (typeof func_result === 'string' && func_result !== "") ? func_result : JSON.stringify(null);
+
 			await prisma.triggerLog.create({
 				data: {
 					functionId: id,
-					logs: logs,
-					result: JSON.stringify({
-						payload: payload,
-						exit_code: 0,
-						tooks,
-						output: func_result,
+					logs: logs, // Already a string
+					result: JSON.stringify({ // Store a structured object in the result field
+						payload: payload, // Original payload
+						exit_code: exitCode,
+						tooks: tooks, // Timings array
+						output: resultForDb, // The raw JSON string output from the function, or null
 					}),
 				},
 			});
