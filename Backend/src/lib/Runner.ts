@@ -106,18 +106,19 @@ if [ -f "requirements.txt" ]; then
 	echo "[SHSF INIT] Setting up Python environment for function ${functionData.id}"
 	VENV_DIR="/pip-cache/venv/function-${functionData.id}" 
 	HASH_FILE="/pip-cache/hashes/function-${functionData.id}/req.hash"
-	mkdir -p "$(dirname "$VENV_DIR")" "$(dirname "$HASH_FILE")"
+	PIP_PKG_CACHE_DIR="/pip-cache/pip_packages_cache"
+	mkdir -p "$(dirname "$VENV_DIR")" "$(dirname "$HASH_FILE")" "$PIP_PKG_CACHE_DIR"
 	REQUIREMENTS_HASH=$(md5sum requirements.txt | awk '{print $1}')
 	NEEDS_UPDATE=0
 	if [ ! -d "$VENV_DIR" ]; then NEEDS_UPDATE=1; echo "[SHSF INIT] No venv. Creating."; fi
-	if [ ! -f "$HASH_FILE" ] || [ "$(cat "$HASH_FILE")" != "$REQUIREMENTS_HASH" ]; then NEEDS_UPDATE=1; echo "[SHSF INIT] Hash mismatch. Updating."; fi
+	if [ ! -f "$HASH_FILE" ] || [ "$(cat "$HASH_FILE" 2>/dev/null)" != "$REQUIREMENTS_HASH" ]; then NEEDS_UPDATE=1; echo "[SHSF INIT] Hash mismatch. Updating."; fi
 	
 	if [ $NEEDS_UPDATE -eq 1 ]; then
 		rm -rf "$VENV_DIR"
 		python -m venv "$VENV_DIR"
 		. "$VENV_DIR/bin/activate"
 		pip install --upgrade pip
-		if pip install -r requirements.txt; then
+		if pip install --cache-dir "$PIP_PKG_CACHE_DIR" -r requirements.txt; then
 			echo "$REQUIREMENTS_HASH" > "$HASH_FILE"
 			echo "[SHSF INIT] Python dependencies installed."
 		else
@@ -128,11 +129,32 @@ if [ -f "requirements.txt" ]; then
 		echo "[SHSF INIT] Python venv up-to-date."
 	fi
 	. "$VENV_DIR/bin/activate" # Ensure activated for subsequent exec
+	
+	# Create a persistent environment file that can be sourced during execution
+	echo "export PATH=$VENV_DIR/bin:\$PATH" > /app/.shsf_env
+	echo "export PYTHONPATH=/app:\$PYTHONPATH" >> /app/.shsf_env
+	echo "export VIRTUAL_ENV=$VENV_DIR" >> /app/.shsf_env
 fi
 echo "[SHSF INIT] Python setup complete."
 `;
 					const wrapperPath = path.join(funcAppDir, "_runner.py");
 					const wrapperContent = `
+#!/bin/sh
+# Source environment variables if the file exists
+if [ -f /app/.shsf_env ]; then
+    . /app/.shsf_env
+    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
+else
+    echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
+fi
+
+# Debug: Print environment variables
+echo "[SHSF RUNNER] PATH=$PATH" >&2
+echo "[SHSF RUNNER] PYTHONPATH=$PYTHONPATH" >&2
+echo "[SHSF RUNNER] VIRTUAL_ENV=$VIRTUAL_ENV" >&2
+
+# Execute the actual Python runner
+python3 - << 'PYTHON_SCRIPT_EOF'
 import json
 import sys
 import os
@@ -176,8 +198,10 @@ except Exception as e:
 	sys.stderr.write(f"Error importing module {target_module_name}: {str(e)}\\n")
 	traceback.print_exc(file=sys.stderr)
 	sys.exit(1)
+PYTHON_SCRIPT_EOF
 `;
 					await fs.writeFile(wrapperPath, wrapperContent);
+					await fs.chmod(wrapperPath, "755");
 				} else if (runtimeType === "node") {
 					BINDS.push(`${pnpmCacheHost}:/pnpm-cache`);
 					BINDS.push(`${npmCacheHost}:/npm-cache`);
@@ -206,6 +230,7 @@ echo "[SHSF INIT] Apt dependencies installed."
 					initScript += `
 export NPM_CONFIG_CACHE="/npm-cache"
 export PNPM_HOME="/pnpm-cache"
+mkdir -p /pnpm-cache/store # Ensure pnpm store directory exists within the mount for pnpm
 if [ -f "package.json" ]; then 
 	echo "[SHSF INIT] Setting up Node.js environment for function ${functionData.id}"
 	CACHE_BASE="/pnpm-cache/hashes/function-${functionData.id}"
@@ -214,22 +239,48 @@ if [ -f "package.json" ]; then
 	CURRENT_HASH=""
 	INSTALL_CMD=""
 	LOCK_FILE_TYPE="none"
-	if [ -f "pnpm-lock.yaml" ]; then CURRENT_HASH=$(md5sum pnpm-lock.yaml | awk '{print $1}'); INSTALL_CMD="pnpm install --frozen-lockfile --prod"; LOCK_FILE_TYPE="pnpm";
+	if [ -f "pnpm-lock.yaml" ]; then CURRENT_HASH=$(md5sum pnpm-lock.yaml | awk '{print $1}'); INSTALL_CMD="pnpm install --store-dir /pnpm-cache/store --frozen-lockfile --prod"; LOCK_FILE_TYPE="pnpm";
 	elif [ -f "package-lock.json" ]; then CURRENT_HASH=$(md5sum package-lock.json | awk '{print $1}'); INSTALL_CMD="npm ci --no-fund --no-audit --loglevel=error"; LOCK_FILE_TYPE="npm-lock";
 	else CURRENT_HASH=$(md5sum package.json | awk '{print $1}'); INSTALL_CMD="npm install --no-fund --no-audit --loglevel=error"; LOCK_FILE_TYPE="npm-pkg"; fi
 	
 	if [ "$CURRENT_HASH" != "$(cat "$HASH_FILE" 2>/dev/null)" ]; then
 		echo "[SHSF INIT] Node dependencies changed or first run ($LOCK_FILE_TYPE). Installing..."
 		rm -rf node_modules
-		if $INSTALL_CMD; then echo "$CURRENT_HASH" > "$HASH_FILE"; echo "[SHSF INIT] Node dependencies installed.";
-		else echo "[SHSF INIT] Error installing Node dependencies." >&2; exit 1; fi
+		if $INSTALL_CMD; then echo "$CURRENT_HASH" > "$HASH_FILE"; echo "[SHSF INIT] Node dependencies installed ($LOCK_FILE_TYPE).";
+		else echo "[SHSF INIT] Error installing Node dependencies ($LOCK_FILE_TYPE)." >&2; exit 1; fi
 	else echo "[SHSF INIT] Node dependencies up-to-date ($LOCK_FILE_TYPE)."; fi
-	if [ "$LOCK_FILE_TYPE" = "pnpm" ] && [ ! -d "node_modules" ]; then pnpm install --frozen-lockfile --prod --prefer-offline; fi
+	if [ "$LOCK_FILE_TYPE" = "pnpm" ] && [ ! -d "node_modules" ]; then 
+		echo "[SHSF INIT] node_modules not found for pnpm, running install again..."
+		pnpm install --store-dir /pnpm-cache/store --frozen-lockfile --prod --prefer-offline
+	fi
+	
+	# Create a persistent environment file that can be sourced during execution
+	echo "export NPM_CONFIG_CACHE='/npm-cache'" > /app/.shsf_env
+	echo "export PNPM_HOME='/pnpm-cache'" >> /app/.shsf_env
+	echo "export PATH=/app/node_modules/.bin:/usr/local/bin:/usr/bin:/bin:\$PATH" >> /app/.shsf_env
+	echo "export NODE_PATH=/app/node_modules:/usr/local/lib/node_modules:\$NODE_PATH" >> /app/.shsf_env
 fi
 echo "[SHSF INIT] Node.js setup complete."
 `;
 					const wrapperPath = path.join(funcAppDir, "_runner.js");
 					const wrapperContent = `
+#!/bin/sh
+# Source environment variables if the file exists
+if [ -f /app/.shsf_env ]; then
+    . /app/.shsf_env
+    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
+else
+    echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
+fi
+
+# Debug: Print environment variables
+echo "[SHSF RUNNER] PATH=$PATH" >&2
+echo "[SHSF RUNNER] NODE_PATH=$NODE_PATH" >&2
+echo "[SHSF RUNNER] NPM_CONFIG_CACHE=$NPM_CONFIG_CACHE" >&2
+echo "[SHSF RUNNER] PNPM_HOME=$PNPM_HOME" >&2
+
+# Execute the actual Node runner
+node - << 'NODE_SCRIPT_EOF'
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -282,16 +333,10 @@ try {
 	process.stderr.write('Error in runner script: ' + (e.stack || e) + '\\n');
 	process.exit(1);
 }
+NODE_SCRIPT_EOF
 `;
 					await fs.writeFile(wrapperPath, wrapperContent);
-					if (pkgJsonFile) { // Check for shsf.startup in package.json for Node
-						try {
-							const pkg = JSON.parse(pkgJsonFile.content);
-							if (pkg.shsf && pkg.shsf.startup) {
-								initScript += `echo "[SHSF INIT] Running shsf.startup script: ${pkg.shsf.startup}"\n${pkg.shsf.startup}\n`;
-							}
-						} catch (e) { console.error("Error parsing package.json for shsf.startup:", e); }
-					}
+					await fs.chmod(wrapperPath, "755");
 				} else {
 					throw new Error(`Unsupported runtime type for init script: ${runtimeType}`);
 				}
@@ -383,8 +428,8 @@ try {
 
 
 		const execCmd = runtimeType === "python"
-			? ["python", "/app/_runner.py"]
-			: ["node", "/app/_runner.js"];
+			? ["/bin/sh", "/app/_runner.py"]
+			: ["/bin/sh", "/app/_runner.js"];
 
 		const exec = await container.exec({
 			Cmd: execCmd,
@@ -452,6 +497,16 @@ try {
 		let parsedResult: any = null;
 		if (exitCode === 0 && func_result) {
 			try {
+				// Look for valid JSON in the output - find the first '{' character
+				const jsonStart = func_result.indexOf('{');
+				if (jsonStart > 0) {
+					// Non-JSON content found before the JSON data
+					const prefix = func_result.substring(0, jsonStart).trim();
+					console.log(`[executeFunction] Found non-JSON prefix in output: "${prefix}"`);
+					logs += `\nContent before JSON result: ${prefix}`;
+					func_result = func_result.substring(jsonStart);
+				}
+				
 				parsedResult = JSON.parse(func_result);
 			} catch (e: any) {
 				console.error(`[executeFunction] Failed to parse JSON result from stdout: ${e.message}. Raw output: ${func_result}`);
@@ -483,7 +538,7 @@ try {
 		});
 		return {
 			logs: `${logs}\nCritical Error: ${error.message}\n${error.stack}`,
-			result: null,
+			result: "Sorry, an error occurred during execution.",
 			tooks,
 			exit_code: error.statusCode || -3, // Custom code for unhandled errors
 		};
