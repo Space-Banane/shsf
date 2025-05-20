@@ -46,62 +46,225 @@ export async function executeFunction(
 	const runtimeType = functionData.image.split(":")[0];
 	let exitCode = 0; // Default exit code
 
+	// Define startupFile and initScript here as they are needed for script generation
+	const startupFile = functionData.startup_file || (runtimeType === "python" ? "main.py" : "index.js");
+	let initScript = "#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
+
 	try {
 		let container = docker.getContainer(containerName);
 		let containerJustCreated = false;
 
-		try {
-			const inspectInfo = await container.inspect();
-			if (!inspectInfo.State.Running) {
-				recordTiming("Starting existing stopped container");
-				await container.start();
-				recordTiming("Container started");
-			} else {
-				recordTiming("Found existing running container");
+		// Ensure function app directory exists
+		await fs.mkdir(funcAppDir, { recursive: true });
+		
+		// Always update the user files regardless of container state
+		recordTiming("Updating function files");
+		await Promise.all(
+			files.map(async (file) => {
+				const filePath = path.join(funcAppDir, file.name);
+				await fs.writeFile(filePath, file.content);
+			})
+		);
+		recordTiming("User files written to host app directory");
+
+		// Always generate/update the runner script
+		if (runtimeType === "python") {
+			const wrapperPath = path.join(funcAppDir, "_runner.py");
+			const wrapperContent = `
+#!/bin/sh
+# Source environment variables if the file exists
+if [ -f /app/.shsf_env ]; then
+    . /app/.shsf_env
+    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
+else
+    echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
+fi
+
+# Execute the actual Python runner
+python3 - << 'PYTHON_SCRIPT_EOF'
+import json
+import sys
+import os
+import traceback
+
+# Store original stdout, then redirect sys.stdout to sys.stderr for user code
+original_stdout = sys.stdout
+sys.stdout = sys.stderr
+
+sys.path.append('/app')
+target_module_name = "${startupFile.replace(".py", "")}"
+run_data_json = os.getenv('RUN_DATA')
+run_data = None
+
+if run_data_json:
+	try:
+		run_data = json.loads(run_data_json)
+	except json.JSONDecodeError as e:
+		# sys.stdout is already sys.stderr
+		sys.stderr.write(f"Error decoding RUN_DATA JSON: {str(e)}\\n")
+		sys.exit(1)
+
+user_result = None
+try:
+	original_name_val = __name__
+	__name__ = 'imported_module'
+	target_module = __import__(target_module_name)
+	__name__ = original_name_val # Restore __name__
+
+	if hasattr(target_module, 'main') and callable(target_module.main):
+		try:
+			# User's main function is called. Its print() statements will go to current sys.stdout (which is sys.stderr).
+			if run_data is not None:
+				user_result = target_module.main(run_data)
+			else:
+				user_result = target_module.main()
+			
+			# Restore original stdout for printing the JSON result
+			sys.stdout = original_stdout
+			sys.stdout.write("HELLOOOO")
+			# Wrap the output in markers for clear identification on the *original* stdout
+			sys.stdout.write("SHSF_FUNCTION_RESULT_START\\n")
+			sys.stdout.write(json.dumps(user_result))
+			sys.stdout.write("\\nSHSF_FUNCTION_RESULT_END")
+			sys.stdout.flush()
+		except Exception as e:
+			# Error during main execution or result serialization.
+			# Ensure output goes to stderr. If json.dumps failed, sys.stdout might be original_stdout.
+			sys.stdout = sys.stderr
+			sys.stderr.write(f"Error executing main function or serializing result: {str(e)}\\n")
+			traceback.print_exc(file=sys.stderr)
+			sys.stdout = original_stdout # Restore for finally block consistency
+			sys.exit(1)
+	else:
+		# sys.stdout is already sys.stderr
+		sys.stderr.write(f"No 'main' function found in {target_module_name}.py\\n")
+		sys.exit(1)
+except Exception as e:
+	# Error during module import or other setup.
+	# Ensure output goes to stderr.
+	sys.stdout = sys.stderr
+	sys.stderr.write(f"Error importing module {target_module_name} or during initial setup: {str(e)}\\n")
+	traceback.print_exc(file=sys.stderr)
+	sys.stdout = original_stdout # Restore for finally block consistency
+	sys.exit(1)
+finally:
+    # Ensure sys.stdout is restored to its original state before exiting.
+    # This is good practice, though effect might be minimal in docker exec.
+    sys.stdout = original_stdout
+PYTHON_SCRIPT_EOF
+`;
+			await fs.writeFile(wrapperPath, wrapperContent);
+			await fs.chmod(wrapperPath, "755");
+			recordTiming("Python runner script (_runner.py) written to host app directory");
+		} else if (runtimeType === "node") {
+			const wrapperPath = path.join(funcAppDir, "_runner.js");
+			const wrapperContent = `
+#!/bin/sh
+# Source environment variables if the file exists
+if [ -f /app/.shsf_env ]; then
+    . /app/.shsf_env
+    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
+else
+    echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
+fi
+
+# Debug: Print environment variables
+echo "[SHSF RUNNER] PATH=$PATH" >&2
+echo "[SHSF RUNNER] NODE_PATH=$NODE_PATH" >&2
+echo "[SHSF RUNNER] NPM_CONFIG_CACHE=$NPM_CONFIG_CACHE" >&2
+echo "[SHSF RUNNER] PNPM_HOME=$PNPM_HOME" >&2
+
+# Execute the actual Node runner
+node - << 'NODE_SCRIPT_EOF'
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+const stream = require('stream');
+
+try {
+	// Store the original stdout write function and create a proxy that redirects to stderr
+	const originalStdoutWrite = process.stdout.write;
+	// Redirect all stdout writes to stderr during user code execution
+	process.stdout.write = function(...args) {
+		return process.stderr.write.apply(process.stderr, args);
+	};
+
+	const fileContent = fs.readFileSync(path.join('/app', '${startupFile}'), 'utf8');
+	const sandbox = {
+		console: { // Route console.log/error to stderr for logs
+			log: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
+			error: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
+			warn: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
+			info: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
+			debug: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
+		},
+		require, __dirname: '/app', __filename: path.join('/app', '${startupFile}'),
+		module: { exports: {} }, exports: {}, process,
+		setTimeout, clearTimeout, setInterval, clearInterval, Buffer, main: undefined
+	};
+	vm.runInNewContext(fileContent, sandbox);
+
+	if (typeof sandbox.main === 'function') {
+		const runDataJson = process.env.RUN_DATA;
+		let runData = undefined;
+		if (runDataJson) {
+			try {
+				runData = JSON.parse(runDataJson);
+			} catch (e) {
+				process.stderr.write('Error parsing RUN_DATA JSON: ' + e.message + '\\n');
+				process.exit(1);
 			}
-		} catch (error: any) {
-			if (error.statusCode === 404) { // Container not found, create it
-				containerJustCreated = true;
-				recordTiming("Container not found, preparing for creation");
-
-				await fs.mkdir(funcAppDir, { recursive: true });
-				recordTiming(`Function app directory ${funcAppDir} created/ensured`);
-
-				// Cache directories setup on host (ensure these base paths exist)
-				const baseCacheDir = "/opt/shsf_data/cache"; // Centralized cache on host
-				await fs.mkdir(baseCacheDir, { recursive: true });
-				const pipCacheHost = path.join(baseCacheDir, "pip");
-				const pnpmCacheHost = path.join(baseCacheDir, "pnpm");
-				const npmCacheHost = path.join(baseCacheDir, "npm");
-				const aptCacheBaseHost = path.join(baseCacheDir, "apt", `function-${functionIdStr}`);
-				const puppeteerCacheHostDir = path.join(baseCacheDir, "puppeteer", `function-${functionIdStr}`);
-
-				await Promise.all([
-					fs.mkdir(pipCacheHost, { recursive: true }),
-					fs.mkdir(pnpmCacheHost, { recursive: true }),
-					fs.mkdir(npmCacheHost, { recursive: true }),
-					fs.mkdir(path.join(aptCacheBaseHost, 'var/cache/apt/archives'), { recursive: true }),
-					fs.mkdir(path.join(aptCacheBaseHost, 'var/lib/apt/lists'), { recursive: true }),
-				]);
-				recordTiming("Host cache directories ensured");
+		}
+		
+		let result = runData !== undefined ? sandbox.main(runData) : sandbox.main();
+		
+		if (result instanceof Promise) {
+			result.then(finalResult => {
+					// Restore original stdout before writing the result
+					process.stdout.write = originalStdoutWrite;
+					
+					// Wrap the output in markers for clear identification
+					process.stdout.write("SHSF_FUNCTION_RESULT_START\\n");
+					process.stdout.write(JSON.stringify(finalResult));
+					process.stdout.write("\\nSHSF_FUNCTION_RESULT_END");
+			}).catch(err => {
+				process.stderr.write('Error in async main function: ' + (err.stack || err) + '\\n');
+				process.exit(1);
+			});
+		} else {
+				// Restore original stdout before writing the result
+				process.stdout.write = originalStdoutWrite;
 				
-				let BINDS: string[] = [`${funcAppDir}:/app`];
+				// Wrap the output in markers for clear identification
+				process.stdout.write("SHSF_FUNCTION_RESULT_START\\n");
+				process.stdout.write(JSON.stringify(result));
+				process.stdout.write("\\nSHSF_FUNCTION_RESULT_END");
+		}
+	} else {
+		process.stderr.write("No 'main' function exported from " + '${startupFile}' + ".\\n");
+		process.exit(1);
+	}
+} catch (e) {
+	process.stderr.write('Error in runner script: ' + (e.stack || e) + '\\n');
+	process.exit(1);
+} finally {
+	// Ensure we restore stdout.write if it exists and we've modified it
+	if (typeof originalStdoutWrite === 'function') {
+		process.stdout.write = originalStdoutWrite;
+	}
+}
+NODE_SCRIPT_EOF
+`;
+			await fs.writeFile(wrapperPath, wrapperContent);
+			await fs.chmod(wrapperPath, "755");
+			recordTiming("Node.js runner script (_runner.js) written to host app directory");
+		} else {
+			console.warn(`[executeFunction] Runner script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`);
+		}
 
-				// Write user files to funcAppDir
-				await Promise.all(
-					files.map(async (file) => {
-						const filePath = path.join(funcAppDir, file.name);
-						await fs.writeFile(filePath, file.content);
-					})
-				);
-				recordTiming("User files written to host app directory");
-
-				let initScript = "#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
-				const startupFile = functionData.startup_file || (runtimeType === "python" ? "main.py" : "index.js");
-
-				if (runtimeType === "python") {
-					BINDS.push(`${pipCacheHost}:/pip-cache`); // Mount persistent pip cache
-					initScript += `
+		// Always generate/update the init.sh script
+		if (runtimeType === "python") {
+			initScript += `
 if [ -f "requirements.txt" ]; then 
 	echo "[SHSF INIT] Setting up Python environment for function ${functionData.id}"
 	VENV_DIR="/pip-cache/venv/function-${functionData.id}" 
@@ -137,97 +300,27 @@ if [ -f "requirements.txt" ]; then
 fi
 echo "[SHSF INIT] Python setup complete."
 `;
-					const wrapperPath = path.join(funcAppDir, "_runner.py");
-					const wrapperContent = `
-#!/bin/sh
-# Source environment variables if the file exists
-if [ -f /app/.shsf_env ]; then
-    . /app/.shsf_env
-    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
-else
-    echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
-fi
-
-# Debug: Print environment variables
-echo "[SHSF RUNNER] PATH=$PATH" >&2
-echo "[SHSF RUNNER] PYTHONPATH=$PYTHONPATH" >&2
-echo "[SHSF RUNNER] VIRTUAL_ENV=$VIRTUAL_ENV" >&2
-
-# Execute the actual Python runner
-python3 - << 'PYTHON_SCRIPT_EOF'
-import json
-import sys
-import os
-import traceback
-
-sys.path.append('/app')
-target_module_name = "${startupFile.replace(".py", "")}"
-run_data_json = os.getenv('RUN_DATA')
-run_data = None
-
-if run_data_json:
-	try:
-		run_data = json.loads(run_data_json)
-	except json.JSONDecodeError as e:
-		sys.stderr.write(f"Error decoding RUN_DATA JSON: {str(e)}\\n")
-		sys.exit(1)
-
-try:
-	original_name = __name__
-	__name__ = 'imported_module'
-	target_module = __import__(target_module_name)
-	__name__ = original_name # Restore __name__
-
-	if hasattr(target_module, 'main') and callable(target_module.main):
-		try:
-			if run_data is not None:
-				result = target_module.main(run_data)
-			else:
-				result = target_module.main()
+		} else if (runtimeType === "node") {
+			const aptArchivesCacheContainer = '/var/cache/apt/archives'; // Path inside container
+			const aptListsCacheContainer = '/var/lib/apt/lists'; // Path inside container
 			
-			sys.stdout.write(json.dumps(result))
-			sys.stdout.flush()
-		except Exception as e:
-			sys.stderr.write(f"Error executing main function: {str(e)}\\n")
-			traceback.print_exc(file=sys.stderr)
-			sys.exit(1)
-	else:
-		sys.stderr.write(f"No 'main' function found in {target_module_name}.py\\n")
-		sys.exit(1)
-except Exception as e:
-	sys.stderr.write(f"Error importing module {target_module_name}: {str(e)}\\n")
-	traceback.print_exc(file=sys.stderr)
-	sys.exit(1)
-PYTHON_SCRIPT_EOF
-`;
-					await fs.writeFile(wrapperPath, wrapperContent);
-					await fs.chmod(wrapperPath, "755");
-				} else if (runtimeType === "node") {
-					BINDS.push(`${pnpmCacheHost}:/pnpm-cache`);
-					BINDS.push(`${npmCacheHost}:/npm-cache`);
-
-					const aptArchivesCacheContainer = '/var/cache/apt/archives';
-					const aptListsCacheContainer = '/var/lib/apt/lists';
-					BINDS.push(`${path.join(aptCacheBaseHost, 'var/cache/apt/archives')}:${aptArchivesCacheContainer}`);
-					BINDS.push(`${path.join(aptCacheBaseHost, 'var/lib/apt/lists')}:${aptListsCacheContainer}`);
-					
-					const pkgJsonFile = files.find((file) => file.name === "package.json");
-					if (pkgJsonFile) {
-						try {
-							const pkg = JSON.parse(pkgJsonFile.content);
-							if (pkg.shsf && pkg.shsf.apt_deps && Array.isArray(pkg.shsf.apt_deps) && pkg.shsf.apt_deps.length > 0) {
-								initScript += `
+			const pkgJsonFile = files.find((file) => file.name === "package.json");
+			if (pkgJsonFile) {
+				try {
+					const pkg = JSON.parse(pkgJsonFile.content);
+					if (pkg.shsf && pkg.shsf.apt_deps && Array.isArray(pkg.shsf.apt_deps) && pkg.shsf.apt_deps.length > 0) {
+						initScript += `
 echo "[SHSF INIT] Checking for apt dependencies..."
 mkdir -p ${aptArchivesCacheContainer} ${aptListsCacheContainer}/partial
 apt-get update -o Dir::Cache::archives="${aptArchivesCacheContainer}" -o Dir::State::lists="${aptListsCacheContainer}"
 apt-get install -y ${pkg.shsf.apt_deps.join(' ')} -o Dir::Cache::archives="${aptArchivesCacheContainer}"
 echo "[SHSF INIT] Apt dependencies installed."
 `;
-							}
-						} catch (e) { console.error("Error parsing package.json for apt_deps in init script:", e); }
 					}
+				} catch (e) { console.error("Error parsing package.json for apt_deps in init script:", e); }
+			}
 
-					initScript += `
+			initScript += `
 export NPM_CONFIG_CACHE="/npm-cache"
 export PNPM_HOME="/pnpm-cache"
 mkdir -p /pnpm-cache/store # Ensure pnpm store directory exists within the mount for pnpm
@@ -262,89 +355,64 @@ if [ -f "package.json" ]; then
 fi
 echo "[SHSF INIT] Node.js setup complete."
 `;
-					const wrapperPath = path.join(funcAppDir, "_runner.js");
-					const wrapperContent = `
-#!/bin/sh
-# Source environment variables if the file exists
-if [ -f /app/.shsf_env ]; then
-    . /app/.shsf_env
-    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
-else
-    echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
-fi
-
-# Debug: Print environment variables
-echo "[SHSF RUNNER] PATH=$PATH" >&2
-echo "[SHSF RUNNER] NODE_PATH=$NODE_PATH" >&2
-echo "[SHSF RUNNER] NPM_CONFIG_CACHE=$NPM_CONFIG_CACHE" >&2
-echo "[SHSF RUNNER] PNPM_HOME=$PNPM_HOME" >&2
-
-# Execute the actual Node runner
-node - << 'NODE_SCRIPT_EOF'
-const fs = require('fs');
-const path = require('path');
-const vm = require('vm');
-
-try {
-	const fileContent = fs.readFileSync(path.join('/app', '${startupFile}'), 'utf8');
-	const sandbox = {
-		console: { // Route console.log/error to stderr for logs
-			log: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
-			error: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
-			warn: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
-			info: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
-			debug: (...args) => process.stderr.write(args.map(String).join(' ') + '\\n'),
-		},
-		require, __dirname: '/app', __filename: path.join('/app', '${startupFile}'),
-		module: { exports: {} }, exports: {}, process,
-		setTimeout, clearTimeout, setInterval, clearInterval, Buffer, main: undefined
-	};
-	vm.runInNewContext(fileContent, sandbox);
-
-	if (typeof sandbox.main === 'function') {
-		const runDataJson = process.env.RUN_DATA;
-		let runData = undefined;
-		if (runDataJson) {
-			try {
-				runData = JSON.parse(runDataJson);
-			} catch (e) {
-				process.stderr.write('Error parsing RUN_DATA JSON: ' + e.message + '\\n');
-				process.exit(1);
-			}
-		}
-		
-		let result = runData !== undefined ? sandbox.main(runData) : sandbox.main();
-		
-		if (result instanceof Promise) {
-			result.then(finalResult => {
-				process.stdout.write(JSON.stringify(finalResult));
-			}).catch(err => {
-				process.stderr.write('Error in async main function: ' + (err.stack || err) + '\\n');
-				process.exit(1);
-			});
 		} else {
-			process.stdout.write(JSON.stringify(result));
+			// This was already checked for runner script, but as a safeguard for init.sh:
+			console.warn(`[executeFunction] init.sh script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`);
+			// Potentially throw an error if an unsupported runtime should halt execution.
+			// throw new Error(`Unsupported runtime type for init script generation: ${runtimeType}`);
 		}
-	} else {
-		process.stderr.write("No 'main' function exported from " + '${startupFile}' + ".\\n");
-		process.exit(1);
-	}
-} catch (e) {
-	process.stderr.write('Error in runner script: ' + (e.stack || e) + '\\n');
-	process.exit(1);
-}
-NODE_SCRIPT_EOF
-`;
-					await fs.writeFile(wrapperPath, wrapperContent);
-					await fs.chmod(wrapperPath, "755");
-				} else {
-					throw new Error(`Unsupported runtime type for init script: ${runtimeType}`);
-				}
+		initScript += "\necho '[SHSF INIT] Environment setup finished successfully.'\n";
+		await fs.writeFile(path.join(funcAppDir, "init.sh"), initScript);
+		await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
+		recordTiming("init.sh script generated on host");
+
+		try {
+			const inspectInfo = await container.inspect();
+			if (!inspectInfo.State.Running) {
+				recordTiming("Starting existing stopped container");
+				await container.start();
+				recordTiming("Container started");
+			} else {
+				recordTiming("Found existing running container");
+			}
+		} catch (error: any) {
+			if (error.statusCode === 404) { // Container not found, create it
+				containerJustCreated = true;
+				recordTiming("Container not found, preparing for creation");
+
+				// Cache directories setup on host (ensure these base paths exist)
+				const baseCacheDir = "/opt/shsf_data/cache"; // Centralized cache on host
+				await fs.mkdir(baseCacheDir, { recursive: true });
+				const pipCacheHost = path.join(baseCacheDir, "pip");
+				const pnpmCacheHost = path.join(baseCacheDir, "pnpm");
+				const npmCacheHost = path.join(baseCacheDir, "npm");
+				const aptCacheBaseHost = path.join(baseCacheDir, "apt", `function-${functionIdStr}`);
+				const puppeteerCacheHostDir = path.join(baseCacheDir, "puppeteer", `function-${functionIdStr}`);
+
+				await Promise.all([
+					fs.mkdir(pipCacheHost, { recursive: true }),
+					fs.mkdir(pnpmCacheHost, { recursive: true }),
+					fs.mkdir(npmCacheHost, { recursive: true }),
+					fs.mkdir(path.join(aptCacheBaseHost, 'var/cache/apt/archives'), { recursive: true }),
+					fs.mkdir(path.join(aptCacheBaseHost, 'var/lib/apt/lists'), { recursive: true }),
+				]);
+				recordTiming("Host cache directories ensured");
 				
-				initScript += "\necho '[SHSF INIT] Environment setup finished successfully.'\n";
-				await fs.writeFile(path.join(funcAppDir, "init.sh"), initScript);
-				await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
-				recordTiming("init.sh and runner script generated on host");
+				let BINDS: string[] = [`${funcAppDir}:/app`];
+
+				if (runtimeType === "python") {
+					BINDS.push(`${pipCacheHost}:/pip-cache`); // Mount persistent pip cache
+				} else if (runtimeType === "node") {
+					BINDS.push(`${pnpmCacheHost}:/pnpm-cache`);
+					BINDS.push(`${npmCacheHost}:/npm-cache`);
+
+					const aptArchivesCacheContainer = '/var/cache/apt/archives';
+					const aptListsCacheContainer = '/var/lib/apt/lists';
+					BINDS.push(`${path.join(aptCacheBaseHost, 'var/cache/apt/archives')}:${aptArchivesCacheContainer}`);
+					BINDS.push(`${path.join(aptCacheBaseHost, 'var/lib/apt/lists')}:${aptListsCacheContainer}`);
+				} else {
+					throw new Error(`Unsupported runtime type for container BIND setup: ${runtimeType}`);
+				}
 
 				// Image pull logic (same as original)
 				const imageStart = Date.now();
@@ -492,25 +560,48 @@ NODE_SCRIPT_EOF
 			func_result = ""; // No result on timeout/error
 		}
 		recordTiming("Container execution via exec finished");
-
+		console.log(",here;",func_result);
 		// Process result if successful
 		let parsedResult: any = null;
 		if (exitCode === 0 && func_result) {
 			try {
-				// Look for valid JSON in the output - find the first '{' character
-				const jsonStart = func_result.indexOf('{');
-				if (jsonStart > 0) {
-					// Non-JSON content found before the JSON data
-					const prefix = func_result.substring(0, jsonStart).trim();
-					console.log(`[executeFunction] Found non-JSON prefix in output: "${prefix}"`);
-					logs += `\nContent before JSON result: ${prefix}`;
-					func_result = func_result.substring(jsonStart);
-				}
+				// Look for the function result markers
+				const startMarker = "SHSF_FUNCTION_RESULT_START";
+				const endMarker = "SHSF_FUNCTION_RESULT_END";
+				const startIdx = func_result.indexOf(startMarker);
+				const endIdx = func_result.lastIndexOf(endMarker);
 				
-				parsedResult = JSON.parse(func_result);
+				if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) { // Ensure markers are present and in correct order
+					// Extract only the content between markers
+					const actualResult = func_result.substring(
+						startIdx + startMarker.length, 
+						endIdx
+					).trim();
+					
+					// Content before or after markers in stdout is now unexpected, but log it as a warning if it occurs.
+					const prefix = func_result.substring(0, startIdx).trim();
+					if (prefix) {
+						logs += `\n[Runner Warning] Unexpected content before result marker in stdout: ${prefix}`;
+					}
+					
+					const suffix = func_result.substring(endIdx + endMarker.length).trim();
+					if (suffix) {
+						logs += `\n[Runner Warning] Unexpected content after result marker in stdout: ${suffix}`;
+					}
+					
+					parsedResult = JSON.parse(actualResult);
+				} else {
+						// If no markers are found, or they are in the wrong order,
+						// treat the entire stdout as potential logging output.
+						console.warn(`[executeFunction] Function result markers not found or in wrong order in stdout. Treating stdout as logs.`);
+						if (func_result.trim()) {
+							logs += `\nStdout content (no valid markers found):\n${func_result.trim()}`;
+						}
+						// No parsedResult, leave it as null
+				}
 			} catch (e: any) {
-				console.error(`[executeFunction] Failed to parse JSON result from stdout: ${e.message}. Raw output: ${func_result}`);
-				logs += `\nError parsing result JSON: ${e.message}`;
+				console.error(`[executeFunction] Failed to parse JSON result from stdout: ${e.message}. Raw stdout content: ${func_result}`);
+				logs += `\nError parsing result JSON from stdout: ${e.message}`;
 				exitCode = -2; // Custom code for result parsing error
 			}
 		}
