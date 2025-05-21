@@ -121,7 +121,6 @@ try:
 			
 			# Restore original stdout for printing the JSON result
 			sys.stdout = original_stdout
-			sys.stdout.write("HELLOOOO")
 			# Wrap the output in markers for clear identification on the *original* stdout
 			sys.stdout.write("SHSF_FUNCTION_RESULT_START\\n")
 			sys.stdout.write(json.dumps(user_result))
