@@ -654,12 +654,12 @@ echo "[SHSF INIT] Node.js setup complete."
 			await prisma.triggerLog.create({
 				data: {
 					functionId: id,
-					logs: logs, // Already a string
+					logs: logs.length > 2500 ? logs.substring(0, 2500) + "...[truncated]" : logs, // Truncate logs at 2.5k characters
 					result: JSON.stringify({ // Store a structured object in the result field
-						payload: payload, // Original payload
 						exit_code: exitCode,
 						tooks: tooks, // Timings array
-						output: resultForDb, // The raw JSON string output from the function, or null
+						output: resultForDb.length > 2500 ? resultForDb.substring(0, 2500) + "...[truncated]" : resultForDb, // Truncate result if too long
+						payload: payload.length > 2500 ? payload.substring(0, 2500) + "...[truncated]" : payload, // Truncate payload if too long
 					}),
 				},
 			});
