@@ -122,10 +122,10 @@ try:
 			# Restore original stdout for printing the JSON result
 			sys.stdout = original_stdout
 			# Wrap the output in markers for clear identification on the *original* stdout
-			sys.stdout.write("SHSF_FUNCTION_RESULT_START\\n")
-			sys.stdout.write(json.dumps(user_result))
-			sys.stdout.write("\\nSHSF_FUNCTION_RESULT_END")
-			sys.stdout.flush()
+			sys.stdout.write("SHSF_FUNCTION_RESULT_START\\n");
+			sys.stdout.write(json.dumps(user_result));
+			sys.stdout.write("\\nSHSF_FUNCTION_RESULT_END");
+			sys.stdout.flush();
 		except Exception as e:
 			# Error during main execution or result serialization.
 			# Ensure output goes to stderr. If json.dumps failed, sys.stdout might be original_stdout.
@@ -511,14 +511,41 @@ echo "[SHSF INIT] Node.js setup complete."
 		recordTiming("Exec started");
 
 		const execOutput = { stdout: "", stderr: "" };
+		const MAX_OUTPUT_SIZE = 3 * 1024 * 1024; // 3MB limit to stay under Docker's 4MB limit
+		let stdoutTruncated = false;
+		let stderrTruncated = false;
+		
 		const stdoutMultiplex = new PassThrough();
 		const stderrMultiplex = new PassThrough();
 
-		stdoutMultiplex.on('data', (chunk) => execOutput.stdout += chunk.toString('utf8'));
+		stdoutMultiplex.on('data', (chunk) => {
+			const text = chunk.toString('utf8');
+			if (execOutput.stdout.length + text.length <= MAX_OUTPUT_SIZE) {
+				execOutput.stdout += text;
+			} else if (!stdoutTruncated) {
+				const remaining = MAX_OUTPUT_SIZE - execOutput.stdout.length;
+				if (remaining > 0) {
+					execOutput.stdout += text.substring(0, remaining);
+				}
+				execOutput.stdout += '\n[SHSF TRUNCATED] Output exceeded 3MB limit and was truncated';
+				stdoutTruncated = true;
+			}
+		});
+		
 		stderrMultiplex.on('data', (chunk) => {
 			const text = chunk.toString('utf8');
-			execOutput.stderr += text;
-			if (stream.enabled) {
+			if (execOutput.stderr.length + text.length <= MAX_OUTPUT_SIZE) {
+				execOutput.stderr += text;
+			} else if (!stderrTruncated) {
+				const remaining = MAX_OUTPUT_SIZE - execOutput.stderr.length;
+				if (remaining > 0) {
+					execOutput.stderr += text.substring(0, remaining);
+				}
+				execOutput.stderr += '\n[SHSF TRUNCATED] Logs exceeded 3MB limit and were truncated';
+				stderrTruncated = true;
+			}
+			
+			if (stream.enabled && !stderrTruncated) {
 				const ansiRegex = /\x1B\[[0-9;]*[A-Za-z]/g;
 				const nonPrintableRegex = /[^\x20-\x7E\n\r\t]/g;
 				const cleanText = text.replace(ansiRegex, "").replace(nonPrintableRegex, "");
@@ -549,14 +576,18 @@ echo "[SHSF INIT] Node.js setup complete."
 			if (exitCode === 0 && execOutput.stdout) {
 				func_result = execOutput.stdout.trim();
 			} else if (exitCode !== 0) {
-				logs = `Exit Code: ${exitCode}\n${execOutput.stderr}\n${execOutput.stdout}`; // Combine outputs on error
-				console.error(`[executeFunction] Exec failed with code ${exitCode}. Logs: ${logs}`);
+				// Combine outputs but respect size limits
+				const combinedOutput = `Exit Code: ${exitCode}\n${execOutput.stderr}\n${execOutput.stdout}`;
+				logs = combinedOutput.length > MAX_OUTPUT_SIZE 
+					? combinedOutput.substring(0, MAX_OUTPUT_SIZE) + '\n[SHSF TRUNCATED] Combined output exceeded 3MB limit'
+					: combinedOutput;
+				console.error(`[executeFunction] Exec failed with code ${exitCode}. Logs truncated due to size.`);
 			}
-		} catch (execError: any) { // Catches timeout or stream errors
+		} catch (execError: any) {
 			console.error("[executeFunction] Exec failed or timed out:", execError.message);
 			logs = `${execOutput.stderr}\nExecution Error: ${execError.message}`;
-			exitCode = -1; // Custom code for timeout or critical exec error
-			func_result = ""; // No result on timeout/error
+			exitCode = -1;
+			func_result = "";
 		}
 		recordTiming("Container execution via exec finished");
 		console.log(",here;",func_result);
@@ -650,16 +681,17 @@ echo "[SHSF INIT] Node.js setup complete."
 		try {
 			// Ensure func_result is a string for the DB, even if it's an error message or empty
 			const resultForDb = (typeof func_result === 'string' && func_result !== "") ? func_result : JSON.stringify(null);
+			const DB_FIELD_LIMIT = 10000; // Reasonable DB field size limit
 
 			await prisma.triggerLog.create({
 				data: {
 					functionId: id,
-					logs: logs.length > 2500 ? logs.substring(0, 2500) + "...[truncated]" : logs, // Truncate logs at 2.5k characters
-					result: JSON.stringify({ // Store a structured object in the result field
+					logs: logs.length > DB_FIELD_LIMIT ? logs.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]" : logs,
+					result: JSON.stringify({
 						exit_code: exitCode,
-						tooks: tooks, // Timings array
-						output: resultForDb.length > 2500 ? resultForDb.substring(0, 2500) + "...[truncated]" : resultForDb, // Truncate result if too long
-						payload: payload.length > 2500 ? payload.substring(0, 2500) + "...[truncated]" : payload, // Truncate payload if too long
+						tooks: tooks,
+						output: resultForDb.length > DB_FIELD_LIMIT ? resultForDb.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]" : resultForDb,
+						payload: payload.length > DB_FIELD_LIMIT ? payload.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]" : payload,
 					}),
 				},
 			});
