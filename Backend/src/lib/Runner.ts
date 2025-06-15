@@ -93,16 +93,22 @@ sys.stdout = sys.stderr
 
 sys.path.append('/app')
 target_module_name = "${startupFile.replace(".py", "")}"
-run_data_json = os.getenv('RUN_DATA')
-run_data = None
 
-if run_data_json:
-	try:
-		run_data = json.loads(run_data_json)
-	except json.JSONDecodeError as e:
-		# sys.stdout is already sys.stderr
-		sys.stderr.write(f"Error decoding RUN_DATA JSON: {str(e)}\\n")
-		sys.exit(1)
+# Read payload from file instead of environment variable
+run_data = None
+try:
+    with open('/app/.shsf_payload.json', 'r') as f:
+        payload_content = f.read()
+        if payload_content.strip():
+            run_data = json.loads(payload_content)
+except FileNotFoundError:
+    sys.stderr.write("Warning: No payload file found\\n")
+except json.JSONDecodeError as e:
+    sys.stderr.write(f"Error decoding payload JSON: {str(e)}\\n")
+    sys.exit(1)
+except Exception as e:
+    sys.stderr.write(f"Error reading payload file: {str(e)}\\n")
+    sys.exit(1)
 
 user_result = None
 try:
@@ -204,13 +210,16 @@ try {
 	vm.runInNewContext(fileContent, sandbox);
 
 	if (typeof sandbox.main === 'function') {
-		const runDataJson = process.env.RUN_DATA;
+		// Read payload from file instead of environment variable
 		let runData = undefined;
-		if (runDataJson) {
-			try {
-				runData = JSON.parse(runDataJson);
-			} catch (e) {
-				process.stderr.write('Error parsing RUN_DATA JSON: ' + e.message + '\\n');
+		try {
+			const payloadContent = fs.readFileSync('/app/.shsf_payload.json', 'utf8');
+			if (payloadContent.trim()) {
+				runData = JSON.parse(payloadContent);
+			}
+		} catch (e) {
+			if (e.code !== 'ENOENT') { // Ignore file not found, but report other errors
+				process.stderr.write('Error reading payload file: ' + e.message + '\\n');
 				process.exit(1);
 			}
 		}
@@ -479,7 +488,12 @@ echo "[SHSF INIT] Node.js setup complete."
 		// At this point, container is running (either existing or newly created and initialized)
 		// Now, execute the function logic using docker exec
 
-		const execEnv = [`RUN_DATA=${payload}`]; // Pass payload to exec
+		// Write payload to a file instead of passing as env var to avoid Docker size limits
+		const payloadFilePath = path.join(funcAppDir, ".shsf_payload.json");
+		await fs.writeFile(payloadFilePath, payload);
+		recordTiming("Payload written to file");
+
+		const execEnv: string[] = []; // Remove RUN_DATA from env
 		// Add function-specific env vars to exec as well, in case they are needed by the runner script directly
 		// and not just by the init.sh environment.
 		if (functionData.env) {
