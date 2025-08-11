@@ -51,26 +51,39 @@ export async function executeFunction(
 	let initScript = "#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
 
 	try {
-		let container = docker.getContainer(containerName);
+		let container: Docker.Container | null = null;
 		let containerJustCreated = false;
 
 		// Ensure function app directory exists
-		await fs.mkdir(funcAppDir, { recursive: true });
+		try {
+			await fs.mkdir(funcAppDir, { recursive: true });
+			console.log(`[SHSF] Function app directory ensured: ${funcAppDir}`);
+		} catch (error: any) {
+			console.error(`[SHSF] Failed to create function app directory ${funcAppDir}:`, error.message);
+			throw new Error(`Failed to create function app directory: ${error.message}`);
+		}
 		
 		// Always update the user files regardless of container state
 		recordTiming("Updating function files");
-		await Promise.all(
-			files.map(async (file) => {
-				const filePath = path.join(funcAppDir, file.name);
-				await fs.writeFile(filePath, file.content);
-			})
-		);
-		recordTiming("User files written to host app directory");
+		try {
+			await Promise.all(
+				files.map(async (file) => {
+					const filePath = path.join(funcAppDir, file.name);
+					await fs.writeFile(filePath, file.content);
+					console.log(`[SHSF] Written file: ${file.name} (${file.content.length} bytes)`);
+				})
+			);
+			recordTiming("User files written to host app directory");
+		} catch (error: any) {
+			console.error(`[SHSF] Failed to write function files:`, error.message);
+			throw new Error(`Failed to write function files: ${error.message}`);
+		}
 
 		// Always generate/update the runner script
-		if (runtimeType === "python") {
-			const wrapperPath = path.join(funcAppDir, "_runner.py");
-			const wrapperContent = `
+		try {
+			if (runtimeType === "python") {
+				const wrapperPath = path.join(funcAppDir, "_runner.py");
+				const wrapperContent = `
 #!/bin/sh
 # Source environment variables if the file exists
 if [ -f /app/.shsf_env ]; then
@@ -158,10 +171,11 @@ finally:
     sys.stdout = original_stdout
 PYTHON_SCRIPT_EOF
 `;
-			await fs.writeFile(wrapperPath, wrapperContent);
-			await fs.chmod(wrapperPath, "755");
-			recordTiming("Python runner script (_runner.py) written to host app directory");
-		} else if (runtimeType === "node") {
+				await fs.writeFile(wrapperPath, wrapperContent);
+				await fs.chmod(wrapperPath, "755");
+				console.log(`[SHSF] Python runner script generated: ${wrapperPath}`);
+				recordTiming("Python runner script (_runner.py) written to host app directory");
+			} else if (runtimeType === "node") {
 			const wrapperPath = path.join(funcAppDir, "_runner.js");
 			const wrapperContent = `
 #!/bin/sh
@@ -263,15 +277,22 @@ try {
 }
 NODE_SCRIPT_EOF
 `;
-			await fs.writeFile(wrapperPath, wrapperContent);
-			await fs.chmod(wrapperPath, "755");
-			recordTiming("Node.js runner script (_runner.js) written to host app directory");
-		} else {
-			console.warn(`[executeFunction] Runner script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`);
+				await fs.writeFile(wrapperPath, wrapperContent);
+				await fs.chmod(wrapperPath, "755");
+				console.log(`[SHSF] Node.js runner script generated: ${wrapperPath}`);
+				recordTiming("Node.js runner script (_runner.js) written to host app directory");
+			} else {
+				console.warn(`[executeFunction] Runner script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`);
+				throw new Error(`Unsupported runtime type for runner script generation: ${runtimeType}`);
+			}
+		} catch (error: any) {
+			console.error(`[SHSF] Failed to generate runner script for ${runtimeType}:`, error.message);
+			throw new Error(`Failed to generate runner script: ${error.message}`);
 		}
 
 		// Always generate/update the init.sh script
-		if (runtimeType === "python") {
+		try {
+			if (runtimeType === "python") {
 			initScript += `
 if [ -f "requirements.txt" ]; then 
 	echo "[SHSF INIT] Setting up Python environment for function ${functionData.id}"
@@ -363,29 +384,42 @@ if [ -f "package.json" ]; then
 fi
 echo "[SHSF INIT] Node.js setup complete."
 `;
-		} else {
-			// This was already checked for runner script, but as a safeguard for init.sh:
-			console.warn(`[executeFunction] init.sh script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`);
-			// Potentially throw an error if an unsupported runtime should halt execution.
-			// throw new Error(`Unsupported runtime type for init script generation: ${runtimeType}`);
+			} else {
+				// This was already checked for runner script, but as a safeguard for init.sh:
+				console.warn(`[executeFunction] init.sh script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`);
+				throw new Error(`Unsupported runtime type for init script generation: ${runtimeType}`);
+			}
+			initScript += "\necho '[SHSF INIT] Environment setup finished successfully.'\n";
+			await fs.writeFile(path.join(funcAppDir, "init.sh"), initScript);
+			await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
+			console.log(`[SHSF] Init script generated: ${path.join(funcAppDir, "init.sh")}`);
+			recordTiming("init.sh script generated on host");
+		} catch (error: any) {
+			console.error(`[SHSF] Failed to generate init script for ${runtimeType}:`, error.message);
+			throw new Error(`Failed to generate init script: ${error.message}`);
 		}
-		initScript += "\necho '[SHSF INIT] Environment setup finished successfully.'\n";
-		await fs.writeFile(path.join(funcAppDir, "init.sh"), initScript);
-		await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
-		recordTiming("init.sh script generated on host");
 
+		// Now handle container creation/startup
 		try {
-			const inspectInfo = await container.inspect();
+			// First, try to get an existing container
+			const existingContainer = docker.getContainer(containerName);
+			const inspectInfo = await existingContainer.inspect();
+			
+			// Container exists, check if it's running
 			if (!inspectInfo.State.Running) {
+				console.log(`[SHSF] Starting existing stopped container: ${containerName}`);
 				recordTiming("Starting existing stopped container");
-				await container.start();
+				await existingContainer.start();
 				recordTiming("Container started");
 			} else {
+				console.log(`[SHSF] Found existing running container: ${containerName}`);
 				recordTiming("Found existing running container");
 			}
+			container = existingContainer;
 		} catch (error: any) {
 			if (error.statusCode === 404) { // Container not found, create it
 				containerJustCreated = true;
+				console.log(`[SHSF] Container not found, creating new container: ${containerName}`);
 				recordTiming("Container not found, preparing for creation");
 
 				// Cache directories setup on host (ensure these base paths exist)
@@ -426,18 +460,24 @@ echo "[SHSF INIT] Node.js setup complete."
 				const imageStart = Date.now();
 				let imagePulled = false;
 				try {
+					console.log(`[SHSF] Checking if image exists: ${functionData.image}`);
 					const imageExists = await docker.listImages({ filters: JSON.stringify({ reference: [functionData.image] }) });
 					if (imageExists.length === 0) {
 						imagePulled = true;
+						console.log(`[SHSF] Image not found, pulling: ${functionData.image}`);
 						recordTiming("Pulling image: " + functionData.image);
 						const pullStream = await docker.pull(functionData.image);
 						await new Promise((resolve, reject) => {
 							docker.modem.followProgress(pullStream, (err) => err ? reject(err) : resolve(null));
 						});
+						console.log(`[SHSF] Image pull completed: ${functionData.image}`);
+					} else {
+						console.log(`[SHSF] Image already exists: ${functionData.image}`);
 					}
-				} catch (imgError) {
-					console.error("Error checking or pulling image:", imgError);
-					throw imgError;
+				} catch (imgError: any) {
+					console.error(`[SHSF] Error checking or pulling image ${functionData.image}:`, imgError.message);
+					console.error(`[SHSF] Image error details:`, imgError);
+					throw new Error(`Failed to handle image ${functionData.image}: ${imgError.message}`);
 				}
 				recordTiming(imagePulled ? "Image pull complete" : "Image check complete");
 
@@ -464,6 +504,10 @@ echo "[SHSF INIT] Node.js setup complete."
 				
 				const initialEnv = functionData.env ? JSON.parse(functionData.env).map((env: { name: string; value: any }) => `${env.name}=${env.value}`) : [];
 
+				console.log(`[SHSF] Creating container ${containerName} with image ${functionData.image}`);
+				console.log(`[SHSF] Container binds:`, BINDS);
+				console.log(`[SHSF] Container environment:`, initialEnv);
+				
 				container = await docker.createContainer({
 					Image: functionData.image,
 					name: containerName,
@@ -477,12 +521,38 @@ echo "[SHSF INIT] Node.js setup complete."
 					Cmd: ["/bin/sh", "-c", "/app/init.sh && echo '[SHSF] Container initialized and idling.' && tail -f /dev/null"],
 					Tty: false, // No TTY needed for background container
 				});
+				console.log(`[SHSF] Container created successfully: ${containerName}`);
 				recordTiming("Container created");
+				
 				await container.start();
+				console.log(`[SHSF] Container started successfully: ${containerName}`);
 				recordTiming("New container started after init");
+				
+				// Wait for container initialization to complete
+				console.log(`[SHSF] Waiting for container initialization: ${containerName}`);
+				await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds for init
+				
+				// Verify container is still running after init
+				try {
+					const postInitInfo = await container.inspect();
+					if (!postInitInfo.State.Running) {
+						throw new Error(`Container ${containerName} stopped during initialization`);
+					}
+					console.log(`[SHSF] Container initialization verified: ${containerName}`);
+				} catch (error: any) {
+					console.error(`[SHSF] Container failed during initialization: ${containerName}`, error.message);
+					throw error;
+				}
 			} else { // Some other error inspecting container
+				console.error(`[SHSF] Error inspecting container ${containerName}:`, error.message);
+				console.error(`[SHSF] Error details:`, error);
 				throw error;
 			}
+		}
+
+		// Ensure we have a valid container at this point
+		if (!container) {
+			throw new Error(`Failed to create or obtain container: ${containerName}`);
 		}
 
 		// At this point, container is running (either existing or newly created and initialized)
@@ -490,8 +560,14 @@ echo "[SHSF INIT] Node.js setup complete."
 
 		// Write payload to a file instead of passing as env var to avoid Docker size limits
 		const payloadFilePath = path.join(funcAppDir, ".shsf_payload.json");
-		await fs.writeFile(payloadFilePath, payload);
-		recordTiming("Payload written to file");
+		try {
+			await fs.writeFile(payloadFilePath, payload);
+			console.log(`[SHSF] Payload written to file: ${payloadFilePath} (${payload.length} bytes)`);
+			recordTiming("Payload written to file");
+		} catch (error: any) {
+			console.error(`[SHSF] Failed to write payload file:`, error.message);
+			throw new Error(`Failed to write payload file: ${error.message}`);
+		}
 
 		const execEnv: string[] = []; // Remove RUN_DATA from env
 		// Add function-specific env vars to exec as well, in case they are needed by the runner script directly
@@ -512,17 +588,32 @@ echo "[SHSF INIT] Node.js setup complete."
 			? ["/bin/sh", "/app/_runner.py"]
 			: ["/bin/sh", "/app/_runner.js"];
 
-		const exec = await container.exec({
-			Cmd: execCmd,
-			Env: execEnv,
-			AttachStdout: true,
-			AttachStderr: true,
-			Tty: false
-		});
-		recordTiming("Exec created");
+		console.log(`[SHSF] Creating exec command for container ${containerName}:`, execCmd);
+		
+		let exec: Docker.Exec;
+		try {
+			exec = await container.exec({
+				Cmd: execCmd,
+				Env: execEnv,
+				AttachStdout: true,
+				AttachStderr: true,
+				Tty: false
+			});
+			recordTiming("Exec created");
+		} catch (error: any) {
+			console.error(`[SHSF] Failed to create exec for container ${containerName}:`, error.message);
+			throw new Error(`Failed to create exec: ${error.message}`);
+		}
 
-		const execStream = await exec.start({ hijack: true, stdin: false });
-		recordTiming("Exec started");
+		let execStream: NodeJS.ReadWriteStream;
+		try {
+			execStream = await exec.start({ hijack: true, stdin: false });
+			console.log(`[SHSF] Exec started for container ${containerName}`);
+			recordTiming("Exec started");
+		} catch (error: any) {
+			console.error(`[SHSF] Failed to start exec for container ${containerName}:`, error.message);
+			throw new Error(`Failed to start exec: ${error.message}`);
+		}
 
 		const execOutput = { stdout: "", stderr: "" };
 		const MAX_OUTPUT_SIZE = 3 * 1024 * 1024; // 3MB limit to stay under Docker's 4MB limit
@@ -586,25 +677,28 @@ echo "[SHSF INIT] Node.js setup complete."
 		try {
 			execResultDetails = await Promise.race([execPromise, timeoutPromise]);
 			exitCode = execResultDetails.ExitCode ?? 1; // Default to 1 if null/undefined
+			console.log(`[SHSF] Exec completed for container ${containerName} with exit code: ${exitCode}`);
 			logs = execOutput.stderr;
 			if (exitCode === 0 && execOutput.stdout) {
 				func_result = execOutput.stdout.trim();
+				console.log(`[SHSF] Function execution successful, stdout length: ${func_result.length}`);
 			} else if (exitCode !== 0) {
 				// Combine outputs but respect size limits
 				const combinedOutput = `Exit Code: ${exitCode}\n${execOutput.stderr}\n${execOutput.stdout}`;
 				logs = combinedOutput.length > MAX_OUTPUT_SIZE 
 					? combinedOutput.substring(0, MAX_OUTPUT_SIZE) + '\n[SHSF TRUNCATED] Combined output exceeded 3MB limit'
 					: combinedOutput;
-				console.error(`[executeFunction] Exec failed with code ${exitCode}. Logs truncated due to size.`);
+				console.error(`[SHSF] Function execution failed with exit code ${exitCode} for container ${containerName}`);
+				console.error(`[SHSF] Error logs (first 500 chars):`, logs.substring(0, 500));
 			}
 		} catch (execError: any) {
-			console.error("[executeFunction] Exec failed or timed out:", execError.message);
+			console.error(`[SHSF] Exec failed or timed out for container ${containerName}:`, execError.message);
 			logs = `${execOutput.stderr}\nExecution Error: ${execError.message}`;
 			exitCode = -1;
 			func_result = "";
 		}
 		recordTiming("Container execution via exec finished");
-		console.log(",here;",func_result);
+		
 		// Process result if successful
 		let parsedResult: any = null;
 		if (exitCode === 0 && func_result) {
