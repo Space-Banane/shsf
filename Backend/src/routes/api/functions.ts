@@ -5,6 +5,9 @@ import {
   buildPayloadFromGET,
   buildPayloadFromPOST,
   executeFunction,
+  removeContainer,
+  cleanupOrphanedContainers,
+  checkContainerHealth,
 } from "../../lib/Runner";
 import Docker from "dockerode";
 import * as fs from "fs/promises";
@@ -45,34 +48,11 @@ const docker = new Docker();
 // Helper function to clean up container when deleting a function
 async function cleanupFunctionContainer(functionId: number) {
   const functionIdStr = String(functionId);
-  const containerName = `shsf_func_${functionIdStr}`;
   const funcAppDir = path.join("/opt/shsf_data/functions", functionIdStr);
 
   try {
-    // Try to stop and remove the container if it exists
-    try {
-      const container = docker.getContainer(containerName);
-      const containerInfo = await container.inspect();
-
-      if (containerInfo.State.Running) {
-        console.log(`[SHSF] Stopping container for function ${functionId}`);
-        await container.kill({ t: 10 }); // 10-second timeout
-      }
-
-      console.log(`[SHSF] Removing container for function ${functionId}`);
-      await container.remove();
-    } catch (containerError: any) {
-      if (containerError.statusCode !== 404) {
-        console.error(
-          `[SHSF] Error removing container for function ${functionId}:`,
-          containerError
-        );
-      } else {
-        console.log(
-          `[SHSF] Container for function ${functionId} not found, skipping removal`
-        );
-      }
-    }
+    // Use the improved container removal utility
+    await removeContainer(functionId);
 
     // Remove the function directory
     try {
@@ -587,6 +567,11 @@ export = new fileRouter.Path("/")
         );
         // Clean up existing container to force recreation with new image
         await cleanupFunctionContainer(functionId);
+        
+        // Also run background cleanup for orphaned containers
+        cleanupOrphanedContainers().catch(error => 
+          console.error('[SHSF] Background cleanup failed:', error)
+        );
       }
 
       const updatedFunction = await prisma.function.update({
@@ -1231,4 +1216,33 @@ export = new fileRouter.Path("/")
 
         return ctr.print(result?.result ?? "[SHSF_BACK] OK");
       })
+  )
+  .http("POST", "/api/containers/cleanup", (http) =>
+    http.onRequest(async (ctr) => {
+      const authCheck = await checkAuthentication(
+        ctr.cookies.get(COOKIE),
+        ctr.headers.get(API_KEY_HEADER)
+      );
+
+      if (!authCheck.success) {
+        return ctr.print({
+          status: 401,
+          message: authCheck.message,
+        });
+      }
+
+      try {
+        await cleanupOrphanedContainers();
+        return ctr.print({
+          status: "OK",
+          message: "Orphaned containers cleanup completed",
+        });
+      } catch (error: any) {
+        return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+          status: 500,
+          message: "Failed to cleanup containers",
+          error: error.message,
+        });
+      }
+    })
   );
