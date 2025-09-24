@@ -14,6 +14,124 @@ interface TimingEntry {
 	description: string;
 }
 
+// Container management utility functions
+const docker = new Docker();
+
+export async function cleanupOrphanedContainers(): Promise<void> {
+	try {
+		// Get all SHSF containers
+		const containers = await docker.listContainers({ 
+			all: true,
+			filters: { name: ['shsf_func_'] }
+		});
+
+		// Get all function IDs from database
+		const activeFunctions = await prisma.function.findMany({
+			select: { id: true }
+		});
+		const activeFunctionIds = new Set(activeFunctions.map(f => f.id.toString()));
+
+		// Clean up containers for deleted functions
+		for (const containerInfo of containers) {
+			const containerName = containerInfo.Names[0]?.replace('/', '');
+			if (containerName?.startsWith('shsf_func_')) {
+				const functionId = containerName.replace('shsf_func_', '');
+				
+				if (!activeFunctionIds.has(functionId)) {
+					console.log(`[SHSF] Cleaning up orphaned container: ${containerName}`);
+					const container = docker.getContainer(containerInfo.Id);
+					
+					try {
+						if (containerInfo.State === 'running') {
+							await container.kill();
+						}
+						await container.remove();
+						console.log(`[SHSF] Removed orphaned container: ${containerName}`);
+					} catch (error: any) {
+						console.error(`[SHSF] Error cleaning up container ${containerName}:`, error.message);
+					}
+				}
+			}
+		}
+	} catch (error: any) {
+		console.error('[SHSF] Error during orphaned container cleanup:', error.message);
+	}
+}
+
+export async function ensureContainerStopped(functionId: number): Promise<boolean> {
+	try {
+		const containerName = `shsf_func_${functionId}`;
+		const container = docker.getContainer(containerName);
+		
+		const inspectInfo = await container.inspect();
+		if (inspectInfo.State.Running) {
+			console.log(`[SHSF] Stopping container: ${containerName}`);
+			await container.kill();
+			return true;
+		}
+		return false;
+	} catch (error: any) {
+		if (error.statusCode === 404) {
+			return false; // Container doesn't exist
+		}
+		console.error(`[SHSF] Error stopping container for function ${functionId}:`, error.message);
+		return false;
+	}
+}
+
+export async function removeContainer(functionId: number): Promise<boolean> {
+	try {
+		const containerName = `shsf_func_${functionId}`;
+		const container = docker.getContainer(containerName);
+		
+		// Stop if running
+		await ensureContainerStopped(functionId);
+		
+		// Remove container
+		await container.remove();
+		console.log(`[SHSF] Removed container: ${containerName}`);
+		return true;
+	} catch (error: any) {
+		if (error.statusCode === 404) {
+			return true; // Container doesn't exist, consider it removed
+		}
+		console.error(`[SHSF] Error removing container for function ${functionId}:`, error.message);
+		return false;
+	}
+}
+
+export async function checkContainerHealth(functionId: number): Promise<boolean> {
+	try {
+		const containerName = `shsf_func_${functionId}`;
+		const container = docker.getContainer(containerName);
+		
+		const inspectInfo = await container.inspect();
+		
+		// Check if container is running and responsive
+		if (!inspectInfo.State.Running) {
+			return false;
+		}
+		
+		// Check if container has been running for too long (more than 24 hours)
+		const startTime = new Date(inspectInfo.State.StartedAt).getTime();
+		const now = Date.now();
+		const hoursRunning = (now - startTime) / (1000 * 60 * 60);
+		
+		if (hoursRunning > 24) {
+			console.log(`[SHSF] Container ${containerName} has been running for ${hoursRunning.toFixed(2)} hours, may need restart`);
+			return false;
+		}
+		
+		return true;
+	} catch (error: any) {
+		if (error.statusCode === 404) {
+			return false; // Container doesn't exist
+		}
+		console.error(`[SHSF] Error checking container health for function ${functionId}:`, error.message);
+		return false;
+	}
+}
+
 export async function executeFunction(
 	id: number,
 	functionData: Function,
@@ -38,7 +156,6 @@ export async function executeFunction(
 		};
 	})();
 
-	const docker = new Docker();
 	const functionIdStr = String(functionData.id);
 	const containerName = `shsf_func_${functionIdStr}`;
 	// Persistent directory on the host for this function's app files
@@ -51,7 +168,7 @@ export async function executeFunction(
 	let initScript = "#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
 
 	try {
-		let container = docker.getContainer(containerName);
+		let container: Docker.Container | null = null;
 		let containerJustCreated = false;
 
 		// Ensure function app directory exists
@@ -374,17 +491,31 @@ echo "[SHSF INIT] Node.js setup complete."
 		await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
 		recordTiming("init.sh script generated on host");
 
+		// Handle container creation/startup with proper existence checking
 		try {
-			const inspectInfo = await container.inspect();
+			// First, try to get an existing container
+			const existingContainer = docker.getContainer(containerName);
+			const inspectInfo = await existingContainer.inspect();
+			
+			// Container exists, check if it's running and healthy
 			if (!inspectInfo.State.Running) {
 				recordTiming("Starting existing stopped container");
-				await container.start();
+				await existingContainer.start();
 				recordTiming("Container started");
 			} else {
+				// Check container health if it's running
+				const isHealthy = await checkContainerHealth(functionData.id);
+				if (!isHealthy) {
+					console.log(`[SHSF] Container ${containerName} appears unhealthy, recreating`);
+					await removeContainer(functionData.id);
+					// Will fall through to create new container
+					throw new Error('Container unhealthy, recreating');
+				}
 				recordTiming("Found existing running container");
 			}
+			container = existingContainer;
 		} catch (error: any) {
-			if (error.statusCode === 404) { // Container not found, create it
+			if (error.statusCode === 404 || error.message === 'Container unhealthy, recreating') { // Container not found, create it
 				containerJustCreated = true;
 				recordTiming("Container not found, preparing for creation");
 
@@ -480,9 +611,30 @@ echo "[SHSF INIT] Node.js setup complete."
 				recordTiming("Container created");
 				await container.start();
 				recordTiming("New container started after init");
+				
+				// Wait for container initialization to complete
+				await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds for init
+				
+				// Verify container is still running after init
+				const postInitInfo = await container.inspect();
+				if (!postInitInfo.State.Running) {
+					console.error(`[SHSF] Container ${containerName} stopped during initialization`);
+					// Cleanup failed container
+					try {
+						await container.remove();
+					} catch (cleanupError) {
+						console.error(`[SHSF] Failed to cleanup failed container:`, cleanupError);
+					}
+					throw new Error(`Container ${containerName} failed during initialization`);
+				}
 			} else { // Some other error inspecting container
 				throw error;
 			}
+		}
+
+		// Ensure we have a valid container at this point
+		if (!container) {
+			throw new Error(`Failed to create or obtain container: ${containerName}`);
 		}
 
 		// At this point, container is running (either existing or newly created and initialized)
