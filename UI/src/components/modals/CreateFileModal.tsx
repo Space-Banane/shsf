@@ -39,40 +39,54 @@ function CreateFileModal({ isOpen, onClose, onCreate }: CreateFileModalProps) {
 
 	return (
 		<Modal isOpen={isOpen} onClose={handleClose} title="Create File" isLoading={isLoading}>
-			<div className="space-y-1 mb-4">
-				<label className="text-sm text-gray-300" title="Name of the file to create">Filename</label>
-				<input
-					type="text"
-					placeholder="Filename"
-					value={filename}
-					onChange={(e) => setFilename(e.target.value)}
-					className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
-				/>
-			</div>
-			<div className="space-y-1 mb-4 hidden">
-				<label className="text-sm text-gray-300" title="Initial content of the file">File Content</label>
-				<textarea
-					placeholder="File content"
-					value={content}
-					onChange={(e) => setContent(e.target.value)}
-					className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md min-h-[100px]"
-				/>
-			</div>
-			<div className="flex justify-end mt-4">
-				<button 
-					className="bg-grayed text-white px-4 py-2 rounded-md mr-2" 
-					onClick={handleClose}
-					disabled={isLoading}
-				>
-					Cancel
-				</button>
-				<button 
-					className="bg-primary text-white px-4 py-2 rounded-md" 
-					onClick={handleCreate}
-					disabled={isLoading}
-				>
-					Create
-				</button>
+			<div className="space-y-6">
+				{/* Filename Input */}
+				<div className="space-y-2">
+					<label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+						<span className="text-lg">📄</span>
+						Filename
+					</label>
+					<input
+						type="text"
+						placeholder="Enter filename (e.g., main.py, index.js)"
+						value={filename}
+						onChange={(e) => setFilename(e.target.value)}
+						className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+					/>
+				</div>
+
+				{/* Content Input (Hidden) */}
+				<div className="space-y-2 hidden">
+					<label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+						<span className="text-lg">📝</span>
+						File Content
+					</label>
+					<textarea
+						placeholder="Initial file content..."
+						value={content}
+						onChange={(e) => setContent(e.target.value)}
+						className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 min-h-[120px] resize-none"
+					/>
+				</div>
+
+				{/* Action Buttons */}
+				<div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-700/50">
+					<button 
+						className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500" 
+						onClick={handleClose}
+						disabled={isLoading}
+					>
+						Cancel
+					</button>
+					<button 
+						className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2" 
+						onClick={handleCreate}
+						disabled={isLoading}
+					>
+						<span className="text-sm">📄</span>
+						Create File
+					</button>
+				</div>
 			</div>
 		</Modal>
 	);

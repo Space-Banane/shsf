@@ -43,19 +43,18 @@ function TriggerLogsModal({
 		}));
 	};
 
-	// Get status icon and color based on status
 	const getStatusDisplay = (status: string) => {
 		switch (status) {
 			case "success":
-				return { icon: "✅", color: "text-green-500" };
+				return { icon: "✅", color: "text-green-400", bg: "bg-green-500/10" };
 			case "error":
-				return { icon: "⚠️", color: "text-red-500" };
+				return { icon: "⚠️", color: "text-red-400", bg: "bg-red-500/10" };
 			case "failed":
-				return { icon: "❌", color: "text-red-500" };
+				return { icon: "❌", color: "text-red-400", bg: "bg-red-500/10" };
 			case "running":
-				return { icon: "⏳", color: "text-yellow-500" };
+				return { icon: "⏳", color: "text-yellow-400", bg: "bg-yellow-500/10" };
 			default:
-				return { icon: "❔", color: "text-gray-400" };
+				return { icon: "❔", color: "text-gray-400", bg: "bg-gray-500/10" };
 		}
 	};
 
@@ -74,136 +73,176 @@ function TriggerLogsModal({
 		>
 			<div className="space-y-4">
 				{isLoading ? (
-					<p className="text-gray-400 text-center py-4">Loading logs...</p>
+					<div className="text-center py-8">
+						<div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4"></div>
+						<p className="text-gray-400">Loading execution logs...</p>
+					</div>
 				) : sortedLogs.length > 0 ? (
-					sortedLogs.map((log) => (
-						<div
-							key={log.id}
-							className="border border-gray-700 rounded-lg bg-gray-900 overflow-hidden"
-						>
+					<div className="space-y-3">
+						{sortedLogs.map((log) => (
 							<div
-								className="p-3 bg-gray-800 flex justify-between items-center cursor-pointer hover:bg-gray-750"
-								onClick={() => toggleExpand(log.id)}
+								key={log.id}
+								className="bg-gray-800/50 border border-gray-700/50 rounded-lg overflow-hidden hover:border-primary/30 transition-all duration-300"
 							>
-								<div className="flex-1">
-									<div className="flex items-center">
-										<span className="font-medium text-white">
-											{log.createdAt.toLocaleString()}
-										</span>
+								{/* Log Header */}
+								<div
+									className="p-4 cursor-pointer hover:bg-gray-800/70 transition-all duration-300"
+									onClick={() => toggleExpand(log.id)}
+								>
+									<div className="flex items-center justify-between">
+										<div className="flex items-center gap-3">
+											<div className="w-8 h-8 bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-lg flex items-center justify-center">
+												<span className="text-sm">📋</span>
+											</div>
+											<div>
+												<p className="text-white font-medium text-sm">
+													{new Date(log.createdAt).toLocaleString()}
+												</p>
+												<p className="text-gray-400 text-xs">
+													Execution #{log.id}
+												</p>
+											</div>
+										</div>
+										<div className="flex items-center gap-2">
+											<span
+												className={`transform transition-transform duration-300 ${
+													expandedLogs[log.id] ? "rotate-90" : ""
+												} text-primary`}
+											>
+												▶
+											</span>
+										</div>
 									</div>
 								</div>
-								<div className="text-xl text-gray-400">
-									{expandedLogs[log.id] ? "▼" : "▶"}
-								</div>
-							</div>
 
-							{expandedLogs[log.id] && (
-								<div className="p-3 border-t border-gray-700">
-									{log.result && (
-										<div className="mb-3">
-											<h4 className="text-white text-sm font-medium mb-1">
-												Payload
-											</h4>
-											<div className="bg-gray-950 p-3 rounded max-h-60 overflow-auto">
-												<pre className="text-gray-300 text-xs font-mono whitespace-pre-wrap">
-													{JSON.stringify(
-														JSON.parse(log.result).payload,
-														null,
-														2
-													)}
-												</pre>
-											</div>
-										</div>
-									)}
-									{log.logs && (
-										<div className="mb-3">
-											<h4 className="text-white text-sm font-medium mb-1">
-												Output Logs:
-											</h4>
-											<div className="bg-gray-950 p-3 rounded max-h-60 overflow-auto">
-												<pre className="text-gray-300 text-xs font-mono whitespace-pre-wrap">
-													{log.logs}
-												</pre>
-											</div>
-										</div>
-									)}
-
-									{log.result && (
-										<div className="mb-2">
-											<h4 className="text-white text-base font-medium mb-1">
-												Timing Details:
-											</h4>
-											{JSON.parse(log.result)?.tooks?.map(
-												(took: any, index: number) => (
-													<div
-														key={index}
-														className="text-gray-300"
-													>
-														<span className="text-gray-400 text-sm">
-															{took.description}:
-														</span>{" "}
-														{took.value} ms
-													</div>
-												)
-											) || (
-												<div className="text-gray-400 text-xs font-mono">
-													No timing details available
+								{/* Expanded Log Content */}
+								{expandedLogs[log.id] && (
+									<div className="border-t border-gray-700/50 p-4 space-y-4">
+										{/* Payload Section */}
+										{log.result && (
+											<div className="space-y-2">
+												<h4 className="text-sm font-semibold text-primary flex items-center gap-2">
+													<span>📊</span> Payload
+												</h4>
+												<div className="bg-gray-900/50 border border-gray-700/30 rounded-lg p-3 max-h-60 overflow-auto">
+													<pre className="text-gray-300 text-xs font-mono whitespace-pre-wrap">
+														{JSON.stringify(
+															JSON.parse(log.result).payload,
+															null,
+															2
+														)}
+													</pre>
 												</div>
+											</div>
+										)}
+
+										{/* Output Logs Section */}
+										{log.logs && (
+											<div className="space-y-2">
+												<h4 className="text-sm font-semibold text-primary flex items-center gap-2">
+													<span>📝</span> Output Logs
+												</h4>
+												<div className="bg-gray-900/50 border border-gray-700/30 rounded-lg p-3 max-h-60 overflow-auto">
+													<pre className="text-gray-300 text-xs font-mono whitespace-pre-wrap">
+														{log.logs}
+													</pre>
+												</div>
+											</div>
+										)}
+
+										{/* Timing Details */}
+										{log.result && (
+											<div className="space-y-2">
+												<h4 className="text-sm font-semibold text-primary flex items-center gap-2">
+													<span>⏱️</span> Timing Details
+												</h4>
+												<div className="bg-gray-900/50 border border-gray-700/30 rounded-lg p-3">
+													{JSON.parse(log.result)?.tooks?.map(
+														(took: any, index: number) => (
+															<div
+																key={index}
+																className="flex items-center justify-between py-1 border-b border-gray-700/30 last:border-b-0"
+															>
+																<span className="text-gray-400 text-sm">
+																	{took.description}
+																</span>
+																<span className="text-white text-sm font-mono">
+																	{took.value} ms
+																</span>
+															</div>
+														)
+													) || (
+														<p className="text-gray-400 text-xs">
+															No timing details available
+														</p>
+													)}
+												</div>
+											</div>
+										)}
+
+										{/* Execution Result */}
+										{log.result && (
+											<div className="space-y-2">
+												<h4 className="text-sm font-semibold text-primary flex items-center gap-2">
+													<span>🎯</span> Execution Result
+												</h4>
+												<div className="bg-gray-900/50 border border-gray-700/30 rounded-lg p-3 max-h-60 overflow-auto">
+													<pre className="text-gray-300 text-xs font-mono whitespace-pre-wrap">
+														{(() => {
+															try {
+																const parsedResult = JSON.parse(log.result);
+																return JSON.stringify(
+																	{
+																		...parsedResult,
+																		payload: undefined,
+																		tooks: undefined,
+																		exit_code: undefined,
+																	}.output || {},
+																	null,
+																	2
+																);
+															} catch (error) {
+																return "Invalid JSON format in result";
+															}
+														})()}
+													</pre>
+												</div>
+											</div>
+										)}
+
+										{/* Timestamps */}
+										<div className="flex justify-between text-xs text-gray-500 pt-2 border-t border-gray-700/30">
+											<span>
+												Created: {new Date(log.createdAt).toLocaleString()}
+											</span>
+											{log.updatedAt && (
+												<span>
+													Updated: {new Date(log.updatedAt).toLocaleString()}
+												</span>
 											)}
 										</div>
-									)}
-
-									{log.result && (
-										<div className="mb-2">
-											<h4 className="text-white text-sm font-medium mb-1">
-												Execution Result:
-											</h4>
-											<div className="bg-gray-950 p-3 rounded max-h-60 overflow-auto">
-												<pre className="text-gray-300 text-xs font-mono whitespace-pre-wrap">
-													{(() => {
-														try {
-															const parsedResult = JSON.parse(log.result);
-															return JSON.stringify(
-																{
-																	...parsedResult,
-																	payload: undefined,
-																	tooks: undefined,
-																	exit_code: undefined,
-																}.output || {},
-																null,
-																2
-															);
-														} catch (error) {
-															return "Invalid JSON format in result";
-														}
-													})()}
-												</pre>
-											</div>
-										</div>
-									)}
-
-									<div className="flex justify-between text-xs text-gray-400 mt-2">
-										<span>
-											Created: {new Date(log.createdAt).toLocaleString()}
-										</span>
-										{log.updatedAt && (
-											<span>
-												Updated: {new Date(log.updatedAt).toLocaleString()}
-											</span>
-										)}
 									</div>
-								</div>
-							)}
-						</div>
-					))
+								)}
+							</div>
+						))}
+					</div>
 				) : (
-					<p className="text-gray-400 text-center py-8">No logs available</p>
+					<div className="text-center py-12">
+						<div className="text-4xl mb-4">📋</div>
+						<h3 className="text-lg font-semibold text-gray-300 mb-2">
+							No Execution Logs
+						</h3>
+						<p className="text-gray-500 text-sm">
+							This trigger hasn't been executed yet or logs are not available.
+						</p>
+					</div>
 				)}
 
-				<div className="flex justify-end mt-4">
+				{/* Close Button */}
+				<div className="flex justify-end pt-4 border-t border-gray-700/50">
 					<button
 						onClick={onClose}
-						className="bg-grayed hover:bg-grayed/70 text-white px-4 py-2 rounded"
+						className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500"
 					>
 						Close
 					</button>

@@ -94,139 +94,202 @@ function UpdateFunctionModal({
 	};
 
 	return (
-		<Modal isOpen={isOpen} onClose={handleClose} title="Update Function Settings" maxWidth="lg" isLoading={isLoading}>
-			<div className="space-y-4">
-				{error && <div className="bg-red-500/20 border border-red-500 p-2 rounded-md text-red-300">{error}</div>}
-				
-				<div className="space-y-1">
-					<label className="text-base text-gray-300" title="The name of your function">Function Name</label>
-					<input
-						type="text"
-						placeholder="Function Name"
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
-						disabled={isLoading}
-					/>
-				</div>
-				
-				<div className="space-y-1">
-					<label className="text-base text-gray-300" title="A brief description of what the function does">Description</label>
-					<textarea
-						placeholder="Function Description"
-						value={description}
-						onChange={(e) => setDescription(e.target.value)}
-						className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
-						disabled={isLoading}
-					/>
-				</div>
-				
-				<div className="space-y-1">
-					<label className="text-base text-gray-300" title="The runtime environment for your function">Runtime Image</label>
-					<select
-						value={image}
-						onChange={(e) => setImage(e.target.value as Image)}
-						className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
-						disabled={isLoading}
-					>
-						{ImagesAsArray.map((img) => {
-							const isDisabled = img.split(":")[0] !== image.split(":")[0];
-							return (
-								<option key={img} value={img} disabled={isDisabled}>
-									{img}
-								</option>
-							);
-						})}
-					</select>
-				</div>
-				
-				<div className="space-y-1">
-					<label className="text-base text-gray-300" title="Maximum memory allocation in megabytes">Max RAM (MB)</label>
-					<input
-						type="number"
-						placeholder="Max RAM (MB)"
-						value={maxRam || ""}
-						onChange={(e) => setMaxRam(Number(e.target.value))}
-						className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
-						disabled={isLoading}
-					/>
-				</div>
-				
-				<div className="space-y-1">
-					<label className="text-base text-gray-300" title="Maximum execution time in seconds">Timeout (seconds)</label>
-					<input
-						type="number"
-						placeholder="Timeout (seconds)"
-						value={timeout || ""}
-						max={300}
-						onChange={(e) => setTimeout(Number(e.target.value))}
-						className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
-						disabled={isLoading}
-					/>
-				</div>
-				
-				<div className="flex items-center">
-					<input
-						type="checkbox"
-						checked={allowHttp}
-						onChange={(e) => setAllowHttp(e.target.checked)}
-						className="mr-2"
-						disabled={isLoading}
-						id="allow-http"
-					/>
-					<label htmlFor="allow-http" className="text-white" title="Allow the function to make HTTP requests">Allow HTTP</label>
+		<Modal isOpen={isOpen} onClose={handleClose} title="Update Function" maxWidth="lg" isLoading={isLoading}>
+			<div className="space-y-6">
+				{/* Error Message */}
+				{error && (
+					<div className="bg-red-500/10 border border-red-500/30 p-4 rounded-lg">
+						<div className="flex items-center gap-3">
+							<span className="text-red-400 text-lg">⚠️</span>
+							<p className="text-red-300 text-sm font-medium">{error}</p>
+						</div>
+					</div>
+				)}
+
+				{/* Basic Information */}
+				<div className="space-y-4">
+					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+						<span>✏️</span> Basic Information
+					</h3>
+					
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+						<div className="space-y-2">
+							<label className="text-sm font-medium text-gray-300">Function Name</label>
+							<input
+								type="text"
+								placeholder="my-awesome-function"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+								disabled={isLoading}
+							/>
+						</div>
+						
+						<div className="space-y-2">
+							<label className="text-sm font-medium text-gray-300">Startup File</label>
+							<input
+								type="text"
+								placeholder="main.py, index.js, etc."
+								value={startupFile || ""}
+								onChange={(e) => setStartupFile(e.target.value)}
+								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+								disabled={isLoading}
+							/>
+						</div>
+					</div>
+					
+					<div className="space-y-2">
+						<label className="text-sm font-medium text-gray-300">Description</label>
+						<textarea
+							placeholder="Brief description of what this function does..."
+							value={description}
+							onChange={(e) => setDescription(e.target.value)}
+							className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 resize-none"
+							rows={3}
+							disabled={isLoading}
+						/>
+					</div>
 				</div>
 
-				<div className="space-y-1">
-					<label className="text-base text-gray-300" title="Secure header for the function">Secure Header</label>
-					<input
-						type="text"
-						placeholder="Secure Header"
-						value={secureHeader || ""}
-						onChange={(e) => setSecureHeader(e.target.value)}
-						className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
-						disabled={isLoading}
-					/>
+				{/* Runtime Configuration */}
+				<div className="space-y-4">
+					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+						<span>⚙️</span> Runtime Configuration
+					</h3>
+					
+					<div className="space-y-2">
+						<label className="text-sm font-medium text-gray-300">Runtime Image</label>
+						<select
+							value={image}
+							onChange={(e) => setImage(e.target.value as Image)}
+							className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+							disabled={isLoading}
+						>
+							{ImagesAsArray.map((img) => {
+								const isDisabled = img.split(":")[0] !== image.split(":")[0];
+								return (
+									<option key={img} value={img} disabled={isDisabled}>
+										{img}
+									</option>
+								);
+							})}
+						</select>
+					</div>
 				</div>
-				
-				<div className="space-y-1">
-					<label className="text-base text-gray-300" title="Function execution priority (higher values = higher priority)">Priority</label>
-					<input
-						type="number"
-						placeholder="Priority"
-						value={priority || ""}
-						onChange={(e) => setPriority(Number(e.target.value))}
-						className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
-						disabled={isLoading}
-					/>
+
+				{/* Resource Settings */}
+				<div className="space-y-4">
+					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+						<span>📊</span> Resource Settings
+					</h3>
+					
+					<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+						<div className="space-y-2">
+							<label className="text-sm font-medium text-gray-300">Max RAM (MB)</label>
+							<input
+								type="number"
+								placeholder="512"
+								value={maxRam || ""}
+								onChange={(e) => setMaxRam(Number(e.target.value))}
+								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+								disabled={isLoading}
+							/>
+						</div>
+						
+						<div className="space-y-2">
+							<label className="text-sm font-medium text-gray-300">Timeout (sec)</label>
+							<input
+								type="number"
+								placeholder="30"
+								value={timeout || ""}
+								max={300}
+								onChange={(e) => setTimeout(Number(e.target.value))}
+								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+								disabled={isLoading}
+							/>
+						</div>
+						
+						<div className="space-y-2">
+							<label className="text-sm font-medium text-gray-300">Priority</label>
+							<input
+								type="number"
+								placeholder="0"
+								value={priority || ""}
+								onChange={(e) => setPriority(Number(e.target.value))}
+								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+								disabled={isLoading}
+							/>
+						</div>
+					</div>
 				</div>
-				
-				<div className="space-y-1">
-					<label className="text-base text-gray-300" title="The main file that will be executed when your function runs">Startup File</label>
-					<input
-						type="text"
-						placeholder="Startup File"
-						value={startupFile || ""}
-						onChange={(e) => setStartupFile(e.target.value)}
-						className="w-full p-2 border border-gray-600 bg-gray-700 text-white rounded-md"
-						disabled={isLoading}
-					/>
+
+				{/* Security & Advanced Settings */}
+				<div className="space-y-4">
+					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+						<span>🔧</span> Security & Advanced
+					</h3>
+					
+					<div className="space-y-4">
+						{/* HTTP Toggle */}
+						<div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4">
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-3">
+									<span className="text-lg">🌐</span>
+									<div>
+										<p className="text-white font-medium text-sm">Allow HTTP</p>
+										<p className="text-gray-400 text-xs">Enable inbound HTTP/HTTPS requests</p>
+									</div>
+								</div>
+								<div className="relative">
+									<input
+										type="checkbox"
+										checked={allowHttp}
+										onChange={(e) => setAllowHttp(e.target.checked)}
+										className="sr-only peer"
+										disabled={isLoading}
+										id="allow-http-update"
+									/>
+									<label
+										htmlFor="allow-http-update"
+										className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-purple-500 transition-all duration-300 cursor-pointer flex items-center relative"
+									>
+										<div className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${allowHttp ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+									</label>
+								</div>
+							</div>
+						</div>
+
+						{/* Secure Header */}
+						<div className="space-y-2">
+							<label className="text-sm font-medium text-gray-300">Secure Header</label>
+							<input
+								type="text"
+								placeholder="Optional secure header for authentication"
+								value={secureHeader || ""}
+								onChange={(e) => setSecureHeader(e.target.value)}
+								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+								disabled={isLoading}
+							/>
+						</div>
+					</div>
 				</div>
-				
-				<div className="flex justify-end space-x-3 mt-6">
+
+				{/* Action Buttons */}
+				<div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-700/50">
 					<button
 						onClick={handleClose}
-						className="px-4 py-2 bg-grayed hover:bg-grayed/70 text-white rounded-md transition-colors"
+						className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500"
 						disabled={isLoading}
 					>
 						Cancel
 					</button>
 					<button
 						onClick={handleSubmit}
-						className="px-4 py-2 bg-primary hover:bg-primary/70 text-white rounded-md transition-colors"
+						className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 						disabled={isLoading}
 					>
-						Update
+						<span className="text-sm">💾</span>
+						Update Function
 					</button>
 				</div>
 			</div>

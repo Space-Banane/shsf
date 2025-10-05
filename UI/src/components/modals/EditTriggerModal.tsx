@@ -50,46 +50,79 @@ function EditTriggerModal({ isOpen, onClose, onUpdate, trigger }: EditTriggerMod
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Edit Trigger">
-      <div className="space-y-4">
-        <div>
-          <label className="block text-base text-white mb-1">Name:</label>
-          <input
-            className="w-full bg-gray-700 text-white px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Enter trigger name"
-          />
+    <Modal isOpen={isOpen} onClose={onClose} title="Edit Trigger" maxWidth="lg" isLoading={isSubmitting}>
+      <div className="space-y-6">
+        {/* Basic Information */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+            <span>✏️</span> Basic Information
+          </h3>
+          
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                <span className="text-lg">🏷️</span>
+                Trigger Name
+              </label>
+              <input
+                type="text"
+                placeholder="Enter trigger name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+                disabled={isSubmitting}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                <span className="text-lg">📝</span>
+                Description
+              </label>
+              <textarea
+                placeholder="Brief description of what this trigger does..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 resize-none"
+                rows={2}
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
         </div>
-        
-        <div>
-          <label className="block text-base text-white mb-1">Description:</label>
-          <textarea
-            className="w-full bg-gray-700 text-white px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Enter trigger description"
-            rows={2}
-          />
-        </div>
-        
-        <div>
-          <label className="block text-base text-white mb-1">Cron Expression:</label>
-          <input
-            className="w-full bg-gray-700 text-white px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={cron}
-            onChange={(e) => setCron(e.target.value)}
-            placeholder="*/5 * * * *"
-          />
-          <div className="mt-2">
-            <label className="block text-base text-white mb-1">Presets:</label>
-            <div className="flex flex-wrap gap-2">
+
+        {/* Schedule Configuration */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+            <span>⏱️</span> Schedule Configuration
+          </h3>
+          
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+              <span className="text-lg">🔄</span>
+              Cron Expression
+            </label>
+            <input
+              type="text"
+              placeholder="*/5 * * * *"
+              value={cron}
+              onChange={(e) => setCron(e.target.value)}
+              className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 font-mono"
+              disabled={isSubmitting}
+            />
+          </div>
+          
+          {/* Preset Buttons */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">Quick Presets</label>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
               {cronPresets.map((preset) => (
                 <button
                   key={preset.value}
-                  className="bg-gray-600 hover:bg-gray-500 text-white text-xs py-1 px-2 rounded"
-                  onClick={() => setCron(preset.value)}
                   type="button"
+                  className="p-2 text-xs bg-gray-700/50 hover:bg-gray-700 border border-gray-600/50 hover:border-primary/30 text-gray-300 hover:text-white rounded-lg transition-all duration-300"
+                  onClick={() => setCron(preset.value)}
+                  disabled={isSubmitting}
                 >
                   {preset.label}
                 </button>
@@ -97,44 +130,74 @@ function EditTriggerModal({ isOpen, onClose, onUpdate, trigger }: EditTriggerMod
             </div>
           </div>
         </div>
-        
-        <div>
-          <label className="block text-base text-white mb-1">Data (JSON):</label>
-          <textarea
-            className="w-full bg-gray-700 text-white px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-            value={data}
-            onChange={(e) => setData(e.target.value)}
-            placeholder="{}"
-            rows={4}
-          />
+
+        {/* Data & Settings */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+            <span>⚙️</span> Data & Settings
+          </h3>
+          
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-300">
+              <span className="text-lg">📊</span>
+              Payload Data (JSON)
+            </label>
+            <textarea
+              placeholder='{"key": "value"}'
+              value={data}
+              onChange={(e) => setData(e.target.value)}
+              className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 font-mono resize-none"
+              rows={4}
+              disabled={isSubmitting}
+            />
+          </div>
+          
+          {/* Enable Toggle */}
+          <div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">🔛</span>
+                <div>
+                  <p className="text-white font-medium text-sm">Enable Trigger</p>
+                  <p className="text-gray-400 text-xs">Trigger will run automatically when enabled</p>
+                </div>
+              </div>
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={enabled}
+                  onChange={(e) => setEnabled(e.target.checked)}
+                  className="sr-only peer"
+                  disabled={isSubmitting}
+                  id="enabled-edit-trigger"
+                />
+                <label
+                  htmlFor="enabled-edit-trigger"
+                  className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-green-500 peer-checked:to-blue-500 transition-all duration-300 cursor-pointer flex items-center relative"
+                >
+                  <div className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${enabled ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
-        
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="enabled"
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-            className="w-4 h-4 text-blue-500 rounded focus:ring-blue-500"
-          />
-          <label htmlFor="enabled" className="ml-2 text-white">
-            Enabled
-          </label>
-        </div>
-        
-        <div className="flex justify-end gap-2 mt-6">
+
+        {/* Action Buttons */}
+        <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-700/50">
           <button
-            className="bg-grayed hover:bg-grayed/70 text-white px-4 py-2 rounded"
             onClick={onClose}
+            className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500"
+            disabled={isSubmitting}
           >
             Cancel
           </button>
           <button
-            className="bg-primary hover:bg-primary/70 text-white px-4 py-2 rounded"
             onClick={handleSubmit}
+            className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Updating..." : "Update Trigger"}
+            <span className="text-sm">✏️</span>
+            Update Trigger
           </button>
         </div>
       </div>
