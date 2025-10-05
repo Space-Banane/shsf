@@ -92,6 +92,8 @@ export = new fileRouter.Path("/").http(
 
 				const icon_url = "https://cdn.reversed.dev/pictures/default.png";
 
+				const first_user = (await prisma.user.count()) === 0;
+
 				const user = await prisma.user
 					.create({
 						data: {
@@ -99,6 +101,7 @@ export = new fileRouter.Path("/").http(
 							email: data.email,
 							password: password_hash,
 							avatar_url: icon_url,
+							role: first_user ? "Admin" : "User",
 							sessions: {
 								create: {
 									hash
