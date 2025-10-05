@@ -55,22 +55,6 @@ Before installing SHSF, ensure you have:
    
    Open your browser and navigate to `http://localhost:3000` (or your configured port)
 
-### Configuration Options
-
-Key environment variables in `.env`:
-
-```bash
-# Web interface port
-PORT=3000
-
-# Database configuration
-DATABASE_URL=sqlite:./data/shsf.db
-
-# Security settings
-JWT_SECRET=your-secret-key-here
-ADMIN_REGISTRATION=true
-```
-
 ## 📖 Usage
 
 ### Getting Started
