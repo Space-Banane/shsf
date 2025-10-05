@@ -4,134 +4,24 @@ import { checkAuthentication } from "../../lib/Authentication";
 import {
   buildPayloadFromGET,
   buildPayloadFromPOST,
+  cleanupFunctionContainer,
   executeFunction,
+  installDependencies,
 } from "../../lib/Runner";
 import Docker from "dockerode";
-import * as fs from "fs/promises";
-import * as fsSync from "fs";
-import * as path from "path";
-import { Readable } from "stream";
 import { env } from "process";
 
 const Images: string[] = [
   // Python versions
-  "python:2.9",
-  "python:3.0",
-  "python:3.1",
-  "python:3.2",
-  "python:3.3",
-  "python:3.4",
-  "python:3.5",
-  "python:3.6",
-  "python:3.7",
-  "python:3.8",
   "python:3.9",
   "python:3.10",
   "python:3.11",
   "python:3.12",
-  // Node.js versions
-  "node:16",
-  "node:17",
-  "node:18",
-  "node:19",
-  "node:20",
-  "node:21",
-  "node:22",
+  "python:3.13",
 ];
 
 // Create Docker client instance for container management
 const docker = new Docker();
-
-// Helper function to clean up container when deleting a function
-async function cleanupFunctionContainer(functionId: number) {
-  const functionIdStr = String(functionId);
-  const containerName = `shsf_func_${functionIdStr}`;
-  const funcAppDir = path.join("/opt/shsf_data/functions", functionIdStr);
-
-  try {
-    // Try to stop and remove the container if it exists
-    try {
-      const container = docker.getContainer(containerName);
-      const containerInfo = await container.inspect();
-
-      if (containerInfo.State.Running) {
-        console.log(`[SHSF] Stopping container for function ${functionId}`);
-        await container.kill({ t: 10 }); // 10-second timeout
-      }
-
-      console.log(`[SHSF] Removing container for function ${functionId}`);
-      await container.remove();
-    } catch (containerError: any) {
-      if (containerError.statusCode !== 404) {
-        console.error(
-          `[SHSF] Error removing container for function ${functionId}:`,
-          containerError
-        );
-      } else {
-        console.log(
-          `[SHSF] Container for function ${functionId} not found, skipping removal`
-        );
-      }
-    }
-
-    // Remove the function directory
-    try {
-      console.log(`[SHSF] Removing function directory: ${funcAppDir}`);
-      await fs.rm(funcAppDir, { recursive: true, force: true });
-    } catch (dirError) {
-      console.error(
-        `[SHSF] Error removing function directory ${funcAppDir}:`,
-        dirError
-      );
-    }
-
-    // Clean up cache directories
-    try {
-      // Python venv
-      const pipCacheDir = `/opt/shsf_data/cache/pip/venv/function-${functionId}`;
-      if (fsSync.existsSync(pipCacheDir)) {
-        await fs.rm(pipCacheDir, { recursive: true, force: true });
-      }
-
-      // Pip hash
-      const pipHashDir = `/opt/shsf_data/cache/pip/hashes/function-${functionId}`;
-      if (fsSync.existsSync(pipHashDir)) {
-        await fs.rm(pipHashDir, { recursive: true, force: true });
-      }
-
-      // PNPM hash
-      const pnpmHashDir = `/opt/shsf_data/cache/pnpm/hashes/function-${functionId}`;
-      if (fsSync.existsSync(pnpmHashDir)) {
-        await fs.rm(pnpmHashDir, { recursive: true, force: true });
-      }
-
-      // Apt cache
-      const aptCacheDir = `/opt/shsf_data/cache/apt/function-${functionId}`;
-      if (fsSync.existsSync(aptCacheDir)) {
-        await fs.rm(aptCacheDir, { recursive: true, force: true });
-      }
-
-      // Puppeteer cache
-      const puppeteerCacheDir = `/opt/shsf_data/cache/puppeteer/function-${functionId}`;
-      if (fsSync.existsSync(puppeteerCacheDir)) {
-        await fs.rm(puppeteerCacheDir, { recursive: true, force: true });
-      }
-    } catch (cacheError) {
-      console.error(
-        `[SHSF] Error cleaning up cache directories for function ${functionId}:`,
-        cacheError
-      );
-    }
-
-    return true;
-  } catch (error) {
-    console.error(
-      `[SHSF] Error during container cleanup for function ${functionId}:`,
-      error
-    );
-    return false;
-  }
-}
 
 export = new fileRouter.Path("/")
   .http("POST", "/api/function", (http) =>
@@ -857,7 +747,7 @@ export = new fileRouter.Path("/")
         );
 
         // we might be able to do magic here
-        if (typeof result?.result === "object") {
+        if (typeof result?.result === "object" && result?.result !== null) {
           const out = result.result; // quicker to write and access
 
           if ("_shsf" in out) {
@@ -970,7 +860,7 @@ export = new fileRouter.Path("/")
         );
 
         // we might be able to do magic here
-        if (typeof result?.result === "object") {
+        if (typeof result?.result === "object" && result?.result !== null) {
           const out = result.result; // quicker to write and access
 
           if ("_shsf" in out) {
@@ -1084,7 +974,7 @@ export = new fileRouter.Path("/")
         );
 
         // we might be able to do magic here
-        if (typeof result?.result === "object") {
+        if (typeof result?.result === "object" && result?.result !== null) {
           const out = result.result; // quicker to write and access
 
           if ("_shsf" in out) {
@@ -1197,7 +1087,7 @@ export = new fileRouter.Path("/")
         );
 
         // we might be able to do magic here
-        if (typeof result?.result === "object") {
+        if (typeof result?.result === "object" && result?.result !== null) {
           const out = result.result; // quicker to write and access
 
           if ("_shsf" in out) {
@@ -1231,4 +1121,95 @@ export = new fileRouter.Path("/")
 
         return ctr.print(result?.result ?? "[SHSF_BACK] OK");
       })
+  )
+  .http("POST", "/api/function/{id}/pip-install", (http) =>
+    http.onRequest(async (ctr) => {
+      const id = ctr.params.get("id");
+      if (!id) {
+        return ctr.status(ctr.$status.BAD_REQUEST).print({
+          status: 400,
+          message: "Missing function id",
+        });
+      }
+      const functionId = parseInt(id);
+      if (isNaN(functionId)) {
+        return ctr.status(ctr.$status.BAD_REQUEST).print({
+          status: 400,
+          message: "Invalid function id",
+        });
+      }
+
+      const authCheck = await checkAuthentication(
+        ctr.cookies.get(COOKIE),
+        ctr.headers.get(API_KEY_HEADER)
+      );
+
+      if (!authCheck.success) {
+        return ctr.print({
+          status: 401,
+          message: authCheck.message,
+        });
+      }
+
+      const functionData = await prisma.function.findFirst({
+        where: {
+          id: functionId,
+          userId: authCheck.user.id,
+        },
+      });
+      if (!functionData) {
+        return ctr.status(ctr.$status.NOT_FOUND).print({
+          status: 404,
+          message: "Function not found",
+        });
+      }
+
+      const files = await prisma.functionFile.findMany({
+        where: {
+          functionId: functionData.id,
+        },
+      });
+      if (!files || files.length === 0) {
+        return ctr.status(ctr.$status.NOT_FOUND).print({
+          status: 404,
+          message: "Function has no files",
+        });
+      }
+
+      try {
+        const result = await installDependencies(
+          functionId,
+          functionData,
+          files
+        );
+
+        if (result === 404) {
+          return ctr.status(ctr.$status.NOT_FOUND).print({
+            status: 404,
+            message: "Function has not been executed yet. Run it first and it will install dependencies automatically on its first ever run! After that, use Pip Install to update dependencies, if you have modified the requirements.txt file.",
+          });
+        } else if (result === false) {
+          return ctr.status(ctr.$status.NOT_FOUND).print({
+            status: 404,
+            message: "Could not install dependencies or find requirements.txt!",
+          });
+        }
+
+        return ctr.print({
+          status: "OK",
+        });
+      } catch (error: any) {
+        if (error.message === "Timeout") {
+          return ctr.status(ctr.$status.REQUEST_TIMEOUT).print({
+            status: 408,
+            message: "Pip install timed out",
+          });
+        }
+        return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+          status: 500,
+          message: "Failed to install dependencies",
+          error: error.message,
+        });
+      }
+    })
   );
