@@ -17,6 +17,13 @@ module.exports = {
 				navbar: '#121325',
 				grayed:"#6a7282"
 			},
+			borderColor: {
+				primary: '#7c83fd',
+				secondary: '#96baff',
+				accent: '#7dedff',
+				text: '#f8f8fe',
+				// add more if needed
+			},
 			animation: {
 				fadeIn: 'fadeIn 0.2s ease-in-out',
 				slideIn: 'slideIn 0.2s ease-in-out',
