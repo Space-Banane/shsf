@@ -39,6 +39,83 @@ export const DocsGettingStarted = () => {
                     </p>
                 </div>
 
+                {/* Replaced malformed env block with styled content */}
+                <h3 className="text-xl font-semibold text-primary mb-4">Configure your .env</h3>
+                <p className="mb-4 text-text/90">
+                    Create a <code>.env</code> file at the project root (or copy <code>example.env</code>) and set the values below to match your environment. These variables control server ports, database connections, front-end URLs, and a few operational flags.
+                </p>
+
+                <pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
+                    <code>
+{`# Server
+PORT=5000
+
+# Database connection (MySQL/MariaDB)
+DATABASE_URL=mysql://USER:PASSWORD@HOST:PORT/DATABASE
+
+# Domain & URLs
+DOMAIN=localhost
+UI_URL=http://localhost:3001
+REACT_APP_API_URL=http://localhost:5000
+REACT_APP_PORT=3001
+
+# Runtime flags
+CONTAINERIZED=false     # true if running in Docker containers
+REGISTER_DISABLED=false # set to true to disable user registration
+
+# Limits & security
+RATELIMIT=3000          # requests per minute (example)
+CORS_URLS=https://space.reversed.dev  # comma-separated allowed origins`}
+                    </code>
+                </pre>
+
+                <div className="mb-6 space-y-3">
+                    <div>
+                        <strong className="text-primary">PORT</strong>
+                        <p className="text-text/80 text-sm">Port the backend server listens on (default 5000).</p>
+                    </div>
+
+                    <div>
+                        <strong className="text-primary">DATABASE_URL</strong>
+                        <p className="text-text/80 text-sm">Connection string for your MySQL/MariaDB instance. Replace USER, PASSWORD, HOST, PORT and DATABASE.</p>
+                    </div>
+
+                    <div>
+                        <strong className="text-primary">DOMAIN</strong>
+                        <p className="text-text/80 text-sm">Primary domain or hostname for the application (used for links, cookies, etc.).</p>
+                    </div>
+
+                    <div>
+                        <strong className="text-primary">UI_URL / REACT_APP_PORT</strong>
+                        <p className="text-text/80 text-sm">Frontend origin and port. The UI will use REACT_APP_API_URL to talk to the backend.</p>
+                    </div>
+
+                    <div>
+                        <strong className="text-primary">REACT_APP_API_URL</strong>
+                        <p className="text-text/80 text-sm">URL the frontend uses to send API requests (e.g., http://localhost:5000).</p>
+                    </div>
+
+                    <div>
+                        <strong className="text-primary">CONTAINERIZED</strong>
+                        <p className="text-text/80 text-sm">Usually always true, this will attempt to use your docker instance, as we don't want to run docker in docker, for performance reasons.</p>
+                    </div>
+
+                    <div>
+                        <strong className="text-primary">REGISTER_DISABLED</strong>
+                        <p className="text-text/80 text-sm">Set to true to prevent new user registrations (recommended for production after initial setup) (never use this in production btw).</p>
+                    </div>
+
+                    <div>
+                        <strong className="text-primary">RATELIMIT</strong>
+                        <p className="text-text/80 text-sm">Configures request rate limiting. Tune to your needs and infrastructure.</p>
+                    </div>
+
+                    <div>
+                        <strong className="text-primary">CORS_URLS</strong>
+                        <p className="text-text/80 text-sm">Comma-separated origins allowed by CORS. Include UI_URL and any other trusted domains.</p>
+                    </div>
+                </div>
+
                 <h3 className="text-xl font-semibold text-primary mb-4">Set Up Database Server</h3>
                 <p className="mb-4 text-text/90">
                     You can use your own MariaDB/MySQL server, or uncomment the <code>database</code> service in <code>docker-compose.yml</code> to run one locally.
