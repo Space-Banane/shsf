@@ -144,4 +144,11 @@ const lessons: {
       "Learn how to use secure headers to protect your functions from unauthorized access.",
     link: "/docs/secure-headers",
   },
+  {
+    key: "persistent-data",
+    identifier: "#6",
+    title: "Persistent Data",
+    description: "Learn how to store and manage data for your functions.",
+    link: "/docs/persistent-data",
+  },
 ];

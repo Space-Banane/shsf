@@ -200,7 +200,7 @@ Content-Type: application/json
             href="/docs/custom-responses"
             className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
           >
-            Learn About Custom Responses
+            #3 Custom Responses
             <span className="text-lg">→</span>
           </a>
         </div>

@@ -97,7 +97,7 @@ export const CustomResponsesPage = () => {
             href="/docs/environment-variables"
             className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
           >
-            Learn About Environment Variables
+            #4 Environment Variables
             <span className="text-lg">→</span>
           </a>
         </div>

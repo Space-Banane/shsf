@@ -185,7 +185,7 @@ docker compose up -d`}
                         Now that SHSF is running, let's create your first function! What about a Discord Webhook that tells us Happy Monday every Monday at midnight?
                     </p>
                     <a href="/docs/my-first-function" className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors">
-                        Create Your First Function
+                        #1 My First Function
                         <span className="text-lg">→</span>
                     </a>
                 </div>

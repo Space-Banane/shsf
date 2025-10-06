@@ -90,13 +90,20 @@ export const SecureHeadersPage = () => {
           </li>
         </ul>
 
-        <div className="mt-8 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
+        <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
           <h2 className="text-xl font-bold text-primary mb-3">
-            Check back when we have more docs!
+            🚀 Next Steps - Persistent Data
           </h2>
-            <p className="text-text/90">
-              Stay tuned!
-            </p>
+          <p className="text-text/90 mb-4">
+            Know that we know how to keep our functions secure, let's take a look at how we can store and manage data for our functions.
+          </p>
+          <a
+            href="/docs/persistent-data"
+            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+          >
+            #6 Persistent Data
+            <span className="text-lg">→</span>
+          </a>
         </div>
       </div>
     </div>

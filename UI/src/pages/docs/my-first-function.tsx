@@ -18,7 +18,7 @@ export const MyFirstFunctionDoc = () => {
 
                 <h3 className="text-xl font-semibold text-primary mb-4">Navigate to Functions</h3>
                 <p className="mb-6 text-text/90">
-                    Go to <code>/functions</code> in the SHSF interface. If you haven't created a namespace yet, click "Create Namespace" to organize your functions.
+                    Go to <a href="/functions" className="text-blue-500 hover:underline">Functions</a> in the SHSF interface. If you haven't created a namespace yet, click "Create Namespace" to organize your functions.
                 </p>
 
                 <h3 className="text-xl font-semibold text-primary mb-4">Create Your Function</h3>
@@ -154,7 +154,7 @@ def main(args):
                         Now that you've created your first function, let's explore how to pass data between triggers/HTTP requests and functions using JSON payloads.
                     </p>
                     <a href="/docs/data-passing" className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors">
-                        Learn About Data Passing
+                        #2 Data Passing
                         <span className="text-lg">→</span>
                     </a>
                 </div>

@@ -13,6 +13,7 @@ import { EnvironmentVariablesPage } from "./pages/docs/environment-variables";
 import { AccountPage } from "./pages/Account";
 import  FunctionDetail  from "./pages/functions/FunctionDetail";
 import { SecureHeadersPage } from "./pages/docs/secure-headers";
+import { PersistentDataPage } from "./pages/docs/persistent-data";
 // Added back the routes array
 export interface AppRoute {
   path: string;
@@ -79,6 +80,12 @@ export const routes: AppRoute[] = [
     path: "/docs/secure-headers",
     component: SecureHeadersPage,
     name: "Secure Headers",
+    requireAuth: false,
+  },
+  {
+    path: "/docs/persistent-data",
+    component: PersistentDataPage,
+    name: "Persistent Data",
     requireAuth: false,
   },
 

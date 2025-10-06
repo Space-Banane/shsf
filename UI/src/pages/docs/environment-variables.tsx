@@ -115,7 +115,7 @@ def main(args):
             href="/docs/secure-headers"
             className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
           >
-            Learn About Secure Headers
+            #5 Secure Headers
             <span className="text-lg">→</span>
           </a>
         </div>
