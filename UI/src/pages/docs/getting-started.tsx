@@ -161,10 +161,28 @@ CORS_URLS=https://space.reversed.dev  # comma-separated allowed origins`}
                     You can create as many functions as your system resources can handle. SHSF doesn't impose artificial limits - scale according to your needs and hardware capabilities.
                 </p>
 
+                <h3 className="text-xl font-semibold text-primary mb-4">Updating</h3>
+                <p className="mb-6 text-text/90">
+                    To update SHSF, pull the latest changes from the repository, update your dependencies, and restart the Docker containers:
+                </p>    
+                <pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
+                    <code>
+{`git pull
+docker compose down
+docker compose up -d`}
+                    </code>
+                </pre>
+
+                <div className="mb-8 p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                    <p className="text-sm text-yellow-300">
+                        <strong>Note:</strong> Always back up your database and configuration files before performing updates.
+                    </p>
+                </div>
+
                 <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
                     <h2 className="text-xl font-bold text-primary mb-3">🚀 Next Steps - Create Your First Function</h2>
                     <p className="text-text/90 mb-4">
-                        Now that SHSF is running, let's create your first function! Follow our comprehensive tutorial to build a Discord webhook bot.
+                        Now that SHSF is running, let's create your first function! What about a Discord Webhook that tells us Happy Monday every Monday at midnight?
                     </p>
                     <a href="/docs/my-first-function" className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors">
                         Create Your First Function
