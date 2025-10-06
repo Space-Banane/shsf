@@ -1,5 +1,6 @@
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
+import { cleanupFunctionContainer } from "../../lib/Runner";
 
 export = new fileRouter.Path("/")
 	.http("POST", "/api/namespace", (http) =>
@@ -213,10 +214,23 @@ export = new fileRouter.Path("/")
 				return ctr.status(ctr.$status.NOT_FOUND).print("Namespace not found");
 			}
 
+			// Nuke all functions
+			const ids = await prisma.function.findMany({
+				where: {
+					namespaceId: namespaceId,
+				},
+			});
+
+			for (const func of ids) {
+				await cleanupFunctionContainer(func.id);
+			}
+
+			// Delete namespace (cascade deletes functions)
 			await prisma.namespace.delete({
 				where: {
 					id: namespaceId,
 				},
+				include: { functions: true }
 			});
 
 			return ctr.print({
