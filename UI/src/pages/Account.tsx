@@ -192,21 +192,6 @@ export const AccountPage = ({}) => {
                 </div>
               </div>
 
-              {/* Account Stats */}
-              <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-2xl p-6">
-                <h3 className="text-xl font-bold text-primary mb-4 flex items-center gap-2">
-                  <div className="w-6 h-6 bg-primary/20 rounded-lg flex items-center justify-center text-sm">
-                    📊
-                  </div>
-                  Account Stats
-                </h3>
-                <div className="space-y-4">
-                  <StatItem label="Functions Deployed" value="0" color="blue" />
-                  <StatItem label="Total Executions" value="0" color="green" />
-                  <StatItem label="Storage Used" value="0 MB" color="purple" />
-                </div>
-              </div>
-
               {/* Danger Zone */}
               <div className="bg-gradient-to-br from-red-900/20 to-red-800/20 border border-red-500/30 rounded-2xl p-6">
                 <h3 className="text-xl font-bold text-red-400 mb-4 flex items-center gap-2">
