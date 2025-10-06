@@ -12,6 +12,7 @@ import { CustomResponsesPage } from "./pages/docs/custom-responses";
 import { EnvironmentVariablesPage } from "./pages/docs/environment-variables";
 import { AccountPage } from "./pages/Account";
 import  FunctionDetail  from "./pages/functions/FunctionDetail";
+import { SecureHeadersPage } from "./pages/docs/secure-headers";
 // Added back the routes array
 export interface AppRoute {
   path: string;
@@ -72,6 +73,12 @@ export const routes: AppRoute[] = [
     path: "/docs/environment-variables",
     component: EnvironmentVariablesPage,
     name: "Environment Variables",
+    requireAuth: false,
+  },
+  {
+    path: "/docs/secure-headers",
+    component: SecureHeadersPage,
+    name: "Secure Headers",
     requireAuth: false,
   },
 

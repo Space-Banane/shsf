@@ -136,4 +136,12 @@ const lessons: {
       "Learn how to manage sensitive information like API keys using environment variables.",
     link: "/docs/environment-variables",
   },
+  {
+    key: "secure-headers",
+    identifier: "#5",
+    title: "Secure Headers",
+    description:
+      "Learn how to use secure headers to protect your functions from unauthorized access.",
+    link: "/docs/secure-headers",
+  },
 ];

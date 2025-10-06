@@ -105,17 +105,17 @@ def main(args):
 
        <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
           <h2 className="text-xl font-bold text-primary mb-3">
-            🚀 Next Steps - Environment Variables
+            🚀 Next Steps - Secure Headers
           </h2>
           <p className="text-text/90 mb-4">
-            We know how to get data in and out of our functions, but what about
-            managing sensitive information like API keys? Let's take a look!
+            Let's also take a look at how we can keep our function from being
+            invoked by unauthorized users using secure headers.
           </p>
           <a
-            href="/docs/environment-variables"
+            href="/docs/secure-headers"
             className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
           >
-            Learn About Environment Variables
+            Learn About Secure Headers
             <span className="text-lg">→</span>
           </a>
         </div>
