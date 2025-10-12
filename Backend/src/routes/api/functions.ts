@@ -774,13 +774,13 @@ export = new fileRouter.Path("/")
             if (response) {
               return ctr.print(response);
             } else {
-              return ctr.print("[SHSF_BACK] OK");
+              return ctr.print("No Function Result :(");
             }
           }
         }
 
         // Return result if available from main function, otherwise output OK
-        return ctr.print(result?.result ?? "[SHSF_BACK] OK");
+        return ctr.print(result?.result ?? "No Function Result :(");
       })
   )
   .http("POST", "/api/exec/{namespaceId}/{functionId}", (http) =>
@@ -887,12 +887,12 @@ export = new fileRouter.Path("/")
             if (response) {
               return ctr.print(response);
             } else {
-              return ctr.print("[SHSF_BACK] OK");
+              return ctr.print("No Function Result :(");
             }
           }
         }
 
-        return ctr.print(result?.result ?? "[SHSF_BACK] OK");
+        return ctr.print(result?.result ?? "No Function Result :(");
       })
   )
   .http("GET", "/api/exec/{namespaceId}/{functionId}/{route}", (http) =>
@@ -1001,13 +1001,13 @@ export = new fileRouter.Path("/")
             if (response) {
               return ctr.print(response);
             } else {
-              return ctr.print("[SHSF_BACK] OK");
+              return ctr.print("No Function Result :(");
             }
           }
         }
 
         // Return result if available from main function, otherwise output OK
-        return ctr.print(result?.result ?? "[SHSF_BACK] OK");
+        return ctr.print(result?.result ?? "No Function Result :(");
       })
   )
   .http("POST", "/api/exec/{namespaceId}/{functionId}/{route}", (http) =>
@@ -1114,12 +1114,12 @@ export = new fileRouter.Path("/")
             if (response) {
               return ctr.print(response);
             } else {
-              return ctr.print("[SHSF_BACK] OK");
+              return ctr.print("No Function Result :(");
             }
           }
         }
 
-        return ctr.print(result?.result ?? "[SHSF_BACK] OK");
+        return ctr.print(result?.result ?? "No Function Result :(");
       })
   )
   .http("POST", "/api/function/{id}/pip-install", (http) =>

@@ -538,7 +538,7 @@ export async function buildPayloadFromPOST(
 		headers: Object.fromEntries(ctr.headers.entries()),
 		queries: Object.fromEntries(ctr.queries.entries()),
 		body: await ctr.rawBody("utf-8"),
-		raw_body: await ctr.$body().text(),
+		raw_body: await ctr.rawBody("binary"),
 		source_ip: ctr.client.ip.usual(),
 		route: ctr.params.get("route") || "default",
 		method: "POST"
