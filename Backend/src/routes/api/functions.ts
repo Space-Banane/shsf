@@ -763,6 +763,18 @@ export = new fileRouter.Path("/")
               "_code" in out ? out._code : null;
             const response: any | null = "_res" in out ? out._res : null;
 
+            if (response_code === 301 || response_code === 302) {
+              // Handle redirects
+              ctr.status(response_code);
+              if (headers) {
+                headers.forEach(({ key, value }) => {
+                  ctr.headers.set(key, value);
+                });
+              }
+              const link = "_location" in out ? out._location : "/";
+              return ctr.redirect(link);
+            }
+
             ctr.status(response_code || 200);
 
             if (headers) {
@@ -875,6 +887,18 @@ export = new fileRouter.Path("/")
             const response_code: number | null =
               "_code" in out ? out._code : null;
             const response: any | null = "_res" in out ? out._res : null;
+
+            if (response_code === 301 || response_code === 302) {
+              // Handle redirects
+              ctr.status(response_code);
+              if (headers) {
+                headers.forEach(({ key, value }) => {
+                  ctr.headers.set(key, value);
+                });
+              }
+              const link = "_location" in out ? out._location : "/";
+              return ctr.redirect(link);
+            }
 
             ctr.status(response_code || 200);
 
@@ -990,6 +1014,18 @@ export = new fileRouter.Path("/")
               "_code" in out ? out._code : null;
             const response: any | null = "_res" in out ? out._res : null;
 
+            if (response_code === 301 || response_code === 302) {
+              // Handle redirects
+              ctr.status(response_code);
+              if (headers) {
+                headers.forEach(({ key, value }) => {
+                  ctr.headers.set(key, value);
+                });
+              }
+              const link = "_location" in out ? out._location : "/";
+              return ctr.redirect(link);
+            }
+
             ctr.status(response_code || 200);
 
             if (headers) {
@@ -1103,6 +1139,18 @@ export = new fileRouter.Path("/")
               "_code" in out ? out._code : null;
             const response: any | null = "_res" in out ? out._res : null;
 
+            if (response_code === 301 || response_code === 302) {
+              // Handle redirects
+              ctr.status(response_code);
+              if (headers) {
+                headers.forEach(({ key, value }) => {
+                  ctr.headers.set(key, value);
+                });
+              }
+              const link = "_location" in out ? out._location : "/";
+              return ctr.redirect(link);
+            }
+
             ctr.status(response_code || 200);
 
             if (headers) {
@@ -1186,7 +1234,8 @@ export = new fileRouter.Path("/")
         if (result === 404) {
           return ctr.status(ctr.$status.NOT_FOUND).print({
             status: 404,
-            message: "Function has not been executed yet. Run it first and it will install dependencies automatically on its first ever run! After that, use Pip Install to update dependencies, if you have modified the requirements.txt file.",
+            message:
+              "Function has not been executed yet. Run it first and it will install dependencies automatically on its first ever run! After that, use Pip Install to update dependencies, if you have modified the requirements.txt file.",
           });
         } else if (result === false) {
           return ctr.status(ctr.$status.NOT_FOUND).print({

@@ -374,7 +374,7 @@ echo "[SHSF INIT] Python setup complete."
 
 		docker.modem.demuxStream(execStream, stdoutMultiplex, stderrMultiplex);
 
-		const execTimeoutMs = (functionData.timeout || 15) * 1000; // Timeout for the exec itself
+		const execTimeoutMs = (functionData.timeout || 15) * 1000; // functionData.timeout is in seconds
 
 		const execPromise = new Promise<Docker.ExecInspectInfo>((resolve, reject) => {
 			execStream.on('end', () => {
