@@ -57,7 +57,7 @@ export async function executeFunction(
 
 	// Define startupFile and initScript here as they are needed for script generation
 	const startupFile = functionData.startup_file || (runtimeType === "python" ? "main.py" : "index.js");
-	let initScript = "#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
+	let initScript = "#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /function_data/app\n";
 
 	try {
 		let container = docker.getContainer(containerName);
