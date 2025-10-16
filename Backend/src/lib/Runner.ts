@@ -57,7 +57,7 @@ export async function executeFunction(
 
 	// Define startupFile and initScript here as they are needed for script generation
 	const startupFile = functionData.startup_file || (runtimeType === "python" ? "main.py" : "index.js");
-	let initScript = "#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /function_data/app\n";
+	let initScript = "#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
 
 	try {
 		let container = docker.getContainer(containerName);
@@ -85,9 +85,9 @@ export async function executeFunction(
 			const wrapperPath = path.join(funcAppDir, "_runner.py");
 			const wrapperContent = `#!/bin/sh
 # Source environment variables if the file exists
-if [ -f /function_data/app/.shsf_env ]; then
-    . /function_data/app/.shsf_env
-    echo "[SHSF RUNNER] Sourced environment from /function_data/app/.shsf_env" >&2
+if [ -f /app/.shsf_env ]; then
+    . /app/.shsf_env
+    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
 else
     echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
 fi
@@ -101,16 +101,16 @@ import traceback
 
 # Get payload file path from command line argument
 if len(sys.argv) < 2:
-    sys.stderr.write("Error: Payload file path not provided\\n")
-    sys.exit(1)
+	sys.stderr.write("Error: Payload file path not provided\\n")
+	sys.exit(1)
 
-payload_file_path = sys.argv[1]
+payload_file_path = sys.argv[1]  # This will be /executions/<id>/payload.json due to new mount
 
 # Store original stdout, then redirect sys.stdout to sys.stderr for user code
 original_stdout = sys.stdout
 sys.stdout = sys.stderr
 
-sys.path.append('/function_data/app')
+sys.path.append('/app')
 target_module_name = "${startupFile.replace(".py", "")}"
 
 # Read payload from the specified file
@@ -216,9 +216,9 @@ if [ -f "requirements.txt" ]; then
 	. "$VENV_DIR/bin/activate" # Ensure activated for subsequent exec
 	
 	# Create a persistent environment file that can be sourced during execution
-	echo "export PATH=$VENV_DIR/bin:\$PATH" > /function_data/app/.shsf_env
-	echo "export PYTHONPATH=/function_data/app:\$PYTHONPATH" >> /function_data/app/.shsf_env
-	echo "export VIRTUAL_ENV=$VENV_DIR" >> /function_data/app/.shsf_env
+	echo "export PATH=$VENV_DIR/bin:\$PATH" > /app/.shsf_env
+	echo "export PYTHONPATH=/app:\$PYTHONPATH" >> /app/.shsf_env
+	echo "export VIRTUAL_ENV=$VENV_DIR" >> /app/.shsf_env
 fi
 echo "[SHSF INIT] Python setup complete."
 `;
@@ -259,7 +259,8 @@ echo "[SHSF INIT] Python setup complete."
 				
 				// Mount the base function directory which contains both app/ and executions/
 				const funcBaseDir = path.join("/opt/shsf_data/functions", functionIdStr);
-				let BINDS: string[] = [`${funcBaseDir}:/function_data`];
+				// Mount /app and /executions separately instead of the old /function_data
+				let BINDS: string[] = [`${funcBaseDir}/app:/app`, `${funcBaseDir}/executions:/executions`];
 
 				if (runtimeType === "python") {
 					BINDS.push(`${pipCacheHost}:/pip-cache`); // Mount persistent pip cache
@@ -298,7 +299,7 @@ echo "[SHSF INIT] Python setup complete."
 						Memory: (functionData.max_ram || 128) * 1024 * 1024,
 					},
 					// Run init.sh once, then keep container alive
-					Cmd: ["/bin/sh", "-c", "/function_data/app/init.sh && echo '[SHSF] Container initialized and idling.' && tail -f /dev/null"],
+					Cmd: ["/bin/sh", "-c", "/app/init.sh && echo '[SHSF] Container initialized and idling.' && tail -f /dev/null"],
 					Tty: false, // No TTY needed for background container
 				});
 				recordTiming("Container created");
@@ -332,9 +333,9 @@ echo "[SHSF INIT] Python setup complete."
 		}
 
 		// Pass the unique payload file path as an argument to the runner script
-		const containerPayloadPath = `/function_data/executions/${executionId}/payload.json`;
+		const containerPayloadPath = `/executions/${executionId}/payload.json`; // Updated to use /executions mount
 		const execCmd = runtimeType === "python"
-			? ["/bin/sh", "/function_data/app/_runner.py", containerPayloadPath]
+			? ["/bin/sh", "/app/_runner.py", containerPayloadPath]
 			: (() => { throw new Error(`Unsupported runtime type for exec command: ${runtimeType}`); })();
 
 		const exec = await container.exec({
