@@ -48,6 +48,13 @@ export async function executeFunction(
 	const runtimeType = functionData.image.split(":")[0];
 	let exitCode = 0; // Default exit code
 
+	// Generate a unique execution ID for this request to avoid race conditions
+	// Use crypto.randomUUID() for better uniqueness if available, otherwise fallback
+	const executionId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+		? crypto.randomUUID()
+		: `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+	const executionDir = path.join("/opt/shsf_data/functions", functionIdStr, "executions", executionId);
+
 	// Define startupFile and initScript here as they are needed for script generation
 	const startupFile = functionData.startup_file || (runtimeType === "python" ? "main.py" : "index.js");
 	let initScript = "#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
@@ -59,6 +66,10 @@ export async function executeFunction(
 		// Ensure function app directory exists
 		await fs.mkdir(funcAppDir, { recursive: true });
 		
+		// Create unique execution directory for this request
+		await fs.mkdir(executionDir, { recursive: true });
+		recordTiming("Created unique execution directory");
+		
 		// Always update the user files regardless of container state
 		recordTiming("Updating function files");
 		await Promise.all(
@@ -69,42 +80,49 @@ export async function executeFunction(
 		);
 		recordTiming("User files written to host app directory");
 
-		// Always generate/update the runner script
+		// Always generate/update the runner script to accept payload file path as argument
 		if (runtimeType === "python") {
 			const wrapperPath = path.join(funcAppDir, "_runner.py");
 			const wrapperContent = `
 #!/bin/sh
 # Source environment variables if the file exists
-if [ -f /app/.shsf_env ]; then
-    . /app/.shsf_env
-    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
+if [ -f /function_data/app/.shsf_env ]; then
+    . /function_data/app/.shsf_env
+    echo "[SHSF RUNNER] Sourced environment from /function_data/app/.shsf_env" >&2
 else
     echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
 fi
 
-# Execute the actual Python runner
-python3 - << 'PYTHON_SCRIPT_EOF'
+# Execute the actual Python runner with payload file path as argument
+python3 - "$@" << 'PYTHON_SCRIPT_EOF'
 import json
 import sys
 import os
 import traceback
 
+# Get payload file path from command line argument
+if len(sys.argv) < 2:
+	sys.stderr.write("Error: Payload file path not provided\n")
+    sys.exit(1)
+
+payload_file_path = sys.argv[1]
+
 # Store original stdout, then redirect sys.stdout to sys.stderr for user code
 original_stdout = sys.stdout
 sys.stdout = sys.stderr
 
-sys.path.append('/app')
+sys.path.append('/function_data/app')
 target_module_name = "${startupFile.replace(".py", "")}"
 
-# Read payload from file instead of environment variable
+# Read payload from the specified file
 run_data = None
 try:
-    with open('/app/.shsf_payload.json', 'r') as f:
+    with open(payload_file_path, 'r') as f:
         payload_content = f.read()
         if payload_content.strip():
             run_data = json.loads(payload_content)
 except FileNotFoundError:
-    sys.stderr.write("Warning: No payload file found\\n")
+	sys.stderr.write(f"Warning: Payload file not found at {payload_file_path}\n")
 except json.JSONDecodeError as e:
     sys.stderr.write(f"Error decoding payload JSON: {str(e)}\\n")
     sys.exit(1)
@@ -199,9 +217,9 @@ if [ -f "requirements.txt" ]; then
 	. "$VENV_DIR/bin/activate" # Ensure activated for subsequent exec
 	
 	# Create a persistent environment file that can be sourced during execution
-	echo "export PATH=$VENV_DIR/bin:\$PATH" > /app/.shsf_env
-	echo "export PYTHONPATH=/app:\$PYTHONPATH" >> /app/.shsf_env
-	echo "export VIRTUAL_ENV=$VENV_DIR" >> /app/.shsf_env
+	echo "export PATH=$VENV_DIR/bin:\$PATH" > /function_data/app/.shsf_env
+	echo "export PYTHONPATH=/function_data/app:\$PYTHONPATH" >> /function_data/app/.shsf_env
+	echo "export VIRTUAL_ENV=$VENV_DIR" >> /function_data/app/.shsf_env
 fi
 echo "[SHSF INIT] Python setup complete."
 `;
@@ -240,7 +258,9 @@ echo "[SHSF INIT] Python setup complete."
 				]);
 				recordTiming("Host cache directories ensured");
 				
-				let BINDS: string[] = [`${funcAppDir}:/app`];
+				// Mount the base function directory which contains both app/ and executions/
+				const funcBaseDir = path.join("/opt/shsf_data/functions", functionIdStr);
+				let BINDS: string[] = [`${funcBaseDir}:/function_data`];
 
 				if (runtimeType === "python") {
 					BINDS.push(`${pipCacheHost}:/pip-cache`); // Mount persistent pip cache
@@ -279,7 +299,7 @@ echo "[SHSF INIT] Python setup complete."
 						Memory: (functionData.max_ram || 128) * 1024 * 1024,
 					},
 					// Run init.sh once, then keep container alive
-					Cmd: ["/bin/sh", "-c", "/app/init.sh && echo '[SHSF] Container initialized and idling.' && tail -f /dev/null"],
+					Cmd: ["/bin/sh", "-c", "/function_data/app/init.sh && echo '[SHSF] Container initialized and idling.' && tail -f /dev/null"],
 					Tty: false, // No TTY needed for background container
 				});
 				recordTiming("Container created");
@@ -293,10 +313,10 @@ echo "[SHSF INIT] Python setup complete."
 		// At this point, container is running (either existing or newly created and initialized)
 		// Now, execute the function logic using docker exec
 
-		// Write payload to a file instead of passing as env var to avoid Docker size limits
-		const payloadFilePath = path.join(funcAppDir, ".shsf_payload.json");
+		// Write payload to a unique file for this execution to avoid race conditions
+		const payloadFilePath = path.join(executionDir, "payload.json");
 		await fs.writeFile(payloadFilePath, payload);
-		recordTiming("Payload written to file");
+		recordTiming("Payload written to unique execution file");
 
 		const execEnv: string[] = []; // Remove RUN_DATA from env
 		// Add function-specific env vars to exec as well, in case they are needed by the runner script directly
@@ -312,9 +332,10 @@ echo "[SHSF INIT] Python setup complete."
 			}
 		}
 
-
+		// Pass the unique payload file path as an argument to the runner script
+		const containerPayloadPath = `/function_data/executions/${executionId}/payload.json`;
 		const execCmd = runtimeType === "python"
-			? ["/bin/sh", "/app/_runner.py"]
+			? ["/bin/sh", "/function_data/app/_runner.py", containerPayloadPath]
 			: (() => { throw new Error(`Unsupported runtime type for exec command: ${runtimeType}`); })();
 
 		const exec = await container.exec({
@@ -483,6 +504,21 @@ echo "[SHSF INIT] Python setup complete."
 		};
 	} finally {
 		recordTiming("Finalizing execution log");
+		
+		// Clean up the unique execution directory
+		try {
+			await fs.rm(executionDir, { recursive: true, force: true });
+			recordTiming("Cleaned up execution directory");
+		} catch (cleanupError: any) {
+			if (cleanupError.code === "EACCES") {
+				console.error(`[executeFunction] Permission denied when cleaning up execution directory ${executionDir}:`, cleanupError);
+			} else if (cleanupError.code === "EBUSY") {
+				console.error(`[executeFunction] Directory in use, could not clean up execution directory ${executionDir}:`, cleanupError);
+			} else {
+				console.error(`[executeFunction] Error cleaning up execution directory ${executionDir}:`, cleanupError);
+			}
+		}
+		
 		// Container and funcAppDir are not removed here as they are persistent.
 		// Cleanup of old/unused containers/directories would be a separate process/tool.
 
