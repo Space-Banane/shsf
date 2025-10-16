@@ -83,8 +83,7 @@ export async function executeFunction(
 		// Always generate/update the runner script to accept payload file path as argument
 		if (runtimeType === "python") {
 			const wrapperPath = path.join(funcAppDir, "_runner.py");
-			const wrapperContent = `
-#!/bin/sh
+			const wrapperContent = `#!/bin/sh
 # Source environment variables if the file exists
 if [ -f /function_data/app/.shsf_env ]; then
     . /function_data/app/.shsf_env
@@ -102,7 +101,7 @@ import traceback
 
 # Get payload file path from command line argument
 if len(sys.argv) < 2:
-	sys.stderr.write("Error: Payload file path not provided\n")
+    sys.stderr.write("Error: Payload file path not provided\\n")
     sys.exit(1)
 
 payload_file_path = sys.argv[1]
@@ -122,7 +121,7 @@ try:
         if payload_content.strip():
             run_data = json.loads(payload_content)
 except FileNotFoundError:
-	sys.stderr.write(f"Warning: Payload file not found at {payload_file_path}\n")
+    sys.stderr.write(f"Warning: Payload file not found at {payload_file_path}\\n")
 except json.JSONDecodeError as e:
     sys.stderr.write(f"Error decoding payload JSON: {str(e)}\\n")
     sys.exit(1)
@@ -132,46 +131,46 @@ except Exception as e:
 
 user_result = None
 try:
-	original_name_val = __name__
-	__name__ = 'imported_module'
-	target_module = __import__(target_module_name)
-	__name__ = original_name_val # Restore __name__
+    original_name_val = __name__
+    __name__ = 'imported_module'
+    target_module = __import__(target_module_name)
+    __name__ = original_name_val # Restore __name__
 
-	if hasattr(target_module, 'main') and callable(target_module.main):
-		try:
-			# User's main function is called. Its print() statements will go to current sys.stdout (which is sys.stderr).
-			if run_data is not None:
-				user_result = target_module.main(run_data)
-			else:
-				user_result = target_module.main()
-			
-			# Restore original stdout for printing the JSON result
-			sys.stdout = original_stdout
-			# Wrap the output in markers for clear identification on the *original* stdout
-			sys.stdout.write("SHSF_FUNCTION_RESULT_START\\n");
-			sys.stdout.write(json.dumps(user_result));
-			sys.stdout.write("\\nSHSF_FUNCTION_RESULT_END");
-			sys.stdout.flush();
-		except Exception as e:
-			# Error during main execution or result serialization.
-			# Ensure output goes to stderr. If json.dumps failed, sys.stdout might be original_stdout.
-			sys.stdout = sys.stderr
-			sys.stderr.write(f"Error executing main function or serializing result: {str(e)}\\n")
-			traceback.print_exc(file=sys.stderr)
-			sys.stdout = original_stdout # Restore for finally block consistency
-			sys.exit(1)
-	else:
-		# sys.stdout is already sys.stderr
-		sys.stderr.write(f"No 'main' function found in {target_module_name}.py\\n")
-		sys.exit(1)
+    if hasattr(target_module, 'main') and callable(target_module.main):
+        try:
+            # User's main function is called. Its print() statements will go to current sys.stdout (which is sys.stderr).
+            if run_data is not None:
+                user_result = target_module.main(run_data)
+            else:
+                user_result = target_module.main()
+            
+            # Restore original stdout for printing the JSON result
+            sys.stdout = original_stdout
+            # Wrap the output in markers for clear identification on the *original* stdout
+            sys.stdout.write("SHSF_FUNCTION_RESULT_START\\n")
+            sys.stdout.write(json.dumps(user_result))
+            sys.stdout.write("\\nSHSF_FUNCTION_RESULT_END")
+            sys.stdout.flush()
+        except Exception as e:
+            # Error during main execution or result serialization.
+            # Ensure output goes to stderr. If json.dumps failed, sys.stdout might be original_stdout.
+            sys.stdout = sys.stderr
+            sys.stderr.write(f"Error executing main function or serializing result: {str(e)}\\n")
+            traceback.print_exc(file=sys.stderr)
+            sys.stdout = original_stdout # Restore for finally block consistency
+            sys.exit(1)
+    else:
+        # sys.stdout is already sys.stderr
+        sys.stderr.write(f"No 'main' function found in {target_module_name}.py\\n")
+        sys.exit(1)
 except Exception as e:
-	# Error during module import or other setup.
-	# Ensure output goes to stderr.
-	sys.stdout = sys.stderr
-	sys.stderr.write(f"Error importing module {target_module_name} or during initial setup: {str(e)}\\n")
-	traceback.print_exc(file=sys.stderr)
-	sys.stdout = original_stdout # Restore for finally block consistency
-	sys.exit(1)
+    # Error during module import or other setup.
+    # Ensure output goes to stderr.
+    sys.stdout = sys.stderr
+    sys.stderr.write(f"Error importing module {target_module_name} or during initial setup: {str(e)}\\n")
+    traceback.print_exc(file=sys.stderr)
+    sys.stdout = original_stdout # Restore for finally block consistency
+    sys.exit(1)
 finally:
     # Ensure sys.stdout is restored to its original state before exiting.
     # This is good practice, though effect might be minimal in docker exec.
