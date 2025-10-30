@@ -166,4 +166,11 @@ const lessons: {
     description: "Learn how to use args.raw_body for binary data and file uploads.",
     link: "/docs/raw-body",
   },
+  {
+    key: "user-interfaces",
+    identifier: "#9",
+    title: "User Interfaces",
+    description: "Learn how to serve HTML files as user interfaces from your functions.",
+    link: "/docs/user-interfaces",
+  },
 ];

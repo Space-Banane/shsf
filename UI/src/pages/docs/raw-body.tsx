@@ -28,7 +28,7 @@ export const RawBodyPage = () => {
           <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
             <code>{`raw_body = args.get("raw_body")
 if raw_body is None:
-    return {"_code": 400, "error": "no raw body provided"}
+    return {"_code": 400, "error": "no raw body provided", "_shsf": "v2"}
 
 # Convert to bytes if it's a string
 if isinstance(raw_body, str):
@@ -54,7 +54,7 @@ if raw_body is None:
 with open("upload.bin", "wb") as f:
     f.write(raw_body if isinstance(raw_body, bytes) else raw_body.encode("latin-1"))
 
-return {"_code": 200, "message": "File saved"}
+return {"_code": 200, "message": "File saved", "_shsf": "v2"}
 `}</code>
           </pre>
         </div>
@@ -74,9 +74,18 @@ return {"_code": 200, "message": "File saved"}
 
         <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
           <h2 className="text-xl font-bold text-primary mb-3">
-            Keep your instance up to date for the latest docs!
+            🚀 Next Step - User Interfaces
           </h2>
-          <p className="text-text/90 mb-4">Check back here for new documentation updates as they become available.</p>
+          <p className="text-text/90 mb-4">
+            Let's also take a look at how we can serve HTML files as user interfaces from our functions.
+          </p>
+          <a
+            href="/docs/user-interfaces"
+            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+          >
+            #9 User Interfaces
+            <span className="text-lg">→</span>
+          </a>
         </div>
       </div>
     </div>
