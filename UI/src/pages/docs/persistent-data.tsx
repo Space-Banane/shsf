@@ -106,9 +106,19 @@ def main(args):
 
         <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
           <h2 className="text-xl font-bold text-primary mb-3">
-            No next step! Keep your instance up to date for the latest docs!
+            🚀 Next Step - Redirects
           </h2>
-          <p className="text-text/90 mb-4">No new docs yet.</p>
+          <p className="text-text/90 mb-4">
+            Let's also take a look at how we can redirect users after certain
+            actions, such as form submissions or login events.
+          </p>
+          <a
+            href="/docs/redirects"
+            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+          >
+            #7 Redirects
+            <span className="text-lg">→</span>
+          </a>
         </div>
       </div>
     </div>

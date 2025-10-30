@@ -151,4 +151,12 @@ const lessons: {
     description: "Learn how to store and manage data for your functions.",
     link: "/docs/persistent-data",
   },
+  {
+    key: "redirects",
+    identifier: "#7",
+    title: "Redirects",
+    description:
+      "Learn how to implement HTTP redirects in your functions.",
+    link: "/docs/redirects",
+  },
 ];
