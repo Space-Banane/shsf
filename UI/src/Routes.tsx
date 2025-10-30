@@ -15,6 +15,7 @@ import  FunctionDetail  from "./pages/functions/FunctionDetail";
 import { SecureHeadersPage } from "./pages/docs/secure-headers";
 import { PersistentDataPage } from "./pages/docs/persistent-data";
 import { RedirectsPage } from "./pages/docs/redirects";
+import { RawBodyPage } from "./pages/docs/raw-body";
 // Added back the routes array
 export interface AppRoute {
   path: string;
@@ -93,6 +94,13 @@ export const routes: AppRoute[] = [
     path: "/docs/redirects",
     component: RedirectsPage,
     name: "Redirects",
+    requireAuth: false,
+  },
+
+  {
+    path: "/docs/raw-body",
+    component: RawBodyPage,
+    name: "Raw Body",
     requireAuth: false,
   },
 

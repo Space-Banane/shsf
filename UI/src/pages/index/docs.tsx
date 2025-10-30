@@ -159,4 +159,11 @@ const lessons: {
       "Learn how to implement HTTP redirects in your functions.",
     link: "/docs/redirects",
   },
+  {
+    key: "raw-body",
+    identifier: "#8",
+    title: "Raw Body",
+    description: "Learn how to use args.raw_body for binary data and file uploads.",
+    link: "/docs/raw-body",
+  },
 ];

@@ -68,11 +68,22 @@ export const RedirectsPage = () => {
 				</ul>
 
 				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-					<h2 className="text-xl font-bold text-primary mb-3">
-						Keep your instance up to date for the latest docs!
-					</h2>
-					<p className="text-text/90 mb-4">Check back here for new documentation updates as they become available.</p>
-				</div>
+          <h2 className="text-xl font-bold text-primary mb-3">
+            🚀 Next Step - Raw Body Handling
+          </h2>
+          <p className="text-text/90 mb-4">
+            Let's also take a look at how we can handle raw body data in our
+            functions, which is essential for working with file uploads and
+            binary data.
+          </p>
+          <a
+            href="/docs/raw-body"
+            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+          >
+            #8 Raw Body Handling
+            <span className="text-lg">→</span>
+          </a>
+        </div>
 			</div>
 		</div>
 	);
