@@ -17,6 +17,7 @@ import { PersistentDataPage } from "./pages/docs/persistent-data";
 import { RedirectsPage } from "./pages/docs/redirects";
 import { RawBodyPage } from "./pages/docs/raw-body";
 import { UserInterfacesPage } from "./pages/docs/user-interfaces";
+import { DockerMountPage } from "./pages/docs/docker-mount";
 // Added back the routes array
 export interface AppRoute {
   path: string;
@@ -95,6 +96,12 @@ export const routes: AppRoute[] = [
     path: "/docs/redirects",
     component: RedirectsPage,
     name: "Redirects",
+    requireAuth: false,
+  },
+  {
+    path: "/docs/docker-mount",
+    component: DockerMountPage,
+    name: "Docker Mount",
     requireAuth: false,
   },
 

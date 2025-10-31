@@ -173,4 +173,12 @@ const lessons: {
     description: "Learn how to serve HTML files as user interfaces from your functions.",
     link: "/docs/user-interfaces",
   },
+  {
+    key: "docker-mount",
+    identifier: "#10",
+    title: "Docker Mount",
+    description:
+      "Learn how to use the Docker mount option to create and modify containers on the host.",
+    link: "/docs/docker-mount",
+  },
 ];

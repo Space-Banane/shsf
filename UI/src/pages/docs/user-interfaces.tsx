@@ -52,9 +52,18 @@ export const UserInterfacesPage = () => {
 
         <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
           <h2 className="text-xl font-bold text-primary mb-3">
-            Keep your instance up to date for the latest docs!
+            🚀 Next Step - Docker Mount
           </h2>
-          <p className="text-text/90 mb-4">Check back here for new documentation updates as they become available.</p>
+          <p className="text-text/90 mb-4">
+            Let's also take a look at how we can use the Docker mount option to create and modify containers on the host.
+          </p>
+          <a
+            href="/docs/docker-mount"
+            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+          >
+            #10 Docker Mount
+            <span className="text-lg">→</span>
+          </a>
         </div>
       </div>
     </div>
