@@ -32,6 +32,7 @@ export = new fileRouter.Path("/")
           description: z.string().min(3).max(128),
           image: z.enum(Images as any),
           startup_file: z.string().min(1).max(256).optional(),
+          docker_mount: z.boolean().optional(),
           settings: z
             .object({
               max_ram: z.number().min(128).max(1024).optional(),
@@ -136,6 +137,7 @@ export = new fileRouter.Path("/")
             : undefined,
           userId: authCheck.user.id,
           executionId: randomUUID(),
+          docker_mount: data.docker_mount || false,
         },
       });
 
@@ -371,6 +373,7 @@ export = new fileRouter.Path("/")
           description: z.string().min(3).max(128).optional(),
           image: z.enum(Images as any).optional(),
           startup_file: z.string().min(1).max(256).optional(),
+          docker_mount: z.boolean().optional(),
           settings: z
             .object({
               max_ram: z.number().min(128).max(1024).optional(),
@@ -468,15 +471,24 @@ export = new fileRouter.Path("/")
             }))
           ),
         }),
+        ...(data.docker_mount !== undefined && { docker_mount: data.docker_mount }),
       };
 
-      // If image is being changed, we need to recreate the container
-      if (data.image && data.image !== existingFunction.image) {
-        console.log(
-          `[SHSF] Function ${functionId} image changing from ${existingFunction.image} to ${data.image}, container will be recreated`
-        );
-        // Clean up existing container to force recreation with new image
+      // If image is being changed, we need to recreate the container; Or docker_mount changed
+      if ((data.image && data.image !== existingFunction.image) || (data.docker_mount !== undefined && data.docker_mount !== existingFunction.docker_mount)) {
+        if (data.image && data.image !== existingFunction.image) {
+          console.log(
+            `[SHSF] Function ${functionId} image changing from ${existingFunction.image} to ${data.image}, container will be recreated`
+          );
+        } else if (data.docker_mount !== undefined && data.docker_mount !== existingFunction.docker_mount) {
+          console.log(
+            `[SHSF] Function ${functionId} docker_mount changing from ${existingFunction.docker_mount} to ${data.docker_mount}, container will be recreated`
+          );
+        }
+        // Clean up existing container to force recreation with new image or docker_mount change
         await cleanupFunctionContainer(functionId);
+
+        // On the next run, the container will be recreated with the new image and new mounts.
       }
 
       const updatedFunction = await prisma.function.update({

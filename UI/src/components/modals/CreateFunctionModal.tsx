@@ -28,6 +28,7 @@ function CreateFunctionModal({
 	const [startupFile, setStartupFile] = useState<string | undefined>();
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
+	const [dockerMount, setDockerMount] = useState<boolean>(false);
 
 	const resetForm = () => {
 		setName("");
@@ -38,6 +39,7 @@ function CreateFunctionModal({
 		setAllowHttp(false);
 		setPriority(undefined);
 		setStartupFile(undefined);
+		setDockerMount(false);
 		setError("");
 	};
 
@@ -54,7 +56,7 @@ function CreateFunctionModal({
 
 		setError("");
 		setIsLoading(true);
-		
+
 		try {
 			const response = await createFunction({
 				name,
@@ -62,6 +64,7 @@ function CreateFunctionModal({
 				image,
 				namespaceId,
 				startup_file: startupFile,
+				docker_mount: dockerMount,
 				settings: {
 					max_ram: maxRam,
 					timeout,
@@ -234,40 +237,69 @@ function CreateFunctionModal({
 					</div>
 				</div>
 
-				{/* Advanced Settings */}
-				<div className="space-y-4">
-					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-						<span>🔧</span> Advanced Settings
-					</h3>
-					
-					<div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4">
-						<div className="flex items-center justify-between">
-							<div className="flex items-center gap-3">
-								<span className="text-lg">🌐</span>
-								<div>
-									<p className="text-white font-medium text-sm">Allow HTTP</p>
-									<p className="text-gray-400 text-xs">Enable inbound HTTP/HTTPS requests</p>
+				 {/* Advanced Settings */}
+								<div className="space-y-4">
+									<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+										<span>🔧</span> Advanced Settings
+									</h3>
+
+									<div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4">
+										<div className="flex items-center justify-between">
+											<div className="flex items-center gap-3">
+												<span className="text-lg">🌐</span>
+												<div>
+													<p className="text-white font-medium text-sm">Allow HTTP</p>
+													<p className="text-gray-400 text-xs">Enable inbound HTTP/HTTPS requests</p>
+												</div>
+											</div>
+											<div className="relative">
+												<input
+													type="checkbox"
+													checked={allowHttp}
+													onChange={(e) => setAllowHttp(e.target.checked)}
+													className="sr-only peer"
+													disabled={isLoading}
+													id="allow-http-create"
+												/>
+												<label
+													htmlFor="allow-http-create"
+													className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-purple-500 transition-all duration-300 cursor-pointer flex items-center relative"
+												>
+													<div className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${allowHttp ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+												</label>
+											</div>
+										</div>
+									</div>
+
+									{/* Docker Mount Toggle */}
+									<div className="bg-gray-800/30 border border-yellow-600/50 rounded-lg p-4">
+										<div className="flex items-center justify-between">
+											<div className="flex items-center gap-3">
+												<span className="text-lg">🐳</span>
+												<div>
+													<p className="text-yellow-300 font-medium text-sm">Mount Docker Socket</p>
+													<p className="text-yellow-400 text-xs">Mounts /var/run/docker.sock (Security risk!)</p>
+												</div>
+											</div>
+											<div className="relative">
+												<input
+													type="checkbox"
+													checked={dockerMount}
+													onChange={(e) => setDockerMount(e.target.checked)}
+													className="sr-only peer"
+													disabled={isLoading}
+													id="docker-mount-create"
+												/>
+												<label
+													htmlFor="docker-mount-create"
+													className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-yellow-500 peer-checked:to-red-500 transition-all duration-300 cursor-pointer flex items-center relative"
+												>
+													<div className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${dockerMount ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+												</label>
+											</div>
+										</div>
+									</div>
 								</div>
-							</div>
-							<div className="relative">
-								<input
-									type="checkbox"
-									checked={allowHttp}
-									onChange={(e) => setAllowHttp(e.target.checked)}
-									className="sr-only peer"
-									disabled={isLoading}
-									id="allow-http-create"
-								/>
-								<label
-									htmlFor="allow-http-create"
-									className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-purple-500 transition-all duration-300 cursor-pointer flex items-center relative"
-								>
-									<div className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${allowHttp ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
-								</label>
-							</div>
-						</div>
-					</div>
-				</div>
 
 				{/* Action Buttons */}
 				<div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-700/50">

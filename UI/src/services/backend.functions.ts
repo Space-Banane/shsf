@@ -67,6 +67,7 @@ async function createFunction(config: {
   description: string;
   image: Image;
   startup_file?: string;
+  docker_mount?: boolean;
   settings?: {
     max_ram?: number;
     timeout?: number;
@@ -162,6 +163,7 @@ async function updateFunction(
     description?: string;
     image?: Image;
     startup_file?: string;
+    docker_mount?: boolean;
     settings?: {
       max_ram?: number;
       timeout?: number;

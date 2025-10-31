@@ -262,6 +262,10 @@ echo "[SHSF INIT] Python setup complete."
 				// Mount /app and /executions separately instead of the old /function_data
 				let BINDS: string[] = [`${funcBaseDir}/app:/app`, `${funcBaseDir}/executions:/executions`];
 
+				if (functionData.docker_mount) {
+					BINDS.push("/var/run/docker.sock:/var/run/docker.sock"); // Mount Docker socket
+				}
+
 				if (runtimeType === "python") {
 					BINDS.push(`${pipCacheHost}:/pip-cache`); // Mount persistent pip cache
 				} else {

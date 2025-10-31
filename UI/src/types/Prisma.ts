@@ -31,6 +31,7 @@ interface XFunction {
   priority: number;
   tags?: string; // comma-separated tags
   startup_file?: string;
+  docker_mount: boolean;
 
   createdAt: Date;
   updatedAt: Date;

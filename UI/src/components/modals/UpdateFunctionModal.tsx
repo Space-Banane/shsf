@@ -24,67 +24,70 @@ function UpdateFunctionModal({
 	const [allowHttp, setAllowHttp] = useState<boolean>(false);
 	const [priority, setPriority] = useState<number | undefined>();
 	const [startupFile, setStartupFile] = useState<string | undefined>();
-	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState("");
-	const [secureHeader, setSecureHeader] = useState<string | undefined>();
+		const [isLoading, setIsLoading] = useState(false);
+		const [error, setError] = useState("");
+		const [secureHeader, setSecureHeader] = useState<string | undefined>();
+		const [dockerMount, setDockerMount] = useState<boolean>(false);
 
 	// Initialize form with existing function data
-	useEffect(() => {
-		if (functionData && isOpen) {
-			setName(functionData.name);
-			setDescription(functionData.description || "");
-			setImage(functionData.image as Image);
-			setMaxRam(functionData.max_ram);
-			setTimeout(functionData.timeout);
-			setAllowHttp(functionData.allow_http || false);
-			setPriority(functionData.priority);
-			setStartupFile(functionData.startup_file || "");
-			setSecureHeader(functionData.secure_header || undefined);
-		}
-	}, [functionData, isOpen]);
+		useEffect(() => {
+			if (functionData && isOpen) {
+				setName(functionData.name);
+				setDescription(functionData.description || "");
+				setImage(functionData.image as Image);
+				setMaxRam(functionData.max_ram);
+				setTimeout(functionData.timeout);
+				setAllowHttp(functionData.allow_http || false);
+				setPriority(functionData.priority);
+				setStartupFile(functionData.startup_file || "");
+				setSecureHeader(functionData.secure_header || undefined);
+				setDockerMount(functionData.docker_mount ?? false);
+			}
+		}, [functionData, isOpen]);
 
 	const handleSubmit = async () => {
-		if (!functionData) {
-			setError("No function data available");
-			return;
-		}
-
-		if (!name.trim()) {
-			setError("Please enter a function name");
-			return;
-		}
-
-		setError("");
-		setIsLoading(true);
-		
-		try {
-			const response = await updateFunction(functionData.id, {
-				name,
-				description,
-				image,
-				startup_file: startupFile,
-				settings: {
-					max_ram: maxRam,
-					timeout,
-					allow_http: allowHttp,
-					priority,
-					secure_header: secureHeader?.length === 0 ? null : secureHeader,
-				},
-			});
-
-			if (response.status === "OK") {
-				onSuccess();
-				onClose();
-			} else {
-				setError("Error updating function: " + response.message);
+			if (!functionData) {
+				setError("No function data available");
+				return;
 			}
-		} catch (err) {
-			setError("An unexpected error occurred");
-			console.error(err);
-		} finally {
-			setIsLoading(false);
-		}
-	};
+
+			if (!name.trim()) {
+				setError("Please enter a function name");
+				return;
+			}
+
+			setError("");
+			setIsLoading(true);
+
+			try {
+				const response = await updateFunction(functionData.id, {
+					name,
+					description,
+					image,
+					startup_file: startupFile,
+					docker_mount: dockerMount,
+					settings: {
+						max_ram: maxRam,
+						timeout,
+						allow_http: allowHttp,
+						priority,
+						secure_header: secureHeader?.length === 0 ? null : secureHeader,
+					},
+				});
+
+				if (response.status === "OK") {
+					onSuccess();
+					onClose();
+				} else {
+					setError("Error updating function: " + response.message);
+				}
+			} catch (err) {
+				setError("An unexpected error occurred");
+				console.error(err);
+			} finally {
+				setIsLoading(false);
+			}
+		};
 
 	const handleClose = () => {
 		if (!isLoading) {
@@ -223,56 +226,85 @@ function UpdateFunctionModal({
 					</div>
 				</div>
 
-				{/* Security & Advanced Settings */}
-				<div className="space-y-4">
-					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-						<span>🔧</span> Security & Advanced
-					</h3>
-					
-					<div className="space-y-4">
-						{/* HTTP Toggle */}
-						<div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4">
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-3">
-									<span className="text-lg">🌐</span>
-									<div>
-										<p className="text-white font-medium text-sm">Allow HTTP</p>
-										<p className="text-gray-400 text-xs">Enable inbound HTTP/HTTPS requests</p>
+				 {/* Security & Advanced Settings */}
+								<div className="space-y-4">
+									<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+										<span>🔧</span> Security & Advanced
+									</h3>
+
+									<div className="space-y-4">
+										{/* HTTP Toggle */}
+										<div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4">
+											<div className="flex items-center justify-between">
+												<div className="flex items-center gap-3">
+													<span className="text-lg">🌐</span>
+													<div>
+														<p className="text-white font-medium text-sm">Allow HTTP</p>
+														<p className="text-gray-400 text-xs">Enable inbound HTTP/HTTPS requests</p>
+													</div>
+												</div>
+												<div className="relative">
+													<input
+														type="checkbox"
+														checked={allowHttp}
+														onChange={(e) => setAllowHttp(e.target.checked)}
+														className="sr-only peer"
+														disabled={isLoading}
+														id="allow-http-update"
+													/>
+													<label
+														htmlFor="allow-http-update"
+														className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-purple-500 transition-all duration-300 cursor-pointer flex items-center relative"
+													>
+														<div className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${allowHttp ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+													</label>
+												</div>
+											</div>
+										</div>
+
+										{/* Docker Mount Toggle */}
+										<div className="bg-gray-800/30 border border-yellow-600/50 rounded-lg p-4">
+											<div className="flex items-center justify-between">
+												<div className="flex items-center gap-3">
+													<span className="text-lg">🐳</span>
+													<div>
+														<p className="text-yellow-300 font-medium text-sm">Mount Docker Socket</p>
+														<p className="text-yellow-400 text-xs">Mounts /var/run/docker.sock (Security risk!)</p>
+													</div>
+												</div>
+												<div className="relative">
+													<input
+														type="checkbox"
+														checked={dockerMount}
+														onChange={(e) => setDockerMount(e.target.checked)}
+														className="sr-only peer"
+														disabled={isLoading}
+														id="docker-mount-update"
+													/>
+													<label
+														htmlFor="docker-mount-update"
+														className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-yellow-500 peer-checked:to-red-500 transition-all duration-300 cursor-pointer flex items-center relative"
+													>
+														<div className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${dockerMount ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+													</label>
+												</div>
+											</div>
+										</div>
+
+										{/* Secure Header */}
+										<div className="space-y-2">
+											<label className="text-sm font-medium text-gray-300">Secure Header</label>
+											<input
+												type="text"
+												placeholder="Optional secure header for authentication"
+												value={secureHeader || ""}
+												onChange={(e) => setSecureHeader(e.target.value)}
+												className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+												disabled={isLoading}
+											/>
+										</div>
 									</div>
 								</div>
-								<div className="relative">
-									<input
-										type="checkbox"
-										checked={allowHttp}
-										onChange={(e) => setAllowHttp(e.target.checked)}
-										className="sr-only peer"
-										disabled={isLoading}
-										id="allow-http-update"
-									/>
-									<label
-										htmlFor="allow-http-update"
-										className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-purple-500 transition-all duration-300 cursor-pointer flex items-center relative"
-									>
-										<div className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${allowHttp ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
-									</label>
-								</div>
-							</div>
-						</div>
-
-						{/* Secure Header */}
-						<div className="space-y-2">
-							<label className="text-sm font-medium text-gray-300">Secure Header</label>
-							<input
-								type="text"
-								placeholder="Optional secure header for authentication"
-								value={secureHeader || ""}
-								onChange={(e) => setSecureHeader(e.target.value)}
-								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
-								disabled={isLoading}
-							/>
-						</div>
-					</div>
-				</div>
 
 				{/* Action Buttons */}
 				<div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-700/50">
