@@ -146,3 +146,30 @@ export type {
   Token,
 };
 export { ImagesAsArray, ImagesAsArraySet };
+interface FunctionStorage {
+  id: number;
+  name: string;
+  purpose: string;
+
+  user: number;
+
+  createdAt: Date;
+  updatedAt: Date;
+
+  items?: FunctionStorageItem[];
+}
+
+interface FunctionStorageItem {
+  id: number;
+  key: string;
+  value: string;
+
+  storageId: number;
+
+  expiresAt?: Date | null;
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type { FunctionStorage, FunctionStorageItem };

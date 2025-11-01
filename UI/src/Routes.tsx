@@ -1,3 +1,4 @@
+import { DatabaseComDocPage } from "./pages/docs/db-com";
 import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import IndexPage from "./pages/index/index";
@@ -22,6 +23,7 @@ import { ServeOnlyHtmlPage } from "./pages/docs/serve-only";
 import { AccessTokensDocPage } from "./pages/docs/access-tokens";
 import AccessTokensPage from "./pages/AccessTokens";
 import { CLIDocPage } from "./pages/docs/cli";
+import StoragePage from "./pages/Storage";
 // Added back the routes array
 export interface AppRoute {
   path: string;
@@ -138,6 +140,14 @@ export const routes: AppRoute[] = [
     name: "CLI Usage",
     requireAuth: false,
   },
+  {
+    path: "/docs/db-com",
+    component: DatabaseComDocPage,
+    name: "Database Communication",
+    requireAuth: false,
+  },
+
+  
 
   { path: "/login", component: LoginPage, name: "Login", requireAuth: false },
   {
@@ -158,6 +168,13 @@ export const routes: AppRoute[] = [
     name: "FunctionDetail",
     component: FunctionDetail,
     requireAuth: true,
+  },
+  {
+    path: "/storage",
+    name: "Storage",
+    component: StoragePage,
+    requireAuth: true,
+    show_nav: true,
   },
 
   {

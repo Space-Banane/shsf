@@ -1,4 +1,4 @@
-import { Session, User } from "@prisma/client";
+import { AccessToken, Session, User } from "@prisma/client";
 import { prisma } from "..";
 
 export async function checkAuthentication(
@@ -15,7 +15,7 @@ export async function checkAuthentication(
             success: true;
             method: "apiKey";
             user: User;
-            apiKey: any;
+            apiKey: AccessToken;
       }
     | {
             success: false;

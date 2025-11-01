@@ -188,7 +188,7 @@ Content-Type: application/json
           this capability to enhance your serverless functions!
         </p>
 
-        <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
+        <div className="mt-12 p-6 bg-linear-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
           <h2 className="text-xl font-bold text-primary mb-3">
             🚀 Next Steps - Custom Responses
           </h2>

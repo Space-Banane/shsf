@@ -28,6 +28,7 @@ model User {
   functions    Function[]
   namespaces   Namespace[]
   accessTokens AccessToken[]
+  storages     FunctionStorage[]
 }
 
 model Session {
@@ -145,6 +146,34 @@ model AccessToken {
 
   userId Int
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FunctionStorage {
+  id         Int    @id @default(autoincrement())
+  name       String @db.VarChar(128)
+  purpose    String @db.VarChar(256)
+
+  user Int
+  userRel User @relation(fields: [user], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items FunctionStorageItem[]
+}
+
+model FunctionStorageItem {
+  id               Int    @id @default(autoincrement())
+  key              String @db.VarChar(256)
+  value            String @db.Text
+
+  storageId Int
+  storage   FunctionStorage @relation(fields: [storageId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  expiresAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

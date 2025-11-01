@@ -1,7 +1,7 @@
 import { Function, FunctionFile } from "@prisma/client";
 import Docker from "dockerode";
 import { PassThrough } from "stream"; // Added PassThrough
-import { prisma } from "..";
+import { API_URL, prisma } from "..";
 import { HttpRequestContext } from "rjweb-server";
 import { DataContext } from "rjweb-server/lib/typings/types/internal";
 import { UsableMiddleware } from "rjweb-server/lib/typings/classes/Middleware";
@@ -9,6 +9,7 @@ import * as fs from "fs/promises";
 import * as fsSync from "fs";
 import * as path from "path";
 import { Readable } from "stream";
+import { randomBytes } from "crypto";
 
 interface TimingEntry {
   timestamp: number;
@@ -16,7 +17,224 @@ interface TimingEntry {
   description: string;
 }
 
+// Token expiry for execution tokens (in milliseconds)
+const EXECUTION_TOKEN_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+
 const ServeOnlyFileNotFoundHTML = `<html><head><title>File Not Found</title></head><body><h1>404 - File Not Found</h1><p>The requested HTML file was not found in the function's files.</p></body></html>`;
+
+const DbComScript = `# Database Communication Script
+# GENERATED ON THE FLY - DO NOT EDIT - THIS WILL BE OVERWRITTEN ON THE NEXT RUN
+import requests
+from typing import Any, Optional, Dict, List
+from datetime import datetime
+
+# Configuration placeholders
+BASE_URL = "{{API}}"
+ACCESS_KEY = "{{AUTHKEY}}"
+
+
+class DatabaseError(Exception):
+    """Custom exception for database operations"""
+    pass
+
+
+class Database:
+    """
+    Database class for interacting with the storage API.
+    
+    Usage:
+        from _db_com import database
+        db = database()
+        db.set("storage1", "name", "Paul")
+        print(db.get("storage1", "name"))
+    """
+    
+    def __init__(self):
+        self.base_url = BASE_URL.rstrip('/')
+        self.headers = {
+            "Content-Type": "application/json",
+            "X-Access-Key": ACCESS_KEY
+        }
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
+    
+    def _make_request(self, method: str, url: str, **kwargs) -> Dict:
+        """Make HTTP request and handle response"""
+        try:
+            response = self.session.request(method, url, **kwargs)
+            data = response.json()
+            
+            if isinstance(data, dict) and data.get("status") != "OK" and "status" in data:
+                raise DatabaseError(f"API Error: {data.get('message', 'Unknown error')}")
+            
+            return data
+        except requests.exceptions.RequestException as e:
+            raise DatabaseError(f"Request failed: {str(e)}")
+    
+    def create_storage(self, name: str, purpose: str = "") -> Dict:
+        """
+        Create a new storage.
+        
+        Args:
+            name: Storage name
+            purpose: Purpose description
+            
+        Returns:
+            Storage object
+        """
+        url = f"{self.base_url}/api/storage"
+        payload = {"name": name, "purpose": purpose}
+        result = self._make_request("POST", url, json=payload)
+        return result.get("data", result)
+    
+    def list_storages(self) -> List[Dict]:
+        """
+        List all storages for the user.
+        
+        Returns:
+            List of storage objects
+        """
+        url = f"{self.base_url}/api/storage"
+        result = self._make_request("GET", url)
+        return result.get("data", result)
+    
+    def delete_storage(self, storage_name: str) -> Dict:
+        """
+        Delete a storage by name.
+        
+        Args:
+            storage_name: Name of the storage to delete
+            
+        Returns:
+            Response object
+        """
+        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}"
+        return self._make_request("DELETE", url)
+    
+    def clear(self, storage_name: str) -> Dict:
+        """
+        Clear all items in a storage.
+        
+        Args:
+            storage_name: Name of the storage to clear
+            
+        Returns:
+            Response object
+        """
+        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/items"
+        return self._make_request("DELETE", url)
+    
+    def set(self, storage_name: str, key: str, value: Any, 
+            expires_at: Optional[str] = None) -> Dict:
+        """
+        Set (create/update) an item in storage.
+        
+        Args:
+            storage_name: Name of the storage
+            key: Item key
+            value: Item value (any JSON-serializable type)
+            expires_at: Optional expiration timestamp (ISO format string or Unix timestamp)
+            
+        Returns:
+            StorageItem object
+        """
+        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/item"
+        payload = {"key": key, "value": value}
+        if expires_at is not None:
+            payload["expiresAt"] = expires_at
+        
+        result = self._make_request("POST", url, json=payload)
+        return result.get("data", result)
+    
+    def get(self, storage_name: str, key: str) -> Any:
+        """
+        Get an item value by key from storage.
+        
+        Args:
+            storage_name: Name of the storage
+            key: Item key
+            
+        Returns:
+            Item value (the actual value, not the full object)
+        """
+        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/item/{requests.utils.quote(key)}"
+        result = self._make_request("GET", url)
+        item = result.get("data", result)
+        return item.get("value") if isinstance(item, dict) else item
+    
+    def get_item(self, storage_name: str, key: str) -> Dict:
+        """
+        Get full item object by key from storage (includes metadata).
+        
+        Args:
+            storage_name: Name of the storage
+            key: Item key
+            
+        Returns:
+            Full StorageItem object
+        """
+        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/item/{requests.utils.quote(key)}"
+        result = self._make_request("GET", url)
+        return result.get("data", result)
+    
+    def list_items(self, storage_name: str) -> List[Dict]:
+        """
+        List all items in a storage.
+        
+        Args:
+            storage_name: Name of the storage
+            
+        Returns:
+            List of StorageItem objects
+        """
+        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/items"
+        result = self._make_request("GET", url)
+        return result.get("data", result)
+    
+    def delete_item(self, storage_name: str, key: str) -> Dict:
+        """
+        Delete an item by key from storage.
+        
+        Args:
+            storage_name: Name of the storage
+            key: Item key
+            
+        Returns:
+            Response object
+        """
+        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/item/{requests.utils.quote(key)}"
+        return self._make_request("DELETE", url)
+    
+    def exists(self, storage_name: str, key: str) -> bool:
+        """
+        Check if an item exists in storage.
+        
+        Args:
+            storage_name: Name of the storage
+            key: Item key
+            
+        Returns:
+            True if item exists, False otherwise
+        """
+        try:
+            self.get(storage_name, key)
+            return True
+        except DatabaseError:
+            return False
+
+
+def database() -> Database:
+    """
+    Factory function to create a Database instance.
+    
+    Returns:
+        Database instance
+    """
+    return Database()
+
+
+# Alternative: Direct instantiation
+# You can also use: db = Database()`;
 
 export async function executeFunction(
   id: number,
@@ -66,6 +284,7 @@ export async function executeFunction(
   }
 
   const docker = new Docker();
+  let dbAccessToken = "";
   const functionIdStr = String(functionData.id);
   const containerName = `shsf_func_${functionIdStr}`;
   // Persistent directory on the host for this function's app files
@@ -277,6 +496,35 @@ echo "[SHSF INIT] Python setup complete."
     await fs.writeFile(path.join(funcAppDir, "init.sh"), initScript);
     await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
     recordTiming("init.sh script generated on host");
+
+    // Check if any file contains _db_com, and if so, setup DB communication
+    const requiresDbCom = files.some((file) =>
+      file.content.includes("_db_com")
+    );
+    if (requiresDbCom) {
+      // Generate a unique, short-lived access token for this execution
+      dbAccessToken = randomBytes(32).toString("hex");
+      await prisma.accessToken.create({
+        data: {
+          userId: functionData.userId,
+          name: `token_exec_${executionId}`,
+          token: dbAccessToken,
+          hidden: true,
+          purpose: `Short-lived access token for function execution ${executionId}`,
+          expiresAt: new Date(Date.now() + EXECUTION_TOKEN_EXPIRY_MS), // 10 minutes expiry
+        },
+      });
+      recordTiming("Short-lived access token for DB communication created");
+
+      // Add Database Communication Script (python)
+      const dbScript = DbComScript.replace("{{API}}", API_URL!).replace(
+        "{{AUTHKEY}}",
+        dbAccessToken
+      );
+      await fs.writeFile(path.join(funcAppDir, "_db_com.py"), dbScript);
+      await fs.chmod(path.join(funcAppDir, "_db_com.py"), "755");
+      recordTiming("Database communication script generated on host");
+    }
 
     try {
       const inspectInfo = await container.inspect();
@@ -583,6 +831,20 @@ echo "[SHSF INIT] Python setup complete."
       value: (Date.now() - starting_time) / 1000,
       description: "Total execution time (including potential setup)",
     });
+
+    // Revoke/delete the short-lived access token after execution
+    if (dbAccessToken) {
+      try {
+        await prisma.accessToken.deleteMany({
+          where: {
+            token: dbAccessToken,
+          },
+        });
+        recordTiming("Short-lived access token for DB communication revoked");
+      } catch (tokenCleanupError) {
+        console.error("Error revoking short-lived access token:", tokenCleanupError);
+      }
+    }
 
     return {
       logs,

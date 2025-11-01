@@ -20,6 +20,12 @@ const CORS_DOMAINS = env.CORS_URLS!.split(",");
 CORS_DOMAINS.push(URL)
 console.log(CORS_DOMAINS);
 
+console.log(`Im reachable on ${env.PORT}; For Example: ${env.REACT_APP_API_URL}`);
+export const API_URL = env.REACT_APP_API_URL;
+if (!API_URL) {
+	throw new Error("REACT_APP_API_URL is not defined in environment variables");
+}
+
 export const server = new Server(
 	Runtime,
 	{

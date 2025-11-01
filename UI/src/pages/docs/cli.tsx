@@ -108,11 +108,18 @@ export function CLIDocPage() {
 
         <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
           <h2 className="text-xl font-bold text-primary mb-3">
-            Keep your instance up to date for the latest docs!
+            🚀 Next Step - Database Communication
           </h2>
           <p className="text-text/90 mb-4">
-            This is the latest documentation page. Check back here for new updates as they become available.
+            Learn how to use the Python database communication interface for fast persistent storage and retrieval.
           </p>
+          <a
+            href="/docs/db-com"
+            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+          >
+            #14 Database Communication
+            <span className="text-lg">→</span>
+          </a>
         </div>
       </div>
     </div>

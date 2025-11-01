@@ -203,4 +203,11 @@ const lessons: {
     description: "Learn how to use the shsf-cli to manage your functions, files, and environments from the command line.",
     link: "/docs/cli",
   },
+  {
+    key: "db-com",
+    identifier: "#14",
+    title: "Database Communication",
+    description: "Learn how to use the Python database communication interface for fast persistent storage and retrieval.",
+    link: "/docs/db-com",
+  },
 ];
