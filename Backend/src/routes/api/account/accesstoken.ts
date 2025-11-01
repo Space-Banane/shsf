@@ -112,6 +112,13 @@ export = new fileRouter.Path("/")
                     });
                 }
 
+                if (token.hidden) {
+                    return ctr.status(ctr.$status.FORBIDDEN).print({
+                        status: "FAILED",
+                        message: "Failed to revoke token; Token is created by system and cannot be revoked manually",
+                    });
+                }
+
                 await prisma.accessToken.delete({
                     where: { id: data.id },
                 });
