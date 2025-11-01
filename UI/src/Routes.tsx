@@ -21,6 +21,7 @@ import { DockerMountPage } from "./pages/docs/docker-mount";
 import { ServeOnlyHtmlPage } from "./pages/docs/serve-only";
 import { AccessTokensDocPage } from "./pages/docs/access-tokens";
 import AccessTokensPage from "./pages/AccessTokens";
+import { CLIDocPage } from "./pages/docs/cli";
 // Added back the routes array
 export interface AppRoute {
   path: string;
@@ -131,8 +132,12 @@ export const routes: AppRoute[] = [
     name: "User Interfaces",
     requireAuth: false,
   },
-
-
+  {
+    path: "/docs/cli",
+    component: CLIDocPage,
+    name: "CLI Usage",
+    requireAuth: false,
+  },
 
   { path: "/login", component: LoginPage, name: "Login", requireAuth: false },
   {

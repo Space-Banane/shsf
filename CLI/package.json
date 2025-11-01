@@ -1,0 +1,21 @@
+{
+  "name": "shsf-cli",
+  "version": "1.0.0",
+  "description": "CLI tool to sync folder changes to an API",
+  "main": "index.js",
+  "bin": {
+    "shsf-cli": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": ["sync", "file-watcher", "cli", "shsf"],
+  "author": "Space Banane",
+  "license": "MIT",
+  "dependencies": {
+    "chokidar": "^3.5.3",
+    "axios": "^1.6.0",
+    "commander": "^11.1.0",
+    "chalk": "^4.1.2"
+  }
+}

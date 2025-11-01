@@ -196,4 +196,11 @@ const lessons: {
     description: "Learn how to generate and use API access tokens for secure automation and integrations.",
     link: "/docs/access-tokens",
   },
+  {
+    key: "cli",
+    identifier: "#13",
+    title: "CLI Usage",
+    description: "Learn how to use the shsf-cli to manage your functions, files, and environments from the command line.",
+    link: "/docs/cli",
+  },
 ];
