@@ -24,7 +24,7 @@ jobs:
             - name: Install dependencies
               run: |
                   cd CLI
-                  npm ci
+                  npm i
 
             - name: Publish package
               run: |
