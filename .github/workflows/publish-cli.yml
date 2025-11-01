@@ -1,11 +1,9 @@
 name: Publish to npm
 
 on:
-  push:
-    tags:
-      - 'cli-v*'
-    paths:
-      - 'CLI/**'
+    push:
+        paths:
+            - 'CLI/**'
 
 jobs:
   publish:
