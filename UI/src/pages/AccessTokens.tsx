@@ -28,7 +28,6 @@ export default function AccessTokensPage() {
 
   // Find if SHSF CLI token exists
   const shsfCliToken = tokens.find((t) => t.name === "SHSF CLI");
-  console.log("SHSF CLI Token:", shsfCliToken);
 
   // Handler for preset SHSF Cli token creation
   const [cliGenLoading, setCliGenLoading] = useState(false);
