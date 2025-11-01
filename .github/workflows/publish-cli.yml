@@ -6,6 +6,7 @@ on:
             - main
         paths:
             - "CLI/**"
+    workflow_dispatch:
 
 jobs:
     publish:
