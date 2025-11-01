@@ -2,30 +2,32 @@ name: Publish to npm
 
 on:
     push:
+        branches:
+            - main
         paths:
-            - 'CLI/**'
+            - "CLI/**"
 
 jobs:
-  publish:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    publish:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22.x'
-          registry-url: 'https://registry.npmjs.org/'
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22.x"
+                  registry-url: "https://registry.npmjs.org/"
 
-      - name: Install dependencies
-        run: |
-          cd CLI
-          npm ci
+            - name: Install dependencies
+              run: |
+                  cd CLI
+                  npm ci
 
-      - name: Publish package
-        run: |
-          cd CLI
-          npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+            - name: Publish package
+              run: |
+                  cd CLI
+                  npm publish --access public
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
