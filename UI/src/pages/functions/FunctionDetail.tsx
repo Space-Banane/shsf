@@ -40,9 +40,14 @@ import {
 import { getNamespace } from "../../services/backend.namespaces";
 import { BASE_URL } from "../..";
 import React from "react";
+import { ConsoleCard } from "../../components/cards/ConsoleCard";
+import { ActionButton, LogsCard } from "../../components/cards/LogCard";
+import { TimingCard } from "../../components/cards/TimingCard";
+import { TriggersCard } from "../../components/cards/TriggersCard";
+import { FileManagerCard } from "../../components/cards/FileManagerCard";
 
 // Define the timing entry interface
-interface TimingEntry {
+export interface TimingEntry {
   timestamp: number;
   value: number;
   description: string;
@@ -103,6 +108,7 @@ function FunctionDetail() {
     html: string;
     code: number;
   } | null>(null);
+  const [serveHtmlOnly, setServeHtmlOnly] = useState<boolean>(false);
 
   useEffect(() => {
     setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
@@ -218,7 +224,7 @@ function FunctionDetail() {
                 `${BASE_URL}/api/exec/${functionData.data.namespaceId}/${functionData.data.executionId}`
               );
             } else {
-              setFunctionURL(`HTTP ACCESS DISABLED`);
+              setFunctionURL(`No HTTP Access 🚫`);
             }
             if (filesData.data.length > 0) {
               // Select the startup file if it exists, otherwise select the first file
@@ -228,6 +234,14 @@ function FunctionDetail() {
               const initialFile = startupFile || filesData.data[0];
               // setActiveFile(initialFile);
               setCode(initialFile.content || "");
+
+              // Check if the only file ends in .html to set ServeHtmlOnly
+              if (
+                filesData.data.length === 1 &&
+                initialFile.name.endsWith(".html")
+              ) {
+                setServeHtmlOnly(true);
+              }
             } else {
               // Reset when no files exist
               setActiveFile(null);
@@ -443,7 +457,12 @@ function FunctionDetail() {
     setPipRunning(true);
     try {
       const response = await installDependencies(parseInt(id));
-      if (response && typeof response === "object" && "status" in response && response.status === "OK") {
+      if (
+        response &&
+        typeof response === "object" &&
+        "status" in response &&
+        response.status === "OK"
+      ) {
         alert("Dependencies installed successfully.");
       } else {
         alert("Error installing dependencies: " + String(response));
@@ -719,8 +738,12 @@ function FunctionDetail() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="text-6xl">❌</div>
-          <h2 className="text-2xl font-bold text-primary">Function Not Found</h2>
-          <p className="text-text/70">The requested function could not be loaded.</p>
+          <h2 className="text-2xl font-bold text-primary">
+            Function Not Found
+          </h2>
+          <p className="text-text/70">
+            The requested function could not be loaded.
+          </p>
         </div>
       </div>
     );
@@ -741,14 +764,18 @@ function FunctionDetail() {
               ×
             </button>
             <div className="p-6">
-              <h2 className="text-2xl font-bold text-violet-800 mb-4 text-center drop-shadow">HTML Result</h2>
+              <h2 className="text-2xl font-bold text-violet-800 mb-4 text-center drop-shadow">
+                HTML Result
+              </h2>
               <div className="mb-4 flex flex-wrap gap-2 items-center justify-center">
                 <span className="font-mono text-xs bg-violet-100 px-3 py-1 rounded-full text-violet-700 border border-violet-200 shadow">
                   HTTP {popupContent.code}
                 </span>
               </div>
               <div className="mb-4">
-                <h3 className="text-sm font-semibold text-violet-700 mb-2">Headers</h3>
+                <h3 className="text-sm font-semibold text-violet-700 mb-2">
+                  Headers
+                </h3>
                 <div className="bg-white/60 border border-violet-200 rounded-lg p-3 text-xs font-mono text-violet-900 shadow-inner">
                   {Object.entries(popupContent.headers).map(([k, v]) => (
                     <div key={k} className="flex gap-2 py-0.5">
@@ -759,7 +786,9 @@ function FunctionDetail() {
                 </div>
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-violet-700 mb-2">HTML Content</h3>
+                <h3 className="text-sm font-semibold text-violet-700 mb-2">
+                  HTML Content
+                </h3>
                 <div className="border-2 border-violet-200 rounded-xl bg-white/70 shadow-lg overflow-hidden">
                   <iframe
                     srcDoc={popupContent.html}
@@ -800,7 +829,7 @@ function FunctionDetail() {
                 </span>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-6 text-text/60 text-sm">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -811,8 +840,12 @@ function FunctionDetail() {
                 <span>{triggers.length} Triggers</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${functionData.allow_http ? 'bg-green-500' : 'bg-gray-500'}`}></div>
-                <span>{functionData.allow_http ? 'HTTP' : 'No HTTP'}</span>
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    functionData.allow_http ? "bg-green-500" : "bg-gray-500"
+                  }`}
+                ></div>
+                <span>{functionData.allow_http ? "HTTP" : "No HTTP"}</span>
               </div>
             </div>
           </div>
@@ -837,6 +870,7 @@ function FunctionDetail() {
                   onClick={() => setShowUpdateModal(true)}
                 />
                 <ActionButton
+                  disabled={serveHtmlOnly}
                   icon="🌍"
                   label="Env"
                   variant="secondary"
@@ -878,7 +912,7 @@ function FunctionDetail() {
               </div>
             </div>
 
-            <FileManagerCard 
+            <FileManagerCard
               files={files}
               activeFile={activeFile}
               onFileSelect={handleFileSelect}
@@ -893,10 +927,14 @@ function FunctionDetail() {
               }}
             />
 
-            <TriggersCard 
+            <TriggersCard
               triggers={triggers}
+              disabled={serveHtmlOnly}
+              disabledReason="This function is set to only serve an .html file"
               showDetails={showTriggersDetails}
-              onToggleDetails={() => setShowTriggersDetails(!showTriggersDetails)}
+              onToggleDetails={() =>
+                setShowTriggersDetails(!showTriggersDetails)
+              }
               onCreateTrigger={() => setShowCreateTriggerModal(true)}
               onEditTrigger={(trigger) => {
                 setSelectedTrigger(trigger);
@@ -908,19 +946,23 @@ function FunctionDetail() {
               }}
             />
 
-            <TimingCard 
+            <TimingCard
               tooks={tooks}
               showDetails={showTimingDetails}
               onToggleDetails={() => setShowTimingDetails(!showTimingDetails)}
+              disabled={serveHtmlOnly}
+              disabledReason="This function is set to only serve an .html file"
             />
 
-            <LogsCard 
+            <LogsCard
               logs={logs}
               isLoadingLogs={isLoadingLogs}
               showDetails={showLogsDetails}
               onToggleDetails={() => setShowLogsDetails(!showLogsDetails)}
               onRefreshLogs={fetchLogs}
               onViewLogs={() => setShowLogsModal(true)}
+              disabled={serveHtmlOnly}
+              disabledReason="This function is set to only serve an .html file"
             />
           </div>
 
@@ -963,21 +1005,38 @@ function FunctionDetail() {
                     {running ? "🚀Running..." : "🚀Run Startup"}
                   </button>
                   <select
-                    className="bg-background/50 border border-primary/20 text-primary px-2 py-1.5 text-sm rounded-lg hover:border-primary/40 transition-all duration-300"
+                    className={`bg-background/50 border border-primary/20 text-primary px-2 py-1.5 text-sm rounded-lg transition-all duration-300
+                      hover:border-primary/40
+                      ${
+                        running || saving || serveHtmlOnly
+                          ? "opacity-30 cursor-not-allowed bg-slate-800 text-gray-400"
+                          : ""
+                      }
+                    `}
                     value={runningMode}
-                    onChange={(e) => setRunningMode(e.target.value as "classic" | "streaming")}
-                    disabled={running}
+                    onChange={(e) =>
+                      setRunningMode(e.target.value as "classic" | "streaming")
+                    }
+                    disabled={running || saving || serveHtmlOnly}
                   >
                     <option value="streaming">Stream</option>
                     <option value="classic">Classic</option>
                   </select>
                   <button
-                    className={`px-3 py-1.5 text-sm rounded-lg transition-all duration-300 ${
+                    className={[
+                      "px-3 py-1.5 text-sm rounded-lg transition-all duration-300",
                       showRunParams
                         ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-                        : "bg-background/50 border border-primary/20 text-primary hover:border-primary/40"
-                    }`}
+                        : "bg-background/50 border border-primary/20 text-primary hover:border-primary/40",
+                      running || saving || serveHtmlOnly
+                        ? "opacity-30 cursor-not-allowed bg-slate-800 text-gray-400 border border-primary/20 "
+                        : "",
+                    ].join(" ")}
+                    style={{
+                      cursor: serveHtmlOnly ? "not-allowed" : "pointer",
+                    }}
                     onClick={() => setShowRunParams(!showRunParams)}
+                    disabled={running || saving || serveHtmlOnly}
                   >
                     ⚙️
                   </button>
@@ -1013,8 +1072,12 @@ function FunctionDetail() {
                   <div className="absolute inset-0 flex items-center justify-center bg-background/50 text-center">
                     <div className="space-y-3">
                       <div className="text-5xl">📝</div>
-                      <h3 className="text-lg font-bold text-primary">No File Selected</h3>
-                      <p className="text-text/70 text-sm">Select a file from the sidebar</p>
+                      <h3 className="text-lg font-bold text-primary">
+                        No File Selected
+                      </h3>
+                      <p className="text-text/70 text-sm">
+                        Select a file from the sidebar
+                      </p>
                     </div>
                   </div>
                 )}
@@ -1045,7 +1108,7 @@ function FunctionDetail() {
             </div>
 
             {/* Console Output - More Compact */}
-            <ConsoleCard 
+            <ConsoleCard
               consoleOutput={consoleOutput}
               exitCode={exitCode}
               executionTime={executionTime}
@@ -1058,20 +1121,24 @@ function FunctionDetail() {
               onResumeAutoScroll={() => {
                 setAutoScroll(true);
                 if (consoleOutputRef.current) {
-                  consoleOutputRef.current.scrollTop = consoleOutputRef.current.scrollHeight;
+                  consoleOutputRef.current.scrollTop =
+                    consoleOutputRef.current.scrollHeight;
                 }
               }}
+              disabled={serveHtmlOnly}
+              disabledReason="This function is set to only serve an .html file"
             />
           </div>
         </div>
       </div>
 
-      {/* Modals - keeping existing modal components */}
+      {/* Modals */}
       <div>
         <CreateFileModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreateFile}
+          allowedFileTypes={serveHtmlOnly ? [".html"] : undefined}
         />
 
         <RenameFileModal
@@ -1132,417 +1199,6 @@ function FunctionDetail() {
           logs={logs}
           isLoading={isLoadingLogs}
         />
-      </div>
-    </div>
-  );
-}
-
-// Action Button Component (similar to FunctionsList)
-function ActionButton({
-  icon,
-  label,
-  variant = "primary",
-  onClick,
-  disabled = false
-}: {
-  icon: string;
-  label: string;
-  variant?: "primary" | "secondary";
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  const baseClasses = "px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100";
-  const variantClasses = {
-    primary: "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-[0_0_30px_rgba(124,131,253,0.3)] border border-transparent",
-    secondary: "bg-background/50 border border-primary/20 text-primary hover:border-primary/40 hover:bg-primary/5"
-  };
-
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`${baseClasses} ${variantClasses[variant]} w-full`}
-    >
-      <span className="text-sm">{icon}</span>
-      <span className="text-sm">{label}</span>
-    </button>
-  );
-}
-
-function FileManagerCard({
-  files,
-  activeFile,
-  onFileSelect,
-  onCreateFile,
-  onRenameFile,
-  onDeleteFile
-}: {
-  files: FunctionFile[];
-  activeFile: FunctionFile | null;
-  onFileSelect: (file: FunctionFile) => void;
-  onCreateFile: () => void;
-  onRenameFile: (file: FunctionFile) => void;
-  onDeleteFile: (file: FunctionFile) => void;
-}) {
-  return (
-    <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4">
-      <h2 className="text-lg font-bold text-primary mb-3 flex items-center gap-2">
-        <span>📁</span>
-        Files
-      </h2>
-      
-      <div className="space-y-1 mb-3 max-h-64 overflow-y-auto scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-primary/30">
-        {files.length > 0 ? (
-          files.map((file) => (
-            <div
-              key={file.id}
-              className={`bg-background/30 border rounded-lg p-2 cursor-pointer transition-all duration-200 ${
-                activeFile?.id === file.id
-                  ? "border-primary/40 bg-primary/5"
-                  : "border-primary/10 hover:border-primary/30 hover:bg-primary/5"
-              }`}
-              onClick={() => onFileSelect(file)}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-text text-sm truncate flex-1">{file.name}</span>
-                <div className="flex items-center gap-0.5 ml-2 flex-shrink-0">
-                  <button
-                    className="p-1 text-yellow-400 hover:bg-yellow-400/10 rounded transition-all duration-200 text-xs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRenameFile(file);
-                    }}
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    className="p-1 text-red-400 hover:bg-red-400/10 rounded transition-all duration-200 text-xs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteFile(file);
-                    }}
-                  >
-                    🗑️
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="text-center py-4">
-            <div className="text-3xl mb-1">📦</div>
-            <p className="text-text/60 text-xs">No files</p>
-          </div>
-        )}
-      </div>
-      
-      <ActionButton
-        icon="➕"
-        label="New File"
-        variant="primary"
-        onClick={onCreateFile}
-      />
-    </div>
-  );
-}
-
-function TriggersCard({
-  triggers,
-  showDetails,
-  onToggleDetails,
-  onCreateTrigger,
-  onEditTrigger,
-  onDeleteTrigger
-}: {
-  triggers: Trigger[];
-  showDetails: boolean;
-  onToggleDetails: () => void;
-  onCreateTrigger: () => void;
-  onEditTrigger: (trigger: Trigger) => void;
-  onDeleteTrigger: (trigger: Trigger) => void;
-}) {
-  return (
-    <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4">
-      <div
-        className="flex justify-between items-center cursor-pointer mb-3"
-        onClick={onToggleDetails}
-      >
-        <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-          <span>⏰</span>
-          Triggers
-        </h2>
-        <span className="text-primary text-lg">
-          {showDetails ? "📂" : "📁"}
-        </span>
-      </div>
-
-      {showDetails && (
-        <div className="space-y-3">
-          {triggers.length > 0 ? (
-            <div className="space-y-1 max-h-48 overflow-y-auto scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-primary/30">
-              {triggers.map((trigger) => (
-                <div
-                  key={trigger.id}
-                  className="bg-background/30 border border-primary/10 rounded-lg p-2"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 min-w-0">
-                      <h3 className={`font-semibold text-sm ${!trigger.enabled ? "text-gray-400" : "text-text"}`}>
-                        {trigger.name}
-                      </h3>
-                      <p className="text-text/60 text-xs">{trigger.cron}</p>
-                    </div>
-                    <div className="flex items-center gap-0.5 ml-2 flex-shrink-0">
-                      <button
-                        className="p-1 text-yellow-400 hover:bg-yellow-400/10 rounded transition-all duration-200 text-xs"
-                        onClick={() => onEditTrigger(trigger)}
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        className="p-1 text-red-400 hover:bg-red-400/10 rounded transition-all duration-200 text-xs"
-                        onClick={() => onDeleteTrigger(trigger)}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-4">
-              <div className="text-3xl mb-1">⏰</div>
-              <p className="text-text/60 text-xs">No triggers</p>
-            </div>
-          )}
-          
-          <ActionButton
-            icon="➕"
-            label="New Trigger"
-            variant="primary"
-            onClick={onCreateTrigger}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TimingCard({
-  tooks,
-  showDetails,
-  onToggleDetails
-}: {
-  tooks: TimingEntry[];
-  showDetails: boolean;
-  onToggleDetails: () => void;
-}) {
-  return (
-    <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4">
-      <div
-        className="flex justify-between items-center cursor-pointer"
-        onClick={onToggleDetails}
-      >
-        <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-          <span>⏱️</span>
-          Timing
-        </h2>
-        <span className="text-primary text-lg">
-          {showDetails ? "📂" : "📁"}
-        </span>
-      </div>
-
-      {showDetails && (
-        <div className="mt-3">
-          {tooks.length > 0 ? (
-            <div className="space-y-1 max-h-48 overflow-y-auto scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-primary/30">
-              {tooks.map((entry, index) => (
-                <div
-                  key={index}
-                  className={`flex justify-between items-center py-1 px-2 bg-background/30 rounded text-xs ${
-                    entry.description === "Total execution time"
-                      ? "border border-primary/20 font-semibold"
-                      : ""
-                  }`}
-                >
-                  <span className="text-text truncate">{String(entry.description)}</span>
-                  <span className="text-primary font-mono ml-2 flex-shrink-0">
-                    {typeof entry.value === "number" ? entry.value.toFixed(3) : String(entry.value)}s
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-4">
-              <p className="text-text/60 text-xs">Run to see timing</p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LogsCard({
-  logs,
-  isLoadingLogs,
-  showDetails,
-  onToggleDetails,
-  onRefreshLogs,
-  onViewLogs
-}: {
-  logs: TriggerLog[];
-  isLoadingLogs: boolean;
-  showDetails: boolean;
-  onToggleDetails: () => void;
-  onRefreshLogs: () => void;
-  onViewLogs: () => void;
-}) {
-  return (
-    <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4">
-      <div
-        className="flex justify-between items-center cursor-pointer mb-3"
-        onClick={onToggleDetails}
-      >
-        <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-          <span>📋</span>
-          Logs
-          {isLoadingLogs && <div className="animate-spin text-xs">⟳</div>}
-        </h2>
-        <span className="text-primary text-lg">
-          {showDetails ? "📂" : "📁"}
-        </span>
-      </div>
-
-      {showDetails && (
-        <div className="grid grid-cols-2 gap-2">
-          <ActionButton
-            icon="🔄"
-            label="Refresh"
-            variant="secondary"
-            onClick={onRefreshLogs}
-          />
-          <ActionButton
-            icon="👁️"
-            label="View"
-            variant="primary"
-            onClick={onViewLogs}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ConsoleCard({
-  consoleOutput,
-  exitCode,
-  executionTime,
-  realTimeTaken,
-  functionResult,
-  functionData,
-  autoScroll,
-  consoleOutputRef,
-  onConsoleScroll,
-  onResumeAutoScroll
-}: {
-  consoleOutput: string;
-  exitCode: number | null;
-  executionTime: number | null;
-  realTimeTaken: number | null;
-  functionResult: any;
-  functionData: XFunction;
-  autoScroll: boolean;
-  consoleOutputRef: React.RefObject<HTMLDivElement>;
-  onConsoleScroll: () => void;
-  onResumeAutoScroll: () => void;
-}) {
-  return (
-    <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-          <span>💻</span>
-          Console
-        </h2>
-        
-        <div className="flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="text-text/60">Exit:</span>
-            <span className={`font-mono px-1.5 py-0.5 rounded ${
-              exitCode === null ? "text-gray-400 bg-gray-800" :
-              exitCode === 0 ? "text-green-400 bg-green-900/20" : "text-red-400 bg-red-900/20"
-            }`}>
-              {exitCode !== null ? exitCode : "N/A"}
-            </span>
-          </div>
-          
-          <div className="flex items-center gap-1.5">
-            <span className="text-text/60">Time:</span>
-            <span className={`font-mono px-1.5 py-0.5 rounded ${
-              executionTime !== null && executionTime > functionData.timeout
-                ? "text-red-400 bg-red-900/20"
-                : "text-text bg-background/30"
-            }`}>
-              {executionTime !== null ? `${executionTime.toFixed(2)}s` : "N/A"}
-            </span>
-          </div>
-          
-          {realTimeTaken !== null && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-text/60">Run:</span>
-              <span className="font-mono px-1.5 py-0.5 rounded bg-background/30 text-text">
-                {realTimeTaken.toFixed(3)}s
-              </span>
-            </div>
-          )}
-          
-          <div className="flex items-center gap-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full ${
-              functionResult !== null ? "bg-green-500" : "bg-gray-500"
-            }`}></span>
-            <span className="text-text/60">
-              {functionResult !== null ? "Returned" : "No Data"}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <div
-          className="bg-gray-950 border border-primary/10 rounded-lg p-3 h-40 overflow-auto font-mono text-xs scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-primary/30"
-          ref={consoleOutputRef}
-          onScroll={onConsoleScroll}
-        >
-          <pre className="whitespace-pre-wrap text-gray-100">
-            {consoleOutput || "No output to display"}
-          </pre>
-        </div>
-
-        {!autoScroll && consoleOutput && (
-          <div className="flex justify-end">
-            <button
-              className="text-xs text-text/60 hover:text-primary transition-colors duration-300"
-              onClick={onResumeAutoScroll}
-            >
-              ↓ Resume auto-scroll
-            </button>
-          </div>
-        )}
-
-        {functionResult !== null && (
-          <div className="bg-background/30 border border-primary/10 rounded-lg p-3">
-            <h3 className="text-sm font-semibold text-primary mb-2 flex items-center gap-2">
-              <span>📤</span>
-              Result
-            </h3>
-            <pre className="whitespace-pre-wrap text-green-400 font-mono text-xs overflow-auto max-h-32 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-primary/30">
-              {typeof functionResult === "object"
-                ? JSON.stringify(functionResult, null, 2)
-                : String(functionResult)}
-            </pre>
-          </div>
-        )}
       </div>
     </div>
   );

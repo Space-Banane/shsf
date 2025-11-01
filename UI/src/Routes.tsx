@@ -18,6 +18,7 @@ import { RedirectsPage } from "./pages/docs/redirects";
 import { RawBodyPage } from "./pages/docs/raw-body";
 import { UserInterfacesPage } from "./pages/docs/user-interfaces";
 import { DockerMountPage } from "./pages/docs/docker-mount";
+import { ServeOnlyHtmlPage } from "./pages/docs/serve-only";
 // Added back the routes array
 export interface AppRoute {
   path: string;
@@ -102,6 +103,12 @@ export const routes: AppRoute[] = [
     path: "/docs/docker-mount",
     component: DockerMountPage,
     name: "Docker Mount",
+    requireAuth: false,
+  },
+  {
+    path: "/docs/serve-only",
+    component: ServeOnlyHtmlPage,
+    name: "Serve Only HTML",
     requireAuth: false,
   },
 

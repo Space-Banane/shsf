@@ -5,19 +5,43 @@ interface CreateFileModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	onCreate: (filename: string, content: string) => Promise<boolean>;
+	allowedFileTypes?: string[];
 }
 
-function CreateFileModal({ isOpen, onClose, onCreate }: CreateFileModalProps) {
+function CreateFileModal({ isOpen, onClose, onCreate, allowedFileTypes }: CreateFileModalProps) {
 	const [filename, setFilename] = useState("");
 	const [content, setContent] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	const lowerCaseAllowedFileTypes = React.useMemo(
+		() => allowedFileTypes?.map(e => e.toLowerCase()) ?? [],
+		[allowedFileTypes]
+	);
+
+	const getFileExtension = (name: string) => {
+		const idx = name.lastIndexOf(".");
+		return idx !== -1 ? name.slice(idx + 1).toLowerCase() : "";
+	};
 
 	const handleCreate = async () => {
+		setError(null);
 		if (!filename.trim()) {
-			alert("Please enter a filename");
+			setError("Please enter a filename");
 			return;
 		}
-		
+		if (
+			allowedFileTypes &&
+			allowedFileTypes.length > 0
+		) {
+			const ext = getFileExtension(filename);
+			if (!lowerCaseAllowedFileTypes.includes(ext)) {
+				setError(
+					`File type .${ext || "(none)"} is not allowed. Allowed: ${allowedFileTypes.join(", ")}`
+				);
+				return;
+			}
+		}
 		setIsLoading(true);
 		try {
 			const success = await onCreate(filename, content);
@@ -33,6 +57,7 @@ function CreateFileModal({ isOpen, onClose, onCreate }: CreateFileModalProps) {
 
 	const handleClose = () => {
 		if (!isLoading) {
+			setError(null);
 			onClose();
 		}
 	};
@@ -48,11 +73,19 @@ function CreateFileModal({ isOpen, onClose, onCreate }: CreateFileModalProps) {
 					</label>
 					<input
 						type="text"
-						placeholder="Enter filename (e.g., main.py, index.js)"
+						placeholder={allowedFileTypes ? `Enter filename (e.g., ${allowedFileTypes.join(", ")})` : "Enter file name (eg. main.py)"}
 						value={filename}
 						onChange={(e) => setFilename(e.target.value)}
 						className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
 					/>
+					{allowedFileTypes && allowedFileTypes.length > 0 && (
+						<div className="text-xs text-gray-400">
+							Allowed types: {allowedFileTypes.join(", ")}
+						</div>
+					)}
+					{error && (
+						<div className="text-xs text-red-400">{error}</div>
+					)}
 				</div>
 
 				{/* Content Input (Hidden) */}

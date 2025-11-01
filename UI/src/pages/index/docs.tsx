@@ -181,4 +181,12 @@ const lessons: {
       "Learn how to use the Docker mount option to create and modify containers on the host.",
     link: "/docs/docker-mount",
   },
+  {
+    key: "serve-only",
+    identifier: "#11",
+    title: "Serve Only HTML",
+    description:
+      "Learn how to serve only an HTML file from your function.",
+    link: "/docs/serve-only",
+  },
 ];

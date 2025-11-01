@@ -62,6 +62,27 @@ export const DockerMountPage = () => {
           <li>Building and pushing Docker images dynamically.</li>
         </ul>
 
+        <h3 className="text-xl font-semibold text-primary mt-8 mb-2">
+          Example: Using Docker Socket in Python
+        </h3>
+        <div className="mb-8">
+          <pre className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 text-white rounded-lg p-6 overflow-x-auto text-sm shadow-lg">
+{`def main(args):
+    import docker
+    client = docker.from_env()
+
+    # Exec container "mailserver"
+    out = client.containers.get("mailserver").exec_run("setup email list")
+    return out.output.decode()
+`}
+          </pre>
+          <p className="text-text/80 mt-2">
+            This example shows how your function can use the <code>docker</code>{" "}
+            Python library to execute a command inside a running container when
+            the Docker socket is mounted.
+          </p>
+        </div>
+
         <h2 className="text-2xl font-bold text-primary mt-6 mb-4">
           Security Implications
         </h2>
@@ -91,12 +112,18 @@ export const DockerMountPage = () => {
 
         <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
           <h2 className="text-xl font-bold text-primary mb-3">
-            Keep your instance up to date for the latest docs!
+            🚀 Next Step - Serve Only HTML
           </h2>
           <p className="text-text/90 mb-4">
-            Check back here for new documentation updates as they become
-            available.
+            Ever wanted to only serve an html file from your function? Check out our guide on serving ONLY an HTML file.
           </p>
+          <a
+            href="/docs/serve-only"
+            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+          >
+            #11 Serve Only HTML
+            <span className="text-lg">→</span>
+          </a>
         </div>
       </div>
     </div>
