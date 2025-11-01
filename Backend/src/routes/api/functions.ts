@@ -474,21 +474,43 @@ export = new fileRouter.Path("/")
         ...(data.docker_mount !== undefined && { docker_mount: data.docker_mount }),
       };
 
-      // If image is being changed, we need to recreate the container; Or docker_mount changed
-      if ((data.image && data.image !== existingFunction.image) || (data.docker_mount !== undefined && data.docker_mount !== existingFunction.docker_mount)) {
-        if (data.image && data.image !== existingFunction.image) {
-          console.log(
-            `[SHSF] Function ${functionId} image changing from ${existingFunction.image} to ${data.image}, container will be recreated`
-          );
-        } else if (data.docker_mount !== undefined && data.docker_mount !== existingFunction.docker_mount) {
-          console.log(
-            `[SHSF] Function ${functionId} docker_mount changing from ${existingFunction.docker_mount} to ${data.docker_mount}, container will be recreated`
-          );
-        }
-        // Clean up existing container to force recreation with new image or docker_mount change
-        await cleanupFunctionContainer(functionId);
+      // Track if relaunch is triggered
+      let relaunchTriggered = false;
 
-        // On the next run, the container will be recreated with the new image and new mounts.
+      // If image is being changed, we need to recreate the container; Or docker_mount changed
+      if (
+        (data.image && data.image !== existingFunction.image) ||
+        (data.docker_mount !== undefined && data.docker_mount !== existingFunction.docker_mount)
+      ) {
+        relaunchTriggered = true; // Set flag regardless of container existence
+        // Check if a container exists for this function before cleanup
+        try {
+          const containers = await docker.listContainers({
+            all: true,
+            filters: {
+              label: [`functionId=${functionId}`],
+            },
+          });
+          if (containers.length > 0) {
+            if (data.image && data.image !== existingFunction.image) {
+              console.log(
+                `[SHSF] Function ${functionId} image changing from ${existingFunction.image} to ${data.image}, container will be recreated`
+              );
+            } else if (
+              data.docker_mount !== undefined &&
+              data.docker_mount !== existingFunction.docker_mount
+            ) {
+              console.log(
+                `[SHSF] Function ${functionId} docker_mount changing from ${existingFunction.docker_mount} to ${data.docker_mount}, container will be recreated`
+              );
+            }
+            // Clean up existing container to force recreation with new image or docker_mount change
+            await cleanupFunctionContainer(functionId);
+            // On the next run, the container will be recreated with the new image and new mounts.
+          }
+        } catch (err) {
+          console.error(`[SHSF] Error checking/cleaning up container for function ${functionId}:`, err);
+        }
       }
 
       const updatedFunction = await prisma.function.update({
@@ -498,10 +520,22 @@ export = new fileRouter.Path("/")
         data: updatedData,
       });
 
-      return ctr.print({
+      // UI confirmation: inform if relaunch started
+      type PatchFunctionResponse = {
+        status: string;
+        data: typeof updatedFunction;
+        relaunch?: string;
+      };
+
+      const response: PatchFunctionResponse = {
         status: "OK",
         data: updatedFunction,
-      });
+        ...(relaunchTriggered && {
+          relaunch: "Container relaunch started (will be recreated on next execution).",
+        }),
+      };
+
+      return ctr.print(response);
     })
   )
   .http("POST", "/api/function/{id}/execute", (http) =>
