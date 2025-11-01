@@ -21,7 +21,7 @@ program
     .name('shsf-cli')
     .description('SHSF CLI for serverless functions')
     .version(VERSION)
-    .requiredOption('--mode <mode>', 'Mode to run: push, pull, watchdog, settings, set-key, set-url, or ignore') // updated help
+    .requiredOption('--mode <mode>', 'Mode to run: push, pull, watchdog, settings, exec, set-key, set-url, or ignore') // updated help
     .option('--project <path>', 'Project folder path')
     .option('--link <id>', 'Function link ID')
     .option('--key <key>', 'SHSF session key (or use saved config)') // used for set-key too
@@ -689,6 +689,37 @@ async function handleSetUrl() {
     }
 }
 
+// Execute function and log result
+async function execFunctionAndLog() {
+    if (!opts.link) {
+        console.error(chalk.red('Error: --link parameter is required for exec mode'));
+        process.exit(1);
+    }
+    console.log(chalk.cyan(`Executing function (link ID ${AppState.link})...`));
+    try {
+        const data = await apiRequest('POST', `/function/${AppState.link}/execute`);
+        if (data.status === 'OK') {
+            const output = [
+                `Output:\n${data.data.output}`,
+                `Exit Code: ${data.data.exitCode}`,
+                `Result: ${JSON.stringify(data.data.result)}`,
+                `Took: ${data.data.took}ms`
+            ].join('\n');
+            console.log(chalk.green('\n=== Execution Result ===\n'));
+            console.log(output);
+
+            // Log to .last-exec.log in project directory
+            const logPath = path.join(AppState.project, '.last-exec.log');
+            await fs.writeFile(logPath, output + '\n', 'utf-8');
+            console.log(chalk.gray(`\n✓ Execution result logged to ${logPath}\n`));
+        } else {
+            console.log(chalk.red('✗ Execution failed:'), data.message || '');
+        }
+    } catch (err) {
+        console.error(chalk.red('✗ Execution error:'), err.message);
+    }
+}
+
 // Main execution
 async function main() {
     // Handle set-key mode
@@ -724,7 +755,7 @@ async function main() {
     }
 
     // Validate required parameters for non-settings modes
-    if (!AppState.project) {
+    if (!AppState.project && AppState.mode != 'exec') {
         console.error(chalk.red('Error: --project parameter is required'));
         process.exit(1);
     }
@@ -735,7 +766,7 @@ async function main() {
     }
 
     // Ensure project directory exists
-    if (!fsSync.existsSync(AppState.project)) {
+    if (!fsSync.existsSync(AppState.project) && AppState.mode !== 'exec') {
         if (AppState.mode === 'pull') {
             await fs.mkdir(AppState.project, { recursive: true });
             console.log(chalk.green(`✓ Created project directory: ${AppState.project}`));
@@ -867,6 +898,9 @@ async function main() {
             process.exit(0);
         });
 
+    } else if (AppState.mode === 'exec') {
+        await execFunctionAndLog();
+        return;
     } else {
         console.error(chalk.red(`Error: Unknown mode '${AppState.mode}'. Use: pull, push, watchdog, settings, or ignore`));
         process.exit(1);
