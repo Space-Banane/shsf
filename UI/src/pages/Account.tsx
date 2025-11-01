@@ -189,6 +189,12 @@ export const AccountPage = ({}) => {
                     description="Learn more about SHSF"
                     onClick={() => window.location.href = '/docs'}
                   />
+                  <ActionButton
+                    icon="🔑"
+                    label="Access Tokens"
+                    description="Manage your access tokens"
+                    onClick={() => window.location.href = '/access-tokens'}
+                  />
                 </div>
               </div>
 

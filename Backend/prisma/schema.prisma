@@ -24,9 +24,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions   Session[]
-  functions  Function[]
-  namespaces Namespace[]
+  sessions     Session[]
+  functions    Function[]
+  namespaces   Namespace[]
+  accessTokens AccessToken[]
 }
 
 model Session {
@@ -115,18 +116,35 @@ model FunctionTrigger {
   functionId Int
   function   Function @relation(fields: [functionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
-  lastRun    DateTime? // Last time the trigger was executed
-  nextRun    DateTime? // Next time the trigger is scheduled to run
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  lastRun   DateTime? // Last time the trigger was executed
+  nextRun   DateTime? // Next time the trigger is scheduled to run
 }
 
 model TriggerLog {
   id         Int      @id @default(autoincrement())
   functionId Int
   function   Function @relation(fields: [functionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  result String? @db.Text // Result of the function execution
-  logs  String @db.Text // Logs from the function execution
+  result     String?  @db.Text // Result of the function execution
+  logs       String   @db.Text // Logs from the function execution
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AccessToken {
+  id        Int       @id @default(autoincrement())
+  token     String    @unique @db.VarChar(256)
+  name      String    @db.VarChar(128)
+  purpose   String?   @db.VarChar(512)
+  
+  expiresAt DateTime?
+  expired   Boolean   @default(false)
+  hidden    Boolean   @default(false)
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

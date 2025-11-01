@@ -52,11 +52,45 @@ export async function checkAuthentication(
             session: session,
         };
     } else if (apiKey) {
-        // ! Implement later
+        const apiKeyRecord = await prisma.accessToken.findFirst({
+            where: { token: apiKey },
+            include: { user: true },
+        });
+
+        if (!apiKeyRecord) {
+            return {
+                success: false,
+                message: "Invalid API key",
+                method: "none",
+            };
+        }
+
+        // Expiration Check
+        if (apiKeyRecord.expiresAt && apiKeyRecord.expiresAt < new Date()) {
+            await prisma.accessToken.update({
+                where: { id: apiKeyRecord.id },
+                data: { expired: true },
+            });
+            return {
+                success: false,
+                message: "API key has expired",
+                method: "none",
+            };
+        }
+
+        if (apiKeyRecord.expired) {
+            return {
+                success: false,
+                message: "API key has expired",
+                method: "none",
+            };
+        }
+
         return {
-            success: false,
-            message: "API key authentication not implemented",
-            method: "none",
+            success: true,
+            method: "apiKey",
+            user: apiKeyRecord.user,
+            apiKey: apiKeyRecord,
         };
     } else {
         return {

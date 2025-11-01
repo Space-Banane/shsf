@@ -122,6 +122,17 @@ const ImagesAsArray: Image[] = [
 ];
 const ImagesAsArraySet = new Set(ImagesAsArray);
 
+type Token = {
+  id: number;
+  name: string;
+  purpose?: string;
+  expiresAt?: string | null;
+  createdAt: string;
+  expired: boolean;
+  hidden: boolean;
+  tokenMasked: string;
+};
+
 export type {
   User,
   Session,
@@ -132,5 +143,6 @@ export type {
   Image,
   Trigger,
   TriggerLog,
+  Token,
 };
 export { ImagesAsArray, ImagesAsArraySet };

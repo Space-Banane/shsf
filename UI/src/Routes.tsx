@@ -19,6 +19,8 @@ import { RawBodyPage } from "./pages/docs/raw-body";
 import { UserInterfacesPage } from "./pages/docs/user-interfaces";
 import { DockerMountPage } from "./pages/docs/docker-mount";
 import { ServeOnlyHtmlPage } from "./pages/docs/serve-only";
+import { AccessTokensDocPage } from "./pages/docs/access-tokens";
+import AccessTokensPage from "./pages/AccessTokens";
 // Added back the routes array
 export interface AppRoute {
   path: string;
@@ -111,8 +113,12 @@ export const routes: AppRoute[] = [
     name: "Serve Only HTML",
     requireAuth: false,
   },
-
-
+  {
+    path: "/docs/access-tokens",
+    component: AccessTokensDocPage,
+    name: "Access Tokens Doc",
+    requireAuth: false,
+  },
   {
     path: "/docs/raw-body",
     component: RawBodyPage,
@@ -125,6 +131,8 @@ export const routes: AppRoute[] = [
     name: "User Interfaces",
     requireAuth: false,
   },
+
+
 
   { path: "/login", component: LoginPage, name: "Login", requireAuth: false },
   {
@@ -146,6 +154,13 @@ export const routes: AppRoute[] = [
     component: FunctionDetail,
     requireAuth: true,
   },
+
+  {
+    path: "/access-tokens",
+    name: "Access Tokens",
+    component: AccessTokensPage,
+    requireAuth: true,
+  }
 ];
 
 const ProtectedRoute = ({

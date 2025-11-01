@@ -9,7 +9,7 @@ import { executeFunction } from "./lib/Runner";
 export const URL = env.UI_URL!;
 export const COOKIE = "shsf_session";
 export const DOMAIN = env.DOMAIN!;
-export const API_KEY_HEADER = "x-api-key";
+export const API_KEY_HEADER = "x-access-key";
 export const prisma = new PrismaClient({
 	log: ["info", "error", "warn"],
 	errorFormat: "pretty",

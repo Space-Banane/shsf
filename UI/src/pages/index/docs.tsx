@@ -189,4 +189,11 @@ const lessons: {
       "Learn how to serve only an HTML file from your function.",
     link: "/docs/serve-only",
   },
+  {
+    key: "access-tokens",
+    identifier: "#12",
+    title: "Access Tokens",
+    description: "Learn how to generate and use API access tokens for secure automation and integrations.",
+    link: "/docs/access-tokens",
+  },
 ];
