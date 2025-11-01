@@ -1,3 +1,4 @@
+import CLICommandCard from "../../components/cards/CLICommandCard";
 import { useParams } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
@@ -830,10 +831,17 @@ function FunctionDetail() {
               </div>
             </div>
 
+            {/* CLICommandCard for CLI Pull command */}
+            <CLICommandCard 
+              command={`shsf-cli --mode pull --project ./my-func --link ${functionData.id}`}
+              label="CLI Pull"
+              description="Pull this function to your local project using the CLI."
+            />
+
             <div className="flex items-center gap-6 text-text/60 text-sm">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span>{files.length} Files</span>
+                <span>{files.length} {files.length === 1 ? "File" : "Files"}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -855,7 +863,7 @@ function FunctionDetail() {
       <div className="w-full py-6 px-0">
         <div className="flex gap-6 w-full px-8">
           {/* Sidebar */}
-          <div className="w-72 flex-shrink-0 space-y-4">
+          <div className="w-72 shrink-0 space-y-4">
             {/* Quick Actions */}
             <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4">
               <h2 className="text-lg font-bold text-primary mb-3 flex items-center gap-2">
