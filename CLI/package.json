@@ -1,6 +1,6 @@
 {
   "name": "shsf-cli",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "CLI tool to sync folder changes to an API",
   "main": "index.js",
   "bin": {
