@@ -227,4 +227,11 @@ const lessons: {
     description: "Learn how to map multiple routes to a single function and best practices for route handling in SHSF.",
     link: "/docs/routing",
   },
+  {
+    key: "custom-cors",
+    identifier: "#16",
+    title: "Custom CORS",
+    description: "Learn how to allow or block specific origins for each function.",
+    link: "/docs/custom-cors",
+  },
 ];

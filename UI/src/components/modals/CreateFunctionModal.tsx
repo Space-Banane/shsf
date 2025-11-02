@@ -29,6 +29,8 @@ function CreateFunctionModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [dockerMount, setDockerMount] = useState<boolean>(false);
+  const [corsOrigins, setCorsOrigins] = useState<string>("");
+  const [corsOriginInput, setCorsOriginInput] = useState<string>("");
 
   const resetForm = () => {
     setName("");
@@ -40,6 +42,7 @@ function CreateFunctionModal({
     setPriority(undefined);
     setStartupFile(undefined);
     setDockerMount(false);
+    setCorsOrigins("");
     setError("");
   };
 
@@ -71,6 +74,7 @@ function CreateFunctionModal({
           allow_http: allowHttp,
           priority,
         },
+        cors_origins: corsOrigins,
       });
 
       if (response.status === "OK") {
@@ -98,6 +102,28 @@ function CreateFunctionModal({
   // Add computed variable to check if startupFile ends with .html
   const isHtmlFunction =
     !!startupFile && startupFile.trim().toLowerCase().endsWith(".html");
+
+  // Helper: get array from comma-separated string
+  const corsOriginsArray = corsOrigins
+    .split(",")
+    .map((o) => o.trim())
+    .filter((o) => o.length > 0);
+
+  const addCorsOrigin = () => {
+    const val = corsOriginInput.trim();
+    if (val && !corsOriginsArray.includes(val)) {
+      setCorsOrigins(
+        [...corsOriginsArray, val].join(", ")
+      );
+      setCorsOriginInput("");
+    }
+  };
+
+  const removeCorsOrigin = (origin: string) => {
+    setCorsOrigins(
+      corsOriginsArray.filter((o) => o !== origin).join(", ")
+    );
+  };
 
   return (
     <Modal
@@ -368,6 +394,59 @@ function CreateFunctionModal({
                 Docker mount is disabled for HTML startup files
               </p>
             )}
+          </div>
+
+          {/* CORS Origins */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">
+              CORS Origins
+            </label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {corsOriginsArray.map((origin) => (
+                <span
+                  key={origin}
+                  className="flex items-center bg-gray-700 text-white px-3 py-1 rounded-full text-xs"
+                >
+                  {origin}
+                  <button
+                    type="button"
+                    className="ml-2 text-red-400 hover:text-red-600"
+                    onClick={() => removeCorsOrigin(origin)}
+                    disabled={isLoading}
+                    aria-label={`Remove ${origin}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Add origin (e.g. https://example.com)"
+                value={corsOriginInput}
+                onChange={(e) => setCorsOriginInput(e.target.value)}
+                className="flex-1 p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+                disabled={isLoading}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCorsOrigin();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={addCorsOrigin}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all duration-300 disabled:opacity-50"
+                disabled={isLoading || !corsOriginInput.trim()}
+              >
+                Add
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">
+              Leave empty to allow only default origins. Each origin will be sent comma separated.
+            </p>
           </div>
         </div>
 

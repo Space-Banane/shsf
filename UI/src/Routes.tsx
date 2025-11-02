@@ -25,6 +25,7 @@ import AccessTokensPage from "./pages/AccessTokens";
 import { CLIDocPage } from "./pages/docs/cli";
 import StoragePage from "./pages/Storage";
 import { RoutingDocPage } from "./pages/docs/routing";
+import { CustomCorsDocPage } from "./pages/docs/custom-cors";
 // Added back the routes array
 export interface AppRoute {
   path: string;
@@ -151,6 +152,12 @@ export const routes: AppRoute[] = [
     path: "/docs/routing",
     component: RoutingDocPage,
     name: "Routing",
+    requireAuth: false,
+  },
+  {
+    path: "/docs/custom-cors",
+    component: CustomCorsDocPage,
+    name: "Custom CORS",
     requireAuth: false,
   },
 

@@ -24,6 +24,7 @@ interface XFunction {
   allow_http: boolean;
   env?: Record<string, any>;
   secure_header?: string;
+  cors_origins?: string;
 
   retry_on_failure: boolean;
   max_retries: number;

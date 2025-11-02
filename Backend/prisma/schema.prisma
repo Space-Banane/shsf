@@ -64,6 +64,7 @@ model Function {
   priority     Int     @default(0) // 1 to 10, 10 is the highest priority
   tags         String? @db.Text // comma separated tags
   startup_file String? @db.VarChar(256) // Replaced startup_command with startup_file
+  cors_origins String? @db.Text // Comma separated list of allowed CORS origins
 
   // Extra Cool shit
   docker_mount Boolean @default(false) // Whether to mount a Docker socket

@@ -83,6 +83,7 @@ async function createFunction(config: {
     value: string;
   }[];
   namespaceId: number;
+  cors_origins?: string;
 }) {
   const response = await fetch(`${BASE_URL}/api/function`, {
     method: "POST",
@@ -178,6 +179,7 @@ async function updateFunction(
       name: string;
       value: string;
     }[];
+    cors_origins?: string;
   }
 ) {
   const response = await fetch(`${BASE_URL}/api/function/${id}`, {
@@ -306,6 +308,29 @@ async function executeFunctionStreaming(
   }
 }
 
+async function getFunctionCorsOrigins(id: number) {
+  const response = await fetch(`${BASE_URL}/api/function/${id}/cors-origins`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+  });
+  return await response.json();
+}
+
+async function updateFunctionCorsOrigins(id: number, cors_origins: string) {
+  const response = await fetch(`${BASE_URL}/api/function/${id}/cors-origins`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify({ cors_origins }),
+  });
+  return await response.json();
+}
+
 export {
   createFunction,
   deleteFunction,
@@ -316,6 +341,8 @@ export {
   executeFunctionStreaming,
   getLogsByFuncId,
   installDependencies,
+  getFunctionCorsOrigins,
+  updateFunctionCorsOrigins,
 };
 export type { OKResponse, ErrorResponse };
 export type {
