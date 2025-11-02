@@ -76,7 +76,7 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
       }
     }
 
-    const allowedHeaders = "x-access-key, Content-Type, Authorization";
+    const allowedHeaders = "*";
     const allowedMethods = "GET, POST, PUT, DELETE, OPTIONS, PATCH";
     const allowCredentials = "true";
     const controlMaxAge = "86400";
