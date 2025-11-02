@@ -474,8 +474,12 @@ export = new fileRouter.Path("/")
             }))
           ),
         }),
-        ...(data.docker_mount !== undefined && { docker_mount: data.docker_mount }),
-        ...(data.cors_origins !== undefined && { cors_origins: data.cors_origins }),
+        ...(data.docker_mount !== undefined && {
+          docker_mount: data.docker_mount,
+        }),
+        ...(data.cors_origins !== undefined && {
+          cors_origins: data.cors_origins,
+        }),
       };
 
       // Track if relaunch is triggered
@@ -484,7 +488,8 @@ export = new fileRouter.Path("/")
       // If image is being changed, we need to recreate the container; Or docker_mount changed
       if (
         (data.image && data.image !== existingFunction.image) ||
-        (data.docker_mount !== undefined && data.docker_mount !== existingFunction.docker_mount)
+        (data.docker_mount !== undefined &&
+          data.docker_mount !== existingFunction.docker_mount)
       ) {
         relaunchTriggered = true; // Set flag regardless of container existence
         // Check if a container exists for this function before cleanup
@@ -513,7 +518,10 @@ export = new fileRouter.Path("/")
             // On the next run, the container will be recreated with the new image and new mounts.
           }
         } catch (err) {
-          console.error(`[SHSF] Error checking/cleaning up container for function ${functionId}:`, err);
+          console.error(
+            `[SHSF] Error checking/cleaning up container for function ${functionId}:`,
+            err
+          );
         }
       }
 
@@ -535,7 +543,8 @@ export = new fileRouter.Path("/")
         status: "OK",
         data: updatedFunction,
         ...(relaunchTriggered && {
-          relaunch: "Container relaunch started (will be recreated on next execution).",
+          relaunch:
+            "Container relaunch started (will be recreated on next execution).",
         }),
       };
 

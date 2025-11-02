@@ -81,7 +81,7 @@ if (AppState.mode !== 'settings' && AppState.mode !== 'ignore') {
     }
 
     AppState.headers = {
-        'X-Access-Token': `${AppState.shsf_key}`,
+        'X-Access-Key': `${AppState.shsf_key}`,
         'Content-Type': 'application/json',
         "User-Agent": `shsf-cli/${VERSION}`
     };
