@@ -27,6 +27,7 @@ export const API_URL = env.REACT_APP_API_URL;
 if (!API_URL) {
   throw new Error("REACT_APP_API_URL is not defined in environment variables");
 }
+CORS_DOMAINS.push(API_URL);
 
 // Middleware Definition
 export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
