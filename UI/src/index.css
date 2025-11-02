@@ -4,3 +4,54 @@
 button:hover, a:hover {
 	cursor: pointer
 }
+
+/* FrederickatheGreat-Regular.ttf */
+@font-face {
+  font-family: 'FrederickatheGreat';
+  src: url('/FrederickatheGreat-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-fredericka {
+  font-family: 'FrederickatheGreat', monospace;
+}
+
+/* Jellee-Bold.ttf */
+@font-face {
+	font-family: 'JelleeBold';
+	src: url('/Jellee-Bold.ttf') format('truetype');
+	font-weight: bold;
+	font-style: normal;
+	font-display: swap;
+}
+
+.font-jellee-bold {
+	font-family: 'JelleeBold', monospace;
+	font-weight: bold;
+}
+
+/* Sriracha-Regular.ttf */
+@font-face {
+	font-family: 'Sriracha';
+	src: url('/Sriracha-Regular.ttf') format('truetype');
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+.font-sriracha {
+	font-family: 'Sriracha', cursive;
+}
+
+/* Margarine-Regular.ttf */
+@font-face {
+	font-family: 'Margarine';
+	src: url('/Margarine-Regular.ttf') format('truetype');
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+.font-margarine {
+	font-family: 'Margarine', cursive;
+}

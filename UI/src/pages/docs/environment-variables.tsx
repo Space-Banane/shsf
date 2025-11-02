@@ -1,3 +1,5 @@
+import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
+
 export const EnvironmentVariablesPage = () => {
   return (
     <div className="min-h-screen bg-background text-text p-8">
@@ -7,6 +9,8 @@ export const EnvironmentVariablesPage = () => {
             ← Back to docs
           </a>
         </div>
+
+        <ScrollProgressbar />
 
         <h1 className="text-3xl font-bold text-primary mb-2">
           Environment Variables
@@ -103,7 +107,7 @@ def main(args):
           </p>
         </div>
 
-       <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
+        <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
           <h2 className="text-xl font-bold text-primary mb-3">
             🚀 Next Steps - Secure Headers
           </h2>

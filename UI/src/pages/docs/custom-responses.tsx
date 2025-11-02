@@ -1,3 +1,5 @@
+import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
+
 export const CustomResponsesPage = () => {
   return (
     <div className="min-h-screen bg-background text-text p-8">
@@ -7,6 +9,8 @@ export const CustomResponsesPage = () => {
             ← Back to docs
           </a>
         </div>
+
+        <ScrollProgressbar />
 
         <h1 className="text-3xl font-bold text-primary mb-2">
           Custom Responses

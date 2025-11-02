@@ -1,3 +1,5 @@
+import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
+
 export const PersistentDataPage = () => {
   return (
     <div className="min-h-screen bg-background text-text p-8">
@@ -7,6 +9,8 @@ export const PersistentDataPage = () => {
             ← Back to docs
           </a>
         </div>
+
+        <ScrollProgressbar />
 
         <h1 className="text-3xl font-bold text-primary mb-2">
           Persistent Data
@@ -97,11 +101,13 @@ def main(args):
           </li>
         </ul>
 
-        <h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-          Summary
-        </h2>
+        <h2 className="text-2xl font-bold text-primary mt-6 mb-4">Summary</h2>
         <p className="mb-4 text-text/90">
-          In summary, when working with persistent data in Functions, you have several options including filesystem storage and Redis. Each method has its own use cases, benefits, and limitations. Always consider the specific requirements of your application and choose the most appropriate storage solution.
+          In summary, when working with persistent data in Functions, you have
+          several options including filesystem storage and Redis. Each method
+          has its own use cases, benefits, and limitations. Always consider the
+          specific requirements of your application and choose the most
+          appropriate storage solution.
         </p>
 
         <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">

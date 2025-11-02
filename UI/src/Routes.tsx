@@ -24,6 +24,7 @@ import { AccessTokensDocPage } from "./pages/docs/access-tokens";
 import AccessTokensPage from "./pages/AccessTokens";
 import { CLIDocPage } from "./pages/docs/cli";
 import StoragePage from "./pages/Storage";
+import { RoutingDocPage } from "./pages/docs/routing";
 // Added back the routes array
 export interface AppRoute {
   path: string;
@@ -144,6 +145,12 @@ export const routes: AppRoute[] = [
     path: "/docs/db-com",
     component: DatabaseComDocPage,
     name: "Database Communication",
+    requireAuth: false,
+  },
+  {
+    path: "/docs/routing",
+    component: RoutingDocPage,
+    name: "Routing",
     requireAuth: false,
   },
 

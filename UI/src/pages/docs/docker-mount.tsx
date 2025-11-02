@@ -1,4 +1,5 @@
 import React from "react";
+import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
 
 export const DockerMountPage = () => {
   return (
@@ -9,6 +10,8 @@ export const DockerMountPage = () => {
             ← Back to docs
           </a>
         </div>
+
+        <ScrollProgressbar />
 
         <h1 className="text-3xl font-bold text-primary mb-2">
           Docker Socket Mount
@@ -67,7 +70,7 @@ export const DockerMountPage = () => {
         </h3>
         <div className="mb-8">
           <pre className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 text-white rounded-lg p-6 overflow-x-auto text-sm shadow-lg">
-{`def main(args):
+            {`def main(args):
     import docker
     client = docker.from_env()
 
@@ -115,7 +118,8 @@ export const DockerMountPage = () => {
             🚀 Next Step - Serve Only HTML
           </h2>
           <p className="text-text/90 mb-4">
-            Ever wanted to only serve an html file from your function? Check out our guide on serving ONLY an HTML file.
+            Ever wanted to only serve an html file from your function? Check out
+            our guide on serving ONLY an HTML file.
           </p>
           <a
             href="/docs/serve-only"

@@ -1,3 +1,5 @@
+import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
+
 export const DataPassingPage = () => {
   return (
     <div className="min-h-screen bg-background text-text p-8">
@@ -7,6 +9,8 @@ export const DataPassingPage = () => {
             ← Back to docs
           </a>
         </div>
+
+        <ScrollProgressbar />
 
         <h1 className="text-3xl font-bold text-primary mb-2">Data Passing</h1>
         <p className="mt-3 text-lg text-text/90 mb-8">

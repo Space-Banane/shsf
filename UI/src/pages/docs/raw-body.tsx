@@ -1,4 +1,5 @@
 import React from "react";
+import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
 
 export const RawBodyPage = () => {
   return (
@@ -10,15 +11,26 @@ export const RawBodyPage = () => {
           </a>
         </div>
 
-        <h1 className="text-3xl font-bold text-primary mb-2">Raw Body Handling</h1>
+        <ScrollProgressbar />
+
+        <h1 className="text-3xl font-bold text-primary mb-2">
+          Raw Body Handling
+        </h1>
 
         <p className="mt-3 text-lg text-text/90 mb-6">
-          When your function receives a request with a binary payload (such as file uploads or audio), the raw body is available in <code>args.raw_body</code>. This is useful for handling data that isn't standard JSON, like files or binary streams.
+          When your function receives a request with a binary payload (such as
+          file uploads or audio), the raw body is available in{" "}
+          <code>args.raw_body</code>. This is useful for handling data that
+          isn't standard JSON, like files or binary streams.
         </p>
 
-        <h2 className="text-2xl font-bold text-primary mt-6 mb-4">Accessing the Raw Body</h2>
+        <h2 className="text-2xl font-bold text-primary mt-6 mb-4">
+          Accessing the Raw Body
+        </h2>
         <p className="mb-4 text-text/90">
-          <code>args.raw_body</code> contains the raw request body as bytes (or a string, depending on the client). You can process it directly for custom parsing, file handling, or binary protocols.
+          <code>args.raw_body</code> contains the raw request body as bytes (or
+          a string, depending on the client). You can process it directly for
+          custom parsing, file handling, or binary protocols.
         </p>
 
         <div className="mb-6">
@@ -60,9 +72,18 @@ return {"_code": 200, "message": "File saved", "_shsf": "v2"}
         </div>
 
         <ul className="list-disc list-inside mb-4 text-text/90">
-          <li><code>args.raw_body</code> is useful for file uploads, audio, or any binary data.</li>
-          <li>Always check for <code>None</code> before using <code>raw_body</code>.</li>
-          <li>Convert to <code>bytes</code> if needed using <code>encode('latin-1')</code>.</li>
+          <li>
+            <code>args.raw_body</code> is useful for file uploads, audio, or any
+            binary data.
+          </li>
+          <li>
+            Always check for <code>None</code> before using{" "}
+            <code>raw_body</code>.
+          </li>
+          <li>
+            Convert to <code>bytes</code> if needed using{" "}
+            <code>encode('latin-1')</code>.
+          </li>
         </ul>
 
         <h2 className="text-2xl font-bold text-primary mt-6 mb-4">Use Cases</h2>
@@ -77,7 +98,8 @@ return {"_code": 200, "message": "File saved", "_shsf": "v2"}
             🚀 Next Step - User Interfaces
           </h2>
           <p className="text-text/90 mb-4">
-            Let's also take a look at how we can serve HTML files as user interfaces from our functions.
+            Let's also take a look at how we can serve HTML files as user
+            interfaces from our functions.
           </p>
           <a
             href="/docs/user-interfaces"

@@ -1,4 +1,5 @@
 import React from "react";
+import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
 
 export const UserInterfacesPage = () => {
   return (
@@ -10,14 +11,25 @@ export const UserInterfacesPage = () => {
           </a>
         </div>
 
-        <h1 className="text-3xl font-bold text-primary mb-2">User Interfaces</h1>
+        <ScrollProgressbar />
+
+        <h1 className="text-3xl font-bold text-primary mb-2">
+          User Interfaces
+        </h1>
         <p className="mt-3 text-lg text-text/90 mb-8">
-          Learn how to serve HTML files as user interfaces from your functions. This is useful for building web UIs, dashboards, or custom pages directly from your serverless functions.
+          Learn how to serve HTML files as user interfaces from your functions.
+          This is useful for building web UIs, dashboards, or custom pages
+          directly from your serverless functions.
         </p>
 
-        <h2 className="text-2xl font-bold text-primary mt-8 mb-6">Serving HTML Files</h2>
+        <h2 className="text-2xl font-bold text-primary mt-8 mb-6">
+          Serving HTML Files
+        </h2>
         <p className="mb-4 text-text/90">
-          To serve an HTML file, your function should read the file content and return it with the correct <code>Content-Type</code> header set to <code>text/html</code>. This ensures browsers render the response as a web page.
+          To serve an HTML file, your function should read the file content and
+          return it with the correct <code>Content-Type</code> header set to{" "}
+          <code>text/html</code>. This ensures browsers render the response as a
+          web page.
         </p>
 
         <div className="mb-6">
@@ -38,9 +50,16 @@ export const UserInterfacesPage = () => {
         </div>
 
         <ul className="list-disc list-inside mb-4 text-text/90">
-          <li>Always set <code>Content-Type: text/html</code> in the <code>_headers</code> field.</li>
-          <li>Return the HTML content as a string in <code>_res</code>.</li>
-          <li>Use <code>_code: 200</code> for successful responses.</li>
+          <li>
+            Always set <code>Content-Type: text/html</code> in the{" "}
+            <code>_headers</code> field.
+          </li>
+          <li>
+            Return the HTML content as a string in <code>_res</code>.
+          </li>
+          <li>
+            Use <code>_code: 200</code> for successful responses.
+          </li>
         </ul>
 
         <h2 className="text-2xl font-bold text-primary mt-8 mb-6">Use Cases</h2>
@@ -55,7 +74,8 @@ export const UserInterfacesPage = () => {
             🚀 Next Step - Docker Mount
           </h2>
           <p className="text-text/90 mb-4">
-            Let's also take a look at how we can use the Docker mount option to create and modify containers on the host.
+            Let's also take a look at how we can use the Docker mount option to
+            create and modify containers on the host.
           </p>
           <a
             href="/docs/docker-mount"

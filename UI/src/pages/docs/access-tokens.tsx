@@ -1,35 +1,62 @@
 import React from "react";
+import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
 
 export const AccessTokensDocPage = () => {
   return (
     <div className="min-h-screen bg-background text-text p-8">
       <div className="max-w-4xl mx-auto">
         <div className="mb-6">
-          <a href="/docs/serve-only" className="text-sm text-blue-500 hover:underline">
-            ← Back to Serve Only HTML
+          <a href="/docs" className="text-sm text-blue-500 hover:underline">
+            ← Back to docs
           </a>
         </div>
+
+        <ScrollProgressbar />
         <h1 className="text-3xl font-bold text-primary mb-2">Access Tokens</h1>
         <p className="mt-3 text-lg text-text/90 mb-6">
-          Access Tokens allow you to securely authenticate API requests and automate access to your SHSF account without using your password. This is ideal for CLI tools, scripts, or third-party integrations.
+          Access Tokens allow you to securely authenticate API requests and
+          automate access to your SHSF account without using your password. This
+          is ideal for CLI tools, scripts, or third-party integrations.
         </p>
 
-        <h2 className="text-2xl font-bold text-primary mt-8 mb-4">What are Access Tokens?</h2>
+        <h2 className="text-2xl font-bold text-primary mt-8 mb-4">
+          What are Access Tokens?
+        </h2>
         <p className="mb-4 text-text/90">
-          Access Tokens are unique, secret keys you can generate and manage from your account. Each token can have a name, purpose, and optional expiration date. Tokens are only shown <b>once</b> when created—store them securely!
+          Access Tokens are unique, secret keys you can generate and manage from
+          your account. Each token can have a name, purpose, and optional
+          expiration date. Tokens are only shown <b>once</b> when created—store
+          them securely!
         </p>
 
-        <h2 className="text-2xl font-bold text-primary mt-8 mb-4">How to Generate a Token</h2>
+        <h2 className="text-2xl font-bold text-primary mt-8 mb-4">
+          How to Generate a Token
+        </h2>
         <ol className="list-decimal list-inside mb-4 text-text/90 space-y-2">
-          <li>Go to <b>Account &gt; Access Tokens</b> in the UI.</li>
-          <li>Click <b>Generate New Token</b>.</li>
-          <li>Enter a name, optional purpose, and set expiration (or choose never expire).</li>
-          <li>Click <b>Generate Token</b> and copy the token shown. <span className="text-red-400 font-semibold">You won't be able to see it again!</span></li>
+          <li>
+            Go to <b>Account &gt; Access Tokens</b> in the UI.
+          </li>
+          <li>
+            Click <b>Generate New Token</b>.
+          </li>
+          <li>
+            Enter a name, optional purpose, and set expiration (or choose never
+            expire).
+          </li>
+          <li>
+            Click <b>Generate Token</b> and copy the token shown.{" "}
+            <span className="text-red-400 font-semibold">
+              You won't be able to see it again!
+            </span>
+          </li>
         </ol>
 
-        <h2 className="text-2xl font-bold text-primary mt-8 mb-4">Using Access Tokens</h2>
+        <h2 className="text-2xl font-bold text-primary mt-8 mb-4">
+          Using Access Tokens
+        </h2>
         <p className="mb-4 text-text/90">
-          To authenticate API requests, include your token in the <code>x-access-key</code> header:
+          To authenticate API requests, include your token in the{" "}
+          <code>x-access-key</code> header:
         </p>
         <div className="mb-6">
           <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
@@ -42,17 +69,27 @@ export const AccessTokensDocPage = () => {
           <li>Expired tokens cannot be used for authentication.</li>
         </ul>
 
-        <h2 className="text-2xl font-bold text-primary mt-8 mb-4">Managing Tokens</h2>
+        <h2 className="text-2xl font-bold text-primary mt-8 mb-4">
+          Managing Tokens
+        </h2>
         <ul className="list-disc list-inside mb-4 text-text/90">
-          <li><b>View</b> all your tokens (masked) in the Access Tokens page.</li>
-          <li><b>Edit</b> the name or purpose of a token.</li>
-          <li><b>Revoke</b> (delete) tokens you no longer need.</li>
+          <li>
+            <b>View</b> all your tokens (masked) in the Access Tokens page.
+          </li>
+          <li>
+            <b>Edit</b> the name or purpose of a token.
+          </li>
+          <li>
+            <b>Revoke</b> (delete) tokens you no longer need.
+          </li>
         </ul>
 
-        <h2 className="text-2xl font-bold text-primary mt-8 mb-4">Example: Using a Token in Python</h2>
+        <h2 className="text-2xl font-bold text-primary mt-8 mb-4">
+          Example: Using a Token in Python
+        </h2>
         <div className="mb-8">
           <pre className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 text-white rounded-lg p-6 overflow-x-auto text-sm shadow-lg">
-{`import requests
+            {`import requests
 
 url = "https://your-shsf-instance/api/your-endpoint"
 headers = {"x-access-key": "YOUR_TOKEN_HERE"}
@@ -67,7 +104,9 @@ print(response.json())
             🚀 Next Steps - CLI
           </h2>
           <p className="text-text/90 mb-4">
-            Now that we can use Access Tokens, let's learn how to use the shsf-cli to manage your functions, files, and environments from the command line.
+            Now that we can use Access Tokens, let's learn how to use the
+            shsf-cli to manage your functions, files, and environments from the
+            command line.
           </p>
           <a
             href="/docs/cli"

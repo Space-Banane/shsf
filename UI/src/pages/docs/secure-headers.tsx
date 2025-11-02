@@ -1,4 +1,5 @@
 import React from "react";
+import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
 
 export const SecureHeadersPage = () => {
   return (
@@ -10,6 +11,8 @@ export const SecureHeadersPage = () => {
           </a>
         </div>
 
+        <ScrollProgressbar />
+
         <h1 className="text-3xl font-bold text-primary mb-2">
           Secure Headers (x-secure-header)
         </h1>
@@ -18,7 +21,8 @@ export const SecureHeadersPage = () => {
           When the "secure headers" setting is enabled, clients must include the
           x-secure-header HTTP header on requests to your function. The platform
           validates this header before invoking your function and will reject
-          requests that are missing or invalid. SHSF will not reject a request when made from the functions owner, via the UI.
+          requests that are missing or invalid. SHSF will not reject a request
+          when made from the functions owner, via the UI.
         </p>
 
         <h2 className="text-2xl font-bold text-primary mt-6 mb-4">
@@ -26,17 +30,19 @@ export const SecureHeadersPage = () => {
         </h2>
         <p className="mb-4 text-text/90">
           If your function has the secure-headers setting turned on (check the
-          dashboard or function settings), every request to the function endpoint
-          must include:
+          dashboard or function settings), every request to the function
+          endpoint must include:
         </p>
         <pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
           <code>{`x-secure-header: <your-secure-value>`}</code>
         </pre>
 
-        <h2 className="text-2xl font-bold text-primary mt-6 mb-4">Client examples</h2>
+        <h2 className="text-2xl font-bold text-primary mt-6 mb-4">
+          Client examples
+        </h2>
         <p className="mb-3 text-text/90">
-          Replace &lt;your-secure-value&gt; with the token shown in your function
-          settings or the value provided by your deployment.
+          Replace &lt;your-secure-value&gt; with the token shown in your
+          function settings or the value provided by your deployment.
         </p>
 
         <h3 className="text-xl font-semibold text-primary mb-2">curl</h3>
@@ -44,7 +50,9 @@ export const SecureHeadersPage = () => {
           <code>{`curl -H "x-secure-header: <your-secure-value>" https://your-function-endpoint`}</code>
         </pre>
 
-        <h3 className="text-xl font-semibold text-primary mb-2">fetch (browser / node)</h3>
+        <h3 className="text-xl font-semibold text-primary mb-2">
+          fetch (browser / node)
+        </h3>
         <pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
           <code>{`fetch("https://your-function-endpoint", {
   method: "POST",
@@ -56,11 +64,14 @@ export const SecureHeadersPage = () => {
 })`}</code>
         </pre>
 
-        <h2 className="text-2xl font-bold text-primary mt-6 mb-4">Server / function - reading the header</h2>
+        <h2 className="text-2xl font-bold text-primary mt-6 mb-4">
+          Server / function - reading the header
+        </h2>
         <p className="mb-3 text-text/90">
-          You do not need to read or validate the header in your function code; the
-          platform performs this check before invocation. However, if you want to
-          access the header value for logging or other purposes, here's how you can do it.
+          You do not need to read or validate the header in your function code;
+          the platform performs this check before invocation. However, if you
+          want to access the header value for logging or other purposes, here's
+          how you can do it.
         </p>
 
         <pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
@@ -78,7 +89,11 @@ export const SecureHeadersPage = () => {
 
         <h2 className="text-2xl font-bold text-primary mt-6 mb-4">Notes</h2>
         <ul className="list-disc pl-6 mb-6 text-text/90">
-          <li>Do not hard-code secrets in client-side code for public apps. Use <a href="/docs/environment-variables">environment variables</a> instead.</li>
+          <li>
+            Do not hard-code secrets in client-side code for public apps. Use{" "}
+            <a href="/docs/environment-variables">environment variables</a>{" "}
+            instead.
+          </li>
           <li>
             The exact header forwarding object name can vary by runtime; if
             headers aren't available on args, consult the runtime docs for how
@@ -95,7 +110,8 @@ export const SecureHeadersPage = () => {
             🚀 Next Steps - Persistent Data
           </h2>
           <p className="text-text/90 mb-4">
-            Know that we know how to keep our functions secure, let's take a look at how we can store and manage data for our functions.
+            Know that we know how to keep our functions secure, let's take a
+            look at how we can store and manage data for our functions.
           </p>
           <a
             href="/docs/persistent-data"

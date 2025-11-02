@@ -1,4 +1,5 @@
 import React from "react";
+import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
 
 export const ServeOnlyHtmlPage = () => {
   return (
@@ -9,6 +10,7 @@ export const ServeOnlyHtmlPage = () => {
             ← Back to docs
           </a>
         </div>
+        <ScrollProgressbar />
         <h1 className="text-3xl font-bold text-primary mb-2">
           Serve Only HTML
         </h1>
@@ -64,14 +66,16 @@ export const ServeOnlyHtmlPage = () => {
           What Features Are Disabled?
         </h2>
         <p className="mb-4 text-text/90">
-          Almost all of them. Check in the UI on what is enabled and what is not.
+          Almost all of them. Check in the UI on what is enabled and what is
+          not.
         </p>
         <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
           <h2 className="text-xl font-bold text-primary mb-3">
             🚀 Next Step - Access Tokens
           </h2>
           <p className="text-text/90 mb-4">
-            Learn how to generate and use API access tokens for secure automation and integrations.
+            Learn how to generate and use API access tokens for secure
+            automation and integrations.
           </p>
           <a
             href="/docs/access-tokens"

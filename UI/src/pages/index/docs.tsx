@@ -14,7 +14,7 @@ export const DocsPage = () => {
           <div className="mt-6 h-1 w-24 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
         </div>
 
-        <div className="grid gap-6" id="lessons">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr" id="lessons">
           {lessons.map((lesson) => (
             <Lesson
               key={lesson.title}
@@ -22,6 +22,7 @@ export const DocsPage = () => {
               title={lesson.title}
               description={lesson.description}
               link={lesson.link}
+              image={lesson.image}
             />
           ))}
         </div>
@@ -60,30 +61,38 @@ function Lesson({
   description,
   link,
   identifier,
+  image,
 }: {
   title: string;
   description: string;
   link: string;
   identifier: string;
+  image?: { src: string; alt?: string };
 }) {
   return (
-    <div className="group bg-background border border-primary/30 rounded-xl shadow-lg hover:shadow-xl hover:border-primary/50 transition-all duration-300 overflow-hidden">
-      <a href={link} className="block">
-        <div className="flex items-center gap-6 p-6">
-          <div className="flex-shrink-0 w-16 h-16 flex items-center justify-center bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-primary/30 rounded-xl group-hover:scale-105 transition-transform duration-300">
-            <span className="text-primary text-xl font-bold">{identifier}</span>
-          </div>
-          <div className="flex-1">
-            <h3 className="text-xl font-semibold text-primary group-hover:text-blue-400 transition-colors mb-2">
-              {title}
-            </h3>
-            <p className="text-text/80 leading-relaxed">{description}</p>
-          </div>
-          <div className="flex-shrink-0">
-            <span className="text-primary text-2xl group-hover:translate-x-2 transition-transform duration-300">
-              →
-            </span>
-          </div>
+    <div className="group flex flex-col h-full bg-background border border-primary/30 rounded-xl shadow-lg hover:shadow-2xl hover:border-primary/60 transition-all duration-300 overflow-hidden">
+      <a href={link} className="flex flex-col flex-1">
+        <div className="flex flex-col items-center text-center gap-4 p-6 flex-1">
+          {image ? (
+            <img
+              src={image.src}
+              alt={image.alt ?? `${title} illustration`}
+              className="w-full h-32 object-cover rounded-lg border border-primary/20"
+            />
+          ) : (
+            <div className="flex-shrink-0 w-16 h-16 flex items-center justify-center bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-primary/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
+              <span className="text-primary text-2xl font-semibold">{identifier}</span>
+            </div>
+          )}
+          <h3 className="text-lg font-semibold text-primary group-hover:text-blue-400 transition-colors">
+            {title}
+          </h3>
+          <p className="text-text/80 text-sm leading-relaxed">{description}</p>
+        </div>
+        <div className="px-6 py-4 border-t border-primary/20 flex items-center justify-end bg-background/60">
+          <span className="text-primary text-2xl group-hover:translate-x-2 transition-transform duration-300">
+            →
+          </span>
         </div>
       </a>
     </div>
@@ -96,6 +105,7 @@ const lessons: {
   title: string;
   description: string;
   link: string;
+  image?: { src: string; alt?: string };
 }[] = [
   {
     key: "getting-started",
@@ -209,5 +219,12 @@ const lessons: {
     title: "Database Communication",
     description: "Learn how to use the Python database communication interface for fast persistent storage and retrieval.",
     link: "/docs/db-com",
+  },
+  {
+    key: "routing",
+    identifier: "#15",
+    title: "Routing",
+    description: "Learn how to map multiple routes to a single function and best practices for route handling in SHSF.",
+    link: "/docs/routing",
   },
 ];
