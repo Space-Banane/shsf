@@ -59,7 +59,9 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
         if (func && func.cors_origins) {
           console.log(`[CORS MIDDLEWARE] Policy: Allowing access for ${origin} - ${execId}`);
           CORS_DOMAINS.push(...func.cors_origins);
-          allowRequest = true;
+          if (CORS_DOMAINS.includes(origin)) {
+            allowRequest = true;
+          }
         } else {
           console.log(`[CORS MIDDLEWARE] Policy: No specific origins found for function - ${execId}`);
         }
