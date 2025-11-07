@@ -1046,32 +1046,21 @@ export async function installDependencies(
 
     const execStream = await exec.start({ hijack: true, stdin: false });
 
-    let foundSuccess = false;
-    let noRequirementsFound = false;
-    const successRegex = /Successfully installed/i;
-    const noReqRegex = /No requirements\.txt found\./i;
-    const alreadySatisfiedRegex = /Requirement already satisfied/i;
-
-    execStream.on("data", (chunk: Buffer) => {
-      const text = chunk.toString("utf8");
-      console.log(text);
-      if (successRegex.test(text) || alreadySatisfiedRegex.test(text)) {
-        foundSuccess = true;
-        execStream.destroy(); // Stop reading further
-      }
-      if (noReqRegex.test(text)) {
-        noRequirementsFound = true;
-        execStream.destroy();
-      }
-    });
-
+    // Consume the stream to completion (required for exec to finish)
     await new Promise<void>((resolve, reject) => {
       execStream.on("end", resolve);
       execStream.on("error", reject);
+      // Drain the stream
+      execStream.resume();
     });
 
-    if (noRequirementsFound) return false;
-    return foundSuccess;
+    // Inspect the exec to get the exit code
+    const inspect = await exec.inspect();
+    if (inspect.ExitCode === 0) {
+      return true;
+    } else {
+      return false;
+    }
   } catch (error) {
     console.error("Error installing dependencies:", error);
     return false;

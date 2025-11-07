@@ -110,6 +110,12 @@ function FunctionDetail() {
     code: number;
   } | null>(null);
   const [serveHtmlOnly, setServeHtmlOnly] = useState<boolean>(false);
+  const [showDepModal, setShowDepModal] = useState(false);
+  const [depModalContent, setDepModalContent] = useState<{
+    title: string;
+    message: string;
+    success: boolean;
+  } | null>(null);
 
   useEffect(() => {
     setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
@@ -464,13 +470,28 @@ function FunctionDetail() {
         "status" in response &&
         response.status === "OK"
       ) {
-        alert("Dependencies installed successfully.");
+        setDepModalContent({
+          title: "Dependencies Installed",
+          message: "Dependencies installed successfully.",
+          success: true,
+        });
+        setShowDepModal(true);
       } else {
-        alert("Error installing dependencies: " + String(response));
+        setDepModalContent({
+          title: "Install Error",
+          message: "Error installing dependencies: " + String(response),
+          success: false,
+        });
+        setShowDepModal(true);
       }
     } catch (error) {
       console.error("Error installing dependencies:", error);
-      alert("An error occurred while installing dependencies.");
+      setDepModalContent({
+        title: "Install Error",
+        message: "An error occurred while installing dependencies.",
+        success: false,
+      });
+      setShowDepModal(true);
     } finally {
       fetchLogs();
       setPipRunning(false);
@@ -752,6 +773,44 @@ function FunctionDetail() {
 
   return (
     <div className="min-h-screen bg-background w-full">
+      {/* Dependency Install Modal */}
+      {showDepModal && depModalContent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-background/50 rounded-xl shadow-2xl border border-primary/30 max-w-sm w-full p-6 animate-fadein">
+            <div className="flex flex-col items-center">
+              <div
+                className={`text-4xl mb-2 ${
+                  depModalContent.success ? "text-green-500" : "text-red-500"
+                }`}
+              >
+                {depModalContent.success ? "✅" : "❌"}
+              </div>
+              <h2 className="text-xl font-bold mb-2 text-primary text-center">
+                {depModalContent.title}
+              </h2>
+              <p className="text-center text-text/80 mb-4">
+                {depModalContent.message}
+              </p>
+              <button
+                className="mt-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition"
+                onClick={() => setShowDepModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+          <style>{`
+            .animate-fadein {
+              animation: fadein 0.2s cubic-bezier(.4,0,.2,1);
+            }
+            @keyframes fadein {
+              from { opacity: 0; transform: scale(0.98);}
+              to { opacity: 1; transform: scale(1);}
+            }
+          `}</style>
+        </div>
+      )}
+
       {/* Popup Modal for HTML result */}
       {showPopup && popupContent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadein">
@@ -832,7 +891,7 @@ function FunctionDetail() {
             </div>
 
             {/* CLICommandCard for CLI Pull command */}
-            <CLICommandCard 
+            <CLICommandCard
               command={`shsf-cli --mode pull --project ./my-func --link ${functionData.id}`}
               label="CLI Pull"
               description="Pull this function to your local project using the CLI."
@@ -841,7 +900,9 @@ function FunctionDetail() {
             <div className="flex items-center gap-6 text-text/60 text-sm">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span>{files.length} {files.length === 1 ? "File" : "Files"}</span>
+                <span>
+                  {files.length} {files.length === 1 ? "File" : "Files"}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
