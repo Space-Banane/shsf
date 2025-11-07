@@ -116,6 +116,12 @@ function FunctionDetail() {
     message: string;
     success: boolean;
   } | null>(null);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [resultModalContent, setResultModalContent] = useState<{
+    title: string;
+    value: any;
+    type: string;
+  } | null>(null);
 
   useEffect(() => {
     setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
@@ -343,6 +349,17 @@ function FunctionDetail() {
       return false;
     };
 
+    const showResultIfNotPopup = (result: any) => {
+      if (!checkPopup(result)) {
+        setResultModalContent({
+          title: "Function Result",
+          value: result,
+          type: typeof result,
+        });
+        setShowResultModal(true);
+      }
+    };
+
     if (runningMode === "classic") {
       try {
         const result = await executeFunction(
@@ -378,6 +395,7 @@ function FunctionDetail() {
           // Display result if available
           if (result.data.result !== undefined) {
             setFunctionResult(result.data.result);
+            showResultIfNotPopup(result.data.result);
           }
         } else {
           setConsoleOutput(
@@ -436,6 +454,7 @@ function FunctionDetail() {
                   return;
                 }
                 setFunctionResult(data.result);
+                showResultIfNotPopup(data.result);
               }
             } else if (data.type === "error") {
               setConsoleOutput(
@@ -794,6 +813,45 @@ function FunctionDetail() {
               <button
                 className="mt-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition"
                 onClick={() => setShowDepModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+          <style>{`
+            .animate-fadein {
+              animation: fadein 0.2s cubic-bezier(.4,0,.2,1);
+            }
+            @keyframes fadein {
+              from { opacity: 0; transform: scale(0.98);}
+              to { opacity: 1; transform: scale(1);}
+            }
+          `}</style>
+        </div>
+      )}
+
+      {/* Result Modal */}
+      {showResultModal && resultModalContent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-background/50 rounded-xl shadow-2xl border border-primary/30 max-w-sm w-full p-6 animate-fadein">
+            <div className="flex flex-col items-center">
+              <div className="text-4xl mb-2 text-blue-500">📦</div>
+              <h2 className="text-xl font-bold mb-2 text-primary text-center">
+                {resultModalContent.title}
+              </h2>
+              <div className="text-center text-text/80 mb-2">
+                <span className="font-mono text-xs bg-blue-100 px-2 py-1 rounded text-blue-700 border border-blue-200 shadow">
+                  Type: {resultModalContent.type}
+                </span>
+              </div>
+              <pre className="w-full bg-background/80 border border-primary/10 rounded-lg p-3 text-xs font-mono text-text/90 shadow-inner text-left overflow-x-auto mb-4">
+                {typeof resultModalContent.value === "string"
+                  ? resultModalContent.value
+                  : JSON.stringify(resultModalContent.value, null, 2)}
+              </pre>
+              <button
+                className="mt-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition"
+                onClick={() => setShowResultModal(false)}
               >
                 Close
               </button>
