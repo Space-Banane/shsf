@@ -70,6 +70,31 @@ export const AccessTokensDocPage = () => {
         </ul>
 
         <h2 className="text-2xl font-bold text-primary mt-8 mb-4">
+          Running Functions That Require Secure Headers
+        </h2>
+        <p className="mb-4 text-text/90">
+          If you have a function that requires a secure header (such as{" "}
+          <code>x-secure-header</code>), you can still invoke it using an Access
+          Token. When you include the <code>x-access-key</code> header in your
+          API request, SHSF will automatically authorize the call without
+          needing to provide the secure header separately.
+        </p>
+        <div className="mb-6">
+          <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
+            <code>{`curl -H "x-access-key: YOUR_TOKEN_HERE" https://your-shsf-instance/api/functions/my-secure-func`}</code>
+          </pre>
+        </div>
+        <p className="mb-4 text-text/90">
+          This makes it easy to automate or script calls to protected functions
+          without exposing or managing additional headers.
+        </p>
+        <p className="mb-4 text-red-400">
+          This requires the Access Key to be created by the same user that owns
+          the function.
+        </p>
+
+
+        <h2 className="text-2xl font-bold text-primary mt-8 mb-4">
           Managing Tokens
         </h2>
         <ul className="list-disc list-inside mb-4 text-text/90">

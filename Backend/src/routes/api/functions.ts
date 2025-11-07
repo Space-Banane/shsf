@@ -766,21 +766,60 @@ export = new fileRouter.Path("/")
           });
         }
 
+        let permissionToExecute: {
+          state: boolean;
+          reason: string;
+        } = {
+          state: false,
+          reason: "",
+        };
+
         if (functionData.secure_header) {
           if (!ctr.headers.has("x-secure-header")) {
-            return ctr.status(ctr.$status.FORBIDDEN).print({
-              status: 403,
-              message: "Missing secure header",
-            });
+            permissionToExecute = {
+              state: false,
+              reason: "Missing secure header",
+            };
           }
 
           const secureHeader = ctr.headers.get("x-secure-header");
           if (secureHeader !== functionData.secure_header) {
-            return ctr.status(ctr.$status.FORBIDDEN).print({
-              status: 403,
-              message: "Invalid secure header",
-            });
+            permissionToExecute = {
+              state: false,
+              reason: "Invalid secure header",
+            };
           }
+        }
+
+        if (ctr.headers.has("x-access-key")) {
+          const accessKey = ctr.headers.get("x-access-key") || "";
+          const authState = await checkAuthentication(null, accessKey);
+          if (authState.success && authState.method === "apiKey") {
+            // Check if they own it
+            if (authState.user.id === functionData.userId) {
+              permissionToExecute = {
+                state: true,
+                reason: "Provided API Key and owns the function",
+              };
+            } else {
+              permissionToExecute = {
+                state: false,
+                reason: "Provided Access Token, but does not own the function",
+              };
+            }
+          } else {
+            permissionToExecute = {
+              state: false,
+              reason: "Provided Access Token, but it's invalid",
+            };
+          }
+        }
+
+        if (!permissionToExecute.state) {
+          return ctr.status(ctr.$status.FORBIDDEN).print({
+            status: 403,
+            message: permissionToExecute.reason,
+          });
         }
 
         // Build the payload from GET request
@@ -893,21 +932,60 @@ export = new fileRouter.Path("/")
           });
         }
 
+        let permissionToExecute: {
+          state: boolean;
+          reason: string;
+        } = {
+          state: false,
+          reason: "",
+        };
+
         if (functionData.secure_header) {
           if (!ctr.headers.has("x-secure-header")) {
-            return ctr.status(ctr.$status.FORBIDDEN).print({
-              status: 403,
-              message: "Missing secure header",
-            });
+            permissionToExecute = {
+              state: false,
+              reason: "Missing secure header",
+            };
           }
 
           const secureHeader = ctr.headers.get("x-secure-header");
           if (secureHeader !== functionData.secure_header) {
-            return ctr.status(ctr.$status.FORBIDDEN).print({
-              status: 403,
-              message: "Invalid secure header",
-            });
+            permissionToExecute = {
+              state: false,
+              reason: "Invalid secure header",
+            };
           }
+        }
+
+        if (ctr.headers.has("x-access-key")) {
+          const accessKey = ctr.headers.get("x-access-key") || "";
+          const authState = await checkAuthentication(null, accessKey);
+          if (authState.success && authState.method === "apiKey") {
+            // Check if they own it
+            if (authState.user.id === functionData.userId) {
+              permissionToExecute = {
+                state: true,
+                reason: "Provided API Key and owns the function",
+              };
+            } else {
+              permissionToExecute = {
+                state: false,
+                reason: "Provided Access Token, but does not own the function",
+              };
+            }
+          } else {
+            permissionToExecute = {
+              state: false,
+              reason: "Provided Access Token, but it's invalid",
+            };
+          }
+        }
+
+        if (!permissionToExecute.state) {
+          return ctr.status(ctr.$status.FORBIDDEN).print({
+            status: 403,
+            message: permissionToExecute.reason,
+          });
         }
 
         const payload = await buildPayloadFromPOST(ctr);
@@ -1017,21 +1095,60 @@ export = new fileRouter.Path("/")
           });
         }
 
+        let permissionToExecute: {
+          state: boolean;
+          reason: string;
+        } = {
+          state: false,
+          reason: "",
+        };
+
         if (functionData.secure_header) {
           if (!ctr.headers.has("x-secure-header")) {
-            return ctr.status(ctr.$status.FORBIDDEN).print({
-              status: 403,
-              message: "Missing secure header",
-            });
+            permissionToExecute = {
+              state: false,
+              reason: "Missing secure header",
+            };
           }
 
           const secureHeader = ctr.headers.get("x-secure-header");
           if (secureHeader !== functionData.secure_header) {
-            return ctr.status(ctr.$status.FORBIDDEN).print({
-              status: 403,
-              message: "Invalid secure header",
-            });
+            permissionToExecute = {
+              state: false,
+              reason: "Invalid secure header",
+            };
           }
+        }
+
+        if (ctr.headers.has("x-access-key")) {
+          const accessKey = ctr.headers.get("x-access-key") || "";
+          const authState = await checkAuthentication(null, accessKey);
+          if (authState.success && authState.method === "apiKey") {
+            // Check if they own it
+            if (authState.user.id === functionData.userId) {
+              permissionToExecute = {
+                state: true,
+                reason: "Provided API Key and owns the function",
+              };
+            } else {
+              permissionToExecute = {
+                state: false,
+                reason: "Provided Access Token, but does not own the function",
+              };
+            }
+          } else {
+            permissionToExecute = {
+              state: false,
+              reason: "Provided Access Token, but it's invalid",
+            };
+          }
+        }
+
+        if (!permissionToExecute.state) {
+          return ctr.status(ctr.$status.FORBIDDEN).print({
+            status: 403,
+            message: permissionToExecute.reason,
+          });
         }
 
         // Build the payload from GET request
@@ -1144,21 +1261,60 @@ export = new fileRouter.Path("/")
           });
         }
 
+        let permissionToExecute: {
+          state: boolean;
+          reason: string;
+        } = {
+          state: false,
+          reason: "",
+        };
+
         if (functionData.secure_header) {
           if (!ctr.headers.has("x-secure-header")) {
-            return ctr.status(ctr.$status.FORBIDDEN).print({
-              status: 403,
-              message: "Missing secure header",
-            });
+            permissionToExecute = {
+              state: false,
+              reason: "Missing secure header",
+            };
           }
 
           const secureHeader = ctr.headers.get("x-secure-header");
           if (secureHeader !== functionData.secure_header) {
-            return ctr.status(ctr.$status.FORBIDDEN).print({
-              status: 403,
-              message: "Invalid secure header",
-            });
+            permissionToExecute = {
+              state: false,
+              reason: "Invalid secure header",
+            };
           }
+        }
+
+        if (ctr.headers.has("x-access-key")) {
+          const accessKey = ctr.headers.get("x-access-key") || "";
+          const authState = await checkAuthentication(null, accessKey);
+          if (authState.success && authState.method === "apiKey") {
+            // Check if they own it
+            if (authState.user.id === functionData.userId) {
+              permissionToExecute = {
+                state: true,
+                reason: "Provided API Key and owns the function",
+              };
+            } else {
+              permissionToExecute = {
+                state: false,
+                reason: "Provided Access Token, but does not own the function",
+              };
+            }
+          } else {
+            permissionToExecute = {
+              state: false,
+              reason: "Provided Access Token, but it's invalid",
+            };
+          }
+        }
+
+        if (!permissionToExecute.state) {
+          return ctr.status(ctr.$status.FORBIDDEN).print({
+            status: 403,
+            message: permissionToExecute.reason,
+          });
         }
 
         const payload = await buildPayloadFromPOST(ctr);
