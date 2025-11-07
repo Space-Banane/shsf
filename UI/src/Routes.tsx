@@ -12,7 +12,7 @@ import { DataPassingPage } from "./pages/docs/data-passing";
 import { CustomResponsesPage } from "./pages/docs/custom-responses";
 import { EnvironmentVariablesPage } from "./pages/docs/environment-variables";
 import { AccountPage } from "./pages/Account";
-import  FunctionDetail  from "./pages/functions/FunctionDetail";
+import FunctionDetail from "./pages/functions/FunctionDetail";
 import { SecureHeadersPage } from "./pages/docs/secure-headers";
 import { PersistentDataPage } from "./pages/docs/persistent-data";
 import { RedirectsPage } from "./pages/docs/redirects";
@@ -26,6 +26,7 @@ import { CLIDocPage } from "./pages/docs/cli";
 import StoragePage from "./pages/Storage";
 import { RoutingDocPage } from "./pages/docs/routing";
 import { CustomCorsDocPage } from "./pages/docs/custom-cors";
+import { GuestUsersDocPage } from "./pages/docs/guest-users";
 import GuestUsersPage from "./pages/GuestUsers";
 import GuestAccessPage from "./pages/Guest-Access";
 // Added back the routes array
@@ -162,8 +163,12 @@ export const routes: AppRoute[] = [
     name: "Custom CORS",
     requireAuth: false,
   },
-
-  
+  {
+    path: "/docs/guest-users",
+    component: GuestUsersDocPage,
+    name: "Guest Users Doc",
+    requireAuth: false,
+  },
 
   { path: "/login", component: LoginPage, name: "Login", requireAuth: false },
   {
@@ -211,7 +216,7 @@ export const routes: AppRoute[] = [
     name: "Guest Access",
     component: GuestAccessPage,
     requireAuth: false,
-  }
+  },
 ];
 
 const ProtectedRoute = ({

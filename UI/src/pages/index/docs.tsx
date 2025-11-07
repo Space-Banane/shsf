@@ -14,7 +14,10 @@ export const DocsPage = () => {
           <div className="mt-6 h-1 w-24 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
         </div>
 
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr" id="lessons">
+        <div
+          className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr"
+          id="lessons"
+        >
           {lessons.map((lesson) => (
             <Lesson
               key={lesson.title}
@@ -81,7 +84,9 @@ function Lesson({
             />
           ) : (
             <div className="flex-shrink-0 w-16 h-16 flex items-center justify-center bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-primary/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <span className="text-primary text-2xl font-semibold">{identifier}</span>
+              <span className="text-primary text-2xl font-semibold">
+                {identifier}
+              </span>
             </div>
           )}
           <h3 className="text-lg font-semibold text-primary group-hover:text-blue-400 transition-colors">
@@ -165,22 +170,23 @@ const lessons: {
     key: "redirects",
     identifier: "#7",
     title: "Redirects",
-    description:
-      "Learn how to implement HTTP redirects in your functions.",
+    description: "Learn how to implement HTTP redirects in your functions.",
     link: "/docs/redirects",
   },
   {
     key: "raw-body",
     identifier: "#8",
     title: "Raw Body",
-    description: "Learn how to use args.raw_body for binary data and file uploads.",
+    description:
+      "Learn how to use args.raw_body for binary data and file uploads.",
     link: "/docs/raw-body",
   },
   {
     key: "user-interfaces",
     identifier: "#9",
     title: "User Interfaces",
-    description: "Learn how to serve HTML files as user interfaces from your functions.",
+    description:
+      "Learn how to serve HTML files as user interfaces from your functions.",
     link: "/docs/user-interfaces",
   },
   {
@@ -195,43 +201,55 @@ const lessons: {
     key: "serve-only",
     identifier: "#11",
     title: "Serve Only HTML",
-    description:
-      "Learn how to serve only an HTML file from your function.",
+    description: "Learn how to serve only an HTML file from your function.",
     link: "/docs/serve-only",
   },
   {
     key: "access-tokens",
     identifier: "#12",
     title: "Access Tokens",
-    description: "Learn how to generate and use API access tokens for secure automation and integrations.",
+    description:
+      "Learn how to generate and use API access tokens for secure automation and integrations.",
     link: "/docs/access-tokens",
   },
   {
     key: "cli",
     identifier: "#13",
     title: "CLI Usage",
-    description: "Learn how to use the shsf-cli to manage your functions, files, and environments from the command line.",
+    description:
+      "Learn how to use the shsf-cli to manage your functions, files, and environments from the command line.",
     link: "/docs/cli",
   },
   {
     key: "db-com",
     identifier: "#14",
     title: "Database Communication",
-    description: "Learn how to use the Python database communication interface for fast persistent storage and retrieval.",
+    description:
+      "Learn how to use the Python database communication interface for fast persistent storage and retrieval.",
     link: "/docs/db-com",
   },
   {
     key: "routing",
     identifier: "#15",
     title: "Routing",
-    description: "Learn how to map multiple routes to a single function and best practices for route handling in SHSF.",
+    description:
+      "Learn how to map multiple routes to a single function and best practices for route handling in SHSF.",
     link: "/docs/routing",
   },
   {
     key: "custom-cors",
     identifier: "#16",
     title: "Custom CORS",
-    description: "Learn how to allow or block specific origins for each function.",
+    description:
+      "Learn how to allow or block specific origins for each function.",
     link: "/docs/custom-cors",
+  },
+  {
+    key: "guest-users",
+    identifier: "#17",
+    title: "Guest Users",
+    description:
+      "Learn how to create and assign guest users for function-specific authentication.",
+    link: "/docs/guest-users",
   },
 ];
