@@ -18,6 +18,8 @@ const Images: string[] = [
   "python:3.11",
   "python:3.12",
   "python:3.13",
+  "python:3.14",
+  "python:3.15",
 ];
 
 // Create Docker client instance for container management

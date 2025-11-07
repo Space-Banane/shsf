@@ -107,12 +107,15 @@ interface TriggerLog {
   updatedAt: Date;
 }
 
+
 type Image =
   | "python:3.9"
   | "python:3.10"
   | "python:3.11"
   | "python:3.12"
-  | "python:3.13";
+  | "python:3.13"
+  | "python:3.14"
+  | "python:3.15";
 
 const ImagesAsArray: Image[] = [
   "python:3.9",
@@ -120,6 +123,8 @@ const ImagesAsArray: Image[] = [
   "python:3.11",
   "python:3.12",
   "python:3.13",
+  "python:3.14",
+  "python:3.15",
 ];
 const ImagesAsArraySet = new Set(ImagesAsArray);
 
