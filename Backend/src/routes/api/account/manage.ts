@@ -41,7 +41,10 @@ export = new fileRouter.Path("/")
                                 TriggerLog:true
                             }
                         },
-                        namespaces:true
+                        namespaces:true,
+						accessTokens: true,
+						guestUsers: true,
+						storages: true
 					},
 				});
 
@@ -67,11 +70,16 @@ export = new fileRouter.Path("/")
 					sessions: userData.sessions,
 					exportedAt: new Date().toISOString(),
 					exportVersion: "1.0",
+					guestUsers: userData.guestUsers,
+					storages: userData.storages,
+					accessTokens: userData.accessTokens
 				};
 
 				// Set headers for file download
 				ctr.headers.set("Content-Type", "application/json");
 				ctr.headers.set("Content-Disposition", `attachment; filename="shsf-account-export-${new Date().toISOString().split('T')[0]}.json"`);
+				ctr.headers.set("Content-Length", Buffer.byteLength(JSON.stringify(exportData)).toString());
+				ctr.headers.set("X-Content-Type-Options", "nosniff");
 
 				return ctr.print(exportData);
 			})

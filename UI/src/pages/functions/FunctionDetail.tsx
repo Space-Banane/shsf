@@ -11,6 +11,7 @@ import EditTriggerModal from "../../components/modals/EditTriggerModal";
 import DeleteTriggerModal from "../../components/modals/DeleteTriggerModal";
 import UpdateEnvModal from "../../components/modals/UpdateEnvModal";
 import TriggerLogsModal from "../../components/modals/TriggerLogsModal";
+import GuestManagement from "../../components/modals/GuestManagement";
 import {
   FunctionFile,
   XFunction,
@@ -42,10 +43,11 @@ import { getNamespace } from "../../services/backend.namespaces";
 import { BASE_URL } from "../..";
 import React from "react";
 import { ConsoleCard } from "../../components/cards/ConsoleCard";
-import { ActionButton, LogsCard } from "../../components/cards/LogCard";
+import { LogsCard } from "../../components/cards/LogCard";
 import { TimingCard } from "../../components/cards/TimingCard";
 import { TriggersCard } from "../../components/cards/TriggersCard";
 import { FileManagerCard } from "../../components/cards/FileManagerCard";
+import { ActionButton } from "../../components/buttons/ActionButton";
 
 // Define the timing entry interface
 export interface TimingEntry {
@@ -122,6 +124,7 @@ function FunctionDetail() {
     value: any;
     type: string;
   } | null>(null);
+  const [showGuestModal, setShowGuestModal] = useState(false);
 
   useEffect(() => {
     setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
@@ -1003,6 +1006,13 @@ function FunctionDetail() {
                   variant="secondary"
                   onClick={() => setShowEnvModal(true)}
                 />
+                {/* Add Guest Management Button as ActionButton */}
+                <ActionButton
+                  icon="👥"
+                  label="Guests"
+                  variant="secondary"
+                  onClick={() => setShowGuestModal(true)}
+                />
               </div>
             </div>
 
@@ -1325,6 +1335,12 @@ function FunctionDetail() {
           onClose={() => setShowLogsModal(false)}
           logs={logs}
           isLoading={isLoadingLogs}
+        />
+
+        <GuestManagement
+          isOpen={showGuestModal}
+          onClose={() => setShowGuestModal(false)}
+          functionId={functionData?.id ?? null}
         />
       </div>
     </div>

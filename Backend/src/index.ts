@@ -7,6 +7,8 @@ import { CronExpressionParser } from "cron-parser";
 import { executeFunction } from "./lib/Runner";
 
 export const URL = env.UI_URL!;
+export const UI_URL = env.UI_URL!;
+export const REACT_APP_API_URL = env.REACT_APP_API_URL!;
 export const COOKIE = "shsf_session";
 export const DOMAIN = env.DOMAIN!;
 export const API_KEY_HEADER = "x-access-key";

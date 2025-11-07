@@ -299,6 +299,16 @@ function CreateFunctionModal({
             <span>🔧</span> Advanced Settings
           </h3>
 
+          {/* Guest User Section */}
+          <div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-gray-200 mb-1 flex items-center gap-2">
+              <span>👥</span> Guest Users
+            </h4>
+            <p className="text-xs text-gray-400">
+              You can't add guest users yet. Please create the function first, then edit it to assign guests.
+            </p>
+          </div>
+
           <div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">

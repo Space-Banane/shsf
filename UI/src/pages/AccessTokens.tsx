@@ -6,7 +6,7 @@ import {
 } from "../services/backend.accesstokens";
 import { Token } from "../types/Prisma";
 import { TokenCard } from "../components/cards/TokenCard";
-import { ActionButton } from "../components/cards/LogCard";
+import { ActionButton } from "../components/buttons/ActionButton";
 
 export default function AccessTokensPage() {
   const [tokens, setTokens] = useState<Token[]>([]);

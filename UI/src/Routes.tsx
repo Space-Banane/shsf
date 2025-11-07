@@ -26,6 +26,8 @@ import { CLIDocPage } from "./pages/docs/cli";
 import StoragePage from "./pages/Storage";
 import { RoutingDocPage } from "./pages/docs/routing";
 import { CustomCorsDocPage } from "./pages/docs/custom-cors";
+import GuestUsersPage from "./pages/GuestUsers";
+import GuestAccessPage from "./pages/Guest-Access";
 // Added back the routes array
 export interface AppRoute {
   path: string;
@@ -196,6 +198,19 @@ export const routes: AppRoute[] = [
     name: "Access Tokens",
     component: AccessTokensPage,
     requireAuth: true,
+  },
+  {
+    path: "/guest-users",
+    name: "Guest Users",
+    component: GuestUsersPage,
+    requireAuth: true,
+    show_nav: true,
+  },
+  {
+    path: "/guest-access",
+    name: "Guest Access",
+    component: GuestAccessPage,
+    requireAuth: false,
   }
 ];
 

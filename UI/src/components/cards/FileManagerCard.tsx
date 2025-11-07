@@ -1,5 +1,6 @@
 import { FunctionFile } from "../../types/Prisma";
-import { ActionButton } from "./LogCard";
+import { ActionButton } from "../buttons/ActionButton";
+
 
 export function FileManagerCard({
   files,

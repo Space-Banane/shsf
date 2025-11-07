@@ -1,5 +1,12 @@
 import { randomUUID } from "crypto";
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
+import {
+  API_KEY_HEADER,
+  COOKIE,
+  fileRouter,
+  prisma,
+  REACT_APP_API_URL,
+  UI_URL,
+} from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
 import {
   buildPayloadFromGET,
@@ -10,6 +17,8 @@ import {
 } from "../../lib/Runner";
 import Docker from "dockerode";
 import { env } from "process";
+import { Cookie } from "rjweb-server";
+import { Function, FunctionFile } from "@prisma/client";
 
 const Images: string[] = [
   // Python versions
@@ -24,6 +33,150 @@ const Images: string[] = [
 
 // Create Docker client instance for container management
 const docker = new Docker();
+
+// Helper function for HTTP execution permission (guest/auth logic)
+async function checkHttpExecutionPermission(
+  ctr: any,
+  functionData: {
+    files: FunctionFile[];
+    namespace: { id: number; name: string };
+  } & Function,
+  namespaceId: number,
+  functionId: string
+) {
+  // Returns: { state: boolean, reason: string, redirect?: string }
+  // Handles secure_header, x-access-key, guest users/cookies, and sets cookies if needed
+  let permissionToExecute: {
+    state: boolean;
+    reason: string;
+    redirect?: string;
+  } = {
+    state: true,
+    reason: "",
+  };
+
+  // Secure header check
+  if (functionData.secure_header) {
+    if (!ctr.headers.has("x-secure-header")) {
+      permissionToExecute = { state: false, reason: "Missing secure header" };
+    } else {
+      const secureHeader = ctr.headers.get("x-secure-header");
+      if (secureHeader !== functionData.secure_header) {
+        permissionToExecute = { state: false, reason: "Invalid secure header" };
+      }
+    }
+  }
+
+  // API key check
+  if (ctr.headers.has("x-access-key")) {
+    const accessKey = ctr.headers.get("x-access-key") || "";
+    const authState = await checkAuthentication(null, accessKey);
+    if (authState.success && authState.method === "apiKey") {
+      if (authState.user.id === functionData.userId) {
+        permissionToExecute = {
+          state: true,
+          reason: "Provided API Key and owns the function",
+        };
+      } else {
+        permissionToExecute = {
+          state: false,
+          reason: "Provided Access Token, but does not own the function",
+        };
+      }
+    } else {
+      permissionToExecute = {
+        state: false,
+        reason: "Provided Access Token, but it's invalid",
+      };
+    }
+  }
+
+  // Guest user logic
+  const guests = await prisma.guestUser.findMany({
+    where: {
+      permittedFunctions: { array_contains: [functionData.id] },
+      guestOwnerId: functionData.userId,
+    },
+  });
+  if (guests.length > 0) {
+    permissionToExecute = {
+      state: false,
+      reason:
+        "Function has guest users assigned, authentication required now",
+    };
+    // Check for guest cookie
+    const guestCookie = ctr.cookies.get(
+      `shsf_guest_${namespaceId}_${functionId}`
+    );
+    if (guestCookie) {
+      const guestSession = await prisma.guestSession.findFirst({
+        where: { hash: guestCookie },
+        include: { guestUser: true },
+      });
+      if (guestSession) {
+        const now = new Date();
+        if (guestSession.expiresAt < now) {
+          permissionToExecute = {
+            state: false,
+            reason: "Guest session has expired",
+          };
+          await prisma.guestSession.delete({ where: { id: guestSession.id } });
+          ctr.cookies.set(
+            `shsf_guest_${namespaceId}_${functionId}`,
+            new Cookie("", {
+              domain: REACT_APP_API_URL.replace("https://", "")
+                .replace("http://", "")
+                .replace("/", ""),
+              expires: new Date(Date.now()),
+            })
+          );
+          permissionToExecute.redirect = undefined;
+        } else if (
+          !guests.map((g) => g.id).includes(guestSession.guestUser.id)
+        ) {
+          permissionToExecute = {
+            state: false,
+            reason:
+              "Guest user does not have permission to access this function. [FORCE RELOAD]",
+          };
+          ctr.cookies.set(
+            `shsf_guest_${namespaceId}_${functionId}`,
+            new Cookie("", {
+              domain: REACT_APP_API_URL.replace("https://", "")
+                .replace("http://", "")
+                .replace("/", ""),
+              expires: new Date(Date.now()),
+            })
+          );
+          permissionToExecute.redirect = `${REACT_APP_API_URL}/api/exec/${namespaceId}/${functionId}`;
+        } else {
+          permissionToExecute = { state: true, reason: "Valid guest cookie" };
+        }
+      } else {
+        permissionToExecute = { state: false, reason: "Invalid guest cookie" };
+        ctr.cookies.set(
+          `shsf_guest_${namespaceId}_${functionId}`,
+          new Cookie("", {
+            domain: REACT_APP_API_URL.replace("https://", "")
+              .replace("http://", "")
+              .replace("/", ""),
+            expires: new Date(Date.now()),
+          })
+        );
+      }
+    } else {
+      permissionToExecute = { state: false, reason: "Missing guest cookie" };
+      permissionToExecute.redirect =
+        UI_URL +
+        "/guest-access?nsp=" +
+        functionData.namespaceId +
+        "&func=" +
+        functionData.executionId;
+    }
+  }
+
+  return permissionToExecute;
+}
 
 export = new fileRouter.Path("/")
   .http("POST", "/api/function", (http) =>
@@ -742,12 +895,7 @@ export = new fileRouter.Path("/")
             namespaceId: namespaceId,
           },
           include: {
-            namespace: {
-              select: {
-                name: true,
-                id: true,
-              },
-            },
+            namespace: { select: { name: true, id: true } },
             files: true,
           },
         });
@@ -766,61 +914,26 @@ export = new fileRouter.Path("/")
           });
         }
 
-        let permissionToExecute: {
-          state: boolean;
-          reason: string;
-        } = {
-          state: false,
-          reason: "",
-        };
+        // --- streamlined permission check ---
+        const permissionToExecute = await checkHttpExecutionPermission(
+          ctr,
+          functionData,
+          namespaceId,
+          functionId
+        );
 
-        if (functionData.secure_header) {
-          if (!ctr.headers.has("x-secure-header")) {
-            permissionToExecute = {
-              state: false,
-              reason: "Missing secure header",
-            };
-          }
-
-          const secureHeader = ctr.headers.get("x-secure-header");
-          if (secureHeader !== functionData.secure_header) {
-            permissionToExecute = {
-              state: false,
-              reason: "Invalid secure header",
-            };
-          }
+        if (permissionToExecute.redirect) {
+          return ctr
+            .status(ctr.$status.TEMPORARY_REDIRECT)
+            .redirect(permissionToExecute.redirect);
         }
-
-        if (ctr.headers.has("x-access-key")) {
-          const accessKey = ctr.headers.get("x-access-key") || "";
-          const authState = await checkAuthentication(null, accessKey);
-          if (authState.success && authState.method === "apiKey") {
-            // Check if they own it
-            if (authState.user.id === functionData.userId) {
-              permissionToExecute = {
-                state: true,
-                reason: "Provided API Key and owns the function",
-              };
-            } else {
-              permissionToExecute = {
-                state: false,
-                reason: "Provided Access Token, but does not own the function",
-              };
-            }
-          } else {
-            permissionToExecute = {
-              state: false,
-              reason: "Provided Access Token, but it's invalid",
-            };
-          }
-        }
-
         if (!permissionToExecute.state) {
           return ctr.status(ctr.$status.FORBIDDEN).print({
             status: 403,
             message: permissionToExecute.reason,
           });
         }
+        // --- end streamlined ---
 
         // Build the payload from GET request
         const payload = await buildPayloadFromGET(ctr);
@@ -908,12 +1021,7 @@ export = new fileRouter.Path("/")
             namespaceId: namespaceId,
           },
           include: {
-            namespace: {
-              select: {
-                name: true,
-                id: true,
-              },
-            },
+            namespace: { select: { name: true, id: true } },
             files: true,
           },
         });
@@ -932,62 +1040,28 @@ export = new fileRouter.Path("/")
           });
         }
 
-        let permissionToExecute: {
-          state: boolean;
-          reason: string;
-        } = {
-          state: false,
-          reason: "",
-        };
+        // --- streamlined permission check ---
+        const permissionToExecute = await checkHttpExecutionPermission(
+          ctr,
+          functionData,
+          namespaceId,
+          functionId
+        );
 
-        if (functionData.secure_header) {
-          if (!ctr.headers.has("x-secure-header")) {
-            permissionToExecute = {
-              state: false,
-              reason: "Missing secure header",
-            };
-          }
-
-          const secureHeader = ctr.headers.get("x-secure-header");
-          if (secureHeader !== functionData.secure_header) {
-            permissionToExecute = {
-              state: false,
-              reason: "Invalid secure header",
-            };
-          }
+        if (permissionToExecute.redirect) {
+          return ctr
+            .status(ctr.$status.TEMPORARY_REDIRECT)
+            .redirect(permissionToExecute.redirect);
         }
-
-        if (ctr.headers.has("x-access-key")) {
-          const accessKey = ctr.headers.get("x-access-key") || "";
-          const authState = await checkAuthentication(null, accessKey);
-          if (authState.success && authState.method === "apiKey") {
-            // Check if they own it
-            if (authState.user.id === functionData.userId) {
-              permissionToExecute = {
-                state: true,
-                reason: "Provided API Key and owns the function",
-              };
-            } else {
-              permissionToExecute = {
-                state: false,
-                reason: "Provided Access Token, but does not own the function",
-              };
-            }
-          } else {
-            permissionToExecute = {
-              state: false,
-              reason: "Provided Access Token, but it's invalid",
-            };
-          }
-        }
-
         if (!permissionToExecute.state) {
           return ctr.status(ctr.$status.FORBIDDEN).print({
             status: 403,
             message: permissionToExecute.reason,
           });
         }
+        // --- end streamlined ---
 
+        // Build the payload from POST request
         const payload = await buildPayloadFromPOST(ctr);
 
         const result = await executeFunction(
@@ -1071,12 +1145,7 @@ export = new fileRouter.Path("/")
             namespaceId: namespaceId,
           },
           include: {
-            namespace: {
-              select: {
-                name: true,
-                id: true,
-              },
-            },
+            namespace: { select: { name: true, id: true } },
             files: true,
           },
         });
@@ -1095,61 +1164,26 @@ export = new fileRouter.Path("/")
           });
         }
 
-        let permissionToExecute: {
-          state: boolean;
-          reason: string;
-        } = {
-          state: false,
-          reason: "",
-        };
+        // --- streamlined permission check ---
+        const permissionToExecute = await checkHttpExecutionPermission(
+          ctr,
+          functionData,
+          namespaceId,
+          functionId
+        );
 
-        if (functionData.secure_header) {
-          if (!ctr.headers.has("x-secure-header")) {
-            permissionToExecute = {
-              state: false,
-              reason: "Missing secure header",
-            };
-          }
-
-          const secureHeader = ctr.headers.get("x-secure-header");
-          if (secureHeader !== functionData.secure_header) {
-            permissionToExecute = {
-              state: false,
-              reason: "Invalid secure header",
-            };
-          }
+        if (permissionToExecute.redirect) {
+          return ctr
+            .status(ctr.$status.TEMPORARY_REDIRECT)
+            .redirect(permissionToExecute.redirect);
         }
-
-        if (ctr.headers.has("x-access-key")) {
-          const accessKey = ctr.headers.get("x-access-key") || "";
-          const authState = await checkAuthentication(null, accessKey);
-          if (authState.success && authState.method === "apiKey") {
-            // Check if they own it
-            if (authState.user.id === functionData.userId) {
-              permissionToExecute = {
-                state: true,
-                reason: "Provided API Key and owns the function",
-              };
-            } else {
-              permissionToExecute = {
-                state: false,
-                reason: "Provided Access Token, but does not own the function",
-              };
-            }
-          } else {
-            permissionToExecute = {
-              state: false,
-              reason: "Provided Access Token, but it's invalid",
-            };
-          }
-        }
-
         if (!permissionToExecute.state) {
           return ctr.status(ctr.$status.FORBIDDEN).print({
             status: 403,
             message: permissionToExecute.reason,
           });
         }
+        // --- end streamlined ---
 
         // Build the payload from GET request
         const payload = await buildPayloadFromGET(ctr);
@@ -1237,12 +1271,7 @@ export = new fileRouter.Path("/")
             namespaceId: namespaceId,
           },
           include: {
-            namespace: {
-              select: {
-                name: true,
-                id: true,
-              },
-            },
+            namespace: { select: { name: true, id: true } },
             files: true,
           },
         });
@@ -1261,62 +1290,28 @@ export = new fileRouter.Path("/")
           });
         }
 
-        let permissionToExecute: {
-          state: boolean;
-          reason: string;
-        } = {
-          state: false,
-          reason: "",
-        };
+        // --- streamlined permission check ---
+        const permissionToExecute = await checkHttpExecutionPermission(
+          ctr,
+          functionData,
+          namespaceId,
+          functionId
+        );
 
-        if (functionData.secure_header) {
-          if (!ctr.headers.has("x-secure-header")) {
-            permissionToExecute = {
-              state: false,
-              reason: "Missing secure header",
-            };
-          }
-
-          const secureHeader = ctr.headers.get("x-secure-header");
-          if (secureHeader !== functionData.secure_header) {
-            permissionToExecute = {
-              state: false,
-              reason: "Invalid secure header",
-            };
-          }
+        if (permissionToExecute.redirect) {
+          return ctr
+            .status(ctr.$status.TEMPORARY_REDIRECT)
+            .redirect(permissionToExecute.redirect);
         }
-
-        if (ctr.headers.has("x-access-key")) {
-          const accessKey = ctr.headers.get("x-access-key") || "";
-          const authState = await checkAuthentication(null, accessKey);
-          if (authState.success && authState.method === "apiKey") {
-            // Check if they own it
-            if (authState.user.id === functionData.userId) {
-              permissionToExecute = {
-                state: true,
-                reason: "Provided API Key and owns the function",
-              };
-            } else {
-              permissionToExecute = {
-                state: false,
-                reason: "Provided Access Token, but does not own the function",
-              };
-            }
-          } else {
-            permissionToExecute = {
-              state: false,
-              reason: "Provided Access Token, but it's invalid",
-            };
-          }
-        }
-
         if (!permissionToExecute.state) {
           return ctr.status(ctr.$status.FORBIDDEN).print({
             status: 403,
             message: permissionToExecute.reason,
           });
         }
+        // --- end streamlined ---
 
+        // Build the payload from POST request
         const payload = await buildPayloadFromPOST(ctr);
 
         const result = await executeFunction(

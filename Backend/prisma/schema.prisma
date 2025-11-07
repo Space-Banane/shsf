@@ -29,6 +29,7 @@ model User {
   namespaces   Namespace[]
   accessTokens AccessToken[]
   storages     FunctionStorage[]
+  guestUsers   GuestUser[]
 }
 
 model Session {
@@ -177,4 +178,33 @@ model FunctionStorageItem {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model GuestUser {
+  id         Int      @id @default(autoincrement())
+  displayName String   @db.VarChar(128)
+  email       String   @unique
+
+  permittedFunctions Json // List of numeric Function IDs (database IDs) the guest user is permitted to access  
+  password_hash String @db.VarChar(256)
+
+  guestOwnerId Int
+  guestOwner   User @relation(fields: [guestOwnerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions GuestSession[]
+}
+
+model GuestSession {
+  id   Int    @id @default(autoincrement())
+  hash String @db.Text
+
+  guestUserId Int
+  guestUser   GuestUser @relation(fields: [guestUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime
 }
