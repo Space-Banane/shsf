@@ -29,7 +29,6 @@ interface XFunction {
   retry_on_failure: boolean;
   max_retries: number;
 
-  priority: number;
   tags?: string; // comma-separated tags
   startup_file?: string;
   docker_mount: boolean;

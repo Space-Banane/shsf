@@ -355,7 +355,6 @@ async function pushMetadata() {
         localMeta.timeout !== remoteMeta.timeout ||
         localMeta.allow_http !== remoteMeta.allow_http ||
         localMeta.secure_header !== remoteMeta.secure_header ||
-        localMeta.priority !== remoteMeta.priority ||
         localMeta.retry_on_failure !== remoteMeta.retry_on_failure ||
         localMeta.max_retries !== remoteMeta.max_retries ||
         JSON.stringify(localMeta.tags) !== JSON.stringify(remoteMeta.tags);
@@ -402,10 +401,6 @@ async function pushMetadata() {
     }
     if (localMeta.secure_header !== remoteMeta.secure_header) {
         settings.secure_header = localMeta.secure_header;
-        hasSettingsChanges = true;
-    }
-    if (localMeta.priority !== remoteMeta.priority) {
-        settings.priority = localMeta.priority;
         hasSettingsChanges = true;
     }
     if (localMeta.retry_on_failure !== remoteMeta.retry_on_failure) {

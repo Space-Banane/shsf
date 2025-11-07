@@ -22,7 +22,6 @@ function UpdateFunctionModal({
 	const [maxRam, setMaxRam] = useState<number | undefined>();
 	const [timeout, setTimeout] = useState<number | undefined>();
 	const [allowHttp, setAllowHttp] = useState<boolean>(false);
-	const [priority, setPriority] = useState<number | undefined>();
 	const [startupFile, setStartupFile] = useState<string | undefined>();
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
@@ -40,7 +39,6 @@ function UpdateFunctionModal({
 			setMaxRam(functionData.max_ram);
 			setTimeout(functionData.timeout);
 			setAllowHttp(functionData.allow_http || false);
-			setPriority(functionData.priority);
 			setStartupFile(functionData.startup_file || "");
 			setSecureHeader(functionData.secure_header || undefined);
 			setDockerMount(functionData.docker_mount ?? false);
@@ -94,7 +92,6 @@ function UpdateFunctionModal({
 						max_ram: maxRam,
 						timeout,
 						allow_http: allowHttp,
-						priority,
 						secure_header: secureHeader?.length === 0 ? null : secureHeader,
 					},
 					cors_origins: corsOrigins,
@@ -233,17 +230,6 @@ function UpdateFunctionModal({
 									value={timeout || ""}
 									max={300}
 									onChange={(e) => setTimeout(Number(e.target.value))}
-									className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
-									disabled={isLoading || isHtmlFunction}
-								/>
-							</div>
-							<div className="space-y-2">
-								<label className="text-sm font-medium text-gray-300">Priority</label>
-								<input
-									type="number"
-									placeholder="0"
-									value={priority || ""}
-									onChange={(e) => setPriority(Number(e.target.value))}
 									className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
 									disabled={isLoading || isHtmlFunction}
 								/>

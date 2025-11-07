@@ -41,7 +41,6 @@ export = new fileRouter.Path("/")
               timeout: z.number().positive().min(1).max(300).optional(), // Increased max timeout to 300 seconds : 5 minutes
               allow_http: z.boolean().optional(),
               secure_header: z.string().min(1).max(256).optional(),
-              priority: z.number().min(1).max(10).positive().optional(),
               tags: z.array(z.string().min(1).max(32)).optional(),
               retry_on_failure: z.boolean().optional(),
               retry_count: z.number().min(1).max(10).positive().optional(),
@@ -127,7 +126,6 @@ export = new fileRouter.Path("/")
           max_ram: data.settings?.max_ram,
           timeout: data.settings?.timeout,
           secure_header: data.settings?.secure_header,
-          priority: data.settings?.priority,
           retry_on_failure: data.settings?.retry_on_failure,
           max_retries: data.settings?.retry_count,
           env: data.environment
@@ -384,13 +382,6 @@ export = new fileRouter.Path("/")
               timeout: z.number().positive().min(1).max(500).optional(),
               allow_http: z.boolean().optional(),
               secure_header: z.string().min(1).max(256).optional().or(z.null()),
-              priority: z
-                .number()
-                .min(1)
-                .max(10)
-                .positive()
-                .optional()
-                .default(7),
               tags: z.array(z.string().min(1).max(32)).optional(),
               retry_on_failure: z.boolean().optional(),
               retry_count: z.number().min(1).max(10).positive().optional(),
@@ -458,9 +449,6 @@ export = new fileRouter.Path("/")
         ...(data.settings?.timeout && { timeout: data.settings.timeout }),
         ...(data.settings?.secure_header !== undefined && {
           secure_header: data.settings.secure_header,
-        }),
-        ...(data.settings?.priority && {
-          priority: data.settings.priority,
         }),
         ...(data.settings?.retry_on_failure !== undefined && {
           retry_on_failure: data.settings.retry_on_failure,

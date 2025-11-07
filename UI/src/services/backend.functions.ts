@@ -73,7 +73,6 @@ async function createFunction(config: {
     timeout?: number;
     allow_http?: boolean;
     secure_header?: string;
-    priority?: number;
     tags?: string[];
     retry_on_failure?: boolean;
     retry_count?: number;
@@ -170,7 +169,6 @@ async function updateFunction(
       timeout?: number;
       allow_http?: boolean;
       secure_header?: string | null;
-      priority?: number;
       tags?: string[];
       retry_on_failure?: boolean;
       retry_count?: number;
