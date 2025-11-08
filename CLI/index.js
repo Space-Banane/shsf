@@ -301,6 +301,10 @@ async function apiRequest(method, endpoint, data = null) {
         }
 
         const response = await axios(config);
+        if (response.status !== 200) {
+            console.error(chalk.red(`Error: ${response.statusText}`));
+            return null;
+        }
         return response.data;
     } catch (error) {
         console.error(chalk.red(`API Error: ${error.message}`));
@@ -356,6 +360,7 @@ async function pushMetadata() {
         localMeta.allow_http !== remoteMeta.allow_http ||
         localMeta.secure_header !== remoteMeta.secure_header ||
         localMeta.retry_on_failure !== remoteMeta.retry_on_failure ||
+        localMeta.executionAlias !== remoteMeta.executionAlias ||
         localMeta.max_retries !== remoteMeta.max_retries ||
         JSON.stringify(localMeta.tags) !== JSON.stringify(remoteMeta.tags);
 
@@ -409,6 +414,10 @@ async function pushMetadata() {
     }
     if (localMeta.max_retries !== remoteMeta.max_retries) {
         settings.retry_count = localMeta.max_retries; // Note: API expects 'retry_count', meta stores as 'max_retries'
+        hasSettingsChanges = true;
+    }
+    if (localMeta.executionAlias !== remoteMeta.executionAlias) {
+        settings.executionAlias = localMeta.executionAlias;
         hasSettingsChanges = true;
     }
 
@@ -685,20 +694,20 @@ async function handleSetUrl() {
 }
 
 // Execute function and log result
-async function execFunctionAndLog() {
+async function execFunctionAndLog(namespaceId, route) {
     if (!opts.link) {
         console.error(chalk.red('Error: --link parameter is required for exec mode'));
         process.exit(1);
     }
     console.log(chalk.cyan(`Executing function (link ID ${AppState.link})...`));
     try {
-        const data = await apiRequest('POST', `/function/${AppState.link}/execute`);
-        if (data.status === 'OK') {
+        const data = await apiRequest('POST', `/exec/${namespaceId}/${AppState.link}/${route}`);
+        if (data.type === 'output') {
             const output = [
-                `Output:\n${data.data.output}`,
-                `Exit Code: ${data.data.exitCode}`,
-                `Result: ${JSON.stringify(data.data.result)}`,
-                `Took: ${data.data.took}ms`
+                `Output:\n${data.output}`,
+                `Exit Code: ${data.exitCode}`,
+                `Result: ${JSON.stringify(data.result)}`,
+                `Took: ${data.took}ms`
             ].join('\n');
             console.log(chalk.green('\n=== Execution Result ===\n'));
             console.log(output);
@@ -708,7 +717,7 @@ async function execFunctionAndLog() {
             await fs.writeFile(logPath, output + '\n', 'utf-8');
             console.log(chalk.gray(`\n✓ Execution result logged to ${logPath}\n`));
         } else {
-            console.log(chalk.red('✗ Execution failed:'), data.message || '');
+            console.log(chalk.red('✗ Execution failed:'), data.message || 'Unknown error');
         }
     } catch (err) {
         console.error(chalk.red('✗ Execution error:'), err.message);
@@ -893,11 +902,86 @@ async function main() {
             process.exit(0);
         });
 
+    } else if (AppState.mode === 'update-alias') {
+        // Update execution alias via PATCH /function/{id}
+        const metaPath = path.join(AppState.project, '.meta.json');
+        if (!fsSync.existsSync(metaPath)) {
+            console.error(chalk.red('Error: .meta.json not found in project directory.'));
+            process.exit(1);
+        }
+        const localMeta = JSON.parse(await fs.readFile(metaPath, 'utf-8'));
+        if (!opts.alias) {
+            console.error(chalk.red('Error: --alias parameter is required for update-alias mode'));
+            process.exit(1);
+        }
+        const payload = { executionAlias: opts.alias };
+        const result = await apiRequest('PATCH', `/function/${AppState.link}`, payload);
+        if (result.status === 'OK') {
+            console.log(chalk.green('✓ Execution alias updated successfully'));
+            localMeta.executionAlias = opts.alias;
+            await fs.writeFile(metaPath, JSON.stringify(localMeta, null, 2), 'utf-8');
+        } else {
+            console.error(chalk.red('✗ Failed to update execution alias'));
+        }
+        return;
     } else if (AppState.mode === 'exec') {
-        await execFunctionAndLog();
+        if (!AppState.project || !fsSync.existsSync(AppState.project)) {
+            console.error(chalk.red('Error: --project parameter is required for exec mode'));
+            process.exit(1);
+        }
+        // Run function via /api/exec/{namespaceId}/{functionId}/{route}
+        const metaPath = path.join(AppState.project, '.meta.json');
+        if (!fsSync.existsSync(metaPath)) {
+            console.error(chalk.red('Error: .meta.json not found in project directory.'));
+            process.exit(1);
+        }
+        const localMeta = JSON.parse(await fs.readFile(metaPath, 'utf-8'));
+        const namespaceId = localMeta.namespaceId;
+        const functionId = localMeta.executionId;
+        if (!namespaceId || !functionId) {
+            console.error(chalk.red('Error: namespaceId or executionId missing in .meta.json'));
+            process.exit(1);
+        }
+        if (opts.route && opts.route.startsWith('/')) {
+            console.error(chalk.red('Error: --route is not allowed to start with a leading slash'));
+            process.exit(1);
+        }
+        if (opts.route && opts.route.length > 256) {
+            console.error(chalk.red('Error: --route exceeds maximum length of 256 characters'));
+            process.exit(1);
+        }
+
+        // Route validation allows empty string (default route), while executionAlias requires at least one character.
+        // If you want stricter validation, use /^[a-zA-Z0-9-_]+$/ instead.
+                if (opts.route && !/^[a-zA-Z0-9-_]*$/.test(opts.route)) { // Only allow alphanumeric, underscore, hyphen; empty route is valid
+                    console.error(chalk.red('Error: --route contains invalid characters'));
+                    process.exit(1);
+                }
+
+
+        const method = opts.method ? opts.method.toUpperCase() : 'POST';
+        const route = opts.route ?? ""
+        let endpoint = `/exec/${namespaceId}/${functionId}/${route}`;
+        let result;
+        if (method === 'GET') {
+            result = await apiRequest('GET', endpoint);
+        } else {
+            let body = {};
+            if (opts.body) {
+                try {
+                    body = JSON.parse(opts.body);
+                } catch (e) {
+                    console.error(chalk.red('Error: --body must be valid JSON'));
+                    process.exit(1);
+                }
+            }
+            result = await apiRequest('POST', endpoint, body);
+        }
+        console.log(chalk.green('=== Function Execution Result ==='));
+        console.log(result);
         return;
     } else {
-        console.error(chalk.red(`Error: Unknown mode '${AppState.mode}'. Use: pull, push, watchdog, settings, or ignore`));
+        console.error(chalk.red(`Error: Unknown mode '${AppState.mode}'. Use: pull, push, watchdog, settings, ignore, update-alias, exec`));
         process.exit(1);
     }
 }

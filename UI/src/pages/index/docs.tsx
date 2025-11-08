@@ -252,4 +252,12 @@ const lessons: {
       "Learn how to create and assign guest users for function-specific authentication.",
     link: "/docs/guest-users",
   },
+  {
+    key: "execution-alias",
+    identifier: "#18",
+    title: "Execution Alias",
+    description:
+      "Learn how to use human-readable aliases to invoke functions via the Browser.",
+    link: "/docs/execution-alias",
+  },
 ];

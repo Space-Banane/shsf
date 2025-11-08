@@ -25,6 +25,7 @@ function CreateFunctionModal({
   const [timeout, setTimeout] = useState<number | undefined>();
   const [allowHttp, setAllowHttp] = useState<boolean>(false);
   const [startupFile, setStartupFile] = useState<string | undefined>();
+  const [executionAlias, setExecutionAlias] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [dockerMount, setDockerMount] = useState<boolean>(false);
@@ -39,6 +40,7 @@ function CreateFunctionModal({
     setTimeout(undefined);
     setAllowHttp(false);
     setStartupFile(undefined);
+    setExecutionAlias("");
     setDockerMount(false);
     setCorsOrigins("");
     setError("");
@@ -47,11 +49,13 @@ function CreateFunctionModal({
   const handleSubmit = async () => {
     if (!namespaceId) {
       setError("Please select a namespace");
+      setIsLoading(false);
       return;
     }
 
     if (!name.trim()) {
       setError("Please enter a function name");
+      setIsLoading(false);
       return;
     }
 
@@ -59,6 +63,21 @@ function CreateFunctionModal({
     setIsLoading(true);
 
     try {
+      // Ensure Regex and length
+      const executionAliasValid = /^[a-zA-Z0-9-_]+$/.test(executionAlias);
+      if (
+        executionAlias &&
+        (!executionAliasValid ||
+          executionAlias.length < 8 ||
+          executionAlias.length > 128)
+      ) {
+        setError(
+          "Execution alias must be 8-128 characters and can only contain alphanumeric characters, hyphens, and underscores."
+        );
+        setIsLoading(false);
+        return;
+      }
+
       const response = await createFunction({
         name,
         description,
@@ -66,6 +85,8 @@ function CreateFunctionModal({
         namespaceId,
         startup_file: startupFile,
         docker_mount: dockerMount,
+        executionAlias:
+          executionAlias.trim() === "" ? undefined : executionAlias,
         settings: {
           max_ram: maxRam,
           timeout,
@@ -194,6 +215,21 @@ function CreateFunctionModal({
               onChange={(e) => setDescription(e.target.value)}
               className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 resize-none"
               rows={3}
+              disabled={isLoading}
+            />
+          </div>
+
+          {/* Execution Alias input */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-300">
+              Execution Alias
+            </label>
+            <input
+              type="text"
+              placeholder="Optional: alias for execution (e.g. very-important-function)"
+              value={executionAlias}
+              onChange={(e) => setExecutionAlias(e.target.value)}
+              className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
               disabled={isLoading}
             />
           </div>

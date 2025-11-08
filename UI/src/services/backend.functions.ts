@@ -83,6 +83,7 @@ async function createFunction(config: {
   }[];
   namespaceId: number;
   cors_origins?: string;
+  executionAlias?: string;
 }) {
   const response = await fetch(`${BASE_URL}/api/function`, {
     method: "POST",
@@ -178,6 +179,7 @@ async function updateFunction(
       value: string;
     }[];
     cors_origins?: string;
+    executionAlias?: string;
   }
 ) {
   const response = await fetch(`${BASE_URL}/api/function/${id}`, {

@@ -48,7 +48,9 @@ model Function {
   name        String @db.VarChar(128)
   description String @db.VarChar(256)
   image       String @db.VarChar(256)
+
   executionId String @unique @db.VarChar(256) // Unique identifier for the function execution
+  executionAlias String? @db.VarChar(128) @unique // Human-readable alias for the function execution
 
   userId Int
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)

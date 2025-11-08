@@ -188,6 +188,7 @@ export = new fileRouter.Path("/")
           image: z.enum(Images as any),
           startup_file: z.string().min(1).max(256).optional(),
           docker_mount: z.boolean().optional(),
+          executionAlias: z.string().min(8).max(128).regex(/^[a-zA-Z0-9-_]+$/).optional(), // Only allow alphanumeric, hyphens, and underscores
           settings: z
             .object({
               max_ram: z.number().min(128).max(1024).optional(),
@@ -267,6 +268,21 @@ export = new fileRouter.Path("/")
         });
       }
 
+      // Check for duplicate executionAlias before creating
+      if (data.executionAlias) {
+        const aliasExists = await prisma.function.findFirst({
+          where: {
+            executionAlias: data.executionAlias,
+          },
+        });
+        if (aliasExists) {
+          return ctr.status(ctr.$status.BAD_REQUEST).print({
+            status: 400,
+            message: "Function with this executionAlias already exists",
+          });
+        }
+      }
+
       const out = await prisma.function.create({
         data: {
           description: data.description,
@@ -293,6 +309,7 @@ export = new fileRouter.Path("/")
           executionId: randomUUID(),
           docker_mount: data.docker_mount || false,
           cors_origins: data.cors_origins,
+          executionAlias: data.executionAlias,
         },
       });
 
@@ -528,6 +545,7 @@ export = new fileRouter.Path("/")
           description: z.string().min(3).max(128).optional(),
           image: z.enum(Images as any).optional(),
           startup_file: z.string().min(1).max(256).optional(),
+          executionAlias: z.string().min(8).max(128).regex(/^[a-zA-Z0-9-_]+$/).optional(), // Only allow alphanumeric, hyphens, and underscores
           docker_mount: z.boolean().optional(),
           settings: z
             .object({
@@ -587,6 +605,23 @@ export = new fileRouter.Path("/")
         });
       }
 
+      // Check for duplicate executionAlias before updating
+      if (data.executionAlias !== undefined) {
+        const aliasExists = await prisma.function.findFirst({
+          where: {
+            executionAlias: data.executionAlias,
+            // Exclude current function
+            NOT: { id: functionId },
+          },
+        });
+        if (aliasExists) {
+          return ctr.status(ctr.$status.BAD_REQUEST).print({
+            status: 400,
+            message: "Another function with this executionAlias already exists",
+          });
+        }
+      }
+
       const updatedData: any = {
         ...(data.name && { name: data.name }),
         ...(data.description && { description: data.description }),
@@ -622,6 +657,9 @@ export = new fileRouter.Path("/")
         }),
         ...(data.cors_origins !== undefined && {
           cors_origins: data.cors_origins,
+        }),
+        ...(data.executionAlias !== undefined && {
+          executionAlias: data.executionAlias,
         }),
       };
 
@@ -1046,6 +1084,252 @@ export = new fileRouter.Path("/")
           functionData,
           namespaceId,
           functionId
+        );
+
+        if (permissionToExecute.redirect) {
+          return ctr
+            .status(ctr.$status.TEMPORARY_REDIRECT)
+            .redirect(permissionToExecute.redirect);
+        }
+        if (!permissionToExecute.state) {
+          return ctr.status(ctr.$status.FORBIDDEN).print({
+            status: 403,
+            message: permissionToExecute.reason,
+          });
+        }
+        // --- end streamlined ---
+
+        // Build the payload from POST request
+        const payload = await buildPayloadFromPOST(ctr);
+
+        const result = await executeFunction(
+          functionData.id,
+          functionData,
+          functionData.files,
+          { enabled: false },
+          JSON.stringify(payload)
+        );
+
+        // we might be able to do magic here
+        if (typeof result?.result === "object" && result?.result !== null) {
+          const out = result.result; // quicker to write and access
+
+          if ("_shsf" in out) {
+            const version: "v2" = out._shsf; // always v2 currently
+            const headers: { key: string; value: any }[] | null =
+              "_headers" in out
+                ? Object.entries(out._headers).map(([key, value]) => ({
+                    key,
+                    value,
+                  }))
+                : null;
+            const response_code: number | null =
+              "_code" in out ? out._code : null;
+            const response: any | null = "_res" in out ? out._res : null;
+
+            if (response_code === 301 || response_code === 302) {
+              // Handle redirects
+              ctr.status(response_code);
+              if (headers) {
+                headers.forEach(({ key, value }) => {
+                  ctr.headers.set(key, value);
+                });
+              }
+              const link = "_location" in out ? out._location : "/";
+              return ctr.redirect(link);
+            }
+
+            ctr.status(response_code || 200);
+
+            if (headers) {
+              headers.forEach(({ key, value }) => {
+                ctr.headers.set(key, value);
+              });
+            }
+
+            if (response) {
+              return ctr.print(response);
+            } else {
+              return ctr.print("No Function Result :(");
+            }
+          }
+        }
+
+        return ctr.print(result?.result ?? "No Function Result :(");
+      })
+  )
+  .http("GET", "/exec/{executionAlias}", (http) =>
+    http
+      .ratelimit((limit) =>
+        limit
+          .hits(2)
+          .window(parseInt(env.RATELIMIT!) || 2000)
+          .penalty(1000)
+      )
+      .onRequest(async (ctr) => {
+        const executionAlias = ctr.params.get("executionAlias") || "";
+
+        if (!executionAlias) {
+          return ctr.status(ctr.$status.BAD_REQUEST).print({
+            status: 400,
+            message: "Invalid execution alias",
+          });
+        }
+
+        const functionData = await prisma.function.findFirst({
+          where: {
+            executionAlias: executionAlias,
+          },
+          include: {
+            namespace: { select: { name: true, id: true } },
+            files: true,
+          },
+        });
+
+        if (!functionData) {
+          return ctr.status(ctr.$status.NOT_FOUND).print({
+            status: 404,
+            message: "Function not found",
+          });
+        }
+
+        if (!functionData.allow_http) {
+          return ctr.status(ctr.$status.FORBIDDEN).print({
+            status: 403,
+            message: "HTTP execution is not allowed for this function",
+          });
+        }
+
+        // --- streamlined permission check ---
+        const permissionToExecute = await checkHttpExecutionPermission(
+          ctr,
+          functionData,
+          functionData.namespaceId,
+          String(functionData.id)
+        );
+
+        if (permissionToExecute.redirect) {
+          return ctr
+            .status(ctr.$status.TEMPORARY_REDIRECT)
+            .redirect(permissionToExecute.redirect);
+        }
+        if (!permissionToExecute.state) {
+          return ctr.status(ctr.$status.FORBIDDEN).print({
+            status: 403,
+            message: permissionToExecute.reason,
+          });
+        }
+        // --- end streamlined ---
+
+        // Build the payload from GET request
+        const payload = await buildPayloadFromGET(ctr);
+
+        // Execute with run parameter instead of inject.json
+        const result = await executeFunction(
+          functionData.id,
+          functionData,
+          functionData.files,
+          { enabled: false },
+          JSON.stringify(payload)
+        );
+
+        // we might be able to do magic here
+        if (typeof result?.result === "object" && result?.result !== null) {
+          const out = result.result; // quicker to write and access
+
+          if ("_shsf" in out) {
+            const version: "v2" = out._shsf; // always v2 currently
+            const headers: { key: string; value: any }[] | null =
+              "_headers" in out
+                ? Object.entries(out._headers).map(([key, value]) => ({
+                    key,
+                    value,
+                  }))
+                : null;
+            const response_code: number | null =
+              "_code" in out ? out._code : null;
+            const response: any | null = "_res" in out ? out._res : null;
+
+            if (response_code === 301 || response_code === 302) {
+              // Handle redirects
+              ctr.status(response_code);
+              if (headers) {
+                headers.forEach(({ key, value }) => {
+                  ctr.headers.set(key, value);
+                });
+              }
+              const link = "_location" in out ? out._location : "/";
+              return ctr.redirect(link);
+            }
+
+            ctr.status(response_code || 200);
+
+            if (headers) {
+              headers.forEach(({ key, value }) => {
+                ctr.headers.set(key, value);
+              });
+            }
+
+            if (response) {
+              return ctr.print(response);
+            } else {
+              return ctr.print("No Function Result :(");
+            }
+          }
+        }
+
+        // Return result if available from main function, otherwise output OK
+        return ctr.print(result?.result ?? "No Function Result :(");
+      })
+  )
+  .http("POST", "/exec/{executionAlias}", (http) =>
+    http
+      .ratelimit((limit) =>
+        limit
+          .hits(2)
+          .window(parseInt(env.RATELIMIT!) || 2000)
+          .penalty(1000)
+      )
+      .onRequest(async (ctr) => {
+        const executionAlias = ctr.params.get("executionAlias") || "";
+
+        if (!executionAlias) {
+          return ctr.status(ctr.$status.BAD_REQUEST).print({
+            status: 400,
+            message: "Invalid execution alias",
+          });
+        }
+
+        const functionData = await prisma.function.findFirst({
+          where: {
+            executionAlias: executionAlias,
+          },
+          include: {
+            namespace: { select: { name: true, id: true } },
+            files: true,
+          },
+        });
+
+        if (!functionData) {
+          return ctr.status(ctr.$status.NOT_FOUND).print({
+            status: 404,
+            message: "Function not found",
+          });
+        }
+
+        if (!functionData.allow_http) {
+          return ctr.status(ctr.$status.FORBIDDEN).print({
+            status: 403,
+            message: "HTTP execution is not allowed for this function",
+          });
+        }
+
+        // --- streamlined permission check ---
+        const permissionToExecute = await checkHttpExecutionPermission(
+          ctr,
+          functionData,
+          functionData.namespaceId,
+          String(functionData.id)
         );
 
         if (permissionToExecute.redirect) {

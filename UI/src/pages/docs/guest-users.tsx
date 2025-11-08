@@ -93,12 +93,19 @@ export const GuestUsersDocPage = () => {
 
         <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
           <h2 className="text-xl font-bold text-primary mb-3">
-            🚀 Next Step - Keep your instance up to date!
+            🚀 Next Step - Execution Alias
           </h2>
           <p className="text-text/90 mb-4">
-            This is the latest documentation page. Check back here for new
-            updates as they become available.
+            Ugly UUID urls? Learn how to set human-readable execution aliases for
+            your functions to make invocation easier via the Browser.
           </p>
+          <a
+            href="/docs/execution-alias"
+            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+          >
+            #18 Execution Alias
+            <span className="text-lg">→</span>
+          </a>
         </div>
       </div>
     </div>

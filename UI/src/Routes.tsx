@@ -17,6 +17,7 @@ import { SecureHeadersPage } from "./pages/docs/secure-headers";
 import { PersistentDataPage } from "./pages/docs/persistent-data";
 import { RedirectsPage } from "./pages/docs/redirects";
 import { RawBodyPage } from "./pages/docs/raw-body";
+import ExecutionAliasPage from "./pages/docs/execution-alias";
 import { UserInterfacesPage } from "./pages/docs/user-interfaces";
 import { DockerMountPage } from "./pages/docs/docker-mount";
 import { ServeOnlyHtmlPage } from "./pages/docs/serve-only";
@@ -107,6 +108,12 @@ export const routes: AppRoute[] = [
     path: "/docs/redirects",
     component: RedirectsPage,
     name: "Redirects",
+    requireAuth: false,
+  },
+  {
+    path: "/docs/execution-alias",
+    component: ExecutionAliasPage,
+    name: "Execution Alias",
     requireAuth: false,
   },
   {

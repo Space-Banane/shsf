@@ -17,6 +17,9 @@ You've been provided with the Task of Generating a Document.
 
 
 ## How to add a Doc
+PRE-WRITING:
+- Take a look at older docs, see how they are structured and formatted.
+- Identify the last doc in the sequence to link from it to the new doc.
 1. Write the within the UI/src/pages/docs directory
 2. Add it as a Route within UI/src/Routes.tsx
 3. Add a entry in the lessons const list within UI/src/pages/index/docs.tsx

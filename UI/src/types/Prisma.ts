@@ -16,6 +16,7 @@ interface XFunction {
   description: string;
   image: string;
   executionId: string;
+  executionAlias?: string;
 
   userId: number;
 
