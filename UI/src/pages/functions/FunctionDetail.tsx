@@ -93,7 +93,8 @@ function FunctionDetail() {
   const consoleOutputRef = useRef<HTMLDivElement>(null!);
   const [autoScroll, setAutoScroll] = useState<boolean>(true);
   const [copyUrlColor, setCopyUrlColor] = useState<string>("text-stone-300");
-  const [copyUrltext, setCopyUrlText] = useState<string>("Copy📎");
+  const [copyUrltext, setCopyUrlText] = useState<string>("Copy Alias📎");
+  const [copyAliasURL, setCopyAliasURL] = useState<string>("");
   const [paramInputColor, setParamInputColor] = useState<string>("text-white");
   const [realTimeTaken, setRealTimeTaken] = useState<number | null>(null);
   const [tooks, setTooks] = useState<TimingEntry[]>([]);
@@ -1047,6 +1048,34 @@ function FunctionDetail() {
                   }}
                 />
               </div>
+              {functionData.executionAlias && (
+              <div className="space-y-2">
+                <h2 className="text-sm font-medium text-primary mt-4">
+                  Alias URL
+                </h2>
+                <div className="bg-background/30 border border-primary/10 rounded-lg p-2">
+                  <input
+                    type="text"
+                    value={functionURL.split("/api/")[0]+"/exec/"+functionData.executionAlias}
+                    readOnly
+                    className="w-full bg-transparent text-text text-xs outline-none"
+                    onClick={(e) => e.currentTarget.select()}
+                  />
+                </div>
+                <ActionButton
+                  icon="📋"
+                  label={copyAliasURL}
+                  variant="primary"
+                  onClick={() => {
+                    navigator.clipboard.writeText(functionURL.split("/api/")[0]+"/exec/"+functionData.executionAlias);
+                    setCopyAliasURL("✅ Copied Alias!");
+                    setTimeout(() => {
+                      setCopyAliasURL("Copy Alias📎");
+                    }, 2000);
+                  }}
+                />
+              </div>
+            )}
             </div>
 
             <FileManagerCard
