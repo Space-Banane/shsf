@@ -36,6 +36,17 @@ export = new fileRouter.Path("/")
         });
       }
 
+      // Check if a regular user with this email already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email: data.email },
+      });
+      if (existingUser) {
+        return ctr.status(ctr.$status.CONFLICT).print({
+          status: "FAILED",
+          message: "A regular user with this email already exists",
+        });
+      }
+
       // Check for existing guest with same email for this owner
       const existing = await prisma.guestUser.findFirst({
         where: { email: data.email, guestOwnerId: authCheck.user.id },
