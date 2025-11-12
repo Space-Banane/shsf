@@ -29,6 +29,7 @@ function CreateFunctionModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [dockerMount, setDockerMount] = useState<boolean>(false);
+  const [ffmpegInstall, setFfmpegInstall] = useState<boolean>(false);
   const [corsOrigins, setCorsOrigins] = useState<string>("");
   const [corsOriginInput, setCorsOriginInput] = useState<string>("");
 
@@ -42,6 +43,7 @@ function CreateFunctionModal({
     setStartupFile(undefined);
     setExecutionAlias("");
     setDockerMount(false);
+    setFfmpegInstall(false);
     setCorsOrigins("");
     setError("");
   };
@@ -85,6 +87,7 @@ function CreateFunctionModal({
         namespaceId,
         startup_file: startupFile,
         docker_mount: dockerMount,
+        ffmpeg_install: ffmpegInstall,
         executionAlias:
           executionAlias.trim() === "" ? undefined : executionAlias,
         settings: {
@@ -421,6 +424,52 @@ function CreateFunctionModal({
             {isHtmlFunction && (
               <p className="text-xs text-yellow-400 mt-1">
                 Docker mount is disabled for HTML startup files
+              </p>
+            )}
+          </div>
+
+          {/* FFmpeg Install Toggle */}
+          <div
+            className={`bg-gray-800/30 border border-purple-600/50 rounded-lg p-4 ${
+              isHtmlFunction ? "opacity-50 pointer-events-none" : ""
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">🎬</span>
+                <div>
+                  <p className="text-purple-300 font-medium text-sm">
+                    Install FFmpeg
+                  </p>
+                  <p className="text-purple-400 text-xs">
+                    Installs ffmpeg for media processing
+                  </p>
+                </div>
+              </div>
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={ffmpegInstall}
+                  onChange={(e) => setFfmpegInstall(e.target.checked)}
+                  className="sr-only peer"
+                  disabled={isLoading || isHtmlFunction}
+                  id="ffmpeg-install-create"
+                />
+                <label
+                  htmlFor="ffmpeg-install-create"
+                  className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-purple-500 peer-checked:to-pink-500 transition-all duration-300 cursor-pointer flex items-center relative"
+                >
+                  <div
+                    className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
+                      ffmpegInstall ? "translate-x-6" : "translate-x-0.5"
+                    }`}
+                  ></div>
+                </label>
+              </div>
+            </div>
+            {isHtmlFunction && (
+              <p className="text-xs text-purple-400 mt-1">
+                FFmpeg install is disabled for HTML startup files
               </p>
             )}
           </div>

@@ -33,6 +33,7 @@ interface XFunction {
   tags?: string; // comma-separated tags
   startup_file?: string;
   docker_mount: boolean;
+  ffmpeg_install: boolean;
 
   createdAt: Date;
   updatedAt: Date;

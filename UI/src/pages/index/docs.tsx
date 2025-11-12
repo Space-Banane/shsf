@@ -260,4 +260,12 @@ const lessons: {
       "Learn how to use human-readable aliases to invoke functions via the Browser.",
     link: "/docs/execution-alias",
   },
+  {
+    key: "ffmpeg-install",
+    identifier: "#19",
+    title: "FFmpeg Installation",
+    description:
+      "Learn how to enable automatic FFmpeg installation for media processing in your functions.",
+    link: "/docs/ffmpeg-install",
+  },
 ];

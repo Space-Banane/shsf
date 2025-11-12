@@ -30,6 +30,7 @@ import { CustomCorsDocPage } from "./pages/docs/custom-cors";
 import { GuestUsersDocPage } from "./pages/docs/guest-users";
 import GuestUsersPage from "./pages/GuestUsers";
 import GuestAccessPage from "./pages/Guest-Access";
+import { FfmpegInstallPage } from "./pages/docs/ffmpeg-install";
 // Added back the routes array
 export interface AppRoute {
   path: string;
@@ -174,6 +175,12 @@ export const routes: AppRoute[] = [
     path: "/docs/guest-users",
     component: GuestUsersDocPage,
     name: "Guest Users Doc",
+    requireAuth: false,
+  },
+  {
+    path: "/docs/ffmpeg-install",
+    component: FfmpegInstallPage,
+    name: "FFmpeg Installation",
     requireAuth: false,
   },
 

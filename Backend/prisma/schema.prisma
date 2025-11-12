@@ -70,6 +70,7 @@ model Function {
 
   // Extra Cool shit
   docker_mount Boolean @default(false) // Whether to mount a Docker socket
+  ffmpeg_install Boolean @default(false) // Whether to install ffmpeg in the function environment
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

@@ -447,6 +447,19 @@ PYTHON_SCRIPT_EOF
 
     // Always generate/update the init.sh script
     if (runtimeType === "python") {
+      // Add ffmpeg installation if requested
+      if (functionData.ffmpeg_install) {
+        initScript += `
+      echo "[SHSF INIT] Checking ffmpeg installation..."
+      if [ ! -f ".already_installed_ffmpeg" ]; then
+          command -v ffmpeg >/dev/null 2>&1 || (apt update && apt-get install -y ffmpeg && touch /app/.already_installed_ffmpeg)
+      else
+          echo "[SHSF INIT] ffmpeg already installed (marker file present)."
+      fi
+      echo "[SHSF INIT] ffmpeg check complete."
+      `;
+      }
+      
       initScript += `
 if [ -f "requirements.txt" ]; then 
 	echo "[SHSF INIT] Setting up Python environment for function ${functionData.id}"

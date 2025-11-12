@@ -188,6 +188,7 @@ export = new fileRouter.Path("/")
           image: z.enum(Images as any),
           startup_file: z.string().min(1).max(256).optional(),
           docker_mount: z.boolean().optional(),
+          ffmpeg_install: z.boolean().optional(),
           executionAlias: z.string().min(8).max(128).regex(/^[a-zA-Z0-9-_]+$/).optional(), // Only allow alphanumeric, hyphens, and underscores
           settings: z
             .object({
@@ -308,6 +309,7 @@ export = new fileRouter.Path("/")
           userId: authCheck.user.id,
           executionId: randomUUID(),
           docker_mount: data.docker_mount || false,
+          ffmpeg_install: data.ffmpeg_install || false,
           cors_origins: data.cors_origins,
           executionAlias: data.executionAlias,
         },
@@ -547,6 +549,7 @@ export = new fileRouter.Path("/")
           startup_file: z.string().min(1).max(256).optional(),
           executionAlias: z.string().min(8).max(128).regex(/^[a-zA-Z0-9-_]+$/).optional(), // Only allow alphanumeric, hyphens, and underscores
           docker_mount: z.boolean().optional(),
+          ffmpeg_install: z.boolean().optional(),
           settings: z
             .object({
               max_ram: z.number().min(128).max(1024).optional(),
@@ -655,6 +658,9 @@ export = new fileRouter.Path("/")
         ...(data.docker_mount !== undefined && {
           docker_mount: data.docker_mount,
         }),
+        ...(data.ffmpeg_install !== undefined && {
+          ffmpeg_install: data.ffmpeg_install,
+        }),
         ...(data.cors_origins !== undefined && {
           cors_origins: data.cors_origins,
         }),
@@ -666,11 +672,13 @@ export = new fileRouter.Path("/")
       // Track if relaunch is triggered
       let relaunchTriggered = false;
 
-      // If image is being changed, we need to recreate the container; Or docker_mount changed
+      // If image is being changed, we need to recreate the container; Or docker_mount/ffmpeg_install changed
       if (
         (data.image && data.image !== existingFunction.image) ||
         (data.docker_mount !== undefined &&
-          data.docker_mount !== existingFunction.docker_mount)
+          data.docker_mount !== existingFunction.docker_mount) ||
+        (data.ffmpeg_install !== undefined &&
+          data.ffmpeg_install !== existingFunction.ffmpeg_install)
       ) {
         relaunchTriggered = true; // Set flag regardless of container existence
         // Check if a container exists for this function before cleanup
@@ -693,8 +701,15 @@ export = new fileRouter.Path("/")
               console.log(
                 `[SHSF] Function ${functionId} docker_mount changing from ${existingFunction.docker_mount} to ${data.docker_mount}, container will be recreated`
               );
+            } else if (
+              data.ffmpeg_install !== undefined &&
+              data.ffmpeg_install !== existingFunction.ffmpeg_install
+            ) {
+              console.log(
+                `[SHSF] Function ${functionId} ffmpeg_install changing from ${existingFunction.ffmpeg_install} to ${data.ffmpeg_install}, container will be recreated`
+              );
             }
-            // Clean up existing container to force recreation with new image or docker_mount change
+            // Clean up existing container to force recreation with new image, docker_mount, or ffmpeg_install change
             await cleanupFunctionContainer(functionId);
             // On the next run, the container will be recreated with the new image and new mounts.
           }

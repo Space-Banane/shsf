@@ -87,12 +87,19 @@ Content-Type: application/json
 
         <div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
           <h2 className="text-xl font-bold text-primary mb-3">
-            🚀 Next Step - Keep your instance up to date!
+            🚀 Next Step - FFmpeg Installation
           </h2>
           <p className="text-text/90 mb-4">
-            This is the latest documentation page. Check back here for new
-            updates as they become available.
+            Need to process video or audio files in your functions? Learn how to
+            enable automatic FFmpeg installation for media processing capabilities.
           </p>
+          <a
+            href="/docs/ffmpeg-install"
+            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+          >
+            #19 FFmpeg Installation
+            <span className="text-lg">→</span>
+          </a>
         </div>
       </div>
     </div>

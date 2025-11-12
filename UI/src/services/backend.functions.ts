@@ -68,6 +68,7 @@ async function createFunction(config: {
   image: Image;
   startup_file?: string;
   docker_mount?: boolean;
+  ffmpeg_install?: boolean;
   settings?: {
     max_ram?: number;
     timeout?: number;
@@ -165,6 +166,7 @@ async function updateFunction(
     image?: Image;
     startup_file?: string;
     docker_mount?: boolean;
+    ffmpeg_install?: boolean;
     settings?: {
       max_ram?: number;
       timeout?: number;

@@ -20,6 +20,7 @@ export const prisma = new PrismaClient({
 
 const CORS_DOMAINS = env.CORS_URLS!.split(",");
 CORS_DOMAINS.push(URL);
+CORS_DOMAINS.push(REACT_APP_API_URL.replace(/\/+$/, "")); // Remove trailing slash if present
 console.log(CORS_DOMAINS);
 
 console.log(
@@ -47,30 +48,43 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
     // Validate origin first, regardless of method
     if (origin && !CORS_DOMAINS.includes(origin)) {
       let allowRequest = false;
-      console.log(`[CORS MIDDLEWARE] Policy (Provisional): This origin is not allowed access - ${origin}`);
+      console.log(
+        `[CORS MIDDLEWARE] Policy (Provisional): This origin is not allowed access - ${origin}`
+      );
 
       // Check if its an exec request
       if (ctr.url.path.startsWith("/api/exec/")) {
         // /api/exec/4/02df8773-1d03-48df-9dd7-fd452c5ba592
-        console.log(`[CORS MIDDLEWARE] Custom CORS might change the outcome of this request. (Function Execution Detected)`);
+        console.log(
+          `[CORS MIDDLEWARE] Custom CORS might change the outcome of this request. (Function Execution Detected)`
+        );
 
         const execId = ctr.url.path.split("/")[4]; // UUID
         const func = await prisma.function.findFirst({
           where: { executionId: execId },
         });
         if (func && func.cors_origins) {
-          console.log(`[CORS MIDDLEWARE] Policy: Allowing access for ${origin} - ${execId}`);
-          CORS_DOMAINS.push(...func.cors_origins);
-          if (CORS_DOMAINS.includes(origin)) {
+          const allowedOrigins = func.cors_origins
+            .split(",")
+            .map(o => o.trim())
+            .filter(o => o.length > 0);
+          if (allowedOrigins.includes(origin)) {
+            console.log(
+              `[CORS MIDDLEWARE] Policy: Allowing access for ${origin} - ${execId}`
+            );
             allowRequest = true;
           }
         } else {
-          console.log(`[CORS MIDDLEWARE] Policy: No specific origins found for function - ${execId}`);
+          console.log(
+            `[CORS MIDDLEWARE] Policy: No specific origins found for function - ${execId}`
+          );
         }
       }
 
       if (!allowRequest) {
-        console.log(`[CORS MIDDLEWARE] Policy (Final Decision): This origin is not allowed access - ${origin}`);
+        console.log(
+          `[CORS MIDDLEWARE] Policy (Final Decision): This origin is not allowed access - ${origin}`
+        );
         return end(
           ctr.status(ctr.$status.FORBIDDEN).print({
             status: "FAILED",
@@ -80,7 +94,8 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
       }
     }
 
-    const allowedHeaders = ctr.headers.get("access-control-request-headers") || "content-type, x-*";
+    const allowedHeaders =
+      ctr.headers.get("access-control-request-headers") || "content-type, x-*";
     const allowedMethods = "GET, POST, PUT, DELETE, OPTIONS, PATCH";
     const allowCredentials = "true";
     const controlMaxAge = "86400";
@@ -94,7 +109,9 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
         ctr.headers.set("Vary", "Origin");
         ctr.headers.set("Access-Control-Allow-Headers", allowedHeaders);
         ctr.headers.set("Access-Control-Allow-Credentials", allowCredentials);
-        console.log(`[CORS MIDDLEWARE] Preflight handled for origin: ${origin}`);
+        console.log(
+          `[CORS MIDDLEWARE] Preflight handled for origin: ${origin}`
+        );
         return end(ctr.status(ctr.$status.NO_CONTENT).print(""));
       }
 
