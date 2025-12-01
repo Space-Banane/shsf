@@ -18,7 +18,7 @@ interface TimingEntry {
 }
 
 // Token expiry for execution tokens (in milliseconds)
-const EXECUTION_TOKEN_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+const FUNCTION_DB_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const ServeOnlyFileNotFoundHTML = `<html><head><title>File Not Found</title></head><body><h1>404 - File Not Found</h1><p>The requested HTML file was not found in the function's files.</p></body></html>`;
 
@@ -236,6 +236,41 @@ def database() -> Database:
 # Alternative: Direct instantiation
 # You can also use: db = Database()`;
 
+async function getOrCreateFunctionDbToken(userId: number): Promise<string> {
+  const tokenName = `__function_db_access__`;
+  
+  // Try to find existing valid token
+  const existingToken = await prisma.accessToken.findFirst({
+    where: {
+      userId: userId,
+      name: tokenName,
+      hidden: true,
+      expiresAt: {
+        gt: new Date(), // Not expired
+      },
+    },
+  });
+
+  if (existingToken) {
+    return existingToken.token;
+  }
+
+  // Create new token with 24 hour expiry
+  const newToken = randomBytes(32).toString("hex");
+  await prisma.accessToken.create({
+    data: {
+      userId: userId,
+      name: tokenName,
+      token: newToken,
+      hidden: true,
+      purpose: "Shared database access token for all function executions",
+      expiresAt: new Date(Date.now() + FUNCTION_DB_TOKEN_EXPIRY_MS),
+    },
+  });
+
+  return newToken;
+}
+
 export async function executeFunction(
 	id: number,
 	functionData: Function,
@@ -283,14 +318,18 @@ export async function executeFunction(
 		};
 	}
 
-	const docker = new Docker();
-	let dbAccessToken = "";
-	const functionIdStr = String(functionData.id);
-	const containerName = `shsf_func_${functionIdStr}`;
-	// Persistent directory on the host for this function's app files
-	const funcAppDir = path.join("/opt/shsf_data/functions", functionIdStr, "app");
-	const runtimeType = functionData.image.split(":")[0];
-	let exitCode = 0; // Default exit code
+  const docker = new Docker();
+  let dbAccessToken = ""; // Keep for cleanup logic, but won't be deleted anymore
+  const functionIdStr = String(functionData.id);
+  const containerName = `shsf_func_${functionIdStr}`;
+  // Persistent directory on the host for this function's app files
+  const funcAppDir = path.join(
+    "/opt/shsf_data/functions",
+    functionIdStr,
+    "app"
+  );
+  const runtimeType = functionData.image.split(":")[0];
+  let exitCode = 0; // Default exit code
 
 	// Generate a unique execution ID for this request to avoid race conditions
 	// Use crypto.randomUUID() for better uniqueness if available, otherwise fallback
@@ -506,22 +545,14 @@ echo "[SHSF INIT] Python setup complete."
 		await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
 		recordTiming("init.sh script generated on host");
 
-		// Check if any file contains _db_com, and if so, setup DB communication
-		const requiresDbCom = files.some((file) => file.content.includes("_db_com"));
-		if (requiresDbCom) {
-			// Generate a unique, short-lived access token for this execution
-			dbAccessToken = randomBytes(32).toString("hex");
-			await prisma.accessToken.create({
-				data: {
-					userId: functionData.userId,
-					name: `token_exec_${executionId}`,
-					token: dbAccessToken,
-					hidden: true,
-					purpose: `Short-lived access token for function execution ${executionId}`,
-					expiresAt: new Date(Date.now() + EXECUTION_TOKEN_EXPIRY_MS), // 10 minutes expiry
-				},
-			});
-			recordTiming("Short-lived access token for DB communication created");
+    // Check if any file contains _db_com, and if so, setup DB communication
+    const requiresDbCom = files.some((file) =>
+      file.content.includes("_db_com")
+    );
+    if (requiresDbCom) {
+      // Get or create a shared 24-hour token for this user's functions
+      dbAccessToken = await getOrCreateFunctionDbToken(functionData.userId);
+      recordTiming("Database access token retrieved/created");
 
 			// Add Database Communication Script (python)
 			const dbScript = DbComScript.replace("{{API}}", API_URL!).replace(
@@ -828,22 +859,8 @@ echo "[SHSF INIT] Python setup complete."
 			description: "Total execution time (including potential setup)",
 		});
 
-		// Revoke/delete the short-lived access token after execution
-		if (dbAccessToken) {
-			try {
-				await prisma.accessToken.deleteMany({
-					where: {
-						token: dbAccessToken,
-					},
-				});
-				recordTiming("Short-lived access token for DB communication revoked");
-			} catch (tokenCleanupError) {
-				console.error(
-					"Error revoking short-lived access token:",
-					tokenCleanupError,
-				);
-			}
-		}
+    // No longer revoke the token after execution - it's shared and long-lived
+    // Token will expire automatically after 24 hours
 
 		return {
 			logs,
