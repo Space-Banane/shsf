@@ -22,7 +22,7 @@ services:
    - ./Backend:/app
    - /var/run/docker.sock:/var/run/docker.sock # remove this line if you want to either specify a remote docker host(smart) or use docker in docker (stupid)
    - /opt:/opt
-  command: sh -c "npm install -g pnpm && pnpm i && npx prisma generate && npx prisma migrate deploy && pnpm dev"
+  command: sh -c "npm install -g pnpm && pnpm i && npx prisma generate && npx prisma db push && pnpm dev"
   ports:
    - "5000:5000"
   env_file:
