@@ -237,38 +237,38 @@ def database() -> Database:
 # You can also use: db = Database()`;
 
 async function getOrCreateFunctionDbToken(userId: number): Promise<string> {
-  const tokenName = `__function_db_access__`;
-  
-  // Try to find existing valid token
-  const existingToken = await prisma.accessToken.findFirst({
-    where: {
-      userId: userId,
-      name: tokenName,
-      hidden: true,
-      expiresAt: {
-        gt: new Date(), // Not expired
-      },
-    },
-  });
+	const tokenName = `__function_db_access__`;
 
-  if (existingToken) {
-    return existingToken.token;
-  }
+	// Try to find existing valid token
+	const existingToken = await prisma.accessToken.findFirst({
+		where: {
+			userId: userId,
+			name: tokenName,
+			hidden: true,
+			expiresAt: {
+				gt: new Date(), // Not expired
+			},
+		},
+	});
 
-  // Create new token with 24 hour expiry
-  const newToken = randomBytes(32).toString("hex");
-  await prisma.accessToken.create({
-    data: {
-      userId: userId,
-      name: tokenName,
-      token: newToken,
-      hidden: true,
-      purpose: "Shared database access token for all function executions",
-      expiresAt: new Date(Date.now() + FUNCTION_DB_TOKEN_EXPIRY_MS),
-    },
-  });
+	if (existingToken) {
+		return existingToken.token;
+	}
 
-  return newToken;
+	// Create new token with 24 hour expiry
+	const newToken = randomBytes(32).toString("hex");
+	await prisma.accessToken.create({
+		data: {
+			userId: userId,
+			name: tokenName,
+			token: newToken,
+			hidden: true,
+			purpose: "Shared database access token for all function executions",
+			expiresAt: new Date(Date.now() + FUNCTION_DB_TOKEN_EXPIRY_MS),
+		},
+	});
+
+	return newToken;
 }
 
 export async function executeFunction(
@@ -278,7 +278,7 @@ export async function executeFunction(
 	stream:
 		| { enabled: true; onChunk: (data: string) => void }
 		| { enabled: false },
-	payload: string,
+	payload: string
 ) {
 	const starting_time = Date.now();
 	const tooks: TimingEntry[] = [];
@@ -318,18 +318,14 @@ export async function executeFunction(
 		};
 	}
 
-  const docker = new Docker();
-  let dbAccessToken = ""; // Keep for cleanup logic, but won't be deleted anymore
-  const functionIdStr = String(functionData.id);
-  const containerName = `shsf_func_${functionIdStr}`;
-  // Persistent directory on the host for this function's app files
-  const funcAppDir = path.join(
-    "/opt/shsf_data/functions",
-    functionIdStr,
-    "app"
-  );
-  const runtimeType = functionData.image.split(":")[0];
-  let exitCode = 0; // Default exit code
+	const docker = new Docker();
+	let dbAccessToken = ""; // Keep for cleanup logic, but won't be deleted anymore
+	const functionIdStr = String(functionData.id);
+	const containerName = `shsf_func_${functionIdStr}`;
+	// Persistent directory on the host for this function's app files
+	const funcAppDir = path.join("/opt/shsf_data/functions", functionIdStr, "app");
+	const runtimeType = functionData.image.split(":")[0];
+	let exitCode = 0; // Default exit code
 
 	// Generate a unique execution ID for this request to avoid race conditions
 	// Use crypto.randomUUID() for better uniqueness if available, otherwise fallback
@@ -341,7 +337,7 @@ export async function executeFunction(
 		"/opt/shsf_data/functions",
 		functionIdStr,
 		"executions",
-		executionId,
+		executionId
 	);
 
 	// Define startupFile and initScript here as they are needed for script generation
@@ -368,7 +364,7 @@ export async function executeFunction(
 			files.map(async (file) => {
 				const filePath = path.join(funcAppDir, file.name);
 				await fs.writeFile(filePath, file.content);
-			}),
+			})
 		);
 		recordTiming("User files written to host app directory");
 
@@ -472,11 +468,11 @@ PYTHON_SCRIPT_EOF
 			await fs.writeFile(wrapperPath, wrapperContent);
 			await fs.chmod(wrapperPath, "755");
 			recordTiming(
-				"Python runner script (_runner.py) written to host app directory",
+				"Python runner script (_runner.py) written to host app directory"
 			);
 		} else {
 			console.warn(
-				`[executeFunction] Runner script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`,
+				`[executeFunction] Runner script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`
 			);
 		}
 
@@ -534,7 +530,7 @@ echo "[SHSF INIT] Python setup complete."
 		} else {
 			// This was already checked for runner script, but as a safeguard for init.sh:
 			console.warn(
-				`[executeFunction] init.sh script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`,
+				`[executeFunction] init.sh script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`
 			);
 			// Potentially throw an error if an unsupported runtime should halt execution.
 			// throw new Error(`Unsupported runtime type for init script generation: ${runtimeType}`);
@@ -545,19 +541,17 @@ echo "[SHSF INIT] Python setup complete."
 		await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
 		recordTiming("init.sh script generated on host");
 
-    // Check if any file contains _db_com, and if so, setup DB communication
-    const requiresDbCom = files.some((file) =>
-      file.content.includes("_db_com")
-    );
-    if (requiresDbCom) {
-      // Get or create a shared 24-hour token for this user's functions
-      dbAccessToken = await getOrCreateFunctionDbToken(functionData.userId);
-      recordTiming("Database access token retrieved/created");
+		// Check if any file contains _db_com, and if so, setup DB communication
+		const requiresDbCom = files.some((file) => file.content.includes("_db_com"));
+		if (requiresDbCom) {
+			// Get or create a shared 24-hour token for this user's functions
+			dbAccessToken = await getOrCreateFunctionDbToken(functionData.userId);
+			recordTiming("Database access token retrieved/created");
 
 			// Add Database Communication Script (python)
 			const dbScript = DbComScript.replace("{{API}}", API_URL!).replace(
 				"{{AUTHKEY}}",
-				dbAccessToken,
+				dbAccessToken
 			);
 			await fs.writeFile(path.join(funcAppDir, "_db_com.py"), dbScript);
 			await fs.chmod(path.join(funcAppDir, "_db_com.py"), "755");
@@ -603,7 +597,7 @@ echo "[SHSF INIT] Python setup complete."
 					BINDS.push(`${pipCacheHost}:/pip-cache`); // Mount persistent pip cache
 				} else {
 					throw new Error(
-						`Unsupported runtime type for container BIND setup: ${runtimeType}`,
+						`Unsupported runtime type for container BIND setup: ${runtimeType}`
 					);
 				}
 
@@ -620,7 +614,7 @@ echo "[SHSF INIT] Python setup complete."
 						const pullStream = await docker.pull(functionData.image);
 						await new Promise((resolve, reject) => {
 							docker.modem.followProgress(pullStream, (err) =>
-								err ? reject(err) : resolve(null),
+								err ? reject(err) : resolve(null)
 							);
 						});
 					}
@@ -632,8 +626,8 @@ echo "[SHSF INIT] Python setup complete."
 
 				const initialEnv = functionData.env
 					? JSON.parse(functionData.env).map(
-							(env: { name: string; value: any }) => `${env.name}=${env.value}`,
-						)
+							(env: { name: string; value: any }) => `${env.name}=${env.value}`
+					  )
 					: [];
 
 				container = await docker.createContainer({
@@ -678,7 +672,7 @@ echo "[SHSF INIT] Python setup complete."
 				const parsedEnv = JSON.parse(functionData.env);
 				if (Array.isArray(parsedEnv)) {
 					parsedEnv.forEach((envVar: { name: string; value: any }) =>
-						execEnv.push(`${envVar.name}=${envVar.value}`),
+						execEnv.push(`${envVar.name}=${envVar.value}`)
 					);
 				}
 			} catch (e) {
@@ -693,9 +687,9 @@ echo "[SHSF INIT] Python setup complete."
 				? ["/bin/sh", "/app/_runner.py", containerPayloadPath]
 				: (() => {
 						throw new Error(
-							`Unsupported runtime type for exec command: ${runtimeType}`,
+							`Unsupported runtime type for exec command: ${runtimeType}`
 						);
-					})();
+				  })();
 
 		const exec = await container.exec({
 			Cmd: execCmd,
@@ -771,8 +765,8 @@ echo "[SHSF INIT] Python setup complete."
 			setTimeout(
 				() =>
 					reject(new Error(`Execution timed out after ${execTimeoutMs / 1000}s`)),
-				execTimeoutMs,
-			),
+				execTimeoutMs
+			)
 		);
 
 		let execResultDetails: Docker.ExecInspectInfo;
@@ -788,16 +782,16 @@ echo "[SHSF INIT] Python setup complete."
 				logs =
 					combinedOutput.length > MAX_OUTPUT_SIZE
 						? combinedOutput.substring(0, MAX_OUTPUT_SIZE) +
-							"\n[SHSF TRUNCATED] Combined output exceeded 3MB limit"
+						  "\n[SHSF TRUNCATED] Combined output exceeded 3MB limit"
 						: combinedOutput;
 				console.error(
-					`[executeFunction] Exec failed with code ${exitCode}. Logs truncated due to size.`,
+					`[executeFunction] Exec failed with code ${exitCode}. Logs truncated due to size.`
 				);
 			}
 		} catch (execError: any) {
 			console.error(
 				"[executeFunction] Exec failed or timed out:",
-				execError.message,
+				execError.message
 			);
 			logs = `${execOutput.stderr}\nExecution Error: ${execError.message}`;
 			exitCode = -1;
@@ -837,7 +831,7 @@ echo "[SHSF INIT] Python setup complete."
 					// If no markers are found, or they are in the wrong order,
 					// treat the entire stdout as potential logging output.
 					console.warn(
-						`[executeFunction] Function result markers not found or in wrong order in stdout. Treating stdout as logs.`,
+						`[executeFunction] Function result markers not found or in wrong order in stdout. Treating stdout as logs.`
 					);
 					if (func_result.trim()) {
 						logs += `\nStdout content (no valid markers found):\n${func_result.trim()}`;
@@ -846,7 +840,7 @@ echo "[SHSF INIT] Python setup complete."
 				}
 			} catch (e: any) {
 				console.error(
-					`[executeFunction] Failed to parse JSON result from stdout: ${e.message}. Raw stdout content: ${func_result}`,
+					`[executeFunction] Failed to parse JSON result from stdout: ${e.message}. Raw stdout content: ${func_result}`
 				);
 				logs += `\nError parsing result JSON from stdout: ${e.message}`;
 				exitCode = -2; // Custom code for result parsing error
@@ -859,8 +853,8 @@ echo "[SHSF INIT] Python setup complete."
 			description: "Total execution time (including potential setup)",
 		});
 
-    // No longer revoke the token after execution - it's shared and long-lived
-    // Token will expire automatically after 24 hours
+		// No longer revoke the token after execution - it's shared and long-lived
+		// Token will expire automatically after 24 hours
 
 		return {
 			logs,
@@ -871,7 +865,7 @@ echo "[SHSF INIT] Python setup complete."
 	} catch (error: any) {
 		console.error(
 			`[executeFunction] Critical error during execution of function ${id}:`,
-			error,
+			error
 		);
 		recordTiming("Critical error occurred");
 		tooks.push({
@@ -896,17 +890,17 @@ echo "[SHSF INIT] Python setup complete."
 			if (cleanupError.code === "EACCES") {
 				console.error(
 					`[executeFunction] Permission denied when cleaning up execution directory ${executionDir}:`,
-					cleanupError,
+					cleanupError
 				);
 			} else if (cleanupError.code === "EBUSY") {
 				console.error(
 					`[executeFunction] Directory in use, could not clean up execution directory ${executionDir}:`,
-					cleanupError,
+					cleanupError
 				);
 			} else {
 				console.error(
 					`[executeFunction] Error cleaning up execution directory ${executionDir}:`,
-					cleanupError,
+					cleanupError
 				);
 			}
 		}
@@ -919,7 +913,7 @@ echo "[SHSF INIT] Python setup complete."
 				functionData.name
 			}) processed. Resulting exit code: ${exitCode}. Total time: ${
 				(Date.now() - starting_time) / 1000
-			} seconds`,
+			} seconds`
 		);
 
 		try {
@@ -972,7 +966,7 @@ export async function buildPayloadFromGET(
 		"GET",
 		HttpRequestContext<{}>,
 		UsableMiddleware<{}>[]
-	>,
+	>
 ): Promise<{
 	headers: Record<string, string>;
 	queries: Record<string, string>;
@@ -995,7 +989,7 @@ export async function buildPayloadFromPOST(
 		"POST",
 		HttpRequestContext<{}>,
 		UsableMiddleware<{}>[]
-	>,
+	>
 ): Promise<{
 	headers: Record<string, string>;
 	body: string;
@@ -1019,7 +1013,7 @@ export async function buildPayloadFromPOST(
 export async function installDependencies(
 	functionId: number,
 	functionData: any,
-	files: any[],
+	files: any[]
 ): Promise<boolean | 404> {
 	const docker = new Docker();
 	const functionIdStr = String(functionId);
@@ -1043,8 +1037,8 @@ export async function installDependencies(
 
 		const execEnv: string[] = functionData.env
 			? JSON.parse(functionData.env).map(
-					(env: { name: string; value: any }) => `${env.name}=${env.value}`,
-				)
+					(env: { name: string; value: any }) => `${env.name}=${env.value}`
+			  )
 			: [];
 
 		const exec = await container.exec({
@@ -1106,11 +1100,11 @@ export async function cleanupFunctionContainer(functionId: number) {
 			if (containerError.statusCode !== 404) {
 				console.error(
 					`[SHSF] Error removing container for function ${functionId}:`,
-					containerError,
+					containerError
 				);
 			} else {
 				console.log(
-					`[SHSF] Container for function ${functionId} not found, skipping removal`,
+					`[SHSF] Container for function ${functionId} not found, skipping removal`
 				);
 			}
 		}
@@ -1122,7 +1116,7 @@ export async function cleanupFunctionContainer(functionId: number) {
 		} catch (dirError) {
 			console.error(
 				`[SHSF] Error removing function directory ${funcAppDir}:`,
-				dirError,
+				dirError
 			);
 		}
 
@@ -1142,7 +1136,7 @@ export async function cleanupFunctionContainer(functionId: number) {
 		} catch (cacheError) {
 			console.error(
 				`[SHSF] Error cleaning up cache directories for function ${functionId}:`,
-				cacheError,
+				cacheError
 			);
 		}
 
@@ -1150,7 +1144,7 @@ export async function cleanupFunctionContainer(functionId: number) {
 	} catch (error) {
 		console.error(
 			`[SHSF] Error during container cleanup for function ${functionId}:`,
-			error,
+			error
 		);
 		return false;
 	}
