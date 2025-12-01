@@ -295,6 +295,21 @@ export async function executeFunction(
     };
   })();
 
+  // Fetch user's account-wide environment variables
+  const user = await prisma.user.findUnique({
+    where: { id: functionData.userId },
+    select: { accountEnv: true },
+  });
+  
+  let accountEnvVars: Array<{ name: string; value: any }> = [];
+  if (user?.accountEnv) {
+    try {
+      accountEnvVars = JSON.parse(user.accountEnv);
+    } catch (e) {
+      console.error("Error parsing user accountEnv:", e);
+    }
+  }
+
   // Serve Only HTML (serve-only)
   if (functionData.startup_file?.endsWith(".html")) {
     return {
@@ -635,11 +650,28 @@ echo "[SHSF INIT] Python setup complete."
           imagePulled ? "Image pull complete" : "Image check complete"
         );
 
-        const initialEnv = functionData.env
-          ? JSON.parse(functionData.env).map(
-              (env: { name: string; value: any }) => `${env.name}=${env.value}`
-            )
+        // Merge account-wide env vars with function-specific env vars
+        // Function-specific env vars take precedence over account-wide env vars
+        const functionEnvVars = functionData.env
+          ? JSON.parse(functionData.env)
           : [];
+        
+        const mergedEnvMap = new Map<string, any>();
+        
+        // Add account-wide env vars first
+        accountEnvVars.forEach((env: { name: string; value: any }) => {
+          mergedEnvMap.set(env.name, env.value);
+        });
+        
+        // Override with function-specific env vars
+        functionEnvVars.forEach((env: { name: string; value: any }) => {
+          mergedEnvMap.set(env.name, env.value);
+        });
+        
+        // Convert to array format expected by Docker
+        const initialEnv = Array.from(mergedEnvMap.entries()).map(
+          ([name, value]) => `${name}=${value}`
+        );
 
         container = await docker.createContainer({
           Image: functionData.image,
@@ -675,21 +707,32 @@ echo "[SHSF INIT] Python setup complete."
     await fs.writeFile(payloadFilePath, payload);
     recordTiming("Payload written to unique execution file");
 
-    const execEnv: string[] = []; // Remove RUN_DATA from env
-    // Add function-specific env vars to exec as well, in case they are needed by the runner script directly
-    // and not just by the init.sh environment.
+    // Merge account-wide env vars with function-specific env vars for exec
+    const execEnvMap = new Map<string, any>();
+    
+    // Add account-wide env vars first
+    accountEnvVars.forEach((envVar: { name: string; value: any }) => {
+      execEnvMap.set(envVar.name, envVar.value);
+    });
+    
+    // Add/override with function-specific env vars
     if (functionData.env) {
       try {
         const parsedEnv = JSON.parse(functionData.env);
         if (Array.isArray(parsedEnv)) {
-          parsedEnv.forEach((envVar: { name: string; value: any }) =>
-            execEnv.push(`${envVar.name}=${envVar.value}`)
-          );
+          parsedEnv.forEach((envVar: { name: string; value: any }) => {
+            execEnvMap.set(envVar.name, envVar.value);
+          });
         }
       } catch (e) {
         console.error("Failed to parse functionData.env for exec:", e);
       }
     }
+    
+    // Convert to array format
+    const execEnv: string[] = Array.from(execEnvMap.entries()).map(
+      ([name, value]) => `${name}=${value}`
+    );
 
     // Pass the unique payload file path as an argument to the runner script
     const containerPayloadPath = `/executions/${executionId}/payload.json`; // Updated to use /executions mount

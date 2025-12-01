@@ -20,6 +20,7 @@ model User {
   avatar_url  String?  @db.VarChar(256)
 
   password String? @db.VarChar(256)
+  accountEnv String? @db.Text // Account-wide environment variables in JSON format
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

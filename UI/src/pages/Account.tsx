@@ -1,6 +1,8 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { UserContext } from "../App";
 import { deleteAccount, exportAccountData } from "../services/backend.account";
+import { getAccountEnv, updateAccountEnv, AccountEnvVar } from "../services/backend.accountenv";
+import AccountEnvModal from "../components/modals/AccountEnvModal";
 
 export const AccountPage = ({}) => {
   const { user, refreshUser, loading } = useContext(UserContext);
@@ -9,6 +11,43 @@ export const AccountPage = ({}) => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [exportLoading, setExportLoading] = useState(false);
+  
+  // Account environment variables state
+  const [showEnvModal, setShowEnvModal] = useState(false);
+  const [accountEnv, setAccountEnv] = useState<AccountEnvVar[]>([]);
+  const [envCount, setEnvCount] = useState(0);
+
+  // Load account environment variables on mount
+  useEffect(() => {
+    loadAccountEnv();
+  }, []);
+
+  const loadAccountEnv = async () => {
+    try {
+      const result = await getAccountEnv();
+      if (result.status === "OK") {
+        setAccountEnv(result.data);
+        setEnvCount(result.data.length);
+      }
+    } catch (error) {
+      console.error("Failed to load account environment variables", error);
+    }
+  };
+
+  const handleUpdateEnv = async (env: AccountEnvVar[]): Promise<boolean> => {
+    try {
+      const result = await updateAccountEnv(env);
+      if (result.status === "OK") {
+        setAccountEnv(result.data);
+        setEnvCount(result.data.length);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Failed to update account environment variables", error);
+      return false;
+    }
+  };
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmation !== "DELETE_MY_ACCOUNT") {
@@ -86,7 +125,7 @@ export const AccountPage = ({}) => {
         {user ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Profile Card */}
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 space-y-8">
               <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-2xl p-8 hover:border-primary/40 hover:shadow-[0_0_30px_rgba(124,131,253,0.1)] transition-all duration-300">
                 <h2 className="text-2xl font-bold text-primary mb-6 flex items-center gap-3">
                   <div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
@@ -97,28 +136,6 @@ export const AccountPage = ({}) => {
                 
                 {/* Avatar and Basic Info */}
                 <div className="flex items-center mb-8 p-6 bg-background/50 rounded-xl border border-primary/10">
-                  <div className="relative mr-6">
-                    {user.avatar_url ? (
-                      <>
-                        <img
-                          src={user.avatar_url}
-                          alt="User Avatar"
-                          className="w-20 h-20 rounded-full border-4 border-gradient-to-br from-blue-500 to-purple-500 shadow-lg"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            if (e.currentTarget.nextElementSibling) {
-                              (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
-                            }
-                          }}
-                        />
-                        <div className="absolute inset-0 rounded-full border-4 border-transparent bg-gradient-to-br from-blue-500 to-purple-500 -z-10"></div>
-                      </>
-                    ) : null}
-                    
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-background flex items-center justify-center">
-                      <div className="w-2 h-2 bg-white rounded-full"></div>
-                    </div>
-                  </div>
                   <div className="flex-1">
                     <h3 className="text-2xl font-bold text-text mb-2">{user.email}</h3>
                     <div className="flex items-center gap-2 text-text/60">
@@ -152,6 +169,7 @@ export const AccountPage = ({}) => {
                   />
                 </div>
               </div>
+
             </div>
 
             {/* Action Cards Sidebar */}
@@ -194,6 +212,12 @@ export const AccountPage = ({}) => {
                     label="Access Tokens"
                     description="Manage your access tokens"
                     onClick={() => window.location.href = '/access-tokens'}
+                  />
+                  <ActionButton
+                    icon="🔐"
+                    label="Environment Variables"
+                    description={`Manage account-wide env (${envCount} set)`}
+                    onClick={() => setShowEnvModal(true)}
                   />
                 </div>
               </div>
@@ -289,6 +313,14 @@ export const AccountPage = ({}) => {
           </div>
         </div>
       )}
+
+      {/* Account Environment Variables Modal */}
+      <AccountEnvModal
+        isOpen={showEnvModal}
+        onClose={() => setShowEnvModal(false)}
+        onUpdate={handleUpdateEnv}
+        initialEnv={accountEnv}
+      />
     </div>
   );
 };
