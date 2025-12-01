@@ -11,7 +11,7 @@ export = new fileRouter.Path("/").http("POST", "/api/account/login", (http) =>
 				z.object({
 					email: z.string().email().max(200),
 					password: z.string().min(8).max(120),
-				})
+				}),
 			);
 
 			if (!data)
@@ -81,7 +81,7 @@ export = new fileRouter.Path("/").http("POST", "/api/account/login", (http) =>
 				new Cookie(hash, {
 					domain: newdomain,
 					expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30), // 30 days
-				})
+				}),
 			);
 
 			ctr.print({
@@ -90,5 +90,5 @@ export = new fileRouter.Path("/").http("POST", "/api/account/login", (http) =>
 			});
 
 			return ctr;
-		})
+		}),
 );

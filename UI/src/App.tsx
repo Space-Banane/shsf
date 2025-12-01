@@ -5,7 +5,6 @@ import { User } from "./types/Prisma";
 import { BASE_URL } from ".";
 import { TextScramble } from "./utils/TextScramble";
 
-
 // Create a context for user data
 export const UserContext = createContext<{
 	user: User | null;
@@ -73,16 +72,17 @@ function App() {
 								{/* Logo */}
 								<div className="flex items-center">
 									<a href="/" className="text-2xl font-bold">
-										<h2 className="space-x-2 text-primary inline font-extrabold text-3xl mr-2">{"{}"}</h2> {/* Peak logo */}
+										<h2 className="space-x-2 text-primary inline font-extrabold text-3xl mr-2">
+											{"{}"}
+										</h2>{" "}
+										{/* Peak logo */}
 										<h3 className="inline text-primary">SHSF</h3>
 									</a>
 								</div>
 								{/* Navigation Links */}
 								<nav className="hidden md:flex items-center space-x-2">
 									{routes
-										.filter(
-											(route) => !["Login", "Register"].includes(route.name)
-										)
+										.filter((route) => !["Login", "Register"].includes(route.name))
 										.filter((route) => route.show_nav)
 										.map((route) => (
 											<a
@@ -105,26 +105,16 @@ function App() {
 												onClick={() => setIsDropdownOpen(!isDropdownOpen)}
 												className="flex items-center space-x-2 focus:outline-none"
 											>
-												{user.avatar_url ? (
-													<img
-														src={user.avatar_url}
-														alt="User Avatar"
-														className="h-8 w-8 rounded-full ring-2 ring-purple-500/50"
-													/>
-												) : (
-													<div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
-														{user.displayName
-															? user.displayName[0].toUpperCase()
-															: "?"}
-													</div>
-												)}
+												<div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
+													{user.displayName ? user.displayName[0].toUpperCase() : "?"}
+												</div>
 												<span className="text-text font-semibold text-lg hidden md:inline">
 													{user.displayName}
 												</span>
 											</button>
 											{isDropdownOpen && (
 												<div className="absolute right-0 mt-2 w-48 bg-[#282844] rounded-md shadow-lg py-1 z-10 border border-purple-500/20">
-													<a 
+													<a
 														href="/account"
 														className="block w-full text-left px-4 py-2 text-sm text-text hover:bg-[#383863]"
 													>
@@ -173,8 +163,7 @@ function App() {
 					<footer className="bg-footer py-2 border-t border-blue-700/30 text-base">
 						<div className="container mx-auto px-4 text-center">
 							<p className="text-text">
-								Made with{" "}
-								<span className="text-red-500 text-2xl">♥</span> by{" "}
+								Made with <span className="text-red-500 text-2xl">♥</span> by{" "}
 								<a
 									href="https://space.reversed.dev"
 									className="underline hover:text-secondary"

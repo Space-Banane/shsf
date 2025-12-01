@@ -34,5 +34,5 @@ export = new fileRouter.Path("/").http("PATCH", "/api/logout", (http) =>
 				status: "OK",
 				message: "Logged out successfully!",
 			});
-		})
+		}),
 );

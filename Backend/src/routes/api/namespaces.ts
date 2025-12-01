@@ -8,7 +8,7 @@ export = new fileRouter.Path("/")
 			const [data, error] = await ctr.bindBody((z) =>
 				z.object({
 					name: z.string().min(1).max(128),
-				})
+				}),
 			);
 
 			if (!data)
@@ -16,7 +16,7 @@ export = new fileRouter.Path("/")
 
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER)
+				ctr.headers.get(API_KEY_HEADER),
 			);
 
 			if (!authCheck.success) {
@@ -39,13 +39,13 @@ export = new fileRouter.Path("/")
 					id: namespace.id,
 				},
 			});
-		})
+		}),
 	)
 	.http("GET", "/api/namespaces", (http) =>
 		http.onRequest(async (ctr) => {
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER)
+				ctr.headers.get(API_KEY_HEADER),
 			);
 
 			if (!authCheck.success) {
@@ -68,13 +68,13 @@ export = new fileRouter.Path("/")
 				status: "OK",
 				data: namespaces,
 			});
-		})
+		}),
 	)
 	.http("GET", "/api/namespace/{id}", (http) =>
 		http.onRequest(async (ctr) => {
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER)
+				ctr.headers.get(API_KEY_HEADER),
 			);
 
 			if (!authCheck.success) {
@@ -86,15 +86,11 @@ export = new fileRouter.Path("/")
 
 			const id = ctr.params.get("id");
 			if (!id) {
-				return ctr
-					.status(ctr.$status.BAD_REQUEST)
-					.print("Missing namespace id");
+				return ctr.status(ctr.$status.BAD_REQUEST).print("Missing namespace id");
 			}
 			const namespaceId = parseInt(id);
 			if (isNaN(namespaceId)) {
-				return ctr
-					.status(ctr.$status.BAD_REQUEST)
-					.print("Invalid namespace id");
+				return ctr.status(ctr.$status.BAD_REQUEST).print("Invalid namespace id");
 			}
 
 			const namespace = await prisma.namespace.findFirst({
@@ -112,27 +108,23 @@ export = new fileRouter.Path("/")
 				status: "OK",
 				data: namespace,
 			});
-		})
+		}),
 	)
 	.http("PATCH", "/api/namespace/{id}", (http) =>
 		http.onRequest(async (ctr) => {
 			const id = ctr.params.get("id");
 			if (!id) {
-				return ctr
-					.status(ctr.$status.BAD_REQUEST)
-					.print("Missing namespace id");
+				return ctr.status(ctr.$status.BAD_REQUEST).print("Missing namespace id");
 			}
 			const namespaceId = parseInt(id);
 			if (isNaN(namespaceId)) {
-				return ctr
-					.status(ctr.$status.BAD_REQUEST)
-					.print("Invalid namespace id");
+				return ctr.status(ctr.$status.BAD_REQUEST).print("Invalid namespace id");
 			}
 
 			const [data, error] = await ctr.bindBody((z) =>
 				z.object({
 					name: z.string().min(1).max(128).optional(),
-				})
+				}),
 			);
 
 			if (!data)
@@ -140,7 +132,7 @@ export = new fileRouter.Path("/")
 
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER)
+				ctr.headers.get(API_KEY_HEADER),
 			);
 
 			if (!authCheck.success) {
@@ -174,13 +166,13 @@ export = new fileRouter.Path("/")
 				status: "OK",
 				data: updatedNamespace,
 			});
-		})
+		}),
 	)
 	.http("DELETE", "/api/namespace/{id}", (http) =>
 		http.onRequest(async (ctr) => {
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER)
+				ctr.headers.get(API_KEY_HEADER),
 			);
 
 			if (!authCheck.success) {
@@ -192,15 +184,11 @@ export = new fileRouter.Path("/")
 
 			const id = ctr.params.get("id");
 			if (!id) {
-				return ctr
-					.status(ctr.$status.BAD_REQUEST)
-					.print("Missing namespace id");
+				return ctr.status(ctr.$status.BAD_REQUEST).print("Missing namespace id");
 			}
 			const namespaceId = parseInt(id);
 			if (isNaN(namespaceId)) {
-				return ctr
-					.status(ctr.$status.BAD_REQUEST)
-					.print("Invalid namespace id");
+				return ctr.status(ctr.$status.BAD_REQUEST).print("Invalid namespace id");
 			}
 
 			const namespace = await prisma.namespace.findFirst({
@@ -230,12 +218,12 @@ export = new fileRouter.Path("/")
 				where: {
 					id: namespaceId,
 				},
-				include: { functions: true }
+				include: { functions: true },
 			});
 
 			return ctr.print({
 				status: "OK",
 				message: "Namespace deleted successfully",
 			});
-		})
+		}),
 	);

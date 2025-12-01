@@ -35,24 +35,27 @@ Before installing SHSF, ensure you have:
 ### Quick Start
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/Space-Banane/shsf.git
    cd shsf
    ```
 
 2. **Configure environment**
+
    ```bash
    cp .env.example .env
    nano .env  # Edit configuration to your needs
    ```
 
 3. **Start the services**
+
    ```bash
    docker-compose up -d
    ```
 
 4. **Access the interface**
-   
+
    Open your browser and navigate to `http://localhost:3000` (or your configured port)
 
 ## 📖 Usage
@@ -79,6 +82,7 @@ Before installing SHSF, ensure you have:
 ### Function Structure
 
 Python function example:
+
 ```python
 def main(args):
     # Your function logic here
@@ -89,6 +93,7 @@ def main(args):
 ## 🔧 API Reference
 
 ### Function Execution
+
 ```bash
 # HTTP trigger
 POST FUNCTION_URL/exec
@@ -101,7 +106,6 @@ Content-Type: application/json
 }
 ```
 
-
 ## 🗺️ Roadmap
 
 - [ ] SHSF ACTION(soon) runtime support
@@ -113,6 +117,7 @@ Content-Type: application/json
 ## 🤝 Contributing
 
 I'm welcome contributions!
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

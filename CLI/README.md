@@ -61,5 +61,7 @@ npx shsf-cli --mode exec --project <path> --link <functionId> --route <route> [-
 Both commands use `.meta.json` in your project folder to pull `namespaceId` and `executionId` automatically.
 
 See `--help` for all options.
+
 # SHSF CLI
+
 Command Line Interface for SHSF

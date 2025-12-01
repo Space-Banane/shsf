@@ -17,7 +17,6 @@ model User {
   displayName String   @db.VarChar(128)
   email       String   @unique
   role        UserRole @default(User)
-  avatar_url  String?  @db.VarChar(256)
 
   password String? @db.VarChar(256)
 

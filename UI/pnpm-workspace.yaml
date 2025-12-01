@@ -1,4 +1,4 @@
 onlyBuiltDependencies:
-  - '@tailwindcss/oxide'
-  - core-js
-  - core-js-pure
+ - "@tailwindcss/oxide"
+ - core-js
+ - core-js-pure

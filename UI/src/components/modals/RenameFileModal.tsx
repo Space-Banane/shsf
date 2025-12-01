@@ -8,7 +8,12 @@ interface RenameFileModalProps {
 	currentFilename: string;
 }
 
-function RenameFileModal({ isOpen, onClose, onRename, currentFilename }: RenameFileModalProps) {
+function RenameFileModal({
+	isOpen,
+	onClose,
+	onRename,
+	currentFilename,
+}: RenameFileModalProps) {
 	const [newFilename, setNewFilename] = useState(currentFilename);
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -47,7 +52,12 @@ function RenameFileModal({ isOpen, onClose, onRename, currentFilename }: RenameF
 	};
 
 	return (
-		<Modal isOpen={isOpen} onClose={handleClose} title="Rename File" isLoading={isLoading}>
+		<Modal
+			isOpen={isOpen}
+			onClose={handleClose}
+			title="Rename File"
+			isLoading={isLoading}
+		>
 			<div className="space-y-6">
 				{/* Current File Info */}
 				<div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg">
@@ -78,14 +88,14 @@ function RenameFileModal({ isOpen, onClose, onRename, currentFilename }: RenameF
 
 				{/* Action Buttons */}
 				<div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-700/50">
-					<button 
+					<button
 						onClick={handleClose}
 						className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500"
 						disabled={isLoading}
 					>
 						Cancel
 					</button>
-					<button 
+					<button
 						onClick={handleRename}
 						className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 						disabled={isLoading}

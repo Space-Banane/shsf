@@ -33,7 +33,10 @@ async function getFiles(functionId: number) {
 	return data;
 }
 
-async function createOrUpdateFile(functionId: number, file: { filename: string; code: string }) {
+async function createOrUpdateFile(
+	functionId: number,
+	file: { filename: string; code: string },
+) {
 	const response = await fetch(`${BASE_URL}/api/function/${functionId}/file`, {
 		method: "PUT",
 		headers: {
@@ -43,36 +46,53 @@ async function createOrUpdateFile(functionId: number, file: { filename: string; 
 		body: JSON.stringify(file),
 	});
 
-	const data = (await response.json()) as CreateOrUpdateFileResponse | ErrorResponse;
+	const data = (await response.json()) as
+		| CreateOrUpdateFileResponse
+		| ErrorResponse;
 	return data;
 }
 
 async function deleteFile(functionId: number, fileId: number) {
-	const response = await fetch(`${BASE_URL}/api/function/${functionId}/file/${fileId}`, {
-		method: "DELETE",
-		headers: {
-			"Content-Type": "application/json",
+	const response = await fetch(
+		`${BASE_URL}/api/function/${functionId}/file/${fileId}`,
+		{
+			method: "DELETE",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
 		},
-		credentials: "include",
-	});
+	);
 
 	const data = (await response.json()) as OKResponse | ErrorResponse;
 	return data;
 }
 
-async function renameFile(functionId: number, fileId: number, newFilename: string) {
-	const response = await fetch(`${BASE_URL}/api/function/${functionId}/file/${fileId}/rename`, {
-		method: "PATCH",
-		headers: {
-			"Content-Type": "application/json",
+async function renameFile(
+	functionId: number,
+	fileId: number,
+	newFilename: string,
+) {
+	const response = await fetch(
+		`${BASE_URL}/api/function/${functionId}/file/${fileId}/rename`,
+		{
+			method: "PATCH",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
+			body: JSON.stringify({ newFilename }),
 		},
-		credentials: "include",
-		body: JSON.stringify({ newFilename }),
-	});
+	);
 
 	const data = (await response.json()) as OKResponse | ErrorResponse;
 	return data;
 }
 
 export { getFiles, createOrUpdateFile, deleteFile, renameFile };
-export type { OKResponse, ErrorResponse, FileListResponse, CreateOrUpdateFileResponse };
+export type {
+	OKResponse,
+	ErrorResponse,
+	FileListResponse,
+	CreateOrUpdateFileResponse,
+};

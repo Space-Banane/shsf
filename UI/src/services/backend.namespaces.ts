@@ -31,14 +31,21 @@ interface CreateNamespaceResponse {
 	data: { id: number };
 }
 
-async function getNamespaces(includeFunctions: boolean = false): Promise<NamespaceListResponse | NamespaceResponseWithFunctions | ErrorResponse> {
-	const response = await fetch(`${BASE_URL}/api/namespaces?include_functions=${includeFunctions}`, {
-		method: "GET",
-		headers: {
-			"Content-Type": "application/json",
+async function getNamespaces(
+	includeFunctions: boolean = false,
+): Promise<
+	NamespaceListResponse | NamespaceResponseWithFunctions | ErrorResponse
+> {
+	const response = await fetch(
+		`${BASE_URL}/api/namespaces?include_functions=${includeFunctions}`,
+		{
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
 		},
-		credentials: "include",
-	});
+	);
 
 	const data = await response.json();
 	if (response.status !== 200) {
@@ -64,7 +71,9 @@ async function getNamespace(namespaceId: number) {
 		credentials: "include",
 	});
 
-	const data = (await response.json()) as {status:"OK",data:Namespace} | ErrorResponse;
+	const data = (await response.json()) as
+		| { status: "OK"; data: Namespace }
+		| ErrorResponse;
 	return data;
 }
 
@@ -78,7 +87,9 @@ async function createNamespace(name: string) {
 		body: JSON.stringify({ name }),
 	});
 
-	const data = (await response.json()) as CreateNamespaceResponse | ErrorResponse;
+	const data = (await response.json()) as
+		| CreateNamespaceResponse
+		| ErrorResponse;
 	return data;
 }
 
@@ -109,7 +120,10 @@ async function deleteNamespace(namespaceId: number) {
 	return data;
 }
 
-async function renameNamespace(namespaceId: number, newName: string): Promise<OKResponse | ErrorResponse> {
+async function renameNamespace(
+	namespaceId: number,
+	newName: string,
+): Promise<OKResponse | ErrorResponse> {
 	const response = await fetch(`${BASE_URL}/api/namespace/${namespaceId}`, {
 		method: "PATCH",
 		headers: {
@@ -119,9 +133,22 @@ async function renameNamespace(namespaceId: number, newName: string): Promise<OK
 		body: JSON.stringify({ name: newName }),
 	});
 
-	const data = await response.json() as OKResponse | ErrorResponse;
+	const data = (await response.json()) as OKResponse | ErrorResponse;
 	return data;
 }
 
-export { getNamespaces, getNamespace, createNamespace, updateNamespace, deleteNamespace, renameNamespace };
-export type { OKResponse, ErrorResponse, NamespaceListResponse, CreateNamespaceResponse, NamespaceResponseWithFunctions };
+export {
+	getNamespaces,
+	getNamespace,
+	createNamespace,
+	updateNamespace,
+	deleteNamespace,
+	renameNamespace,
+};
+export type {
+	OKResponse,
+	ErrorResponse,
+	NamespaceListResponse,
+	CreateNamespaceResponse,
+	NamespaceResponseWithFunctions,
+};

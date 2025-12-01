@@ -63,7 +63,7 @@ function FunctionsList() {
 		setExpandedNamespaces((prev) =>
 			prev.includes(namespaceId)
 				? prev.filter((id) => id !== namespaceId)
-				: [...prev, namespaceId]
+				: [...prev, namespaceId],
 		);
 	};
 
@@ -92,7 +92,10 @@ function FunctionsList() {
 		}
 	};
 
-	const totalFunctions = namespaces.reduce((sum, ns) => sum + ns.functions.length, 0);
+	const totalFunctions = namespaces.reduce(
+		(sum, ns) => sum + ns.functions.length,
+		0,
+	);
 
 	if (loading) {
 		return (
@@ -149,11 +152,15 @@ function FunctionsList() {
 							onClick={() => setFunctionModalOpen(true)}
 						/>
 					</div>
-					
+
 					<div className="flex items-center gap-2">
 						<ActionButton
 							icon={expandedNamespaces.length === namespaces.length ? "📁" : "📂"}
-							label={expandedNamespaces.length === namespaces.length ? "Collapse All" : "Expand All"}
+							label={
+								expandedNamespaces.length === namespaces.length
+									? "Collapse All"
+									: "Expand All"
+							}
 							variant="secondary"
 							onClick={() => {
 								if (expandedNamespaces.length === namespaces.length) {
@@ -168,7 +175,7 @@ function FunctionsList() {
 
 				{/* Functions Grid */}
 				{namespaces.length === 0 ? (
-					<EmptyState 
+					<EmptyState
 						onCreateNamespace={() => setNamespaceModalOpen(true)}
 						onCreateFunction={() => setFunctionModalOpen(true)}
 					/>
@@ -178,25 +185,25 @@ function FunctionsList() {
 							.slice()
 							.sort((a, b) => a.name.localeCompare(b.name))
 							.map((namespace) => (
-							<NamespaceCard
-								key={namespace.id}
-								namespace={namespace}
-								isExpanded={expandedNamespaces.includes(namespace.id)}
-								onToggle={() => toggleNamespace(namespace.id)}
-								onRename={(ns) => {
-									setSelectedNamespace(ns);
-									setRenameNamespaceModalOpen(true);
-								}}
-								onDelete={(ns) => {
-									setSelectedNamespace(ns);
-									setDeleteNamespaceModalOpen(true);
-								}}
-								onDeleteFunction={(func) => {
-									setSelectedFunction(func);
-									setDeleteFunctionModalOpen(true);
-								}}
-							/>
-						))}
+								<NamespaceCard
+									key={namespace.id}
+									namespace={namespace}
+									isExpanded={expandedNamespaces.includes(namespace.id)}
+									onToggle={() => toggleNamespace(namespace.id)}
+									onRename={(ns) => {
+										setSelectedNamespace(ns);
+										setRenameNamespaceModalOpen(true);
+									}}
+									onDelete={(ns) => {
+										setSelectedNamespace(ns);
+										setDeleteNamespaceModalOpen(true);
+									}}
+									onDeleteFunction={(func) => {
+										setSelectedFunction(func);
+										setDeleteFunctionModalOpen(true);
+									}}
+								/>
+							))}
 					</div>
 				)}
 			</div>
@@ -242,17 +249,20 @@ function ActionButton({
 	icon,
 	label,
 	variant = "primary",
-	onClick
+	onClick,
 }: {
 	icon: string;
 	label: string;
 	variant?: "primary" | "secondary";
 	onClick: () => void;
 }) {
-	const baseClasses = "px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 hover:scale-105";
+	const baseClasses =
+		"px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 hover:scale-105";
 	const variantClasses = {
-		primary: "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-[0_0_30px_rgba(124,131,253,0.3)] border border-transparent",
-		secondary: "bg-background/50 border border-primary/20 text-primary hover:border-primary/40 hover:bg-primary/5"
+		primary:
+			"bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-[0_0_30px_rgba(124,131,253,0.3)] border border-transparent",
+		secondary:
+			"bg-background/50 border border-primary/20 text-primary hover:border-primary/40 hover:bg-primary/5",
 	};
 
 	return (
@@ -272,7 +282,7 @@ function NamespaceCard({
 	onToggle,
 	onRename,
 	onDelete,
-	onDeleteFunction
+	onDeleteFunction,
 }: {
 	namespace: NamespaceResponseWithFunctions["data"];
 	isExpanded: boolean;
@@ -289,9 +299,21 @@ function NamespaceCard({
 				onClick={onToggle}
 			>
 				<div className="flex items-center gap-3">
-					<div className={`transform transition-transform duration-300 ${isExpanded ? "rotate-90" : ""}`}>
-						<svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+					<div
+						className={`transform transition-transform duration-300 ${isExpanded ? "rotate-90" : ""}`}
+					>
+						<svg
+							className="w-4 h-4 text-primary"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M9 5l7 7-7 7"
+							/>
 						</svg>
 					</div>
 					<div className="flex items-center gap-3">
@@ -300,11 +322,13 @@ function NamespaceCard({
 						</div>
 						<div>
 							<h3 className="text-lg font-bold text-primary">{namespace.name}</h3>
-							<p className="text-text/60 text-xs">{namespace.functions.length} functions</p>
+							<p className="text-text/60 text-xs">
+								{namespace.functions.length} functions
+							</p>
 						</div>
 					</div>
 				</div>
-				
+
 				<div className="flex items-center gap-1">
 					<button
 						onClick={(e) => {
@@ -335,8 +359,12 @@ function NamespaceCard({
 					{namespace.functions.length === 0 ? (
 						<div className="p-6 text-center">
 							<div className="text-3xl mb-3">📦</div>
-							<p className="text-text/60 text-sm">No functions in this namespace yet</p>
-							<p className="text-text/40 text-xs mt-1">Create your first function to get started</p>
+							<p className="text-text/60 text-sm">
+								No functions in this namespace yet
+							</p>
+							<p className="text-text/40 text-xs mt-1">
+								Create your first function to get started
+							</p>
 						</div>
 					) : (
 						<div className="p-3 space-y-2">
@@ -344,12 +372,12 @@ function NamespaceCard({
 								.slice()
 								.sort((a, b) => a.name.localeCompare(b.name))
 								.map((func) => (
-								<FunctionCard
-									key={func.id}
-									func={func}
-									onDelete={() => onDeleteFunction({ id: func.id, name: func.name })}
-								/>
-							))}
+									<FunctionCard
+										key={func.id}
+										func={func}
+										onDelete={() => onDeleteFunction({ id: func.id, name: func.name })}
+									/>
+								))}
 						</div>
 					)}
 				</div>
@@ -360,7 +388,7 @@ function NamespaceCard({
 
 function FunctionCard({
 	func,
-	onDelete
+	onDelete,
 }: {
 	func: { id: number; name: string; description?: string };
 	onDelete: () => void;
@@ -384,7 +412,7 @@ function FunctionCard({
 						</p>
 					</div>
 				</div>
-				
+
 				<div className="flex items-center gap-1 ml-3">
 					<button
 						onClick={(e) => {
@@ -405,7 +433,7 @@ function FunctionCard({
 
 function EmptyState({
 	onCreateNamespace,
-	onCreateFunction
+	onCreateFunction,
 }: {
 	onCreateNamespace: () => void;
 	onCreateFunction: () => void;
@@ -416,8 +444,8 @@ function EmptyState({
 				<div className="text-5xl mb-4">🚀</div>
 				<h2 className="text-2xl font-bold text-primary mb-3">Ready to Deploy?</h2>
 				<p className="text-text/70 mb-6 leading-relaxed">
-					Start building your serverless functions! Create a namespace to organize your functions,
-					or jump right in and create your first function.
+					Start building your serverless functions! Create a namespace to organize
+					your functions, or jump right in and create your first function.
 				</p>
 				<div className="flex flex-col sm:flex-row gap-3 justify-center">
 					<ActionButton

@@ -12,9 +12,9 @@ import { Readable } from "stream";
 import { randomBytes } from "crypto";
 
 interface TimingEntry {
-  timestamp: number;
-  value: number;
-  description: string;
+	timestamp: number;
+	value: number;
+	description: string;
 }
 
 // Token expiry for execution tokens (in milliseconds)
@@ -237,110 +237,106 @@ def database() -> Database:
 # You can also use: db = Database()`;
 
 export async function executeFunction(
-  id: number,
-  functionData: Function,
-  files: FunctionFile[],
-  stream:
-    | { enabled: true; onChunk: (data: string) => void }
-    | { enabled: false },
-  payload: string
+	id: number,
+	functionData: Function,
+	files: FunctionFile[],
+	stream:
+		| { enabled: true; onChunk: (data: string) => void }
+		| { enabled: false },
+	payload: string,
 ) {
-  const starting_time = Date.now();
-  const tooks: TimingEntry[] = [];
-  let func_result: string = ""; // Stores the JSON string result from the function
-  let logs: string = ""; // Stores logs from the function execution
+	const starting_time = Date.now();
+	const tooks: TimingEntry[] = [];
+	let func_result: string = ""; // Stores the JSON string result from the function
+	let logs: string = ""; // Stores logs from the function execution
 
-  const recordTiming = (() => {
-    let lastTimestamp = starting_time;
-    return (description: string) => {
-      const currentTimestamp = Date.now();
-      const value = (currentTimestamp - lastTimestamp) / 1000;
-      tooks.push({ timestamp: currentTimestamp, value, description });
-      console.log(`[SHSF CRONS] ${description}: ${value.toFixed(3)} seconds`);
-    };
-  })();
+	const recordTiming = (() => {
+		let lastTimestamp = starting_time;
+		return (description: string) => {
+			const currentTimestamp = Date.now();
+			const value = (currentTimestamp - lastTimestamp) / 1000;
+			tooks.push({ timestamp: currentTimestamp, value, description });
+			console.log(`[SHSF CRONS] ${description}: ${value.toFixed(3)} seconds`);
+		};
+	})();
 
-  // Serve Only HTML (serve-only)
-  if (functionData.startup_file?.endsWith(".html")) {
-    return {
-      logs: "Serve Only HTML function executed.",
-      result: {
-        _shsf: "v2",
-        _headers: { "Content-Type": "text/html; charset=utf-8" },
-        _code: 200,
-        _res:
-          files.find((f) => f.name === functionData.startup_file)?.content ||
-          ServeOnlyFileNotFoundHTML,
-      },
-      tooks: [
-        {
-          description: "Serve Only HTML function executed.",
-          value: 0,
-          timestamp: starting_time,
-        },
-      ] as TimingEntry[],
-      exit_code: 0,
-    };
-  }
+	// Serve Only HTML (serve-only)
+	if (functionData.startup_file?.endsWith(".html")) {
+		return {
+			logs: "Serve Only HTML function executed.",
+			result: {
+				_shsf: "v2",
+				_headers: { "Content-Type": "text/html; charset=utf-8" },
+				_code: 200,
+				_res:
+					files.find((f) => f.name === functionData.startup_file)?.content ||
+					ServeOnlyFileNotFoundHTML,
+			},
+			tooks: [
+				{
+					description: "Serve Only HTML function executed.",
+					value: 0,
+					timestamp: starting_time,
+				},
+			] as TimingEntry[],
+			exit_code: 0,
+		};
+	}
 
-  const docker = new Docker();
-  let dbAccessToken = "";
-  const functionIdStr = String(functionData.id);
-  const containerName = `shsf_func_${functionIdStr}`;
-  // Persistent directory on the host for this function's app files
-  const funcAppDir = path.join(
-    "/opt/shsf_data/functions",
-    functionIdStr,
-    "app"
-  );
-  const runtimeType = functionData.image.split(":")[0];
-  let exitCode = 0; // Default exit code
+	const docker = new Docker();
+	let dbAccessToken = "";
+	const functionIdStr = String(functionData.id);
+	const containerName = `shsf_func_${functionIdStr}`;
+	// Persistent directory on the host for this function's app files
+	const funcAppDir = path.join("/opt/shsf_data/functions", functionIdStr, "app");
+	const runtimeType = functionData.image.split(":")[0];
+	let exitCode = 0; // Default exit code
 
-  // Generate a unique execution ID for this request to avoid race conditions
-  // Use crypto.randomUUID() for better uniqueness if available, otherwise fallback
-  const executionId =
-    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-  const executionDir = path.join(
-    "/opt/shsf_data/functions",
-    functionIdStr,
-    "executions",
-    executionId
-  );
+	// Generate a unique execution ID for this request to avoid race conditions
+	// Use crypto.randomUUID() for better uniqueness if available, otherwise fallback
+	const executionId =
+		typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+			? crypto.randomUUID()
+			: `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+	const executionDir = path.join(
+		"/opt/shsf_data/functions",
+		functionIdStr,
+		"executions",
+		executionId,
+	);
 
-  // Define startupFile and initScript here as they are needed for script generation
-  const startupFile =
-    functionData.startup_file ||
-    (runtimeType === "python" ? "main.py" : "index.js");
-  let initScript =
-    "#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
+	// Define startupFile and initScript here as they are needed for script generation
+	const startupFile =
+		functionData.startup_file ||
+		(runtimeType === "python" ? "main.py" : "index.js");
+	let initScript =
+		"#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
 
-  try {
-    let container = docker.getContainer(containerName);
-    let containerJustCreated = false;
+	try {
+		let container = docker.getContainer(containerName);
+		let containerJustCreated = false;
 
-    // Ensure function app directory exists
-    await fs.mkdir(funcAppDir, { recursive: true });
+		// Ensure function app directory exists
+		await fs.mkdir(funcAppDir, { recursive: true });
 
-    // Create unique execution directory for this request
-    await fs.mkdir(executionDir, { recursive: true });
-    recordTiming("Created unique execution directory");
+		// Create unique execution directory for this request
+		await fs.mkdir(executionDir, { recursive: true });
+		recordTiming("Created unique execution directory");
 
-    // Always update the user files regardless of container state
-    recordTiming("Updating function files");
-    await Promise.all(
-      files.map(async (file) => {
-        const filePath = path.join(funcAppDir, file.name);
-        await fs.writeFile(filePath, file.content);
-      })
-    );
-    recordTiming("User files written to host app directory");
+		// Always update the user files regardless of container state
+		recordTiming("Updating function files");
+		await Promise.all(
+			files.map(async (file) => {
+				const filePath = path.join(funcAppDir, file.name);
+				await fs.writeFile(filePath, file.content);
+			}),
+		);
+		recordTiming("User files written to host app directory");
 
-    // Always generate/update the runner script to accept payload file path as argument
-    if (runtimeType === "python") {
-      const wrapperPath = path.join(funcAppDir, "_runner.py");
-      const wrapperContent = `#!/bin/sh
+		// Always generate/update the runner script to accept payload file path as argument
+		if (runtimeType === "python") {
+			const wrapperPath = path.join(funcAppDir, "_runner.py");
+			const wrapperContent = `#!/bin/sh
 # Source environment variables if the file exists
 if [ -f /app/.shsf_env ]; then
     . /app/.shsf_env
@@ -434,22 +430,22 @@ finally:
     sys.stdout = original_stdout
 PYTHON_SCRIPT_EOF
 `;
-      await fs.writeFile(wrapperPath, wrapperContent);
-      await fs.chmod(wrapperPath, "755");
-      recordTiming(
-        "Python runner script (_runner.py) written to host app directory"
-      );
-    } else {
-      console.warn(
-        `[executeFunction] Runner script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`
-      );
-    }
+			await fs.writeFile(wrapperPath, wrapperContent);
+			await fs.chmod(wrapperPath, "755");
+			recordTiming(
+				"Python runner script (_runner.py) written to host app directory",
+			);
+		} else {
+			console.warn(
+				`[executeFunction] Runner script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`,
+			);
+		}
 
-    // Always generate/update the init.sh script
-    if (runtimeType === "python") {
-      // Add ffmpeg installation if requested
-      if (functionData.ffmpeg_install) {
-        initScript += `
+		// Always generate/update the init.sh script
+		if (runtimeType === "python") {
+			// Add ffmpeg installation if requested
+			if (functionData.ffmpeg_install) {
+				initScript += `
       echo "[SHSF INIT] Checking ffmpeg installation..."
       if [ ! -f ".already_installed_ffmpeg" ]; then
           command -v ffmpeg >/dev/null 2>&1 || (apt update && apt-get install -y ffmpeg && touch /app/.already_installed_ffmpeg)
@@ -458,9 +454,9 @@ PYTHON_SCRIPT_EOF
       fi
       echo "[SHSF INIT] ffmpeg check complete."
       `;
-      }
-      
-      initScript += `
+			}
+
+			initScript += `
 if [ -f "requirements.txt" ]; then 
 	echo "[SHSF INIT] Setting up Python environment for function ${functionData.id}"
 	VENV_DIR="/pip-cache/venv/function-${functionData.id}" 
@@ -496,660 +492,649 @@ if [ -f "requirements.txt" ]; then
 fi
 echo "[SHSF INIT] Python setup complete."
 `;
-    } else {
-      // This was already checked for runner script, but as a safeguard for init.sh:
-      console.warn(
-        `[executeFunction] init.sh script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`
-      );
-      // Potentially throw an error if an unsupported runtime should halt execution.
-      // throw new Error(`Unsupported runtime type for init script generation: ${runtimeType}`);
-    }
-    initScript +=
-      "\necho '[SHSF INIT] Environment setup finished successfully.'\n";
-    await fs.writeFile(path.join(funcAppDir, "init.sh"), initScript);
-    await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
-    recordTiming("init.sh script generated on host");
+		} else {
+			// This was already checked for runner script, but as a safeguard for init.sh:
+			console.warn(
+				`[executeFunction] init.sh script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`,
+			);
+			// Potentially throw an error if an unsupported runtime should halt execution.
+			// throw new Error(`Unsupported runtime type for init script generation: ${runtimeType}`);
+		}
+		initScript +=
+			"\necho '[SHSF INIT] Environment setup finished successfully.'\n";
+		await fs.writeFile(path.join(funcAppDir, "init.sh"), initScript);
+		await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
+		recordTiming("init.sh script generated on host");
 
-    // Check if any file contains _db_com, and if so, setup DB communication
-    const requiresDbCom = files.some((file) =>
-      file.content.includes("_db_com")
-    );
-    if (requiresDbCom) {
-      // Generate a unique, short-lived access token for this execution
-      dbAccessToken = randomBytes(32).toString("hex");
-      await prisma.accessToken.create({
-        data: {
-          userId: functionData.userId,
-          name: `token_exec_${executionId}`,
-          token: dbAccessToken,
-          hidden: true,
-          purpose: `Short-lived access token for function execution ${executionId}`,
-          expiresAt: new Date(Date.now() + EXECUTION_TOKEN_EXPIRY_MS), // 10 minutes expiry
-        },
-      });
-      recordTiming("Short-lived access token for DB communication created");
+		// Check if any file contains _db_com, and if so, setup DB communication
+		const requiresDbCom = files.some((file) => file.content.includes("_db_com"));
+		if (requiresDbCom) {
+			// Generate a unique, short-lived access token for this execution
+			dbAccessToken = randomBytes(32).toString("hex");
+			await prisma.accessToken.create({
+				data: {
+					userId: functionData.userId,
+					name: `token_exec_${executionId}`,
+					token: dbAccessToken,
+					hidden: true,
+					purpose: `Short-lived access token for function execution ${executionId}`,
+					expiresAt: new Date(Date.now() + EXECUTION_TOKEN_EXPIRY_MS), // 10 minutes expiry
+				},
+			});
+			recordTiming("Short-lived access token for DB communication created");
 
-      // Add Database Communication Script (python)
-      const dbScript = DbComScript.replace("{{API}}", API_URL!).replace(
-        "{{AUTHKEY}}",
-        dbAccessToken
-      );
-      await fs.writeFile(path.join(funcAppDir, "_db_com.py"), dbScript);
-      await fs.chmod(path.join(funcAppDir, "_db_com.py"), "755");
-      recordTiming("Database communication script generated on host");
-    }
+			// Add Database Communication Script (python)
+			const dbScript = DbComScript.replace("{{API}}", API_URL!).replace(
+				"{{AUTHKEY}}",
+				dbAccessToken,
+			);
+			await fs.writeFile(path.join(funcAppDir, "_db_com.py"), dbScript);
+			await fs.chmod(path.join(funcAppDir, "_db_com.py"), "755");
+			recordTiming("Database communication script generated on host");
+		}
 
-    try {
-      const inspectInfo = await container.inspect();
-      if (!inspectInfo.State.Running) {
-        recordTiming("Starting existing stopped container");
-        await container.start();
-        recordTiming("Container started");
-      } else {
-        recordTiming("Found existing running container");
-      }
-    } catch (error: any) {
-      if (error.statusCode === 404) {
-        // Container not found, create it
-        containerJustCreated = true;
-        recordTiming("Container not found, preparing for creation");
+		try {
+			const inspectInfo = await container.inspect();
+			if (!inspectInfo.State.Running) {
+				recordTiming("Starting existing stopped container");
+				await container.start();
+				recordTiming("Container started");
+			} else {
+				recordTiming("Found existing running container");
+			}
+		} catch (error: any) {
+			if (error.statusCode === 404) {
+				// Container not found, create it
+				containerJustCreated = true;
+				recordTiming("Container not found, preparing for creation");
 
-        // Cache directories setup on host (ensure these base paths exist)
-        const baseCacheDir = "/opt/shsf_data/cache"; // Centralized cache on host
-        await fs.mkdir(baseCacheDir, { recursive: true });
-        const pipCacheHost = path.join(baseCacheDir, "pip");
+				// Cache directories setup on host (ensure these base paths exist)
+				const baseCacheDir = "/opt/shsf_data/cache"; // Centralized cache on host
+				await fs.mkdir(baseCacheDir, { recursive: true });
+				const pipCacheHost = path.join(baseCacheDir, "pip");
 
-        await Promise.all([fs.mkdir(pipCacheHost, { recursive: true })]);
-        recordTiming("Host cache directories ensured");
+				await Promise.all([fs.mkdir(pipCacheHost, { recursive: true })]);
+				recordTiming("Host cache directories ensured");
 
-        // Mount the base function directory which contains both app/ and executions/
-        const funcBaseDir = path.join(
-          "/opt/shsf_data/functions",
-          functionIdStr
-        );
-        // Mount /app and /executions separately instead of the old /function_data
-        let BINDS: string[] = [
-          `${funcBaseDir}/app:/app`,
-          `${funcBaseDir}/executions:/executions`,
-        ];
+				// Mount the base function directory which contains both app/ and executions/
+				const funcBaseDir = path.join("/opt/shsf_data/functions", functionIdStr);
+				// Mount /app and /executions separately instead of the old /function_data
+				let BINDS: string[] = [
+					`${funcBaseDir}/app:/app`,
+					`${funcBaseDir}/executions:/executions`,
+				];
 
-        if (functionData.docker_mount) {
-          BINDS.push("/var/run/docker.sock:/var/run/docker.sock"); // Mount Docker socket
-        }
+				if (functionData.docker_mount) {
+					BINDS.push("/var/run/docker.sock:/var/run/docker.sock"); // Mount Docker socket
+				}
 
-        if (runtimeType === "python") {
-          BINDS.push(`${pipCacheHost}:/pip-cache`); // Mount persistent pip cache
-        } else {
-          throw new Error(
-            `Unsupported runtime type for container BIND setup: ${runtimeType}`
-          );
-        }
+				if (runtimeType === "python") {
+					BINDS.push(`${pipCacheHost}:/pip-cache`); // Mount persistent pip cache
+				} else {
+					throw new Error(
+						`Unsupported runtime type for container BIND setup: ${runtimeType}`,
+					);
+				}
 
-        // Image pull logic (same as original)
-        const imageStart = Date.now();
-        let imagePulled = false;
-        try {
-          const imageExists = await docker.listImages({
-            filters: JSON.stringify({ reference: [functionData.image] }),
-          });
-          if (imageExists.length === 0) {
-            imagePulled = true;
-            recordTiming("Pulling image: " + functionData.image);
-            const pullStream = await docker.pull(functionData.image);
-            await new Promise((resolve, reject) => {
-              docker.modem.followProgress(pullStream, (err) =>
-                err ? reject(err) : resolve(null)
-              );
-            });
-          }
-        } catch (imgError) {
-          console.error("Error checking or pulling image:", imgError);
-          throw imgError;
-        }
-        recordTiming(
-          imagePulled ? "Image pull complete" : "Image check complete"
-        );
+				// Image pull logic (same as original)
+				const imageStart = Date.now();
+				let imagePulled = false;
+				try {
+					const imageExists = await docker.listImages({
+						filters: JSON.stringify({ reference: [functionData.image] }),
+					});
+					if (imageExists.length === 0) {
+						imagePulled = true;
+						recordTiming("Pulling image: " + functionData.image);
+						const pullStream = await docker.pull(functionData.image);
+						await new Promise((resolve, reject) => {
+							docker.modem.followProgress(pullStream, (err) =>
+								err ? reject(err) : resolve(null),
+							);
+						});
+					}
+				} catch (imgError) {
+					console.error("Error checking or pulling image:", imgError);
+					throw imgError;
+				}
+				recordTiming(imagePulled ? "Image pull complete" : "Image check complete");
 
-        const initialEnv = functionData.env
-          ? JSON.parse(functionData.env).map(
-              (env: { name: string; value: any }) => `${env.name}=${env.value}`
-            )
-          : [];
+				const initialEnv = functionData.env
+					? JSON.parse(functionData.env).map(
+							(env: { name: string; value: any }) => `${env.name}=${env.value}`,
+						)
+					: [];
 
-        container = await docker.createContainer({
-          Image: functionData.image,
-          name: containerName,
-          Env: initialEnv,
-          HostConfig: {
-            Binds: BINDS,
-            AutoRemove: false, // CRITICAL: Container is persistent
-            Memory: (functionData.max_ram || 128) * 1024 * 1024,
-          },
-          // Run init.sh once, then keep container alive
-          Cmd: [
-            "/bin/sh",
-            "-c",
-            "/app/init.sh && echo '[SHSF] Container initialized and idling.' && tail -f /dev/null",
-          ],
-          Tty: false, // No TTY needed for background container
-        });
-        recordTiming("Container created");
-        await container.start();
-        recordTiming("New container started after init");
-      } else {
-        // Some other error inspecting container
-        throw error;
-      }
-    }
+				container = await docker.createContainer({
+					Image: functionData.image,
+					name: containerName,
+					Env: initialEnv,
+					HostConfig: {
+						Binds: BINDS,
+						AutoRemove: false, // CRITICAL: Container is persistent
+						Memory: (functionData.max_ram || 128) * 1024 * 1024,
+					},
+					// Run init.sh once, then keep container alive
+					Cmd: [
+						"/bin/sh",
+						"-c",
+						"/app/init.sh && echo '[SHSF] Container initialized and idling.' && tail -f /dev/null",
+					],
+					Tty: false, // No TTY needed for background container
+				});
+				recordTiming("Container created");
+				await container.start();
+				recordTiming("New container started after init");
+			} else {
+				// Some other error inspecting container
+				throw error;
+			}
+		}
 
-    // At this point, container is running (either existing or newly created and initialized)
-    // Now, execute the function logic using docker exec
+		// At this point, container is running (either existing or newly created and initialized)
+		// Now, execute the function logic using docker exec
 
-    // Write payload to a unique file for this execution to avoid race conditions
-    const payloadFilePath = path.join(executionDir, "payload.json");
-    await fs.writeFile(payloadFilePath, payload);
-    recordTiming("Payload written to unique execution file");
+		// Write payload to a unique file for this execution to avoid race conditions
+		const payloadFilePath = path.join(executionDir, "payload.json");
+		await fs.writeFile(payloadFilePath, payload);
+		recordTiming("Payload written to unique execution file");
 
-    const execEnv: string[] = []; // Remove RUN_DATA from env
-    // Add function-specific env vars to exec as well, in case they are needed by the runner script directly
-    // and not just by the init.sh environment.
-    if (functionData.env) {
-      try {
-        const parsedEnv = JSON.parse(functionData.env);
-        if (Array.isArray(parsedEnv)) {
-          parsedEnv.forEach((envVar: { name: string; value: any }) =>
-            execEnv.push(`${envVar.name}=${envVar.value}`)
-          );
-        }
-      } catch (e) {
-        console.error("Failed to parse functionData.env for exec:", e);
-      }
-    }
+		const execEnv: string[] = []; // Remove RUN_DATA from env
+		// Add function-specific env vars to exec as well, in case they are needed by the runner script directly
+		// and not just by the init.sh environment.
+		if (functionData.env) {
+			try {
+				const parsedEnv = JSON.parse(functionData.env);
+				if (Array.isArray(parsedEnv)) {
+					parsedEnv.forEach((envVar: { name: string; value: any }) =>
+						execEnv.push(`${envVar.name}=${envVar.value}`),
+					);
+				}
+			} catch (e) {
+				console.error("Failed to parse functionData.env for exec:", e);
+			}
+		}
 
-    // Pass the unique payload file path as an argument to the runner script
-    const containerPayloadPath = `/executions/${executionId}/payload.json`; // Updated to use /executions mount
-    const execCmd =
-      runtimeType === "python"
-        ? ["/bin/sh", "/app/_runner.py", containerPayloadPath]
-        : (() => {
-            throw new Error(
-              `Unsupported runtime type for exec command: ${runtimeType}`
-            );
-          })();
+		// Pass the unique payload file path as an argument to the runner script
+		const containerPayloadPath = `/executions/${executionId}/payload.json`; // Updated to use /executions mount
+		const execCmd =
+			runtimeType === "python"
+				? ["/bin/sh", "/app/_runner.py", containerPayloadPath]
+				: (() => {
+						throw new Error(
+							`Unsupported runtime type for exec command: ${runtimeType}`,
+						);
+					})();
 
-    const exec = await container.exec({
-      Cmd: execCmd,
-      Env: execEnv,
-      AttachStdout: true,
-      AttachStderr: true,
-      Tty: false,
-    });
-    recordTiming("Exec created");
+		const exec = await container.exec({
+			Cmd: execCmd,
+			Env: execEnv,
+			AttachStdout: true,
+			AttachStderr: true,
+			Tty: false,
+		});
+		recordTiming("Exec created");
 
-    const execStream = await exec.start({ hijack: true, stdin: false });
-    recordTiming("Exec started");
+		const execStream = await exec.start({ hijack: true, stdin: false });
+		recordTiming("Exec started");
 
-    const execOutput = { stdout: "", stderr: "" };
-    const MAX_OUTPUT_SIZE = 3 * 1024 * 1024; // 3MB limit to stay under Docker's 4MB limit
-    let stdoutTruncated = false;
-    let stderrTruncated = false;
+		const execOutput = { stdout: "", stderr: "" };
+		const MAX_OUTPUT_SIZE = 3 * 1024 * 1024; // 3MB limit to stay under Docker's 4MB limit
+		let stdoutTruncated = false;
+		let stderrTruncated = false;
 
-    const stdoutMultiplex = new PassThrough();
-    const stderrMultiplex = new PassThrough();
+		const stdoutMultiplex = new PassThrough();
+		const stderrMultiplex = new PassThrough();
 
-    stdoutMultiplex.on("data", (chunk) => {
-      const text = chunk.toString("utf8");
-      if (execOutput.stdout.length + text.length <= MAX_OUTPUT_SIZE) {
-        execOutput.stdout += text;
-      } else if (!stdoutTruncated) {
-        const remaining = MAX_OUTPUT_SIZE - execOutput.stdout.length;
-        if (remaining > 0) {
-          execOutput.stdout += text.substring(0, remaining);
-        }
-        execOutput.stdout +=
-          "\n[SHSF TRUNCATED] Output exceeded 3MB limit and was truncated";
-        stdoutTruncated = true;
-      }
-    });
+		stdoutMultiplex.on("data", (chunk) => {
+			const text = chunk.toString("utf8");
+			if (execOutput.stdout.length + text.length <= MAX_OUTPUT_SIZE) {
+				execOutput.stdout += text;
+			} else if (!stdoutTruncated) {
+				const remaining = MAX_OUTPUT_SIZE - execOutput.stdout.length;
+				if (remaining > 0) {
+					execOutput.stdout += text.substring(0, remaining);
+				}
+				execOutput.stdout +=
+					"\n[SHSF TRUNCATED] Output exceeded 3MB limit and was truncated";
+				stdoutTruncated = true;
+			}
+		});
 
-    stderrMultiplex.on("data", (chunk) => {
-      const text = chunk.toString("utf8");
-      if (execOutput.stderr.length + text.length <= MAX_OUTPUT_SIZE) {
-        execOutput.stderr += text;
-      } else if (!stderrTruncated) {
-        const remaining = MAX_OUTPUT_SIZE - execOutput.stderr.length;
-        if (remaining > 0) {
-          execOutput.stderr += text.substring(0, remaining);
-        }
-        execOutput.stderr +=
-          "\n[SHSF TRUNCATED] Logs exceeded 3MB limit and were truncated";
-        stderrTruncated = true;
-      }
+		stderrMultiplex.on("data", (chunk) => {
+			const text = chunk.toString("utf8");
+			if (execOutput.stderr.length + text.length <= MAX_OUTPUT_SIZE) {
+				execOutput.stderr += text;
+			} else if (!stderrTruncated) {
+				const remaining = MAX_OUTPUT_SIZE - execOutput.stderr.length;
+				if (remaining > 0) {
+					execOutput.stderr += text.substring(0, remaining);
+				}
+				execOutput.stderr +=
+					"\n[SHSF TRUNCATED] Logs exceeded 3MB limit and were truncated";
+				stderrTruncated = true;
+			}
 
-      if (stream.enabled && !stderrTruncated) {
-        const ansiRegex = /\x1B\[[0-9;]*[A-Za-z]/g;
-        const nonPrintableRegex = /[^\x20-\x7E\n\r\t]/g;
-        const cleanText = text
-          .replace(ansiRegex, "")
-          .replace(nonPrintableRegex, "");
-        stream.onChunk(cleanText);
-      }
-    });
+			if (stream.enabled && !stderrTruncated) {
+				const ansiRegex = /\x1B\[[0-9;]*[A-Za-z]/g;
+				const nonPrintableRegex = /[^\x20-\x7E\n\r\t]/g;
+				const cleanText = text
+					.replace(ansiRegex, "")
+					.replace(nonPrintableRegex, "");
+				stream.onChunk(cleanText);
+			}
+		});
 
-    docker.modem.demuxStream(execStream, stdoutMultiplex, stderrMultiplex);
+		docker.modem.demuxStream(execStream, stdoutMultiplex, stderrMultiplex);
 
-    const execTimeoutMs = (functionData.timeout || 15) * 1000; // functionData.timeout is in seconds
+		const execTimeoutMs = (functionData.timeout || 15) * 1000; // functionData.timeout is in seconds
 
-    const execPromise = new Promise<Docker.ExecInspectInfo>(
-      (resolve, reject) => {
-        execStream.on("end", () => {
-          exec.inspect().then(resolve).catch(reject);
-        });
-        execStream.on("error", reject);
-      }
-    );
+		const execPromise = new Promise<Docker.ExecInspectInfo>((resolve, reject) => {
+			execStream.on("end", () => {
+				exec.inspect().then(resolve).catch(reject);
+			});
+			execStream.on("error", reject);
+		});
 
-    const timeoutPromise = new Promise<Docker.ExecInspectInfo>((_, reject) =>
-      setTimeout(
-        () =>
-          reject(
-            new Error(`Execution timed out after ${execTimeoutMs / 1000}s`)
-          ),
-        execTimeoutMs
-      )
-    );
+		const timeoutPromise = new Promise<Docker.ExecInspectInfo>((_, reject) =>
+			setTimeout(
+				() =>
+					reject(new Error(`Execution timed out after ${execTimeoutMs / 1000}s`)),
+				execTimeoutMs,
+			),
+		);
 
-    let execResultDetails: Docker.ExecInspectInfo;
-    try {
-      execResultDetails = await Promise.race([execPromise, timeoutPromise]);
-      exitCode = execResultDetails.ExitCode ?? 1; // Default to 1 if null/undefined
-      logs = execOutput.stderr;
-      if (exitCode === 0 && execOutput.stdout) {
-        func_result = execOutput.stdout.trim();
-      } else if (exitCode !== 0) {
-        // Combine outputs but respect size limits
-        const combinedOutput = `Exit Code: ${exitCode}\n${execOutput.stderr}\n${execOutput.stdout}`;
-        logs =
-          combinedOutput.length > MAX_OUTPUT_SIZE
-            ? combinedOutput.substring(0, MAX_OUTPUT_SIZE) +
-              "\n[SHSF TRUNCATED] Combined output exceeded 3MB limit"
-            : combinedOutput;
-        console.error(
-          `[executeFunction] Exec failed with code ${exitCode}. Logs truncated due to size.`
-        );
-      }
-    } catch (execError: any) {
-      console.error(
-        "[executeFunction] Exec failed or timed out:",
-        execError.message
-      );
-      logs = `${execOutput.stderr}\nExecution Error: ${execError.message}`;
-      exitCode = -1;
-      func_result = "";
-    }
-    recordTiming("Container execution via exec finished");
-    // Process result if successful
-    let parsedResult: any = null;
-    if (exitCode === 0 && func_result) {
-      try {
-        // Look for the function result markers
-        const startMarker = "SHSF_FUNCTION_RESULT_START";
-        const endMarker = "SHSF_FUNCTION_RESULT_END";
-        const startIdx = func_result.indexOf(startMarker);
-        const endIdx = func_result.lastIndexOf(endMarker);
+		let execResultDetails: Docker.ExecInspectInfo;
+		try {
+			execResultDetails = await Promise.race([execPromise, timeoutPromise]);
+			exitCode = execResultDetails.ExitCode ?? 1; // Default to 1 if null/undefined
+			logs = execOutput.stderr;
+			if (exitCode === 0 && execOutput.stdout) {
+				func_result = execOutput.stdout.trim();
+			} else if (exitCode !== 0) {
+				// Combine outputs but respect size limits
+				const combinedOutput = `Exit Code: ${exitCode}\n${execOutput.stderr}\n${execOutput.stdout}`;
+				logs =
+					combinedOutput.length > MAX_OUTPUT_SIZE
+						? combinedOutput.substring(0, MAX_OUTPUT_SIZE) +
+							"\n[SHSF TRUNCATED] Combined output exceeded 3MB limit"
+						: combinedOutput;
+				console.error(
+					`[executeFunction] Exec failed with code ${exitCode}. Logs truncated due to size.`,
+				);
+			}
+		} catch (execError: any) {
+			console.error(
+				"[executeFunction] Exec failed or timed out:",
+				execError.message,
+			);
+			logs = `${execOutput.stderr}\nExecution Error: ${execError.message}`;
+			exitCode = -1;
+			func_result = "";
+		}
+		recordTiming("Container execution via exec finished");
+		// Process result if successful
+		let parsedResult: any = null;
+		if (exitCode === 0 && func_result) {
+			try {
+				// Look for the function result markers
+				const startMarker = "SHSF_FUNCTION_RESULT_START";
+				const endMarker = "SHSF_FUNCTION_RESULT_END";
+				const startIdx = func_result.indexOf(startMarker);
+				const endIdx = func_result.lastIndexOf(endMarker);
 
-        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-          // Ensure markers are present and in correct order
-          // Extract only the content between markers
-          const actualResult = func_result
-            .substring(startIdx + startMarker.length, endIdx)
-            .trim();
+				if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+					// Ensure markers are present and in correct order
+					// Extract only the content between markers
+					const actualResult = func_result
+						.substring(startIdx + startMarker.length, endIdx)
+						.trim();
 
-          // Content before or after markers in stdout is now unexpected, but log it as a warning if it occurs.
-          const prefix = func_result.substring(0, startIdx).trim();
-          if (prefix) {
-            logs += `\n[Runner Warning] Unexpected content before result marker in stdout: ${prefix}`;
-          }
+					// Content before or after markers in stdout is now unexpected, but log it as a warning if it occurs.
+					const prefix = func_result.substring(0, startIdx).trim();
+					if (prefix) {
+						logs += `\n[Runner Warning] Unexpected content before result marker in stdout: ${prefix}`;
+					}
 
-          const suffix = func_result
-            .substring(endIdx + endMarker.length)
-            .trim();
-          if (suffix) {
-            logs += `\n[Runner Warning] Unexpected content after result marker in stdout: ${suffix}`;
-          }
+					const suffix = func_result.substring(endIdx + endMarker.length).trim();
+					if (suffix) {
+						logs += `\n[Runner Warning] Unexpected content after result marker in stdout: ${suffix}`;
+					}
 
-          parsedResult = JSON.parse(actualResult);
-        } else {
-          // If no markers are found, or they are in the wrong order,
-          // treat the entire stdout as potential logging output.
-          console.warn(
-            `[executeFunction] Function result markers not found or in wrong order in stdout. Treating stdout as logs.`
-          );
-          if (func_result.trim()) {
-            logs += `\nStdout content (no valid markers found):\n${func_result.trim()}`;
-          }
-          // No parsedResult, leave it as null
-        }
-      } catch (e: any) {
-        console.error(
-          `[executeFunction] Failed to parse JSON result from stdout: ${e.message}. Raw stdout content: ${func_result}`
-        );
-        logs += `\nError parsing result JSON from stdout: ${e.message}`;
-        exitCode = -2; // Custom code for result parsing error
-      }
-    }
+					parsedResult = JSON.parse(actualResult);
+				} else {
+					// If no markers are found, or they are in the wrong order,
+					// treat the entire stdout as potential logging output.
+					console.warn(
+						`[executeFunction] Function result markers not found or in wrong order in stdout. Treating stdout as logs.`,
+					);
+					if (func_result.trim()) {
+						logs += `\nStdout content (no valid markers found):\n${func_result.trim()}`;
+					}
+					// No parsedResult, leave it as null
+				}
+			} catch (e: any) {
+				console.error(
+					`[executeFunction] Failed to parse JSON result from stdout: ${e.message}. Raw stdout content: ${func_result}`,
+				);
+				logs += `\nError parsing result JSON from stdout: ${e.message}`;
+				exitCode = -2; // Custom code for result parsing error
+			}
+		}
 
-    tooks.push({
-      timestamp: Date.now(),
-      value: (Date.now() - starting_time) / 1000,
-      description: "Total execution time (including potential setup)",
-    });
+		tooks.push({
+			timestamp: Date.now(),
+			value: (Date.now() - starting_time) / 1000,
+			description: "Total execution time (including potential setup)",
+		});
 
-    // Revoke/delete the short-lived access token after execution
-    if (dbAccessToken) {
-      try {
-        await prisma.accessToken.deleteMany({
-          where: {
-            token: dbAccessToken,
-          },
-        });
-        recordTiming("Short-lived access token for DB communication revoked");
-      } catch (tokenCleanupError) {
-        console.error("Error revoking short-lived access token:", tokenCleanupError);
-      }
-    }
+		// Revoke/delete the short-lived access token after execution
+		if (dbAccessToken) {
+			try {
+				await prisma.accessToken.deleteMany({
+					where: {
+						token: dbAccessToken,
+					},
+				});
+				recordTiming("Short-lived access token for DB communication revoked");
+			} catch (tokenCleanupError) {
+				console.error(
+					"Error revoking short-lived access token:",
+					tokenCleanupError,
+				);
+			}
+		}
 
-    return {
-      logs,
-      result: parsedResult, // Return parsed object or null
-      tooks,
-      exit_code: exitCode,
-    };
-  } catch (error: any) {
-    console.error(
-      `[executeFunction] Critical error during execution of function ${id}:`,
-      error
-    );
-    recordTiming("Critical error occurred");
-    tooks.push({
-      timestamp: Date.now(),
-      value: (Date.now() - starting_time) / 1000,
-      description: "Total execution time until error",
-    });
-    return {
-      logs: `${logs}\nCritical Error: ${error.message}\n${error.stack}`,
-      result: "Sorry, an error occurred during execution.",
-      tooks,
-      exit_code: error.statusCode || -3, // Custom code for unhandled errors
-    };
-  } finally {
-    recordTiming("Finalizing execution log");
+		return {
+			logs,
+			result: parsedResult, // Return parsed object or null
+			tooks,
+			exit_code: exitCode,
+		};
+	} catch (error: any) {
+		console.error(
+			`[executeFunction] Critical error during execution of function ${id}:`,
+			error,
+		);
+		recordTiming("Critical error occurred");
+		tooks.push({
+			timestamp: Date.now(),
+			value: (Date.now() - starting_time) / 1000,
+			description: "Total execution time until error",
+		});
+		return {
+			logs: `${logs}\nCritical Error: ${error.message}\n${error.stack}`,
+			result: "Sorry, an error occurred during execution.",
+			tooks,
+			exit_code: error.statusCode || -3, // Custom code for unhandled errors
+		};
+	} finally {
+		recordTiming("Finalizing execution log");
 
-    // Clean up the unique execution directory
-    try {
-      await fs.rm(executionDir, { recursive: true, force: true });
-      recordTiming("Cleaned up execution directory");
-    } catch (cleanupError: any) {
-      if (cleanupError.code === "EACCES") {
-        console.error(
-          `[executeFunction] Permission denied when cleaning up execution directory ${executionDir}:`,
-          cleanupError
-        );
-      } else if (cleanupError.code === "EBUSY") {
-        console.error(
-          `[executeFunction] Directory in use, could not clean up execution directory ${executionDir}:`,
-          cleanupError
-        );
-      } else {
-        console.error(
-          `[executeFunction] Error cleaning up execution directory ${executionDir}:`,
-          cleanupError
-        );
-      }
-    }
+		// Clean up the unique execution directory
+		try {
+			await fs.rm(executionDir, { recursive: true, force: true });
+			recordTiming("Cleaned up execution directory");
+		} catch (cleanupError: any) {
+			if (cleanupError.code === "EACCES") {
+				console.error(
+					`[executeFunction] Permission denied when cleaning up execution directory ${executionDir}:`,
+					cleanupError,
+				);
+			} else if (cleanupError.code === "EBUSY") {
+				console.error(
+					`[executeFunction] Directory in use, could not clean up execution directory ${executionDir}:`,
+					cleanupError,
+				);
+			} else {
+				console.error(
+					`[executeFunction] Error cleaning up execution directory ${executionDir}:`,
+					cleanupError,
+				);
+			}
+		}
 
-    // Container and funcAppDir are not removed here as they are persistent.
-    // Cleanup of old/unused containers/directories would be a separate process/tool.
+		// Container and funcAppDir are not removed here as they are persistent.
+		// Cleanup of old/unused containers/directories would be a separate process/tool.
 
-    console.log(
-      `[SHSF CRONS] Function ${functionData.id} (${
-        functionData.name
-      }) processed. Resulting exit code: ${exitCode}. Total time: ${
-        (Date.now() - starting_time) / 1000
-      } seconds`
-    );
+		console.log(
+			`[SHSF CRONS] Function ${functionData.id} (${
+				functionData.name
+			}) processed. Resulting exit code: ${exitCode}. Total time: ${
+				(Date.now() - starting_time) / 1000
+			} seconds`,
+		);
 
-    try {
-      await prisma.function.update({
-        where: { id },
-        data: { lastRun: new Date() },
-      });
-    } catch (dbError) {
-      console.error("Error updating function lastRun:", dbError);
-    }
+		try {
+			await prisma.function.update({
+				where: { id },
+				data: { lastRun: new Date() },
+			});
+		} catch (dbError) {
+			console.error("Error updating function lastRun:", dbError);
+		}
 
-    try {
-      // Ensure func_result is a string for the DB, even if it's an error message or empty
-      const resultForDb =
-        typeof func_result === "string" && func_result !== ""
-          ? func_result
-          : JSON.stringify(null);
-      const DB_FIELD_LIMIT = 10000; // Reasonable DB field size limit
+		try {
+			// Ensure func_result is a string for the DB, even if it's an error message or empty
+			const resultForDb =
+				typeof func_result === "string" && func_result !== ""
+					? func_result
+					: JSON.stringify(null);
+			const DB_FIELD_LIMIT = 10000; // Reasonable DB field size limit
 
-      await prisma.triggerLog.create({
-        data: {
-          functionId: id,
-          logs:
-            logs.length > DB_FIELD_LIMIT
-              ? logs.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
-              : logs,
-          result: JSON.stringify({
-            exit_code: exitCode,
-            tooks: tooks,
-            output:
-              resultForDb.length > DB_FIELD_LIMIT
-                ? resultForDb.substring(0, DB_FIELD_LIMIT) +
-                  "...[truncated for DB]"
-                : resultForDb,
-            payload:
-              payload.length > DB_FIELD_LIMIT
-                ? payload.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
-                : payload,
-          }),
-        },
-      });
-    } catch (error) {
-      console.error("Error creating trigger log:", error);
-    }
-  }
+			await prisma.triggerLog.create({
+				data: {
+					functionId: id,
+					logs:
+						logs.length > DB_FIELD_LIMIT
+							? logs.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
+							: logs,
+					result: JSON.stringify({
+						exit_code: exitCode,
+						tooks: tooks,
+						output:
+							resultForDb.length > DB_FIELD_LIMIT
+								? resultForDb.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
+								: resultForDb,
+						payload:
+							payload.length > DB_FIELD_LIMIT
+								? payload.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
+								: payload,
+					}),
+				},
+			});
+		} catch (error) {
+			console.error("Error creating trigger log:", error);
+		}
+	}
 }
 
 export async function buildPayloadFromGET(
-  ctr: DataContext<
-    "HttpRequest",
-    "GET",
-    HttpRequestContext<{}>,
-    UsableMiddleware<{}>[]
-  >
+	ctr: DataContext<
+		"HttpRequest",
+		"GET",
+		HttpRequestContext<{}>,
+		UsableMiddleware<{}>[]
+	>,
 ): Promise<{
-  headers: Record<string, string>;
-  queries: Record<string, string>;
-  source_ip: string;
-  route: string | "default";
-  method: string;
+	headers: Record<string, string>;
+	queries: Record<string, string>;
+	source_ip: string;
+	route: string | "default";
+	method: string;
 }> {
-  return {
-    headers: Object.fromEntries(ctr.headers.entries()),
-    queries: Object.fromEntries(ctr.queries.entries()),
-    source_ip: ctr.client.ip.usual(),
-    route: ctr.params.get("route") || "default",
-    method: "GET",
-  };
+	return {
+		headers: Object.fromEntries(ctr.headers.entries()),
+		queries: Object.fromEntries(ctr.queries.entries()),
+		source_ip: ctr.client.ip.usual(),
+		route: ctr.params.get("route") || "default",
+		method: "GET",
+	};
 }
 
 export async function buildPayloadFromPOST(
-  ctr: DataContext<
-    "HttpRequest",
-    "POST",
-    HttpRequestContext<{}>,
-    UsableMiddleware<{}>[]
-  >
+	ctr: DataContext<
+		"HttpRequest",
+		"POST",
+		HttpRequestContext<{}>,
+		UsableMiddleware<{}>[]
+	>,
 ): Promise<{
-  headers: Record<string, string>;
-  body: string;
-  queries: Record<string, string>;
-  source_ip: string;
-  route: string | "default";
-  raw_body: string;
-  method: string;
+	headers: Record<string, string>;
+	body: string;
+	queries: Record<string, string>;
+	source_ip: string;
+	route: string | "default";
+	raw_body: string;
+	method: string;
 }> {
-  return {
-    headers: Object.fromEntries(ctr.headers.entries()),
-    queries: Object.fromEntries(ctr.queries.entries()),
-    body: await ctr.rawBody("utf-8"),
-    raw_body: await ctr.rawBody("binary"),
-    source_ip: ctr.client.ip.usual(),
-    route: ctr.params.get("route") || "default",
-    method: "POST",
-  };
+	return {
+		headers: Object.fromEntries(ctr.headers.entries()),
+		queries: Object.fromEntries(ctr.queries.entries()),
+		body: await ctr.rawBody("utf-8"),
+		raw_body: await ctr.rawBody("binary"),
+		source_ip: ctr.client.ip.usual(),
+		route: ctr.params.get("route") || "default",
+		method: "POST",
+	};
 }
 
 export async function installDependencies(
-  functionId: number,
-  functionData: any,
-  files: any[]
+	functionId: number,
+	functionData: any,
+	files: any[],
 ): Promise<boolean | 404> {
-  const docker = new Docker();
-  const functionIdStr = String(functionId);
-  const containerName = `shsf_func_${functionIdStr}`;
+	const docker = new Docker();
+	const functionIdStr = String(functionId);
+	const containerName = `shsf_func_${functionIdStr}`;
 
-  try {
-    let container = docker.getContainer(containerName);
+	try {
+		let container = docker.getContainer(containerName);
 
-    try {
-      const inspectInfo = await container.inspect();
-      if (!inspectInfo.State.Running) {
-        await container.start();
-      }
-    } catch (error: any) {
-      if (error.statusCode === 404) {
-        return 404; // We cant run it, as we dont know what it does.
-      } else {
-        throw error;
-      }
-    }
+		try {
+			const inspectInfo = await container.inspect();
+			if (!inspectInfo.State.Running) {
+				await container.start();
+			}
+		} catch (error: any) {
+			if (error.statusCode === 404) {
+				return 404; // We cant run it, as we dont know what it does.
+			} else {
+				throw error;
+			}
+		}
 
-    const execEnv: string[] = functionData.env
-      ? JSON.parse(functionData.env).map(
-          (env: { name: string; value: any }) => `${env.name}=${env.value}`
-        )
-      : [];
+		const execEnv: string[] = functionData.env
+			? JSON.parse(functionData.env).map(
+					(env: { name: string; value: any }) => `${env.name}=${env.value}`,
+				)
+			: [];
 
-    const exec = await container.exec({
-      Cmd: [
-        "/bin/sh",
-        "-c",
-        "cd /app && if [ -f requirements.txt ]; then pip install --user -r requirements.txt; else echo 'No requirements.txt found.'; fi",
-      ],
-      Env: execEnv,
-      AttachStdout: true,
-      AttachStderr: true,
-      Tty: false,
-    });
+		const exec = await container.exec({
+			Cmd: [
+				"/bin/sh",
+				"-c",
+				"cd /app && if [ -f requirements.txt ]; then pip install --user -r requirements.txt; else echo 'No requirements.txt found.'; fi",
+			],
+			Env: execEnv,
+			AttachStdout: true,
+			AttachStderr: true,
+			Tty: false,
+		});
 
-    const execStream = await exec.start({ hijack: true, stdin: false });
+		const execStream = await exec.start({ hijack: true, stdin: false });
 
-    // Consume the stream to completion (required for exec to finish)
-    await new Promise<void>((resolve, reject) => {
-      execStream.on("end", resolve);
-      execStream.on("error", reject);
-      // Drain the stream
-      execStream.resume();
-    });
+		// Consume the stream to completion (required for exec to finish)
+		await new Promise<void>((resolve, reject) => {
+			execStream.on("end", resolve);
+			execStream.on("error", reject);
+			// Drain the stream
+			execStream.resume();
+		});
 
-    // Inspect the exec to get the exit code
-    const inspect = await exec.inspect();
-    if (inspect.ExitCode === 0) {
-      return true;
-    } else {
-      return false;
-    }
-  } catch (error) {
-    console.error("Error installing dependencies:", error);
-    return false;
-  }
+		// Inspect the exec to get the exit code
+		const inspect = await exec.inspect();
+		if (inspect.ExitCode === 0) {
+			return true;
+		} else {
+			return false;
+		}
+	} catch (error) {
+		console.error("Error installing dependencies:", error);
+		return false;
+	}
 }
 
 // Helper function to clean up container when deleting a function
 export async function cleanupFunctionContainer(functionId: number) {
-  const functionIdStr = String(functionId);
-  const containerName = `shsf_func_${functionIdStr}`;
-  const funcAppDir = path.join("/opt/shsf_data/functions", functionIdStr);
+	const functionIdStr = String(functionId);
+	const containerName = `shsf_func_${functionIdStr}`;
+	const funcAppDir = path.join("/opt/shsf_data/functions", functionIdStr);
 
-  try {
-    const docker = new Docker();
-    // Try to stop and remove the container if it exists
-    try {
-      const container = docker.getContainer(containerName);
-      const containerInfo = await container.inspect();
+	try {
+		const docker = new Docker();
+		// Try to stop and remove the container if it exists
+		try {
+			const container = docker.getContainer(containerName);
+			const containerInfo = await container.inspect();
 
-      if (containerInfo.State.Running) {
-        console.log(`[SHSF] Stopping container for function ${functionId}`);
-        await container.kill({ t: 10 }); // 10-second timeout
-      }
+			if (containerInfo.State.Running) {
+				console.log(`[SHSF] Stopping container for function ${functionId}`);
+				await container.kill({ t: 10 }); // 10-second timeout
+			}
 
-      console.log(`[SHSF] Removing container for function ${functionId}`);
-      await container.remove();
-    } catch (containerError: any) {
-      if (containerError.statusCode !== 404) {
-        console.error(
-          `[SHSF] Error removing container for function ${functionId}:`,
-          containerError
-        );
-      } else {
-        console.log(
-          `[SHSF] Container for function ${functionId} not found, skipping removal`
-        );
-      }
-    }
+			console.log(`[SHSF] Removing container for function ${functionId}`);
+			await container.remove();
+		} catch (containerError: any) {
+			if (containerError.statusCode !== 404) {
+				console.error(
+					`[SHSF] Error removing container for function ${functionId}:`,
+					containerError,
+				);
+			} else {
+				console.log(
+					`[SHSF] Container for function ${functionId} not found, skipping removal`,
+				);
+			}
+		}
 
-    // Remove the function directory
-    try {
-      console.log(`[SHSF] Removing function directory: ${funcAppDir}`);
-      await fs.rm(funcAppDir, { recursive: true, force: true });
-    } catch (dirError) {
-      console.error(
-        `[SHSF] Error removing function directory ${funcAppDir}:`,
-        dirError
-      );
-    }
+		// Remove the function directory
+		try {
+			console.log(`[SHSF] Removing function directory: ${funcAppDir}`);
+			await fs.rm(funcAppDir, { recursive: true, force: true });
+		} catch (dirError) {
+			console.error(
+				`[SHSF] Error removing function directory ${funcAppDir}:`,
+				dirError,
+			);
+		}
 
-    // Clean up cache directories
-    try {
-      // Python venv
-      const pipCacheDir = `/opt/shsf_data/cache/pip/venv/function-${functionId}`;
-      if (fsSync.existsSync(pipCacheDir)) {
-        await fs.rm(pipCacheDir, { recursive: true, force: true });
-      }
+		// Clean up cache directories
+		try {
+			// Python venv
+			const pipCacheDir = `/opt/shsf_data/cache/pip/venv/function-${functionId}`;
+			if (fsSync.existsSync(pipCacheDir)) {
+				await fs.rm(pipCacheDir, { recursive: true, force: true });
+			}
 
-      // Pip hash
-      const pipHashDir = `/opt/shsf_data/cache/pip/hashes/function-${functionId}`;
-      if (fsSync.existsSync(pipHashDir)) {
-        await fs.rm(pipHashDir, { recursive: true, force: true });
-      }
-    } catch (cacheError) {
-      console.error(
-        `[SHSF] Error cleaning up cache directories for function ${functionId}:`,
-        cacheError
-      );
-    }
+			// Pip hash
+			const pipHashDir = `/opt/shsf_data/cache/pip/hashes/function-${functionId}`;
+			if (fsSync.existsSync(pipHashDir)) {
+				await fs.rm(pipHashDir, { recursive: true, force: true });
+			}
+		} catch (cacheError) {
+			console.error(
+				`[SHSF] Error cleaning up cache directories for function ${functionId}:`,
+				cacheError,
+			);
+		}
 
-    return true;
-  } catch (error) {
-    console.error(
-      `[SHSF] Error during container cleanup for function ${functionId}:`,
-      error
-    );
-    return false;
-  }
+		return true;
+	} catch (error) {
+		console.error(
+			`[SHSF] Error during container cleanup for function ${functionId}:`,
+			error,
+		);
+		return false;
+	}
 }

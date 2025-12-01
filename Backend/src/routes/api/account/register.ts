@@ -15,31 +15,29 @@ export = new fileRouter.Path("/").http(
 					return ctr
 						.status(ctr.$status.BAD_REQUEST)
 						.print("Registration is disabled");
-				} 
+				}
 				const [data, error] = await ctr.bindBody((z) =>
 					z.object({
 						display_name: z.string().max(128),
 						email: z.string().email().max(200),
 						password: z.string().min(8).max(120),
-						password_confirm: z.string().min(8).max(120)
-					})
+						password_confirm: z.string().min(8).max(120),
+					}),
 				);
 
 				if (!data)
 					return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
 				if (data.password !== data.password_confirm) {
-					return ctr
-						.status(ctr.$status.BAD_REQUEST)
-						.print("Passwords do not match");
+					return ctr.status(ctr.$status.BAD_REQUEST).print("Passwords do not match");
 				}
 
 				if (ctr.cookies.has(COOKIE)) {
-                    return ctr.status(ctr.$status.BAD_REQUEST).print({
-                      message: "You are already logged in",
-                      status: "FAILED",
-                    });
-                  }
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						message: "You are already logged in",
+						status: "FAILED",
+					});
+				}
 
 				// ! Make sure user does NOT exist
 				const email_check = await prisma.user.findFirst({
@@ -50,9 +48,7 @@ export = new fileRouter.Path("/").http(
 
 				if (email_check) {
 					ctr.clearRateLimit();
-					return ctr
-						.status(ctr.$status.BAD_REQUEST)
-						.print("Email already in use");
+					return ctr.status(ctr.$status.BAD_REQUEST).print("Email already in use");
 				}
 
 				if (data.display_name.length < 3) {
@@ -62,10 +58,7 @@ export = new fileRouter.Path("/").http(
 						.print("Display Name must be at least 3 characters long");
 				}
 
-				if (
-					data.display_name.includes("[") ||
-					data.display_name.includes("]")
-				) {
+				if (data.display_name.includes("[") || data.display_name.includes("]")) {
 					return ctr.status(400).print("Display Name can not contain [ or ]");
 				}
 				if (data.display_name === "") {
@@ -77,20 +70,14 @@ export = new fileRouter.Path("/").http(
 
 				if (data.email === "") {
 					ctr.clearRateLimit();
-					return ctr
-						.status(ctr.$status.BAD_REQUEST)
-						.print("Email cannot be empty");
+					return ctr.status(ctr.$status.BAD_REQUEST).print("Email cannot be empty");
 				}
 
 				const password_hash = await bcrypt.hash(data.password, 10);
 
 				const hash = createHash("sha256")
-					.update(
-						`${Date.now()}+${data.email}+${randomBytes(16).toString("hex")}`
-					)
+					.update(`${Date.now()}+${data.email}+${randomBytes(16).toString("hex")}`)
 					.digest("hex");
-
-				const icon_url = "https://cdn.reversed.dev/pictures/default.png";
 
 				const first_user = (await prisma.user.count()) === 0;
 
@@ -100,27 +87,29 @@ export = new fileRouter.Path("/").http(
 							displayName: data.display_name,
 							email: data.email,
 							password: password_hash,
-							avatar_url: icon_url,
 							role: first_user ? "Admin" : "User",
 							sessions: {
 								create: {
-									hash
+									hash,
 								},
 							},
 						},
 					})
 					.catch(async (e) => {
 						ctr.clearRateLimit();
-						ctr.status(ctr.$status.BAD_REQUEST).print({ status: "FAILED", message: e.toString() });
+						ctr
+							.status(ctr.$status.BAD_REQUEST)
+							.print({ status: "FAILED", message: e.toString() });
 						return null;
 					});
 				if (!user) return;
 
-				let newdomain="";
+				let newdomain = "";
 				if (DOMAIN === "localhost") {
 					newdomain = "localhost";
 				} else {
-					if (DOMAIN.split(".").length > 2) { // we are on a subdomain
+					if (DOMAIN.split(".").length > 2) {
+						// we are on a subdomain
 						newdomain = DOMAIN.split(".").slice(1).join("."); // Ex. "sub.domain.com" => "domain.com"
 					} else {
 						newdomain = "." + DOMAIN;
@@ -128,12 +117,12 @@ export = new fileRouter.Path("/").http(
 				}
 
 				ctr.cookies.set(
-                    COOKIE,
-                    new Cookie(hash, {
-                      domain: newdomain,
-                      expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30), // 30 days
-                    })
-                  );
+					COOKIE,
+					new Cookie(hash, {
+						domain: newdomain,
+						expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30), // 30 days
+					}),
+				);
 
 				ctr.print({
 					status: "OK",
@@ -145,5 +134,5 @@ export = new fileRouter.Path("/").http(
 					},
 				});
 				return;
-			})
+			}),
 );

@@ -4,10 +4,14 @@ interface CLICommandCardProps {
 	command: string;
 	label?: string;
 	description?: string;
-    customText?: string;
+	customText?: string;
 }
 
-const CLICommandCard: React.FC<CLICommandCardProps> = ({ command, label = "CLI Command", description }) => {
+const CLICommandCard: React.FC<CLICommandCardProps> = ({
+	command,
+	label = "CLI Command",
+	description,
+}) => {
 	const [modalOpen, setModalOpen] = useState(false);
 	const [copied, setCopied] = useState(false);
 
@@ -19,12 +23,15 @@ const CLICommandCard: React.FC<CLICommandCardProps> = ({ command, label = "CLI C
 
 	return (
 		<>
-				<button
-					className="mt-2 px-4 py-2 text-base rounded bg-background text-white hover:bg-primary transition self-start"
-					onClick={e => { e.stopPropagation(); setModalOpen(true); }}
-				>
-					{label ? label : "Command Available"}📡
-				</button>
+			<button
+				className="mt-2 px-4 py-2 text-base rounded bg-background text-white hover:bg-primary transition self-start"
+				onClick={(e) => {
+					e.stopPropagation();
+					setModalOpen(true);
+				}}
+			>
+				{label ? label : "Command Available"}📡
+			</button>
 
 			{modalOpen && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadein">
@@ -42,7 +49,9 @@ const CLICommandCard: React.FC<CLICommandCardProps> = ({ command, label = "CLI C
 								{label}
 							</h2>
 							{description && (
-								<div className="text-xs text-text/50 mb-4 text-center">{description}</div>
+								<div className="text-xs text-text/50 mb-4 text-center">
+									{description}
+								</div>
 							)}
 							<div className="flex items-center gap-2 justify-center mb-4">
 								<code className="bg-background/70 border border-primary/20 rounded px-2 py-1 text-xs font-mono text-primary">

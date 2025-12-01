@@ -1,7 +1,7 @@
 onlyBuiltDependencies:
-  - '@prisma/client'
-  - '@prisma/engines'
-  - esbuild
-  - prisma
-  - protobufjs
-  - ssh2
+ - "@prisma/client"
+ - "@prisma/engines"
+ - esbuild
+ - prisma
+ - protobufjs
+ - ssh2

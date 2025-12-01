@@ -61,12 +61,12 @@ function UpdateEnvModal({
 	const handleVariableChange = (
 		index: number,
 		field: "name" | "value",
-		value: string
+		value: string,
 	) => {
 		setVariables(
 			variables.map((variable, i) =>
-				i === index ? { ...variable, [field]: value } : variable
-			)
+				i === index ? { ...variable, [field]: value } : variable,
+			),
 		);
 	};
 
@@ -103,9 +103,9 @@ function UpdateEnvModal({
 								Environment Variables
 							</p>
 							<p className="text-blue-200/80 text-xs leading-relaxed">
-								Configure environment variables that your function can access
-								during runtime. These are useful for API keys, database URLs, and
-								other configuration values.
+								Configure environment variables that your function can access during
+								runtime. These are useful for API keys, database URLs, and other
+								configuration values.
 							</p>
 						</div>
 					</div>
@@ -131,9 +131,7 @@ function UpdateEnvModal({
 						{variables.length === 0 ? (
 							<div className="text-center py-8">
 								<div className="text-3xl mb-3">📝</div>
-								<p className="text-gray-400 text-sm">
-									No environment variables yet
-								</p>
+								<p className="text-gray-400 text-sm">No environment variables yet</p>
 								<p className="text-gray-500 text-xs mt-1">
 									Click "Add Variable" to get started
 								</p>

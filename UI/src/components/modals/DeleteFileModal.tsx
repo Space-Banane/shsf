@@ -8,7 +8,12 @@ interface DeleteFileModalProps {
 	filename: string;
 }
 
-function DeleteFileModal({ isOpen, onClose, onDelete, filename }: DeleteFileModalProps) {
+function DeleteFileModal({
+	isOpen,
+	onClose,
+	onDelete,
+	filename,
+}: DeleteFileModalProps) {
 	const [isLoading, setIsLoading] = useState(false);
 
 	const handleDelete = async () => {
@@ -30,16 +35,24 @@ function DeleteFileModal({ isOpen, onClose, onDelete, filename }: DeleteFileModa
 	};
 
 	return (
-		<Modal isOpen={isOpen} onClose={handleClose} title="Delete File" isLoading={isLoading}>
+		<Modal
+			isOpen={isOpen}
+			onClose={handleClose}
+			title="Delete File"
+			isLoading={isLoading}
+		>
 			<div className="space-y-6">
 				{/* Warning Message */}
 				<div className="bg-red-500/10 border border-red-500/30 p-4 rounded-lg">
 					<div className="flex items-start gap-3">
 						<span className="text-red-400 text-lg">⚠️</span>
 						<div>
-							<p className="text-red-300 text-sm font-medium mb-2">Permanent Deletion Warning</p>
+							<p className="text-red-300 text-sm font-medium mb-2">
+								Permanent Deletion Warning
+							</p>
 							<p className="text-red-200/80 text-xs leading-relaxed">
-								This action cannot be undone. The file and all its contents will be permanently removed.
+								This action cannot be undone. The file and all its contents will be
+								permanently removed.
 							</p>
 						</div>
 					</div>
@@ -53,7 +66,9 @@ function DeleteFileModal({ isOpen, onClose, onDelete, filename }: DeleteFileModa
 						</div>
 						<div>
 							<p className="text-white font-medium text-sm">File to Delete</p>
-							<p className="text-primary font-semibold font-mono text-sm">{filename}</p>
+							<p className="text-primary font-semibold font-mono text-sm">
+								{filename}
+							</p>
 						</div>
 					</div>
 				</div>
@@ -68,14 +83,14 @@ function DeleteFileModal({ isOpen, onClose, onDelete, filename }: DeleteFileModa
 
 				{/* Action Buttons */}
 				<div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-700/50">
-					<button 
+					<button
 						onClick={handleClose}
 						className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500"
 						disabled={isLoading}
 					>
 						Cancel
 					</button>
-					<button 
+					<button
 						onClick={handleDelete}
 						className="px-6 py-2.5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 						disabled={isLoading}

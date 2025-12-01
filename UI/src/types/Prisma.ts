@@ -1,182 +1,180 @@
 type UserRole = "Admin" | "User";
 
 interface Session {
-  id: number;
-  hash: string;
+	id: number;
+	hash: string;
 
-  userId: number;
+	userId: number;
 
-  createdAt: Date;
-  updatedAt: Date;
+	createdAt: Date;
+	updatedAt: Date;
 }
 
 interface XFunction {
-  id: number;
-  name: string;
-  description: string;
-  image: string;
-  executionId: string;
-  executionAlias?: string;
+	id: number;
+	name: string;
+	description: string;
+	image: string;
+	executionId: string;
+	executionAlias?: string;
 
-  userId: number;
+	userId: number;
 
-  max_ram: number;
-  timeout: number;
-  allow_http: boolean;
-  env?: Record<string, any>;
-  secure_header?: string;
-  cors_origins?: string;
+	max_ram: number;
+	timeout: number;
+	allow_http: boolean;
+	env?: Record<string, any>;
+	secure_header?: string;
+	cors_origins?: string;
 
-  retry_on_failure: boolean;
-  max_retries: number;
+	retry_on_failure: boolean;
+	max_retries: number;
 
-  tags?: string; // comma-separated tags
-  startup_file?: string;
-  docker_mount: boolean;
-  ffmpeg_install: boolean;
+	tags?: string; // comma-separated tags
+	startup_file?: string;
+	docker_mount: boolean;
+	ffmpeg_install: boolean;
 
-  createdAt: Date;
-  updatedAt: Date;
-  lastRun?: Date;
+	createdAt: Date;
+	updatedAt: Date;
+	lastRun?: Date;
 
-  namespaceId: number;
+	namespaceId: number;
 
-  files?: FunctionFile[];
+	files?: FunctionFile[];
 }
 
 interface FunctionFile {
-  id: number;
-  name: string;
-  content: string;
+	id: number;
+	name: string;
+	content: string;
 
-  functionId: number;
+	functionId: number;
 
-  createdAt: Date;
-  updatedAt: Date;
+	createdAt: Date;
+	updatedAt: Date;
 }
 
 interface User {
-  id: number;
-  displayName: string;
-  email: string; // Unique
-  role: UserRole;
-  avatar_url?: string;
+	id: number;
+	displayName: string;
+	email: string; // Unique
+	role: UserRole;
 
-  password?: string;
+	password?: string;
 
-  createdAt?: Date;
-  updatedAt?: Date;
+	createdAt?: Date;
+	updatedAt?: Date;
 
-  sessions?: Session[];
-  functions?: XFunction[];
-  namespaces?: Namespace[];
+	sessions?: Session[];
+	functions?: XFunction[];
+	namespaces?: Namespace[];
 }
 
 interface Namespace {
-  id: number;
-  name: string;
+	id: number;
+	name: string;
 
-  userId: number;
+	userId: number;
 
-  createdAt: Date;
-  updatedAt: Date;
+	createdAt: Date;
+	updatedAt: Date;
 
-  functions?: XFunction[];
+	functions?: XFunction[];
 }
 
 interface Trigger {
-  id: number;
-  name: string;
-  description: string;
-  cron: string;
-  data: string;
-  enabled: boolean;
-  functionId: number;
-  createdAt: string;
-  updatedAt: string;
-  nextRun: string | null;
-  lastRun: string | null;
+	id: number;
+	name: string;
+	description: string;
+	cron: string;
+	data: string;
+	enabled: boolean;
+	functionId: number;
+	createdAt: string;
+	updatedAt: string;
+	nextRun: string | null;
+	lastRun: string | null;
 }
 
 interface TriggerLog {
-  id: number;
-  functionId: number;
-  result: string | null;
-  logs: string | null;
+	id: number;
+	functionId: number;
+	result: string | null;
+	logs: string | null;
 
-  createdAt: Date;
-  updatedAt: Date;
+	createdAt: Date;
+	updatedAt: Date;
 }
 
-
 type Image =
-  | "python:3.9"
-  | "python:3.10"
-  | "python:3.11"
-  | "python:3.12"
-  | "python:3.13"
-  | "python:3.14"
-  | "python:3.15";
+	| "python:3.9"
+	| "python:3.10"
+	| "python:3.11"
+	| "python:3.12"
+	| "python:3.13"
+	| "python:3.14"
+	| "python:3.15";
 
 const ImagesAsArray: Image[] = [
-  "python:3.9",
-  "python:3.10",
-  "python:3.11",
-  "python:3.12",
-  "python:3.13",
-  "python:3.14",
-  "python:3.15",
+	"python:3.9",
+	"python:3.10",
+	"python:3.11",
+	"python:3.12",
+	"python:3.13",
+	"python:3.14",
+	"python:3.15",
 ];
 const ImagesAsArraySet = new Set(ImagesAsArray);
 
 type Token = {
-  id: number;
-  name: string;
-  purpose?: string;
-  expiresAt?: string | null;
-  createdAt: string;
-  expired: boolean;
-  hidden: boolean;
-  tokenMasked: string;
+	id: number;
+	name: string;
+	purpose?: string;
+	expiresAt?: string | null;
+	createdAt: string;
+	expired: boolean;
+	hidden: boolean;
+	tokenMasked: string;
 };
 
 export type {
-  User,
-  Session,
-  XFunction,
-  FunctionFile,
-  UserRole,
-  Namespace,
-  Image,
-  Trigger,
-  TriggerLog,
-  Token,
+	User,
+	Session,
+	XFunction,
+	FunctionFile,
+	UserRole,
+	Namespace,
+	Image,
+	Trigger,
+	TriggerLog,
+	Token,
 };
 export { ImagesAsArray, ImagesAsArraySet };
 interface FunctionStorage {
-  id: number;
-  name: string;
-  purpose: string;
+	id: number;
+	name: string;
+	purpose: string;
 
-  user: number;
+	user: number;
 
-  createdAt: Date;
-  updatedAt: Date;
+	createdAt: Date;
+	updatedAt: Date;
 
-  items?: FunctionStorageItem[];
+	items?: FunctionStorageItem[];
 }
 
 interface FunctionStorageItem {
-  id: number;
-  key: string;
-  value: string;
+	id: number;
+	key: string;
+	value: string;
 
-  storageId: number;
+	storageId: number;
 
-  expiresAt?: Date | null;
+	expiresAt?: Date | null;
 
-  createdAt: Date;
-  updatedAt: Date;
+	createdAt: Date;
+	updatedAt: Date;
 }
 
 export type { FunctionStorage, FunctionStorageItem };

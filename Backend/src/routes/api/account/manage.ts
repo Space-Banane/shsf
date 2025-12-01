@@ -34,17 +34,17 @@ export = new fileRouter.Path("/")
 								// Don't include the hash for security
 							},
 						},
-						functions:{
-                            include:{
-                                files:true,
-                                triggers:true,
-                                TriggerLog:true
-                            }
-                        },
-                        namespaces:true,
+						functions: {
+							include: {
+								files: true,
+								triggers: true,
+								TriggerLog: true,
+							},
+						},
+						namespaces: true,
 						accessTokens: true,
 						guestUsers: true,
-						storages: true
+						storages: true,
 					},
 				});
 
@@ -61,28 +61,33 @@ export = new fileRouter.Path("/")
 						id: userData.id,
 						email: userData.email,
 						displayName: userData.displayName,
-						avatar_url: userData.avatar_url,
 						createdAt: userData.createdAt,
 						updatedAt: userData.updatedAt,
 					},
-                    functions: userData.functions,
-                    namespaces: userData.namespaces,
+					functions: userData.functions,
+					namespaces: userData.namespaces,
 					sessions: userData.sessions,
 					exportedAt: new Date().toISOString(),
 					exportVersion: "1.0",
 					guestUsers: userData.guestUsers,
 					storages: userData.storages,
-					accessTokens: userData.accessTokens
+					accessTokens: userData.accessTokens,
 				};
 
 				// Set headers for file download
 				ctr.headers.set("Content-Type", "application/json");
-				ctr.headers.set("Content-Disposition", `attachment; filename="shsf-account-export-${new Date().toISOString().split('T')[0]}.json"`);
-				ctr.headers.set("Content-Length", Buffer.byteLength(JSON.stringify(exportData)).toString());
+				ctr.headers.set(
+					"Content-Disposition",
+					`attachment; filename="shsf-account-export-${new Date().toISOString().split("T")[0]}.json"`,
+				);
+				ctr.headers.set(
+					"Content-Length",
+					Buffer.byteLength(JSON.stringify(exportData)).toString(),
+				);
 				ctr.headers.set("X-Content-Type-Options", "nosniff");
 
 				return ctr.print(exportData);
-			})
+			}),
 	)
 	.http("DELETE", "/api/account/delete", (http) =>
 		http
@@ -91,8 +96,8 @@ export = new fileRouter.Path("/")
 				const [data, error] = await ctr.bindBody((z) =>
 					z.object({
 						password: z.string().min(8).max(120),
-						confirmation: z.literal("DELETE_MY_ACCOUNT")
-					})
+						confirmation: z.literal("DELETE_MY_ACCOUNT"),
+					}),
 				);
 
 				if (!data)
@@ -118,7 +123,10 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				const passwordMatch = await bcrypt.compare(data.password, authCheck.user.password);
+				const passwordMatch = await bcrypt.compare(
+					data.password,
+					authCheck.user.password,
+				);
 
 				if (!passwordMatch) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
@@ -136,7 +144,7 @@ export = new fileRouter.Path("/")
 						id: true,
 					},
 				});
-				
+
 				const functionIds = userFunctions.map((f) => f.id);
 				for (const functionId of functionIds) {
 					// Clean up Docker container; Also deletes function files
@@ -157,5 +165,5 @@ export = new fileRouter.Path("/")
 					status: "OK",
 					message: "Account deleted successfully",
 				});
-			})
+			}),
 	);
