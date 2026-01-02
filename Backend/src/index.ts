@@ -24,7 +24,7 @@ CORS_DOMAINS.push(REACT_APP_API_URL.replace(/\/+$/, "")); // Remove trailing sla
 console.log(CORS_DOMAINS);
 
 console.log(
-	`Im reachable on ${env.PORT}; For Example: ${env.REACT_APP_API_URL}`,
+	`Im reachable on ${env.PORT}; For Example: ${env.REACT_APP_API_URL}`
 );
 export const API_URL = env.REACT_APP_API_URL;
 if (!API_URL) {
@@ -39,7 +39,7 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
 	})
 	.httpRequest(async (config, server, context, ctr, end) => {
 		console.log(
-			`[SHSF API] ${ctr.client.ip} [${ctr.url.method}]➡️  ${ctr.url.href}`,
+			`[SHSF API] ${ctr.client.ip} [${ctr.url.method}]➡️  ${ctr.url.href}`
 		);
 
 		// Check CORS
@@ -49,14 +49,14 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
 		if (origin && !CORS_DOMAINS.includes(origin)) {
 			let allowRequest = false;
 			console.log(
-				`[CORS MIDDLEWARE] Policy (Provisional): This origin is not allowed access - ${origin}`,
+				`[CORS MIDDLEWARE] Policy (Provisional): This origin is not allowed access - ${origin}`
 			);
 
 			// Check if its an exec request
 			if (ctr.url.path.startsWith("/api/exec/")) {
 				// /api/exec/4/02df8773-1d03-48df-9dd7-fd452c5ba592
 				console.log(
-					`[CORS MIDDLEWARE] Custom CORS might change the outcome of this request. (Function Execution Detected)`,
+					`[CORS MIDDLEWARE] Custom CORS might change the outcome of this request. (Function Execution Detected)`
 				);
 
 				const execId = ctr.url.path.split("/")[4]; // UUID
@@ -70,26 +70,26 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
 						.filter((o) => o.length > 0);
 					if (allowedOrigins.includes(origin)) {
 						console.log(
-							`[CORS MIDDLEWARE] Policy: Allowing access for ${origin} - ${execId}`,
+							`[CORS MIDDLEWARE] Policy: Allowing access for ${origin} - ${execId}`
 						);
 						allowRequest = true;
 					}
 				} else {
 					console.log(
-						`[CORS MIDDLEWARE] Policy: No specific origins found for function - ${execId}`,
+						`[CORS MIDDLEWARE] Policy: No specific origins found for function - ${execId}`
 					);
 				}
 			}
 
 			if (!allowRequest) {
 				console.log(
-					`[CORS MIDDLEWARE] Policy (Final Decision): This origin is not allowed access - ${origin}`,
+					`[CORS MIDDLEWARE] Policy (Final Decision): This origin is not allowed access - ${origin}`
 				);
 				return end(
 					ctr.status(ctr.$status.FORBIDDEN).print({
 						status: "FAILED",
 						message: "SERVER CORS Policy: This origin is not allowed access",
-					}),
+					})
 				);
 			}
 		}
@@ -141,7 +141,7 @@ export const server = new Server(
 			},
 		},
 	},
-	[middleware.use({})],
+	[middleware.use({})]
 );
 
 export const fileRouter = new server.FileLoader("/")
@@ -202,9 +202,31 @@ async function processCrons() {
 	});
 
 	for (const cron of crons) {
-		const interval = CronExpressionParser.parse(cron.cron!, {
-			currentDate: now,
-		});
+		let interval;
+		try {
+			interval = CronExpressionParser.parse(cron.cron!, {
+				currentDate: now,
+			});
+		} catch {
+			// Prevented MASSIVE fuckup because of possible invalid cron expression
+
+			// What now though? Delete the cron?
+			// No wait, lets disable it, log an error, and change the cron expression to a safe one
+
+			console.error(
+				`[SHSF CRONS] Invalid cron expression for Cron #${cron.id}. Disabling cron.`
+			);
+
+			await prisma.functionTrigger.update({
+				where: { id: cron.id },
+				data: {
+					enabled: false,
+					cron: "0 0 * * *", // Safe cron (daily at midnight)
+				},
+			});
+
+			continue; // Skip further processing for this iteration
+		}
 
 		try {
 			// If nextRun is null, calculate and set it
@@ -242,27 +264,27 @@ async function processCrons() {
 					{
 						enabled: false,
 					},
-					JSON.stringify(cron.data),
+					JSON.stringify(cron.data)
 				);
 
 				console.log(
-					`[SHSF CRONS] Function for Cron #${cron.id} executed successfully.`,
+					`[SHSF CRONS] Function for Cron #${cron.id} executed successfully.`
 				);
 			} else {
 				const secondsUntilNextRun = Math.round(
-					(next.getTime() - now.getTime()) / 1000,
+					(next.getTime() - now.getTime()) / 1000
 				);
 
 				if (secondsUntilNextRun <= 5) {
 					console.log(
-						`[SHSF CRONS] Cron #${cron.id} will run in ${secondsUntilNextRun} seconds`,
+						`[SHSF CRONS] Cron #${cron.id} will run in ${secondsUntilNextRun} seconds`
 					);
 				}
 			}
 		} catch (error) {
 			console.error(
 				`[SHSF CRONS] Error processing cron ${cron.name} (${cron.id}):`,
-				error,
+				error
 			);
 		}
 	}
