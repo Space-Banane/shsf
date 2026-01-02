@@ -1712,6 +1712,14 @@ export = new fileRouter.Path("/")
 				});
 			}
 
+			// Is this even a Python function?
+			if (!functionData.image.startsWith("python")) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Pip install is only available for Python functions",
+				});
+			}
+
 			const files = await prisma.functionFile.findMany({
 				where: {
 					functionId: functionData.id,
@@ -1724,6 +1732,20 @@ export = new fileRouter.Path("/")
 				});
 			}
 
+			// Does the function have a requirements.txt file?
+			const hasRequirements = files.find(
+				(file) =>
+					file.name.toLowerCase() === "requirements.txt" ||
+					file.name.toLowerCase().endsWith("/requirements.txt"),
+			);
+			if (!hasRequirements) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: 404,
+					message: "Function has no requirements.txt file",
+				});
+			}
+
+			// Try to install dependencies
 			try {
 				const result = await installDependencies(functionId, functionData, files);
 
