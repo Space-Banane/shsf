@@ -863,7 +863,7 @@ export = new fileRouter.Path("/")
 											);
 										},
 									},
-									runPayload,
+									JSON.stringify({ ran_by: "user", ...(typeof runPayload === "object" && runPayload !== null ? runPayload : {}) }),
 								)
 									.then(async (result) => {
 										// Successfully completed - include result if available
@@ -902,7 +902,7 @@ export = new fileRouter.Path("/")
 						functionData,
 						files,
 						{ enabled: false },
-						runPayload,
+						JSON.stringify({ ran_by: "user", ...(typeof runPayload === "object" && runPayload !== null ? runPayload : {}) }),
 					);
 
 					return ctr.print({
@@ -1004,7 +1004,7 @@ export = new fileRouter.Path("/")
 					functionData,
 					functionData.files,
 					{ enabled: false },
-					JSON.stringify(payload),
+					JSON.stringify({ ran_by: "exec", ...(typeof payload === "object" && payload !== null ? payload : {}) }),
 				);
 
 				// we might be able to do magic here
@@ -1128,7 +1128,7 @@ export = new fileRouter.Path("/")
 					functionData,
 					functionData.files,
 					{ enabled: false },
-					JSON.stringify(payload),
+					JSON.stringify({ ran_by: "exec", ...(typeof payload === "object" && payload !== null ? payload : {}) }),
 				);
 
 				// we might be able to do magic here
@@ -1250,7 +1250,7 @@ export = new fileRouter.Path("/")
 					functionData,
 					functionData.files,
 					{ enabled: false },
-					JSON.stringify(payload),
+					JSON.stringify({ ran_by: "exec", ...(typeof payload === "object" && payload !== null ? payload : {}) }),
 				);
 
 				// we might be able to do magic here
@@ -1372,7 +1372,7 @@ export = new fileRouter.Path("/")
 					functionData,
 					functionData.files,
 					{ enabled: false },
-					JSON.stringify(payload),
+					JSON.stringify({ ran_by: "exec", ...(typeof payload === "object" && payload !== null ? payload : {}) }),
 				);
 
 				// we might be able to do magic here
@@ -1496,7 +1496,7 @@ export = new fileRouter.Path("/")
 					functionData,
 					functionData.files,
 					{ enabled: false },
-					JSON.stringify(payload),
+					JSON.stringify({ ran_by: "exec", ...(typeof payload === "object" && payload !== null ? payload : {}) }),
 				);
 
 				// we might be able to do magic here
@@ -1620,7 +1620,7 @@ export = new fileRouter.Path("/")
 					functionData,
 					functionData.files,
 					{ enabled: false },
-					JSON.stringify(payload),
+					JSON.stringify({ ran_by: "exec", ...(typeof payload === "object" && payload !== null ? payload : {}) }),
 				);
 
 				// we might be able to do magic here

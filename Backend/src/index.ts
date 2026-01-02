@@ -264,7 +264,7 @@ async function processCrons() {
 					{
 						enabled: false,
 					},
-					JSON.stringify(cron.data)
+					JSON.stringify({ ran_by: "cron", ...(typeof cron.data === "object" && cron.data !== null ? cron.data : {}) }) // ran_by can be cron, user, or exec(api)
 				);
 
 				console.log(
