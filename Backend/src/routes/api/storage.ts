@@ -24,7 +24,7 @@ export = new fileRouter.Path("/")
 						.string()
 						.min(1)
 						.max(128)
-						.regex(/^[a-zA-Z0-9]+$/, "Name must be alphanumeric"),
+						.regex(/^[a-zA-Z0-9_\-]+$/, "Name must be alphanumeric with underscores or hyphens"),
 					purpose: z.string().min(1).max(256),
 				}),
 			);
