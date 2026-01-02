@@ -1041,6 +1041,8 @@ export async function installDependencies(
 			  )
 			: [];
 
+		console.log("[SHSF] Starting dependency installation for function:", functionId);
+
 		const exec = await container.exec({
 			Cmd: [
 				"/bin/sh",
@@ -1053,21 +1055,48 @@ export async function installDependencies(
 			Tty: false,
 		});
 
+		console.log("[SHSF] Exec command created for dependency installation.");
+
 		const execStream = await exec.start({ hijack: true, stdin: false });
+
+		console.log("[SHSF] Exec stream started for dependency installation.");
+
+		// // Log the stream output
+		// const execOutput = { stdout: "", stderr: "" };
+		// execStream.on("data", (chunk) => {
+		// 	const text = chunk.toString("utf8");
+		// 	execOutput.stdout += text;
+		// 	console.log("[SHSF] Exec stdout:", text.trim());
+		// });
+		// execStream.on("error", (chunk) => {
+		// 	const text = chunk.toString();
+		// 	execOutput.stderr += text;
+		// 	console.error("[SHSF] Exec stderr:", text.trim());
+		// });
 
 		// Consume the stream to completion (required for exec to finish)
 		await new Promise<void>((resolve, reject) => {
-			execStream.on("end", resolve);
-			execStream.on("error", reject);
+			execStream.on("end", () => {
+				// console.log("[SHSF] Exec stream ended for dependency installation.");
+				resolve();
+			});
+			execStream.on("error", (error) => {
+				// console.error("[SHSF] Exec stream error during dependency installation:", error);
+				reject(error);
+			});
 			// Drain the stream
 			execStream.resume();
 		});
 
 		// Inspect the exec to get the exit code
 		const inspect = await exec.inspect();
+		console.log("[SHSF] Exec inspection completed. Exit code:", inspect.ExitCode);
+
 		if (inspect.ExitCode === 0) {
+			console.log("[SHSF] Dependency installation completed successfully for function:", functionId);
 			return true;
 		} else {
+			console.error("[SHSF] Dependency installation failed for function:", functionId, "Exit code:", inspect.ExitCode);
 			return false;
 		}
 	} catch (error) {
