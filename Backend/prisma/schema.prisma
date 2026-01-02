@@ -78,6 +78,10 @@ model Function {
   namespaceId Int
   namespace   Namespace @relation(fields: [namespaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
+
+  // System Manged Data
+  guest_access Boolean @default(false) // Whether guest users can access this function, will be kept in sync with GuestUser permissions, when changed
+
   files      FunctionFile[]
   triggers   FunctionTrigger[]
   TriggerLog TriggerLog[]
