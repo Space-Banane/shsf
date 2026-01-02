@@ -123,7 +123,7 @@ export = new fileRouter.Path("/")
 			});
 		}),
 	)
-	// Update a guest user (displayName, permittedFunctions, password)
+	// Update a guest user (displayName, password)
 	.http("PATCH", "/api/account/guest/update", (http) =>
 		http.onRequest(async (ctr) => {
 			const [data, error] = await ctr.bindBody((z) =>
@@ -273,6 +273,13 @@ export = new fileRouter.Path("/")
 				data: { permittedFunctions: permitted },
 			});
 
+			await prisma.function.update({
+				where: { id: data.functionId },
+				data: {
+					guest_access: true,
+				},
+			});
+
 			return ctr.print({
 				status: "OK",
 				message: "Function assigned to guest user",
@@ -322,6 +329,24 @@ export = new fileRouter.Path("/")
 				where: { id: data.guestId },
 				data: { permittedFunctions: permitted },
 			});
+
+			// Before saving, check if any other guest has access to this function
+			const otherGuests = await prisma.guestUser.findMany({
+				where: {
+					guestOwnerId: authCheck.user.id,
+					permittedFunctions: { array_contains: data.functionId },
+				},
+			});
+
+			if (otherGuests.length === 0) {
+				// No other guest has access, set guest_access to false
+				await prisma.function.update({
+					where: { id: data.functionId },
+					data: {
+						guest_access: false,
+					},
+				});
+			}
 
 			return ctr.print({
 				status: "OK",
