@@ -93,8 +93,8 @@ function FunctionDetail() {
 	const consoleOutputRef = useRef<HTMLDivElement>(null!);
 	const [autoScroll, setAutoScroll] = useState<boolean>(true);
 	const [copyUrlColor, setCopyUrlColor] = useState<string>("text-stone-300");
-	const [copyUrltext, setCopyUrlText] = useState<string>("Copy Alias📎");
-	const [copyAliasURL, setCopyAliasURL] = useState<string>("");
+	const [copyUrltext, setCopyUrlText] = useState<string>("Copy URL to Clipboard");
+	const [copyAliasURL, setCopyAliasURL] = useState<string>("Copy Alias URL");
 	const [paramInputColor, setParamInputColor] = useState<string>("text-white");
 	const [realTimeTaken, setRealTimeTaken] = useState<number | null>(null);
 	const [tooks, setTooks] = useState<TimingEntry[]>([]);
@@ -1032,7 +1032,7 @@ function FunctionDetail() {
 									}}
 								/>
 							</div>
-							{functionData.executionAlias && (
+							{(functionData.executionAlias && functionData.allow_http) && (
 								<div className="space-y-2">
 									<h2 className="text-sm font-medium text-primary mt-4">Alias URL</h2>
 									<div className="bg-background/30 border border-primary/10 rounded-lg p-2">
