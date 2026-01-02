@@ -129,6 +129,17 @@ function CreateTriggerModal({
 							className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 font-mono"
 							disabled={isSubmitting}
 						/>
+						<p className="text-xs text-gray-400">
+							Need help? Check out{" "}
+							<a
+								href="https://crontab.guru/"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-primary hover:underline"
+							>
+								crontab.guru
+							</a>
+						</p>
 					</div>
 
 					{/* Preset Buttons */}
