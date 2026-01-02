@@ -1,14 +1,24 @@
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
+import { CronExpressionParser } from "cron-parser";	
+
+async function validateCronExpression(cron: string): Promise<boolean> {
+	try {
+		CronExpressionParser.parse(cron);
+		return true;
+	} catch {
+		return false;
+	}
+}
 
 export = new fileRouter.Path("/")
 	.http("POST", "/api/functions/{functionId}/triggers", (http) =>
 		http.onRequest(async (ctr) => {
 			const [data, error] = await ctr.bindBody((z) =>
 				z.object({
-					name: z.string().min(4).max(128),
-					description: z.string().min(4).max(256),
-					cron: z.string().max(128).optional(),
+					name: z.string().max(128),
+					description: z.string().max(256).optional(),
+					cron: z.string().max(128),
 					data: z.string().optional(),
 					enabled: z.boolean().optional(),
 				}),
@@ -62,11 +72,22 @@ export = new fileRouter.Path("/")
 				});
 			}
 
+			// Validate cron expression if provided
+			if (data.cron) {
+				const isValidCron = await validateCronExpression(data.cron);
+				if (!isValidCron) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Invalid cron expression",
+					});
+				}
+			}
+
 			const trigger = await prisma.functionTrigger.create({
 				data: {
 					functionId: func.id,
 					name: data.name,
-					description: data.description,
+					description: data.description || "",
 					cron: data.cron || "{}",
 					data: data.data,
 					enabled: data.enabled,
@@ -287,9 +308,9 @@ export = new fileRouter.Path("/")
 		http.onRequest(async (ctr) => {
 			const [data, error] = await ctr.bindBody((z) =>
 				z.object({
-					name: z.string().min(4).max(128),
-					description: z.string().min(4).max(256),
-					cron: z.string().max(128).optional(),
+					name: z.string().max(128),
+					description: z.string().max(256).optional(),
+					cron: z.string().max(128),
 					data: z.string().optional(),
 					enabled: z.boolean().optional(),
 				}),
@@ -371,7 +392,7 @@ export = new fileRouter.Path("/")
 				},
 				data: {
 					name: data.name,
-					description: data.description,
+					description: data.description || "",
 					cron: data.cron,
 					data: data.data,
 					nextRun: null, // Reset nextRun to null when updating the trigger
