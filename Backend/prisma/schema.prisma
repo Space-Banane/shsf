@@ -64,7 +64,7 @@ model Function {
   max_retries      Int     @default(3)
 
   tags         String? @db.Text // comma separated tags
-  startup_file String? @db.VarChar(256) // Replaced startup_command with startup_file
+  startup_file String @db.VarChar(256) // Replaced startup_command with startup_file
   cors_origins String? @db.Text // Comma separated list of allowed CORS origins
 
   // Extra Cool shit

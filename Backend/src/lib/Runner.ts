@@ -8,7 +8,6 @@ import { UsableMiddleware } from "rjweb-server/lib/typings/classes/Middleware";
 import * as fs from "fs/promises";
 import * as fsSync from "fs";
 import * as path from "path";
-import { Readable } from "stream";
 import { randomBytes } from "crypto";
 
 interface TimingEntry {
@@ -22,7 +21,7 @@ const FUNCTION_DB_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const ServeOnlyFileNotFoundHTML = `<html><head><title>File Not Found</title></head><body><h1>404 - File Not Found</h1><p>The requested HTML file was not found in the function's files.</p></body></html>`;
 
-const DbComScript = `# Database Communication Script
+const DbComScriptPY = `# Database Communication Script
 # GENERATED ON THE FLY - DO NOT EDIT - THIS WILL BE OVERWRITTEN ON THE NEXT RUN
 import requests
 from typing import Any, Optional, Dict, List
@@ -236,6 +235,257 @@ def database() -> Database:
 # Alternative: Direct instantiation
 # You can also use: db = Database()`;
 
+const DbComScriptGO = `// Database Communication Script in Go
+// GENERATED ON THE FLY - DO NOT EDIT - THIS WILL BE OVERWRITTEN ON THE NEXT RUN
+
+package dbcom
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+)
+
+// Configuration placeholders
+const (
+	BaseURL   = "{{API}}"
+	AccessKey = "{{AUTHKEY}}"
+)
+
+// DatabaseError represents an API error
+type DatabaseError struct {
+	Message string
+}
+
+func (e *DatabaseError) Error() string {
+	return fmt.Sprintf("API Error: %s", e.Message)
+}
+
+// Database client
+type Database struct {
+	client  *http.Client
+	baseURL string
+	headers map[string]string
+}
+
+// New creates a new Database instance
+func New() *Database {
+	return &Database{
+		client:  &http.Client{Timeout: 30 * time.Second},
+		baseURL: strings.TrimRight(BaseURL, "/"),
+		headers: map[string]string{
+			"Content-Type": "application/json",
+			"X-Access-Key": AccessKey,
+		},
+	}
+}
+
+// internal response wrapper
+type apiResponse struct {
+	Status  string          ` +
+	"`" +
+	`json:"status"` +
+	"`" +
+	`
+	Message string          ` +
+	"`" +
+	`json:"message,omitempty"` +
+	"`" +
+	`
+	Data    json.RawMessage ` +
+	"`" +
+	`json:"data,omitempty"` +
+	"`" +
+	`
+}
+
+func (db *Database) makeRequest(method, path string, payload interface{}) ([]byte, error) {
+	fullURL := db.baseURL + path
+	var body io.Reader
+
+	if payload != nil {
+		b, err := json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+		body = bytes.NewBuffer(b)
+	}
+
+	req, err := http.NewRequest(method, fullURL, body)
+	if err != nil {
+		return nil, err
+	}
+
+	for k, v := range db.headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := db.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Try to parse as standard API response
+	var res apiResponse
+	if err := json.Unmarshal(respData, &res); err == nil {
+		// If it has a status field, check it
+		if res.Status != "" && res.Status != "OK" {
+			msg := res.Message
+			if msg == "" {
+				msg = "Unknown error"
+			}
+			return nil, &DatabaseError{Message: msg}
+		}
+		// If data is present, return that. Mimics python's result.get("data", result)
+		if len(res.Data) > 0 {
+			return res.Data, nil
+		}
+	}
+
+	// Fallback: return raw body if not a standard wrapped response or parsing failed
+	return respData, nil
+}
+
+// CreateStorage creates a new storage
+func (db *Database) CreateStorage(name, purpose string) (map[string]interface{}, error) {
+	urlPath := "/api/storage"
+	payload := map[string]string{
+		"name":    name,
+		"purpose": purpose,
+	}
+	
+	resp, err := db.makeRequest("POST", urlPath, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	json.Unmarshal(resp, &result)
+	return result, nil
+}
+
+// ListStorages lists all storages
+func (db *Database) ListStorages() ([]map[string]interface{}, error) {
+	urlPath := "/api/storage"
+	resp, err := db.makeRequest("GET", urlPath, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []map[string]interface{}
+	json.Unmarshal(resp, &result)
+	return result, nil
+}
+
+// DeleteStorage deletes a storage by name
+func (db *Database) DeleteStorage(name string) error {
+	urlPath := fmt.Sprintf("/api/storage/%s", url.PathEscape(name))
+	_, err := db.makeRequest("DELETE", urlPath, nil)
+	return err
+}
+
+// Clear clears all items in a storage
+func (db *Database) Clear(name string) error {
+	urlPath := fmt.Sprintf("/api/storage/%s/items", url.PathEscape(name))
+	_, err := db.makeRequest("DELETE", urlPath, nil)
+	return err
+}
+
+// Set creates or updates an item
+func (db *Database) Set(storageName, key string, value interface{}, expiresAt *string) (map[string]interface{}, error) {
+	urlPath := fmt.Sprintf("/api/storage/%s/item", url.PathEscape(storageName))
+	payload := map[string]interface{}{
+		"key":   key,
+		"value": value,
+	}
+	if expiresAt != nil {
+		payload["expiresAt"] = *expiresAt
+	}
+
+	resp, err := db.makeRequest("POST", urlPath, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	json.Unmarshal(resp, &result)
+	return result, nil
+}
+
+// Get returns an item's value by key. 
+// Returns interface{} to match Python's dynamic return type.
+func (db *Database) Get(storageName, key string) (interface{}, error) {
+	urlPath := fmt.Sprintf("/api/storage/%s/item/%s", url.PathEscape(storageName), url.PathEscape(key))
+	resp, err := db.makeRequest("GET", urlPath, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// We need to check if the returned data is the item wrapper or the value itself.
+	// Based on Python script: item.get("value")
+	var itemWrapper map[string]interface{}
+	if err := json.Unmarshal(resp, &itemWrapper); err == nil {
+		if val, ok := itemWrapper["value"]; ok {
+			return val, nil
+		}
+		// If no "value" key, return the whole object
+		return itemWrapper, nil
+	}
+	
+	return nil, fmt.Errorf("could not parse item")
+}
+
+// GetItem returns the full item object (metadata included)
+func (db *Database) GetItem(storageName, key string) (map[string]interface{}, error) {
+	urlPath := fmt.Sprintf("/api/storage/%s/item/%s", url.PathEscape(storageName), url.PathEscape(key))
+	resp, err := db.makeRequest("GET", urlPath, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	json.Unmarshal(resp, &result)
+	return result, nil
+}
+
+// ListItems lists all items in storage
+func (db *Database) ListItems(storageName string) ([]map[string]interface{}, error) {
+	urlPath := fmt.Sprintf("/api/storage/%s/items", url.PathEscape(storageName))
+	resp, err := db.makeRequest("GET", urlPath, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []map[string]interface{}
+	json.Unmarshal(resp, &result)
+	return result, nil
+}
+
+// DeleteItem deletes an item by key
+func (db *Database) DeleteItem(storageName, key string) error {
+	urlPath := fmt.Sprintf("/api/storage/%s/item/%s", url.PathEscape(storageName), url.PathEscape(key))
+	_, err := db.makeRequest("DELETE", urlPath, nil)
+	return err
+}
+
+// Exists checks if an item exists
+func (db *Database) Exists(storageName, key string) bool {
+	_, err := db.Get(storageName, key)
+	return err == nil
+}
+`;
+
 async function getOrCreateFunctionDbToken(userId: number): Promise<string> {
 	const tokenName = `__function_db_access__`;
 
@@ -341,9 +591,8 @@ export async function executeFunction(
 	);
 
 	// Define startupFile and initScript here as they are needed for script generation
-	const startupFile =
-		functionData.startup_file ||
-		(runtimeType === "python" ? "main.py" : "index.js");
+	const startupFile = functionData.startup_file;
+
 	let initScript =
 		"#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
 
@@ -367,6 +616,89 @@ export async function executeFunction(
 			})
 		);
 		recordTiming("User files written to host app directory");
+
+		// For Go runtime, generate the runner wrapper file and go.mod if needed
+		if (runtimeType === "golang") {
+			const runnerWrapperCode = `package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+)
+
+// Runner wrapper that handles payload loading and result marshaling
+func runFunction(payloadPath string, out *os.File) error {
+	// Read payload from file
+	var payload interface{}
+	if payloadPath != "" {
+		data, err := os.ReadFile(payloadPath)
+		if err != nil {
+			return fmt.Errorf("error reading payload file: %w", err)
+		}
+		
+		if len(data) > 0 {
+			if err := json.Unmarshal(data, &payload); err != nil {
+				return fmt.Errorf("error decoding payload JSON: %w", err)
+			}
+		}
+	}
+	
+	// Call user's main_user function
+	result, err := main_user(payload)
+	if err != nil {
+		return fmt.Errorf("error executing main function: %w", err)
+	}
+	
+	// Marshal result to JSON
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("error serializing result: %w", err)
+	}
+	
+	// Write result with markers to original stdout (passed as out)
+	fmt.Fprintln(out, "SHSF_FUNCTION_RESULT_START")
+	fmt.Fprint(out, string(resultJSON))
+	fmt.Fprint(out, "\\nSHSF_FUNCTION_RESULT_END")
+	
+	return nil
+}
+
+func main() {
+	// Redirect user's stdout to stderr so logs don't interfere with result
+	oldStdout := os.Stdout
+	os.Stdout = os.Stderr
+	
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "Error: Payload file path not provided")
+		os.Exit(1)
+	}
+	
+	payloadPath := os.Args[1]
+	
+	// Do NOT restore stdout here for user code execution.
+	// This ensures fmt.Println in user code goes to stderr (logs).
+	
+	// Run the function, passing original stdout for the result
+	if err := runFunction(payloadPath, oldStdout); err != nil {
+		// Ensure error goes to stderr
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+`;
+			await fs.writeFile(path.join(funcAppDir, "shsf_runner.go"), runnerWrapperCode);
+			
+			// Generate go.mod if it doesn't exist
+			const goModPath = path.join(funcAppDir, "go.mod");
+			if (!fsSync.existsSync(goModPath)) {
+				const goModContent = `module shsf_function_${functionData.id}\n\ngo 1.23\n`;
+				await fs.writeFile(goModPath, goModContent);
+				recordTiming("Generated default go.mod file");
+			}
+			
+			recordTiming("Go runner wrapper (shsf_runner.go) written to host app directory");
+		}
 
 		// Always generate/update the runner script to accept payload file path as argument
 		if (runtimeType === "python") {
@@ -470,6 +802,25 @@ PYTHON_SCRIPT_EOF
 			recordTiming(
 				"Python runner script (_runner.py) written to host app directory"
 			);
+		} else if (runtimeType === "golang") {
+			const wrapperPath = path.join(funcAppDir, "_runner.sh");
+			const wrapperContent = `#!/bin/sh
+# Source environment variables if the file exists
+if [ -f /app/.shsf_env ]; then
+    . /app/.shsf_env
+    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
+else
+    echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
+fi
+
+# Execute the compiled Go binary with payload file path as argument
+/app/_shsf_runner "$@"
+`;
+			await fs.writeFile(wrapperPath, wrapperContent);
+			await fs.chmod(wrapperPath, "755");
+			recordTiming(
+				"Go runner script (_runner.sh) written to host app directory"
+			);
 		} else {
 			console.warn(
 				`[executeFunction] Runner script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`
@@ -527,6 +878,91 @@ if [ -f "requirements.txt" ]; then
 fi
 echo "[SHSF INIT] Python setup complete."
 `;
+		} else if (runtimeType === "golang") {
+			// Add ffmpeg installation if requested
+			if (functionData.ffmpeg_install) {
+				initScript += `
+      echo "[SHSF INIT] Checking ffmpeg installation..."
+      if [ ! -f ".already_installed_ffmpeg" ]; then
+          command -v ffmpeg >/dev/null 2>&1 || (apt update && apt-get install -y ffmpeg && touch /app/.already_installed_ffmpeg)
+      else
+          echo "[SHSF INIT] ffmpeg already installed (marker file present)."
+      fi
+      echo "[SHSF INIT] ffmpeg check complete."
+      `;
+			}
+
+			initScript += `
+echo "[SHSF INIT] Setting up Go environment for function ${functionData.id}"
+BIN_DIR="/go-cache/bin/function-${functionData.id}"
+HASH_FILE="/go-cache/hashes/function-${functionData.id}/go.hash"
+GO_PKG_CACHE_DIR="/go-cache/go_packages_cache"
+mkdir -p "$(dirname "$BIN_DIR")" "$(dirname "$HASH_FILE")" "$GO_PKG_CACHE_DIR"
+
+# Calculate hash of all Go files
+GO_HASH=$(find . -name "*.go" -type f | sort | xargs cat | md5sum | awk '{print $1}')
+if [ -f "go.mod" ]; then
+	if [ -f "go.sum" ]; then
+		GO_HASH=$(cat go.mod go.sum | md5sum | awk '{print $1}')-$GO_HASH
+	else
+		GO_HASH=$(md5sum go.mod | awk '{print $1}')-$GO_HASH
+	fi
+fi
+
+NEEDS_BUILD=0
+if [ ! -f "$BIN_DIR/_shsf_runner" ]; then NEEDS_BUILD=1; echo "[SHSF INIT] No binary. Building."; fi
+if [ ! -f "$HASH_FILE" ] || [ "$(cat "$HASH_FILE" 2>/dev/null)" != "$GO_HASH" ]; then NEEDS_BUILD=1; echo "[SHSF INIT] Hash mismatch. Rebuilding."; fi
+
+if [ $NEEDS_BUILD -eq 1 ]; then
+	export GOCACHE="$GO_PKG_CACHE_DIR"
+	export GOMODCACHE="$GO_PKG_CACHE_DIR/mod"
+	
+	# Run go mod tidy to add missing dependencies from imports
+	if [ -f "go.mod" ]; then
+		echo "[SHSF INIT] Running go mod tidy to resolve dependencies..."
+		if go mod tidy; then
+			echo "[SHSF INIT] Dependencies resolved."
+		else
+			echo "[SHSF INIT] Error running go mod tidy." >&2
+			exit 1
+		fi
+	fi
+	
+	# Download dependencies if go.mod exists
+	if [ -f "go.mod" ]; then
+		if go mod download; then
+			echo "[SHSF INIT] Go dependencies downloaded."
+		else
+			echo "[SHSF INIT] Error downloading Go dependencies." >&2
+			exit 1
+		fi
+	fi
+	
+	# Build the runner binary
+	if go build -o "$BIN_DIR/_shsf_runner" .; then
+		cp "$BIN_DIR/_shsf_runner" /app/_shsf_runner
+		chmod +x /app/_shsf_runner
+		echo "$GO_HASH" > "$HASH_FILE"
+		echo "[SHSF INIT] Go binary built successfully."
+	else
+		echo "[SHSF INIT] Error building Go binary." >&2
+		exit 1
+	fi
+else
+	echo "[SHSF INIT] Go binary up-to-date."
+	# Copy the cached binary to /app in case it's missing
+	if [ ! -f "/app/_shsf_runner" ]; then
+		cp "$BIN_DIR/_shsf_runner" /app/_shsf_runner
+		chmod +x /app/_shsf_runner
+	fi
+fi
+
+# Create a persistent environment file that can be sourced during execution
+echo "export GOCACHE=$GO_PKG_CACHE_DIR" > /app/.shsf_env
+echo "export GOMODCACHE=$GO_PKG_CACHE_DIR/mod" >> /app/.shsf_env
+echo "export PATH=/app:\$PATH" >> /app/.shsf_env
+echo "[SHSF INIT] Go setup complete."
+`;
 		} else {
 			// This was already checked for runner script, but as a safeguard for init.sh:
 			console.warn(
@@ -548,14 +984,24 @@ echo "[SHSF INIT] Python setup complete."
 			dbAccessToken = await getOrCreateFunctionDbToken(functionData.userId);
 			recordTiming("Database access token retrieved/created");
 
-			// Add Database Communication Script (python)
-			const dbScript = DbComScript.replace("{{API}}", API_URL!).replace(
-				"{{AUTHKEY}}",
-				dbAccessToken
-			);
-			await fs.writeFile(path.join(funcAppDir, "_db_com.py"), dbScript);
-			await fs.chmod(path.join(funcAppDir, "_db_com.py"), "755");
-			recordTiming("Database communication script generated on host");
+			// Add Database Communication Script based on runtime
+			if (runtimeType === "python") {
+				const dbScript = DbComScriptPY.replace("{{API}}", API_URL!).replace(
+					"{{AUTHKEY}}",
+					dbAccessToken
+				);
+				await fs.writeFile(path.join(funcAppDir, "_db_com.py"), dbScript);
+				await fs.chmod(path.join(funcAppDir, "_db_com.py"), "755");
+				recordTiming("Database communication script (Python) generated on host");
+			} else if (runtimeType === "golang") {
+				const dbScript = DbComScriptGO.replace("{{API}}", API_URL!).replace(
+					"{{AUTHKEY}}",
+					dbAccessToken
+				);
+				await fs.writeFile(path.join(funcAppDir, "_db_com.go"), dbScript);
+				await fs.chmod(path.join(funcAppDir, "_db_com.go"), "755");
+				recordTiming("Database communication script (Golang) generated on host");
+			}
 		}
 
 		try {
@@ -567,6 +1013,38 @@ echo "[SHSF INIT] Python setup complete."
 			} else {
 				recordTiming("Found existing running container");
 			}
+			
+			// For existing containers, ensure init.sh runs again to rebuild if needed
+			// This ensures Go binaries are always up-to-date
+			if (runtimeType === "golang") {
+				recordTiming("Running init.sh on existing container");
+				const initExec = await container.exec({
+					Cmd: ["/bin/sh", "/app/init.sh"],
+					AttachStdout: true,
+					AttachStderr: true,
+				});
+				const initStream = await initExec.start({ hijack: true, stdin: false });
+				const initOutput = { stdout: "", stderr: "" };
+				
+				const initStdout = new PassThrough();
+				const initStderr = new PassThrough();
+				
+				initStdout.on("data", (chunk) => {
+					initOutput.stdout += chunk.toString("utf8");
+				});
+				initStderr.on("data", (chunk) => {
+					initOutput.stderr += chunk.toString("utf8");
+				});
+				
+				docker.modem.demuxStream(initStream, initStdout, initStderr);
+				
+				await new Promise<void>((resolve) => {
+					initStream.on("end", resolve);
+				});
+				
+				console.log("[SHSF Init Output]:", initOutput.stderr);
+				recordTiming("Init script executed on existing container");
+			}
 		} catch (error: any) {
 			if (error.statusCode === 404) {
 				// Container not found, create it
@@ -577,8 +1055,12 @@ echo "[SHSF INIT] Python setup complete."
 				const baseCacheDir = "/opt/shsf_data/cache"; // Centralized cache on host
 				await fs.mkdir(baseCacheDir, { recursive: true });
 				const pipCacheHost = path.join(baseCacheDir, "pip");
+				const goCacheHost = path.join(baseCacheDir, "go");
 
-				await Promise.all([fs.mkdir(pipCacheHost, { recursive: true })]);
+				await Promise.all([
+					fs.mkdir(pipCacheHost, { recursive: true }),
+					fs.mkdir(goCacheHost, { recursive: true })
+				]);
 				recordTiming("Host cache directories ensured");
 
 				// Mount the base function directory which contains both app/ and executions/
@@ -595,6 +1077,8 @@ echo "[SHSF INIT] Python setup complete."
 
 				if (runtimeType === "python") {
 					BINDS.push(`${pipCacheHost}:/pip-cache`); // Mount persistent pip cache
+				} else if (runtimeType === "golang") {
+					BINDS.push(`${goCacheHost}:/go-cache`); // Mount persistent go cache
 				} else {
 					throw new Error(
 						`Unsupported runtime type for container BIND setup: ${runtimeType}`
@@ -682,14 +1166,16 @@ echo "[SHSF INIT] Python setup complete."
 
 		// Pass the unique payload file path as an argument to the runner script
 		const containerPayloadPath = `/executions/${executionId}/payload.json`; // Updated to use /executions mount
-		const execCmd =
-			runtimeType === "python"
-				? ["/bin/sh", "/app/_runner.py", containerPayloadPath]
-				: (() => {
-						throw new Error(
-							`Unsupported runtime type for exec command: ${runtimeType}`
-						);
-				  })();
+		let execCmd: string[];
+		if (runtimeType === "python") {
+			execCmd = ["/bin/sh", "/app/_runner.py", containerPayloadPath];
+		} else if (runtimeType === "golang") {
+			execCmd = ["/bin/sh", "/app/_runner.sh", containerPayloadPath];
+		} else {
+			throw new Error(
+				`Unsupported runtime type for exec command: ${runtimeType}`
+			);
+		}
 
 		const exec = await container.exec({
 			Cmd: execCmd,
@@ -1041,7 +1527,10 @@ export async function installDependencies(
 			  )
 			: [];
 
-		console.log("[SHSF] Starting dependency installation for function:", functionId);
+		console.log(
+			"[SHSF] Starting dependency installation for function:",
+			functionId
+		);
 
 		const exec = await container.exec({
 			Cmd: [
@@ -1093,10 +1582,18 @@ export async function installDependencies(
 		console.log("[SHSF] Exec inspection completed. Exit code:", inspect.ExitCode);
 
 		if (inspect.ExitCode === 0) {
-			console.log("[SHSF] Dependency installation completed successfully for function:", functionId);
+			console.log(
+				"[SHSF] Dependency installation completed successfully for function:",
+				functionId
+			);
 			return true;
 		} else {
-			console.error("[SHSF] Dependency installation failed for function:", functionId, "Exit code:", inspect.ExitCode);
+			console.error(
+				"[SHSF] Dependency installation failed for function:",
+				functionId,
+				"Exit code:",
+				inspect.ExitCode
+			);
 			return false;
 		}
 	} catch (error) {

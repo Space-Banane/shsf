@@ -4,7 +4,7 @@ All because i don't want to pay for AWS Lambda
 
 ## 🌟 Overview
 
-SHSF allows you to deploy and manage serverless functions on your own hardware. It has a web interface, supports python as a main runtime and allows you to trigger functions via HTTP(S) requests or cron jobs.
+SHSF allows you to deploy and manage serverless functions on your own hardware. It has a web interface, supports Python and Go as main runtimes and allows you to trigger functions via HTTP(S) requests or cron jobs.
 
 ## Requiremnets
 - Docker with Compose plugin
@@ -41,7 +41,7 @@ SHSF allows you to deploy and manage serverless functions on your own hardware. 
 ## Usage
 
 1. **Open the web interface** and register (first user becomes admin).
-2. **Create a function**: Click "Create Function", pick Python, write your code, and save.
+2. **Create a function**: Click "Create Function", pick Python or Go, write your code, and save.
 3. **Run your function**:
    - Click "Run" in the UI
    - Use the provided HTTP API endpoint
@@ -49,13 +49,33 @@ SHSF allows you to deploy and manage serverless functions on your own hardware. 
 
 ## Function Structure
 
-Python function example:
+### Python function example:
 
 ```python
 def main(args):
     # Your function logic here
     name = args.get('body', {}).get('name', 'World')
     return f"Hello, {name}!"
+```
+
+### Go function example:
+
+```go
+package main
+
+import "fmt"
+
+func main_user(args interface{}) (interface{}, error) {
+    // Your function logic here
+    payload, _ := args.(map[string]interface{})
+    name := "World"
+    if body, ok := payload["body"].(map[string]interface{}); ok {
+        if n, ok := body["name"].(string); ok {
+            name = n
+        }
+    }
+    return fmt.Sprintf("Hello, %s!", name), nil
+}
 ```
 
 

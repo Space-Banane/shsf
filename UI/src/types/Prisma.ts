@@ -114,7 +114,11 @@ type Image =
 	| "python:3.12"
 	| "python:3.13"
 	| "python:3.14"
-	| "python:3.15";
+	| "python:3.15"
+	| "golang:1.20"
+	| "golang:1.21"
+	| "golang:1.22"
+	| "golang:1.23";
 
 const ImagesAsArray: Image[] = [
 	"python:3.9",
@@ -124,6 +128,10 @@ const ImagesAsArray: Image[] = [
 	"python:3.13",
 	"python:3.14",
 	"python:3.15",
+	"golang:1.20",
+	"golang:1.21",
+	"golang:1.22",
+	"golang:1.23",
 ];
 const ImagesAsArraySet = new Set(ImagesAsArray);
 

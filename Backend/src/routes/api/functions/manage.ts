@@ -21,6 +21,10 @@ const Images: string[] = [
 	"python:3.13",
 	"python:3.14",
 	"python:3.15",
+	"golang:1.20",
+	"golang:1.21",
+	"golang:1.22",
+	"golang:1.23",
 ];
 
 // Create Docker client instance for container management
@@ -34,7 +38,7 @@ export = new fileRouter.Path("/")
 					name: z.string().min(1).max(128),
 					description: z.string().min(3).max(128),
 					image: z.enum(Images as any),
-					startup_file: z.string().min(1).max(256).optional(),
+					startup_file: z.string().min(1).max(256),
 					docker_mount: z.boolean().optional(),
 					ffmpeg_install: z.boolean().optional(),
 					executionAlias: z
@@ -399,7 +403,7 @@ export = new fileRouter.Path("/")
 					name: z.string().min(1).max(128).optional(),
 					description: z.string().min(3).max(128).optional(),
 					image: z.enum(Images as any).optional(),
-					startup_file: z.string().min(1).max(256).optional(),
+					startup_file: z.string().min(1).max(256),
 					executionAlias: z
 						.string()
 						.min(8)

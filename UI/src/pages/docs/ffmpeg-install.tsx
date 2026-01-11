@@ -214,12 +214,19 @@ export const FfmpegInstallPage = () => {
 
 				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
 					<h2 className="text-xl font-bold text-primary mb-3">
-						📚 Keep Your Instance Updated
+						🚀 Next Step - Go Runtime
 					</h2>
 					<p className="text-text/90 mb-4">
-						This is the latest documentation available. Make sure to keep your SHSF
-						instance updated to get access to new features and improvements!
+						Interested in using Go for your serverless functions? Learn how to set up
+						and use the Go runtime in SHSF.
 					</p>
+					<a
+						href="/docs/go-runtime"
+						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+					>
+						#20 Go Runtime
+						<span className="text-lg">→</span>
+					</a>
 				</div>
 			</div>
 		</div>
