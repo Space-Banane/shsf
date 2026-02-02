@@ -1418,6 +1418,7 @@ function FunctionDetail() {
 				isOpen={showLoadDefaultModal}
 				onClose={() => setShowLoadDefaultModal(false)}
 				onLoadDefault={handleLoadDefaultContent}
+				functionLanguage={functionData?.image}
 			/>
 		</div>
 	</div>
