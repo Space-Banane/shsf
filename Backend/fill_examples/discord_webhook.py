@@ -22,54 +22,38 @@ def main(args):
         }
     
     try:
-        # Get webhook information to customize the sender name
-        response = requests.get(webhook_url)
-        
-        if response.status_code == 200:
-            print("Webhook is valid!")
-            webhook_info = response.json()
-            username = webhook_info.get("name", "SHSF Bot")
-            username += " (via SHSF)"
-            
-            # Send the message
-            send_data = {
-                "content": message_content,
-                "username": username
-            }
-            
-            post_response = requests.post(webhook_url, json=send_data)
-            
-            if post_response.status_code == 204:
-                print("Message sent successfully!")
-                return {
-                    "_shsf": "v2",
-                    "_code": 200,
-                    "_res": {
-                        "state": True,
-                        "message": "Discord message sent successfully",
-                        "webhook_name": webhook_info.get("name")
-                    }
-                }
-            else:
-                return {
-                    "_shsf": "v2",
-                    "_code": post_response.status_code,
-                    "_res": {
-                        "state": False,
-                        "error": "Failed to send message to Discord"
-                    }
-                }
-        else:
-            print("Invalid webhook URL. Please check the URL.")
+        # Customize the sender name directly without fetching webhook info
+        username = args.get("body", {}).get("username", "SHSF Bot (via SHSF)")
+
+        # Send the message directly
+        send_data = {
+            "content": message_content,
+            "username": username
+        }
+
+        post_response = requests.post(webhook_url, json=send_data)
+
+        # Discord typically returns 204 No Content on success
+        if post_response.status_code in (200, 204):
+            print("Message sent successfully!")
             return {
                 "_shsf": "v2",
-                "_code": 400,
+                "_code": 200,
                 "_res": {
-                    "state": False,
-                    "error": "Invalid webhook URL. Please check the URL."
+                    "state": True,
+                    "message": "Discord message sent successfully",
+                    "webhook_name": username
                 }
             }
-    
+        else:
+            return {
+                "_shsf": "v2",
+                "_code": post_response.status_code,
+                "_res": {
+                    "state": False,
+                    "error": "Failed to send message to Discord"
+                }
+            }
     except Exception as e:
         return {
             "_shsf": "v2",
