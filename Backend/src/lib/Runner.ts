@@ -507,18 +507,37 @@ async function getOrCreateFunctionDbToken(userId: number): Promise<string> {
 
 	// Create new token with 24 hour expiry
 	const newToken = randomBytes(32).toString("hex");
-	await prisma.accessToken.create({
-		data: {
-			userId: userId,
-			name: tokenName,
-			token: newToken,
-			hidden: true,
-			purpose: "Shared database access token for all function executions",
-			expiresAt: new Date(Date.now() + FUNCTION_DB_TOKEN_EXPIRY_MS),
-		},
-	});
-
-	return newToken;
+	try {
+		await prisma.accessToken.create({
+			data: {
+				userId: userId,
+				name: tokenName,
+				token: newToken,
+				hidden: true,
+				purpose: "Shared database access token for all function executions",
+				expiresAt: new Date(Date.now() + FUNCTION_DB_TOKEN_EXPIRY_MS),
+			},
+		});
+		return newToken;
+	} catch (error: any) {
+		// If creation failed due to race condition, fetch the token that was created
+		if (error.code === 'P2002') { // Prisma unique constraint violation
+			const retryToken = await prisma.accessToken.findFirst({
+				where: {
+					userId: userId,
+					name: tokenName,
+					hidden: true,
+					expiresAt: {
+						gt: new Date(),
+					},
+				},
+			});
+			if (retryToken) {
+				return retryToken.token;
+			}
+		}
+		throw error; // Re-throw if it's a different error
+	}
 }
 
 export async function executeFunction(
