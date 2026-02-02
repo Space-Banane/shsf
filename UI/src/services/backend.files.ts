@@ -108,6 +108,13 @@ async function loadDefaultContent(functionId: number, fileId: number, defaultToL
 	return data;
 }
 
+interface DefaultTemplate {
+	id: string;
+	name: string;
+	language: string;
+	description: string;
+}
+
 async function loadPossibleDefaults() {
 	const response = await fetch(
 		`${BASE_URL}/api/function-fill-defaults`,
@@ -120,7 +127,7 @@ async function loadPossibleDefaults() {
 		},
 	);
 
-	const data = (await response.json()) as { status: "OK"; defaults: string[] } | ErrorResponse;
+	const data = (await response.json()) as { status: "OK"; defaults: DefaultTemplate[] } | ErrorResponse;
 	return data;
 }
 
@@ -130,4 +137,5 @@ export type {
 	ErrorResponse,
 	FileListResponse,
 	CreateOrUpdateFileResponse,
+	DefaultTemplate,
 };

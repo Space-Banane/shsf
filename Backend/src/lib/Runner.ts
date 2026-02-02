@@ -507,6 +507,7 @@ async function getOrCreateFunctionDbToken(userId: number): Promise<string> {
 
 	// Create new token with 24 hour expiry
 	const newToken = randomBytes(32).toString("hex");
+
 	await prisma.accessToken.create({
 		data: {
 			userId: userId,

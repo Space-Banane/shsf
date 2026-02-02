@@ -410,7 +410,7 @@ export = new fileRouter.Path("/")
 			const fileToFill = await prisma.functionFile.findUnique({
 				where: { id: fileIdInt },
 			});
-			
+
 			if (!fileToFill) {
 				return ctr.status(ctr.$status.NOT_FOUND).print({
 					status: 404,
@@ -418,10 +418,37 @@ export = new fileRouter.Path("/")
 				});
 			}
 
+			// Get the function to check its runtime
+			const func = await prisma.function.findUnique({
+				where: { id: functionId },
+				select: { image: true },
+			});
+
+			if (!func) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: 404,
+					message: "Function not found",
+				});
+			}
+
 			// Map the defaultToLoad to actual file path
 			const defaultFileMap: Record<string, string> = {
-				"python_default": "../fill_examples/default.py",
-				// Add more mappings as needed
+				python_default: "../fill_examples/default.py",
+				python_data_passing: "../fill_examples/data_passing.py",
+				python_custom_responses: "../fill_examples/custom_responses.py",
+				python_environment_variables: "../fill_examples/environment_variables.py",
+				python_persistent_data: "../fill_examples/persistent_data.py",
+				python_redirects: "../fill_examples/redirects.py",
+				python_secure_headers: "../fill_examples/secure_headers.py",
+				python_database_communication: "../fill_examples/database_communication.py",
+				python_routing: "../fill_examples/routing.py",
+				python_discord_webhook: "../fill_examples/discord_webhook.py",
+				python_api_client: "../fill_examples/api_client.py",
+				go_default: "../fill_examples/default.go",
+				go_data_passing: "../fill_examples/data_passing.go",
+				go_custom_responses: "../fill_examples/custom_responses.go",
+				go_routing: "../fill_examples/routing.go",
+				go_redirects: "../fill_examples/redirects.go",
 			};
 
 			const filePath = defaultFileMap[data.defaultToLoad];
@@ -432,10 +459,22 @@ export = new fileRouter.Path("/")
 				});
 			}
 
+			// Validate runtime matches the template
+			const templateLanguage = data.defaultToLoad.split("_")[0]; // Extract language prefix (e.g., "python" from "python_default")
+			const functionRuntime = func.image.toLowerCase(); // e.g., "python:3.11"
+
+			// Check if the runtime matches the template language
+			if (!functionRuntime.startsWith(templateLanguage)) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: `Cannot load ${templateLanguage} template into a ${functionRuntime.split(":")[0]} function`,
+				});
+			}
+
 			// Actually filling it
 			let loadedContent: string;
 			try {
-				loadedContent = await fs.readFile(filePath, {encoding:"utf-8"});
+				loadedContent = await fs.readFile(filePath, { encoding: "utf-8" });
 			} catch (err) {
 				console.error(`[SHSF] Error reading default file ${filePath}:`, err);
 				return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
@@ -443,7 +482,7 @@ export = new fileRouter.Path("/")
 					message: "Failed to load default template",
 				});
 			}
-	
+
 			const updatedFile = await prisma.functionFile.update({
 				where: {
 					id: fileIdInt,
@@ -475,23 +514,64 @@ export = new fileRouter.Path("/")
 
 			// Read all files from fill_examples directory
 			try {
-				const fillExamplesDir = "./fill_examples";
+				const fillExamplesDir = "../fill_examples";
 				const files = await fs.readdir(fillExamplesDir);
-				
-				// Convert filenames to default names
-				// e.g., "default.py" -> "python_default"
+
+				// Convert filenames to default names with metadata
+				// e.g., "default.py" -> { id: "python_default", name: "Default", language: "python", description: "..." }
 				const defaults = files
-					.filter(file => file.endsWith('.py') || file.endsWith('.js') || file.endsWith('.ts'))
-					.map(file => {
-						const nameWithoutExt = file.replace(/\.[^.]+$/, '');
-						if (file.endsWith('.py')) {
-							return `python_${nameWithoutExt}`;
-						} else if (file.endsWith('.js')) {
-							return `javascript_${nameWithoutExt}`;
-						} else if (file.endsWith('.ts')) {
-							return `typescript_${nameWithoutExt}`;
+					.filter(
+						(file) =>
+							file.endsWith(".py") ||
+							file.endsWith(".js") ||
+							file.endsWith(".ts") ||
+							file.endsWith(".go"),
+					)
+					.map((file) => {
+						const nameWithoutExt = file.replace(/\.[^.]+$/, "");
+						let language = "";
+						let id = "";
+
+						const descriptions: Record<string, string> = {
+							default: "Basic function template",
+							data_passing:
+								"Receive and process JSON data from triggers or HTTP requests",
+							custom_responses: "Return custom HTTP status codes and responses",
+							environment_variables: "Securely use API keys via environment variables",
+							persistent_data: "Store data that persists between function invocations",
+							redirects: "Implement HTTP redirects (301/302)",
+							secure_headers: "Validate x-secure-header for additional security",
+							database_communication: "Use SHSF's built-in database interface",
+							routing: "Handle multiple routes in a single function",
+							discord_webhook: "Send messages to Discord (great for scheduled tasks)",
+							api_client: "Make authenticated requests to external APIs",
+						};
+
+						if (file.endsWith(".py")) {
+							language = "python";
+							id = `python_${nameWithoutExt}`;
+						} else if (file.endsWith(".js")) {
+							language = "javascript";
+							id = `javascript_${nameWithoutExt}`;
+						} else if (file.endsWith(".ts")) {
+							language = "typescript";
+							id = `typescript_${nameWithoutExt}`;
+						} else if (file.endsWith(".go")) {
+							language = "go";
+							id = `go_${nameWithoutExt}`;
 						}
-						return nameWithoutExt;
+
+						const name = nameWithoutExt
+							.split("_")
+							.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+							.join(" ");
+
+						return {
+							id,
+							name,
+							language,
+							description: descriptions[nameWithoutExt] || "No description available",
+						};
 					});
 
 				return ctr.print({
@@ -499,10 +579,17 @@ export = new fileRouter.Path("/")
 					defaults,
 				});
 			} catch (err) {
-				console.error('[SHSF] Error reading fill_examples directory:', err);
+				console.error("[SHSF] Error reading fill_examples directory:", err);
 				return ctr.print({
 					status: "OK",
-					defaults: ["python_default"],
+					defaults: [
+						{
+							id: "python_default",
+							name: "Default",
+							language: "python",
+							description: "Basic function template",
+						},
+					],
 				});
 			}
 		}),
