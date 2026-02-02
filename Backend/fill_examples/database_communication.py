@@ -5,7 +5,7 @@ def main(args):
     """
     Example: Database Communication
     Demonstrates using SHSF's built-in database interface for fast persistent storage.
-    Note: Make sure 'requests' package is in requirements.txt
+    Note: The 'requests' dependency is handled by SHSF's auto-generated `_db_com` module; you don't need to add it to requirements.txt for this example.
     """
     # Initialize database
     db = database()
