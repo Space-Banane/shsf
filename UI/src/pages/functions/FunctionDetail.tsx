@@ -95,7 +95,9 @@ function FunctionDetail() {
 	const consoleOutputRef = useRef<HTMLDivElement>(null!);
 	const [autoScroll, setAutoScroll] = useState<boolean>(true);
 	const [copyUrlColor, setCopyUrlColor] = useState<string>("text-stone-300");
-	const [copyUrltext, setCopyUrlText] = useState<string>("Copy URL to Clipboard");
+	const [copyUrltext, setCopyUrlText] = useState<string>(
+		"Copy URL to Clipboard",
+	);
 	const [copyAliasURL, setCopyAliasURL] = useState<string>("Copy Alias URL");
 	const [paramInputColor, setParamInputColor] = useState<string>("text-white");
 	const [realTimeTaken, setRealTimeTaken] = useState<number | null>(null);
@@ -787,9 +789,7 @@ function FunctionDetail() {
 				setCode(updatedContent);
 				setFiles((prev) =>
 					prev.map((file) =>
-						file.id === activeFile.id
-							? { ...file, content: updatedContent }
-							: file,
+						file.id === activeFile.id ? { ...file, content: updatedContent } : file,
 					),
 				);
 				return true;
@@ -805,6 +805,33 @@ function FunctionDetail() {
 			setSaving(false);
 		}
 	};
+
+	const [loadedInitial, setLoadedInitial] = useState(false);
+
+	// Load first file or priority file
+	const loadInitialFile = () => {
+		if (!functionData) return;
+		if (activeFile) return;
+		if (loadedInitial) return;
+
+		if (files.length > 0) {
+			// Select the startup file if it exists, otherwise select the first file
+			const startupFile = files.find(
+				(file) => file.name === functionData.startup_file,
+			);
+			const initialFile = startupFile || files[0];
+			setActiveFile(initialFile);
+			setCode(initialFile.content || "");
+		} else {
+			// Reset when no files exist
+			setActiveFile(null);
+			setCode(null);
+		}
+		setLoadedInitial(true);
+	};
+	useEffect(() => {
+		loadInitialFile();
+	}, [functionData, files, activeFile]);
 
 	if (loading) {
 		return (
@@ -1081,7 +1108,7 @@ function FunctionDetail() {
 									}}
 								/>
 							</div>
-							{(functionData.executionAlias && functionData.allow_http) && (
+							{functionData.executionAlias && functionData.allow_http && (
 								<div className="space-y-2">
 									<h2 className="text-sm font-medium text-primary mt-4">Alias URL</h2>
 									<div className="bg-background/30 border border-primary/10 rounded-lg p-2">
@@ -1414,15 +1441,15 @@ function FunctionDetail() {
 					functionId={functionData?.id ?? null}
 				/>
 
-			<LoadDefaultModal
-				isOpen={showLoadDefaultModal}
-				onClose={() => setShowLoadDefaultModal(false)}
-				onLoadDefault={handleLoadDefaultContent}
-				functionLanguage={functionData?.image}
-			/>
+				<LoadDefaultModal
+					isOpen={showLoadDefaultModal}
+					onClose={() => setShowLoadDefaultModal(false)}
+					onLoadDefault={handleLoadDefaultContent}
+					functionLanguage={functionData?.image}
+				/>
+			</div>
 		</div>
-	</div>
-);
+	);
 }
 
 export default FunctionDetail;
