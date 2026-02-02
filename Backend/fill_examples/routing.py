@@ -63,7 +63,6 @@ def handle_login(args):
     """Handle user login"""
     data = args.get("body", {})
     username = data.get("username")
-    password = data.get("password")
     
     # Login logic here
     return {
