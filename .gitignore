@@ -19,3 +19,5 @@ UI/public/styles.css
 
 Backend/.env
 Backend/dist
+
+.pnpm-store

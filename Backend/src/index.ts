@@ -5,6 +5,10 @@ import { network } from "@rjweb/utils";
 import { env } from "process";
 import { CronExpressionParser } from "cron-parser";
 import { executeFunction } from "./lib/Runner";
+import dotenv from "dotenv";
+
+// load env file
+dotenv.config();
 
 export const URL = env.UI_URL!;
 export const UI_URL = env.UI_URL!;

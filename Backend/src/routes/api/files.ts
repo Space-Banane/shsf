@@ -359,4 +359,151 @@ export = new fileRouter.Path("/")
 				data: updatedFile,
 			});
 		}),
+	)
+	.http("POST", "/api/function/{id}/file/{fileId}/load-fill_default", (http) =>
+		http.onRequest(async (ctr) => {
+			const authCheck = await checkAuthentication(
+				ctr.cookies.get(COOKIE),
+				ctr.headers.get(API_KEY_HEADER),
+			);
+
+			if (!authCheck.success) {
+				return ctr.print({
+					status: 401,
+					message: authCheck.message,
+				});
+			}
+
+			const [data, error] = await ctr.bindBody((z) =>
+				z.object({
+					defaultToLoad: z.string(),
+				}),
+			);
+
+			if (!data) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: error.toString(),
+				});
+			}
+
+			const id = ctr.params.get("id");
+			const fileId = ctr.params.get("fileId");
+
+			if (!id || !fileId) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Missing function id or file id",
+				});
+			}
+
+			const functionId = parseInt(id);
+			const fileIdInt = parseInt(fileId);
+
+			if (isNaN(functionId) || isNaN(fileIdInt)) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Invalid function id or file id",
+				});
+			}
+
+			const fileToFill = await prisma.functionFile.findUnique({
+				where: { id: fileIdInt },
+			});
+			
+			if (!fileToFill) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: 404,
+					message: "File not found",
+				});
+			}
+
+			// Map the defaultToLoad to actual file path
+			const defaultFileMap: Record<string, string> = {
+				"python_default": "../fill_examples/default.py",
+				// Add more mappings as needed
+			};
+
+			const filePath = defaultFileMap[data.defaultToLoad];
+			if (!filePath) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: `Unknown default template: ${data.defaultToLoad}`,
+				});
+			}
+
+			// Actually filling it
+			let loadedContent: string;
+			try {
+				loadedContent = await fs.readFile(filePath, {encoding:"utf-8"});
+			} catch (err) {
+				console.error(`[SHSF] Error reading default file ${filePath}:`, err);
+				return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+					status: 500,
+					message: "Failed to load default template",
+				});
+			}
+	
+			const updatedFile = await prisma.functionFile.update({
+				where: {
+					id: fileIdInt,
+				},
+				data: {
+					content: loadedContent,
+				},
+			});
+
+			return ctr.print({
+				status: "OK",
+				data: updatedFile,
+			});
+		}),
+	)
+	.http("GET", "/api/function-fill-defaults", (http) =>
+		http.onRequest(async (ctr) => {
+			const authCheck = await checkAuthentication(
+				ctr.cookies.get(COOKIE),
+				ctr.headers.get(API_KEY_HEADER),
+			);
+
+			if (!authCheck.success) {
+				return ctr.print({
+					status: 401,
+					message: authCheck.message,
+				});
+			}
+
+			// Read all files from fill_examples directory
+			try {
+				const fillExamplesDir = "./fill_examples";
+				const files = await fs.readdir(fillExamplesDir);
+				
+				// Convert filenames to default names
+				// e.g., "default.py" -> "python_default"
+				const defaults = files
+					.filter(file => file.endsWith('.py') || file.endsWith('.js') || file.endsWith('.ts'))
+					.map(file => {
+						const nameWithoutExt = file.replace(/\.[^.]+$/, '');
+						if (file.endsWith('.py')) {
+							return `python_${nameWithoutExt}`;
+						} else if (file.endsWith('.js')) {
+							return `javascript_${nameWithoutExt}`;
+						} else if (file.endsWith('.ts')) {
+							return `typescript_${nameWithoutExt}`;
+						}
+						return nameWithoutExt;
+					});
+
+				return ctr.print({
+					status: "OK",
+					defaults,
+				});
+			} catch (err) {
+				console.error('[SHSF] Error reading fill_examples directory:', err);
+				return ctr.print({
+					status: "OK",
+					defaults: ["python_default"],
+				});
+			}
+		}),
 	);

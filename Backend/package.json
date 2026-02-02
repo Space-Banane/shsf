@@ -22,7 +22,8 @@
 		"prisma": "^6.18.0",
 		"rjweb-server": "^9.8.6",
 		"tar": "^7.5.7",
-		"typescript": "^5.9.3"
+		"typescript": "^5.9.3",
+		"dotenv": "17.2.3"
 	},
 	"scripts": {
 		"prism": "npx prisma generate && npx prisma db push",

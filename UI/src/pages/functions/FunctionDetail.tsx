@@ -12,6 +12,7 @@ import DeleteTriggerModal from "../../components/modals/DeleteTriggerModal";
 import UpdateEnvModal from "../../components/modals/UpdateEnvModal";
 import TriggerLogsModal from "../../components/modals/TriggerLogsModal";
 import GuestManagement from "../../components/modals/GuestManagement";
+import LoadDefaultModal from "../../components/modals/LoadDefaultModal";
 import {
 	FunctionFile,
 	XFunction,
@@ -32,6 +33,7 @@ import {
 	createOrUpdateFile,
 	deleteFile,
 	renameFile,
+	loadDefaultContent,
 } from "../../services/backend.files";
 import {
 	createTrigger,
@@ -126,6 +128,7 @@ function FunctionDetail() {
 		type: string;
 	} | null>(null);
 	const [showGuestModal, setShowGuestModal] = useState(false);
+	const [showLoadDefaultModal, setShowLoadDefaultModal] = useState(false);
 
 	useEffect(() => {
 		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
@@ -757,6 +760,52 @@ function FunctionDetail() {
 		}
 	}, [running, exitCode, showLogsModal]);
 
+	const handleLoadDefault = () => {
+		if (!activeFile) {
+			alert("No file is currently selected.");
+			return;
+		}
+		setShowLoadDefaultModal(true);
+	};
+
+	const handleLoadDefaultContent = async (
+		defaultToLoad: string,
+	): Promise<boolean> => {
+		if (!id || !activeFile) return false;
+
+		setSaving(true);
+		try {
+			const response = await loadDefaultContent(
+				parseInt(id),
+				activeFile.id,
+				defaultToLoad,
+			);
+
+			if (response.status === "OK") {
+				// Update the file content in state
+				const updatedContent = response.data.content;
+				setCode(updatedContent);
+				setFiles((prev) =>
+					prev.map((file) =>
+						file.id === activeFile.id
+							? { ...file, content: updatedContent }
+							: file,
+					),
+				);
+				return true;
+			} else {
+				alert("Error loading default: " + response.message);
+				return false;
+			}
+		} catch (error) {
+			console.error("Error loading default content:", error);
+			alert("An error occurred while loading the default template.");
+			return false;
+		} finally {
+			setSaving(false);
+		}
+	};
+
 	if (loading) {
 		return (
 			<div className="min-h-screen bg-background flex items-center justify-center">
@@ -1146,6 +1195,13 @@ function FunctionDetail() {
 									)}
 									<button
 										className="bg-background/50 border border-primary/20 text-primary px-3 py-1.5 text-sm rounded-lg hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+										onClick={handleLoadDefault}
+										disabled={!activeFile || saving || running}
+									>
+										{saving ? "🚥Loading..." : "📂Load Default"}
+									</button>
+									<button
+										className="bg-background/50 border border-primary/20 text-primary px-3 py-1.5 text-sm rounded-lg hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 										onClick={handleSaveFile}
 										disabled={!activeFile || saving || running}
 									>
@@ -1357,9 +1413,15 @@ function FunctionDetail() {
 					onClose={() => setShowGuestModal(false)}
 					functionId={functionData?.id ?? null}
 				/>
-			</div>
+
+			<LoadDefaultModal
+				isOpen={showLoadDefaultModal}
+				onClose={() => setShowLoadDefaultModal(false)}
+				onLoadDefault={handleLoadDefaultContent}
+			/>
 		</div>
-	);
+	</div>
+);
 }
 
 export default FunctionDetail;

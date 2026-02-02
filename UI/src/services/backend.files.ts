@@ -89,7 +89,42 @@ async function renameFile(
 	return data;
 }
 
-export { getFiles, createOrUpdateFile, deleteFile, renameFile };
+async function loadDefaultContent(functionId: number, fileId: number, defaultToLoad: string) {
+	const response = await fetch(
+		`${BASE_URL}/api/function/${functionId}/file/${fileId}/load-fill_default`,
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
+			body: JSON.stringify({ defaultToLoad }),
+		},
+	);
+
+	const data = (await response.json()) as
+		| CreateOrUpdateFileResponse
+		| ErrorResponse;
+	return data;
+}
+
+async function loadPossibleDefaults() {
+	const response = await fetch(
+		`${BASE_URL}/api/function-fill-defaults`,
+		{
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
+		},
+	);
+
+	const data = (await response.json()) as { status: "OK"; defaults: string[] } | ErrorResponse;
+	return data;
+}
+
+export { getFiles, createOrUpdateFile, deleteFile, renameFile, loadDefaultContent, loadPossibleDefaults };
 export type {
 	OKResponse,
 	ErrorResponse,

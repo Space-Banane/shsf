@@ -1,13 +1,13 @@
 services:
  ui:
-  image: node:22
+  image: node:24
   restart: always
   working_dir: /app
   env_file:
    - .env
   volumes:
    - ./UI:/app
-  command: sh -c "npm install -g pnpm && pnpm i && pnpm tailwind:build && pnpm build && pnpm serve"
+  command: sh -c "npm install -g pnpm && pnpm install --no-frozen-lockfile && pnpm tailwind:build && pnpm build && pnpm serve"
   ports:
    - "3000:5000"
   environment:
@@ -15,14 +15,14 @@ services:
    - CI=false
 
  backend:
-  image: node:22
+  image: node:24
   restart: always
   working_dir: /app
   volumes:
    - ./Backend:/app
    - /var/run/docker.sock:/var/run/docker.sock # remove this line if you want to either specify a remote docker host(smart) or use docker in docker (stupid)
    - /opt:/opt
-  command: sh -c "npm install -g pnpm && pnpm i && npx prisma generate && npx prisma db push && pnpm dev"
+  command: sh -c "npm install -g pnpm && pnpm install --no-frozen-lockfile && npx prisma generate && npx prisma db push && pnpm dev"
   ports:
    - "5000:5000"
   env_file:
