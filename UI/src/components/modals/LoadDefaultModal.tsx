@@ -38,12 +38,18 @@ function LoadDefaultModal({
 			if (response.status === "OK") {
 				// Filter templates by function language if provided
 				let filteredDefaults = response.defaults;
-				if (functionLanguage) {
-					// Normalize language (e.g., "python:3.11" -> "python")
-					const normalizedLanguage = functionLanguage.split(':')[0].toLowerCase();
-					filteredDefaults = response.defaults.filter(
-						template => template.language.toLowerCase() === normalizedLanguage
-					);
+				if (typeof functionLanguage === "string") {
+					const trimmedLanguage = functionLanguage.trim();
+					if (trimmedLanguage !== "") {
+						// Normalize language (e.g., "python:3.11" -> "python")
+						const normalizedLanguage = trimmedLanguage.split(":")[0].toLowerCase();
+						if (normalizedLanguage) {
+							filteredDefaults = response.defaults.filter(
+								(template) =>
+									template.language.toLowerCase() === normalizedLanguage
+							);
+						}
+					}
 				}
 				setDefaults(filteredDefaults);
 				// Group defaults by language prefix
