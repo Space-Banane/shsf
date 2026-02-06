@@ -45,6 +45,17 @@ export = new fileRouter.Path("/")
 					ctr.skipRateLimit(); // Skip ratelimit as this is a action by a function
 				}
 			}
+
+			// Check if storage with same name exists for user
+			const existing = await prisma.functionStorage.findFirst({
+				where: { name: data.name, user: authCheck.user.id },
+			});
+			if (existing) {
+				return ctr
+					.status(ctr.$status.CONFLICT)
+					.print({ status: 409, message: "Storage with this name already exists" });
+			}
+
 			const storage = await prisma.functionStorage.create({
 				data: {
 					name: data.name,
