@@ -10,9 +10,25 @@ on:
   paths:
    - "Backend/**"
    - "UI/**"
+   - "docker-compose.yml"
 
 jobs:
+ changes:
+  runs-on: ubuntu-latest
+  outputs:
+   compose: ${{ steps.filter.outputs.compose }}
+  steps:
+   - uses: actions/checkout@v4
+   - uses: dorny/paths-filter@v3
+     id: filter
+     with:
+      filters: |
+       compose:
+        - 'docker-compose.yml'
+
  compose_validation:
+  needs: changes
+  if: needs.changes.outputs.compose == 'true'
   name: Validate Docker Compose
   runs-on: ubuntu-latest
   steps:
