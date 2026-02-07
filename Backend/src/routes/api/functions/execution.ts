@@ -13,9 +13,9 @@ export = new fileRouter.Path("/")
 		http
 			.ratelimit((limit) =>
 				limit
-					.hits(2)
-					.window(parseInt(env.RATELIMIT!) || 2000)
-					.penalty(1000)
+					.hits(5)
+					.window(parseInt(env.RATELIMIT!) || 0)
+					.penalty(400)
 			)
 			.onRequest(async (ctr) => {
 				const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
@@ -141,9 +141,9 @@ export = new fileRouter.Path("/")
 		http
 			.ratelimit((limit) =>
 				limit
-					.hits(2)
-					.window(parseInt(env.RATELIMIT!) || 2000)
-					.penalty(1000)
+					.hits(5)
+					.window(parseInt(env.RATELIMIT!) || 0)
+					.penalty(400)
 			)
 			.onRequest(async (ctr) => {
 				const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
@@ -267,9 +267,9 @@ export = new fileRouter.Path("/")
 		http
 			.ratelimit((limit) =>
 				limit
-					.hits(2)
-					.window(parseInt(env.RATELIMIT!) || 2000)
-					.penalty(1000)
+					.hits(5)
+					.window(parseInt(env.RATELIMIT!) || 0)
+					.penalty(400)
 			)
 			.onRequest(async (ctr) => {
 				const executionAlias = ctr.params.get("executionAlias") || "";
@@ -393,9 +393,9 @@ export = new fileRouter.Path("/")
 		http
 			.ratelimit((limit) =>
 				limit
-					.hits(2)
-					.window(parseInt(env.RATELIMIT!) || 2000)
-					.penalty(1000)
+					.hits(5)
+					.window(parseInt(env.RATELIMIT!) || 0)
+					.penalty(400)
 			)
 			.onRequest(async (ctr) => {
 				const executionAlias = ctr.params.get("executionAlias") || "";
@@ -517,9 +517,9 @@ export = new fileRouter.Path("/")
 		http
 			.ratelimit((limit) =>
 				limit
-					.hits(2)
-					.window(parseInt(env.RATELIMIT!) || 2000)
-					.penalty(1000)
+					.hits(5)
+					.window(parseInt(env.RATELIMIT!) || 0)
+					.penalty(400)
 			)
 			.onRequest(async (ctr) => {
 				const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
@@ -645,9 +645,9 @@ export = new fileRouter.Path("/")
 		http
 			.ratelimit((limit) =>
 				limit
-					.hits(2)
-					.window(parseInt(env.RATELIMIT!) || 2000)
-					.penalty(1000)
+					.hits(5)
+					.window(parseInt(env.RATELIMIT!) || 0)
+					.penalty(400)
 			)
 			.onRequest(async (ctr) => {
 				const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
