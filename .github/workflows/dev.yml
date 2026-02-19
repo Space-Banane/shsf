@@ -1,12 +1,12 @@
-name: Build Test
+name: DEV Build Test
 run-name: Build Test Workflow
 on:
  pull_request:
   branches:
-   - main
+   - dev
  push:
   branches:
-   - main
+   - dev
   paths:
    - "Backend/**"
    - "UI/**"
