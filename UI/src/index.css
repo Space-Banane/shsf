@@ -6,6 +6,13 @@ a:hover {
 	cursor: pointer;
 }
 
+/* Ensure the app background covers overscroll (trackpad bounce) */
+html, body, #root {
+	background-color: #121325;
+	min-height: 100%;
+}
+
+
 /* FrederickatheGreat-Regular.ttf */
 @font-face {
 	font-family: "FrederickatheGreat";
