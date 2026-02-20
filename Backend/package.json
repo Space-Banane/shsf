@@ -21,7 +21,7 @@
 		"lru-cache": "^11.2.2",
 		"prisma": "^6.18.0",
 		"rjweb-server": "^9.8.6",
-		"tar": "^7.5.7",
+		"tar": "^7.5.8",
 		"typescript": "^5.9.3",
 		"dotenv": "17.2.3"
 	},
