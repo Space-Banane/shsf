@@ -833,6 +833,24 @@ function FunctionDetail() {
 		loadInitialFile();
 	}, [functionData, files, activeFile]);
 
+	// Handle "preopen" query param to open a specific menu on load
+	useEffect(() => {
+		const params = new URLSearchParams(window.location.search);
+		const preopen = params.get("preopen");
+		if (preopen === "guests") {
+			setShowGuestModal(true);
+		} else {
+			console.warn("Unknown preopen value:", preopen);
+		}
+
+		// Clean up query params from URL after handling
+		return () => {
+			params.delete("preopen");
+			const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+			window.history.replaceState({}, "", newUrl);
+		};
+	}, []);
+
 	if (loading) {
 		return (
 			<div className="min-h-screen bg-background flex items-center justify-center">

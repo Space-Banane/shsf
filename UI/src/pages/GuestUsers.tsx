@@ -94,9 +94,21 @@ function GuestUserCard({
 							Permitted Functions:{" "}
 							{guest.permittedFunctions && guest.permittedFunctions.length > 0 ? (
 								<span className="font-semibold text-blue-400">
-									{functionNames[guest.id] && functionNames[guest.id].length > 0
-										? functionNames[guest.id].join(", ")
-										: guest.permittedFunctions.join(", ")}
+									{guest.permittedFunctions && guest.permittedFunctions.length > 0
+										? guest.permittedFunctions.map((fnId, idx) => (
+											<a
+												key={fnId}
+												href={`/functions/${fnId}?preopen=guests`}
+												target="_blank"
+												rel="noopener noreferrer"
+												className="underline hover:text-blue-300 mr-2"
+											>
+												{functionNames[guest.id] && functionNames[guest.id][idx]
+													? functionNames[guest.id][idx]
+													: fnId}
+											</a>
+										))
+										: null}
 								</span>
 							) : (
 								<span className="text-text/40">None</span>
