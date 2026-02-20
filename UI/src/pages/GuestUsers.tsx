@@ -99,7 +99,6 @@ function GuestUserCard({
 											<a
 												key={fnId}
 												href={`/functions/${fnId}?preopen=guests`}
-												target="_blank"
 												rel="noopener noreferrer"
 												className="underline hover:text-blue-300 mr-2"
 											>
