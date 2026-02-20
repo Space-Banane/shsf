@@ -51,7 +51,7 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
 			ctr.skipRateLimit();
 		}
 
-		// Get Cors header
+		// Get origin from headers
 		const origin = ctr.headers.get("origin");
 
 		// Validate origin first, regardless of method
