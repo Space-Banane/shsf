@@ -12,7 +12,7 @@
 		"@types/dockerode": "^3.3.45",
 		"@types/node": "^22.18.13",
 		"@types/nodemailer": "^6.4.21",
-		"axios": "^1.13.1",
+		"axios": "^1.13.5",
 		"bcrypt": "^5.1.1",
 		"cron-parser": "^5.4.0",
 		"dockerode": "^4.0.9",
@@ -21,7 +21,7 @@
 		"lru-cache": "^11.2.2",
 		"prisma": "^6.18.0",
 		"rjweb-server": "^9.8.6",
-		"tar": "^7.5.7",
+		"tar": "^7.5.8",
 		"typescript": "^5.9.3",
 		"dotenv": "17.2.3"
 	},
