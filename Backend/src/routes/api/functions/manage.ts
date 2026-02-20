@@ -1,16 +1,9 @@
 import { randomUUID } from "crypto";
-import {
-	API_KEY_HEADER,
-	COOKIE,
-	fileRouter,
-	prisma,
-} from "../../..";
+import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
-import {
-	cleanupFunctionContainer,
-	executeFunction,
-} from "../../../lib/Runner";
+import { cleanupFunctionContainer, executeFunction } from "../../../lib/Runner";
 import Docker from "dockerode";
+import { getFirstFileByLanguage } from "../../../lib/LangOps";
 
 const Images: string[] = [
 	// Python versions
@@ -65,12 +58,12 @@ export = new fileRouter.Path("/")
 									name: z.string().min(1).max(128),
 									value: z.string().min(1).max(256),
 								})
-								.optional()
+								.optional(),
 						)
 						.optional(),
 					namespaceId: z.number(),
 					cors_origins: z.string().max(2048).optional(), // Accept CORS origins as string
-				})
+				}),
 			);
 
 			if (!data) {
@@ -89,7 +82,7 @@ export = new fileRouter.Path("/")
 
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER)
+				ctr.headers.get(API_KEY_HEADER),
 			);
 
 			if (!authCheck.success) {
@@ -160,8 +153,8 @@ export = new fileRouter.Path("/")
 								data.environment.map((env) => ({
 									name: env!.name,
 									value: env!.value,
-								}))
-						  )
+								})),
+							)
 						: undefined,
 					userId: authCheck.user.id,
 					executionId: randomUUID(),
@@ -169,6 +162,12 @@ export = new fileRouter.Path("/")
 					ffmpeg_install: data.ffmpeg_install || false,
 					cors_origins: data.cors_origins,
 					executionAlias: data.executionAlias,
+					files: { // create first file when function is created.
+						create: {
+							name: data.startup_file,
+							content: (await getFirstFileByLanguage(data.image.split(":")[0])) ?? "",
+						},
+					},
 				},
 			});
 
@@ -178,13 +177,13 @@ export = new fileRouter.Path("/")
 					id: out.id,
 				},
 			});
-		})
+		}),
 	)
 	.http("DELETE", "/api/function/{id}", (http) =>
 		http.onRequest(async (ctr) => {
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER)
+				ctr.headers.get(API_KEY_HEADER),
 			);
 
 			if (!authCheck.success) {
@@ -236,13 +235,13 @@ export = new fileRouter.Path("/")
 				status: "OK",
 				message: "Function deleted",
 			});
-		})
+		}),
 	)
 	.http("GET", "/api/functions", (http) =>
 		http.onRequest(async (ctr) => {
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER)
+				ctr.headers.get(API_KEY_HEADER),
 			);
 
 			if (!authCheck.success) {
@@ -270,13 +269,13 @@ export = new fileRouter.Path("/")
 				status: "OK",
 				data: functions,
 			});
-		})
+		}),
 	)
 	.http("GET", "/api/function/{id}", (http) =>
 		http.onRequest(async (ctr) => {
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER)
+				ctr.headers.get(API_KEY_HEADER),
 			);
 
 			if (!authCheck.success) {
@@ -326,13 +325,13 @@ export = new fileRouter.Path("/")
 				status: "OK",
 				data: functionData,
 			});
-		})
+		}),
 	)
 	.http("GET", "/api/function/{id}/logs", (http) =>
 		http.onRequest(async (ctr) => {
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER)
+				ctr.headers.get(API_KEY_HEADER),
 			);
 
 			if (!authCheck.success) {
@@ -379,7 +378,7 @@ export = new fileRouter.Path("/")
 				status: "OK",
 				data: logs,
 			});
-		})
+		}),
 	)
 	.http("PATCH", "/api/function/{id}", (http) =>
 		http.onRequest(async (ctr) => {
@@ -430,11 +429,11 @@ export = new fileRouter.Path("/")
 									name: z.string().min(1).max(128),
 									value: z.string().min(1).max(256),
 								})
-								.optional()
+								.optional(),
 						)
 						.optional(),
 					cors_origins: z.string().max(2048).optional(),
-				})
+				}),
 			);
 
 			if (!data) {
@@ -446,7 +445,7 @@ export = new fileRouter.Path("/")
 
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER)
+				ctr.headers.get(API_KEY_HEADER),
 			);
 
 			if (!authCheck.success) {
@@ -514,7 +513,7 @@ export = new fileRouter.Path("/")
 						data.environment.map((env) => ({
 							name: env!.name,
 							value: env!.value,
-						}))
+						})),
 					),
 				}),
 				...(data.docker_mount !== undefined && {
@@ -554,21 +553,21 @@ export = new fileRouter.Path("/")
 					if (containers.length > 0) {
 						if (data.image && data.image !== existingFunction.image) {
 							console.log(
-								`[SHSF] Function ${functionId} image changing from ${existingFunction.image} to ${data.image}, container will be recreated`
+								`[SHSF] Function ${functionId} image changing from ${existingFunction.image} to ${data.image}, container will be recreated`,
 							);
 						} else if (
 							data.docker_mount !== undefined &&
 							data.docker_mount !== existingFunction.docker_mount
 						) {
 							console.log(
-								`[SHSF] Function ${functionId} docker_mount changing from ${existingFunction.docker_mount} to ${data.docker_mount}, container will be recreated`
+								`[SHSF] Function ${functionId} docker_mount changing from ${existingFunction.docker_mount} to ${data.docker_mount}, container will be recreated`,
 							);
 						} else if (
 							data.ffmpeg_install !== undefined &&
 							data.ffmpeg_install !== existingFunction.ffmpeg_install
 						) {
 							console.log(
-								`[SHSF] Function ${functionId} ffmpeg_install changing from ${existingFunction.ffmpeg_install} to ${data.ffmpeg_install}, container will be recreated`
+								`[SHSF] Function ${functionId} ffmpeg_install changing from ${existingFunction.ffmpeg_install} to ${data.ffmpeg_install}, container will be recreated`,
 							);
 						}
 						// Clean up existing container to force recreation with new image, docker_mount, or ffmpeg_install change
@@ -578,7 +577,7 @@ export = new fileRouter.Path("/")
 				} catch (err) {
 					console.error(
 						`[SHSF] Error checking/cleaning up container for function ${functionId}:`,
-						err
+						err,
 					);
 				}
 			}
@@ -607,7 +606,7 @@ export = new fileRouter.Path("/")
 			};
 
 			return ctr.print(response);
-		})
+		}),
 	)
 	.http("POST", "/api/function/{id}/execute", (http) =>
 		http.onRequest(async (ctr) => {
@@ -632,7 +631,7 @@ export = new fileRouter.Path("/")
 					.object({
 						run: z.any().optional(),
 					})
-					.optional()
+					.optional(),
 			);
 
 			// Convert run data to string for passing to executeFunction
@@ -669,7 +668,7 @@ export = new fileRouter.Path("/")
 
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER)
+				ctr.headers.get(API_KEY_HEADER),
 			);
 
 			if (!authCheck.success) {
@@ -714,7 +713,7 @@ export = new fileRouter.Path("/")
 												JSON.stringify({
 													type: "output",
 													content: text,
-												})
+												}),
 											);
 										},
 									},
@@ -723,7 +722,7 @@ export = new fileRouter.Path("/")
 										...(typeof runPayload === "object" && runPayload !== null
 											? runPayload
 											: {}),
-									})
+									}),
 								)
 									.then(async (result) => {
 										// Successfully completed - include result if available
@@ -734,7 +733,7 @@ export = new fileRouter.Path("/")
 												output: output,
 												result: result?.result,
 												took: result?.tooks,
-											})
+											}),
 										);
 										end();
 									})
@@ -744,7 +743,7 @@ export = new fileRouter.Path("/")
 											JSON.stringify({
 												type: "error",
 												error: error.message || "Execution failed",
-											})
+											}),
 										);
 										end();
 									});
@@ -753,7 +752,7 @@ export = new fileRouter.Path("/")
 									// Handle abort, nothing specific needed as Runner.ts handles cleanup
 									end();
 								});
-							})
+							}),
 					);
 				} else {
 					// Synchronous mode
@@ -767,7 +766,7 @@ export = new fileRouter.Path("/")
 							...(typeof runPayload === "object" && runPayload !== null
 								? runPayload
 								: {}),
-						})
+						}),
 					);
 
 					return ctr.print({
@@ -793,5 +792,5 @@ export = new fileRouter.Path("/")
 					error: error.message,
 				});
 			}
-		})
+		}),
 	);
