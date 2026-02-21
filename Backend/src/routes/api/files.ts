@@ -111,6 +111,29 @@ export = new fileRouter.Path("/")
 				});
 			}
 
+			// Also write the file to the host function app directory so persistent containers
+			// that use a bind mount will see the changes.
+			const funcAppDir = path.join(
+				"/opt/shsf_data/functions",
+				String(functionId),
+				"app",
+			);
+			try {
+				await fs.mkdir(funcAppDir, { recursive: true });
+				await fs.writeFile(path.join(funcAppDir, data.filename), data.code, {
+					encoding: "utf-8",
+				});
+				console.log(
+					`[SHSF] Wrote updated file to host app dir: ${path.join(funcAppDir, data.filename)}`,
+				);
+			} catch (err) {
+				console.error(`[SHSF] Failed to write updated file to host:`, err);
+			}
+
+			console.log(
+				`[SHSF] Updated host file for function ${functionId}: ${path.join(funcAppDir, data.filename)}`,
+			);
+
 			return ctr.print({
 				status: "OK",
 				data: out,
