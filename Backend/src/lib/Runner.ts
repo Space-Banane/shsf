@@ -533,18 +533,21 @@ export async function executeFunction(
 ) {
 	const starting_time = Date.now();
 	const tooks: TimingEntry[] = [];
-	let func_result: string = ""; // Stores the JSON string result from the function
-	let logs: string = ""; // Stores logs from the function execution
+	let func_result: string = "";
+	let logs: string = "";
 
-	const recordTiming = (() => {
-		let lastTimestamp = starting_time;
-		return (description: string) => {
-			const currentTimestamp = Date.now();
-			const value = (currentTimestamp - lastTimestamp) / 1000;
-			tooks.push({ timestamp: currentTimestamp, value, description });
-			console.log(`[SHSF CRONS] ${description}: ${value.toFixed(3)} seconds`);
-		};
-	})();
+	// mark() — records a user-facing timing phase into tooks
+	let _lastMark = starting_time;
+	const mark = (description: string) => {
+		const now = Date.now();
+		const value = (now - _lastMark) / 1000;
+		tooks.push({ timestamp: now, value, description });
+		_lastMark = now;
+		console.log(`[SHSF] ${description}: ${value.toFixed(3)}s`);
+	};
+
+	// log() — internal console-only trace, does NOT appear in tooks
+	const log = (msg: string) => console.log(`[SHSF] ${msg}`);
 
 	// Serve Only HTML (serve-only)
 	if (functionData.startup_file?.endsWith(".html")) {
@@ -570,13 +573,11 @@ export async function executeFunction(
 	}
 
 	const docker = new Docker();
-	let dbAccessToken = ""; // Keep for cleanup logic, but won't be deleted anymore
 	const functionIdStr = String(functionData.id);
 	const containerName = `shsf_func_${functionIdStr}`;
-	// Persistent directory on the host for this function's app files
 	const funcAppDir = path.join("/opt/shsf_data/functions", functionIdStr, "app");
 	const runtimeType = functionData.image.split(":")[0];
-	let exitCode = 0; // Default exit code
+	let exitCode = 0;
 
 	// Generate a unique execution ID for this request to avoid race conditions
 	// Use crypto.randomUUID() for better uniqueness if available, otherwise fallback
@@ -599,24 +600,17 @@ export async function executeFunction(
 
 	try {
 		let container = docker.getContainer(containerName);
-		let containerJustCreated = false;
 
-		// Ensure function app directory exists
 		await fs.mkdir(funcAppDir, { recursive: true });
-
-		// Create unique execution directory for this request
 		await fs.mkdir(executionDir, { recursive: true });
-		recordTiming("Created unique execution directory");
 
-		// Always update the user files regardless of container state
-		recordTiming("Updating function files");
 		await Promise.all(
 			files.map(async (file) => {
 				const filePath = path.join(funcAppDir, file.name);
 				await fs.writeFile(filePath, file.content);
 			})
 		);
-		recordTiming("User files written to host app directory");
+		mark(`Write user files (${files.length})`);
 
 		// For Go runtime, generate the runner wrapper file and go.mod if needed
 		if (runtimeType === "golang") {
@@ -689,16 +683,12 @@ func main() {
 }
 `;
 			await fs.writeFile(path.join(funcAppDir, "shsf_runner.go"), runnerWrapperCode);
-			
-			// Generate go.mod if it doesn't exist
+
 			const goModPath = path.join(funcAppDir, "go.mod");
 			if (!fsSync.existsSync(goModPath)) {
-				const goModContent = `module shsf_function_${functionData.id}\n\ngo 1.23\n`;
-				await fs.writeFile(goModPath, goModContent);
-				recordTiming("Generated default go.mod file");
+				await fs.writeFile(goModPath, `module shsf_function_${functionData.id}\n\ngo 1.23\n`);
 			}
-			
-			recordTiming("Go runner wrapper (shsf_runner.go) written to host app directory");
+			log("Go runner wrapper written");
 		}
 
 		// Always generate/update the runner script to accept payload file path as argument
@@ -800,9 +790,7 @@ PYTHON_SCRIPT_EOF
 `;
 			await fs.writeFile(wrapperPath, wrapperContent);
 			await fs.chmod(wrapperPath, "755");
-			recordTiming(
-				"Python runner script (_runner.py) written to host app directory"
-			);
+			log("Python runner script written");
 		} else if (runtimeType === "golang") {
 			const wrapperPath = path.join(funcAppDir, "_runner.sh");
 			const wrapperContent = `#!/bin/sh
@@ -819,9 +807,7 @@ fi
 `;
 			await fs.writeFile(wrapperPath, wrapperContent);
 			await fs.chmod(wrapperPath, "755");
-			recordTiming(
-				"Go runner script (_runner.sh) written to host app directory"
-			);
+			log("Go runner script written");  // intermediate — mark fires after init.sh below
 		} else {
 			console.warn(
 				`[executeFunction] Runner script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`
@@ -976,49 +962,33 @@ echo "[SHSF INIT] Go setup complete."
 			"\necho '[SHSF INIT] Environment setup finished successfully.'\n";
 		await fs.writeFile(path.join(funcAppDir, "init.sh"), initScript);
 		await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
-		recordTiming("init.sh script generated on host");
+		mark("Generate scripts"); // runner script(s) + init.sh
 
-		// Check if any file contains _db_com, and if so, setup DB communication
-		const requiresDbCom = files.some((file) => file.content.includes("_db_com"));
+		const requiresDbCom = files.some((f) => f.content.includes("_db_com"));
 		if (requiresDbCom) {
-			// Get or create a shared 24-hour token for this user's functions
-			dbAccessToken = await getOrCreateFunctionDbToken(functionData.userId);
-			recordTiming("Database access token retrieved/created");
-
-			// Add Database Communication Script based on runtime
+			const dbToken = await getOrCreateFunctionDbToken(functionData.userId);
 			if (runtimeType === "python") {
-				const dbScript = DbComScriptPY.replace("{{API}}", API_URL!).replace(
-					"{{AUTHKEY}}",
-					dbAccessToken
-				);
+				const dbScript = DbComScriptPY.replace("{{API}}", API_URL!).replace("{{AUTHKEY}}", dbToken);
 				await fs.writeFile(path.join(funcAppDir, "_db_com.py"), dbScript);
 				await fs.chmod(path.join(funcAppDir, "_db_com.py"), "755");
-				recordTiming("Database communication script (Python) generated on host");
 			} else if (runtimeType === "golang") {
-				const dbScript = DbComScriptGO.replace("{{API}}", API_URL!).replace(
-					"{{AUTHKEY}}",
-					dbAccessToken
-				);
+				const dbScript = DbComScriptGO.replace("{{API}}", API_URL!).replace("{{AUTHKEY}}", dbToken);
 				await fs.writeFile(path.join(funcAppDir, "_db_com.go"), dbScript);
 				await fs.chmod(path.join(funcAppDir, "_db_com.go"), "755");
-				recordTiming("Database communication script (Golang) generated on host");
 			}
+			mark("DB token + script");
 		}
 
 		try {
 			const inspectInfo = await container.inspect();
 			if (!inspectInfo.State.Running) {
-				recordTiming("Starting existing stopped container");
 				await container.start();
-				recordTiming("Container started");
+				mark("Container start");
 			} else {
-				recordTiming("Found existing running container");
+				log("Reusing running container");
 			}
-			
-			// For existing containers, ensure init.sh runs again to rebuild if needed
-			// This ensures Go binaries are always up-to-date
+
 			if (runtimeType === "golang") {
-				recordTiming("Running init.sh on existing container");
 				const initExec = await container.exec({
 					Cmd: ["/bin/sh", "/app/init.sh"],
 					AttachStdout: true,
@@ -1038,31 +1008,25 @@ echo "[SHSF INIT] Go setup complete."
 				});
 				
 				docker.modem.demuxStream(initStream, initStdout, initStderr);
-				
+
 				await new Promise<void>((resolve) => {
 					initStream.on("end", resolve);
 				});
-				
-				console.log("[SHSF Init Output]:", initOutput.stderr);
-				recordTiming("Init script executed on existing container");
+
+				log(`Init output: ${initOutput.stderr}`);
+				mark("Go init/rebuild");
 			}
 		} catch (error: any) {
 			if (error.statusCode === 404) {
-				// Container not found, create it
-				containerJustCreated = true;
-				recordTiming("Container not found, preparing for creation");
+				log("Container not found — creating");
 
-				// Cache directories setup on host (ensure these base paths exist)
-				const baseCacheDir = "/opt/shsf_data/cache"; // Centralized cache on host
-				await fs.mkdir(baseCacheDir, { recursive: true });
+				const baseCacheDir = "/opt/shsf_data/cache";
 				const pipCacheHost = path.join(baseCacheDir, "pip");
 				const goCacheHost = path.join(baseCacheDir, "go");
-
 				await Promise.all([
 					fs.mkdir(pipCacheHost, { recursive: true }),
-					fs.mkdir(goCacheHost, { recursive: true })
+					fs.mkdir(goCacheHost, { recursive: true }),
 				]);
-				recordTiming("Host cache directories ensured");
 
 				// Mount the base function directory which contains both app/ and executions/
 				const funcBaseDir = path.join("/opt/shsf_data/functions", functionIdStr);
@@ -1086,28 +1050,24 @@ echo "[SHSF INIT] Go setup complete."
 					);
 				}
 
-				// Image pull logic (same as original)
-				const imageStart = Date.now();
-				let imagePulled = false;
 				try {
 					const imageExists = await docker.listImages({
 						filters: JSON.stringify({ reference: [functionData.image] }),
 					});
 					if (imageExists.length === 0) {
-						imagePulled = true;
-						recordTiming("Pulling image: " + functionData.image);
+						log(`Pulling image: ${functionData.image}`);
 						const pullStream = await docker.pull(functionData.image);
 						await new Promise((resolve, reject) => {
 							docker.modem.followProgress(pullStream, (err) =>
 								err ? reject(err) : resolve(null)
 							);
 						});
+						mark("Image pull");
 					}
 				} catch (imgError) {
 					console.error("Error checking or pulling image:", imgError);
 					throw imgError;
 				}
-				recordTiming(imagePulled ? "Image pull complete" : "Image check complete");
 
 				const initialEnv = functionData.env
 					? JSON.parse(functionData.env).map(
@@ -1121,20 +1081,18 @@ echo "[SHSF INIT] Go setup complete."
 					Env: initialEnv,
 					HostConfig: {
 						Binds: BINDS,
-						AutoRemove: false, // CRITICAL: Container is persistent
+						AutoRemove: false,
 						Memory: (functionData.max_ram || 128) * 1024 * 1024,
 					},
-					// Run init.sh once, then keep container alive
 					Cmd: [
 						"/bin/sh",
 						"-c",
-						"/app/init.sh && echo '[SHSF] Container initialized and idling.' && tail -f /dev/null",
+						"/app/init.sh && echo '[SHSF] Container ready.' && tail -f /dev/null",
 					],
-					Tty: false, // No TTY needed for background container
+					Tty: false,
 				});
-				recordTiming("Container created");
 				await container.start();
-				recordTiming("New container started after init");
+				mark("Container start + init");
 			} else {
 				// Some other error inspecting container
 				throw error;
@@ -1144,12 +1102,9 @@ echo "[SHSF INIT] Go setup complete."
 		// At this point, container is running (either existing or newly created and initialized)
 		// Now, execute the function logic using docker exec
 
-		// Write payload to a unique file for this execution to avoid race conditions
-		const payloadFilePath = path.join(executionDir, "payload.json");
-		await fs.writeFile(payloadFilePath, payload);
-		recordTiming("Payload written to unique execution file");
+		await fs.writeFile(path.join(executionDir, "payload.json"), payload);
 
-		const execEnv: string[] = []; // Remove RUN_DATA from env
+		const execEnv: string[] = [];
 		// Add function-specific env vars to exec as well, in case they are needed by the runner script directly
 		// and not just by the init.sh environment.
 		if (functionData.env) {
@@ -1185,10 +1140,8 @@ echo "[SHSF INIT] Go setup complete."
 			AttachStderr: true,
 			Tty: false,
 		});
-		recordTiming("Exec created");
-
 		const execStream = await exec.start({ hijack: true, stdin: false });
-		recordTiming("Exec started");
+		mark("Exec started");
 
 		const execOutput = { stdout: "", stderr: "" };
 		const MAX_OUTPUT_SIZE = 3 * 1024 * 1024; // 3MB limit to stay under Docker's 4MB limit
@@ -1284,7 +1237,7 @@ echo "[SHSF INIT] Go setup complete."
 			exitCode = -1;
 			func_result = "";
 		}
-		recordTiming("Container execution via exec finished");
+		mark("Exec finished");
 		// Process result if successful
 		let parsedResult: any = null;
 		if (exitCode === 0 && func_result) {
@@ -1337,11 +1290,8 @@ echo "[SHSF INIT] Go setup complete."
 		tooks.push({
 			timestamp: Date.now(),
 			value: (Date.now() - starting_time) / 1000,
-			description: "Total execution time (including potential setup)",
+			description: "Total",
 		});
-
-		// No longer revoke the token after execution - it's shared and long-lived
-		// Token will expire automatically after 24 hours
 
 		return {
 			logs,
@@ -1350,11 +1300,7 @@ echo "[SHSF INIT] Go setup complete."
 			exit_code: exitCode,
 		};
 	} catch (error: any) {
-		console.error(
-			`[executeFunction] Critical error during execution of function ${id}:`,
-			error
-		);
-		recordTiming("Critical error occurred");
+		console.error(`[executeFunction] Critical error for function ${id}:`, error);
 		tooks.push({
 			timestamp: Date.now(),
 			value: (Date.now() - starting_time) / 1000,
@@ -1367,40 +1313,22 @@ echo "[SHSF INIT] Go setup complete."
 			exit_code: error.statusCode || -3, // Custom code for unhandled errors
 		};
 	} finally {
-		recordTiming("Finalizing execution log");
-
-		// Clean up the unique execution directory
 		try {
 			await fs.rm(executionDir, { recursive: true, force: true });
-			recordTiming("Cleaned up execution directory");
+			mark("Cleanup");
 		} catch (cleanupError: any) {
-			if (cleanupError.code === "EACCES") {
+			if (cleanupError.code !== "ENOENT") {
 				console.error(
-					`[executeFunction] Permission denied when cleaning up execution directory ${executionDir}:`,
-					cleanupError
-				);
-			} else if (cleanupError.code === "EBUSY") {
-				console.error(
-					`[executeFunction] Directory in use, could not clean up execution directory ${executionDir}:`,
-					cleanupError
-				);
-			} else {
-				console.error(
-					`[executeFunction] Error cleaning up execution directory ${executionDir}:`,
-					cleanupError
+					`[executeFunction] Cleanup failed (${cleanupError.code}) for ${executionDir}:`,
+					cleanupError.message
 				);
 			}
 		}
 
-		// Container and funcAppDir are not removed here as they are persistent.
-		// Cleanup of old/unused containers/directories would be a separate process/tool.
-
 		console.log(
-			`[SHSF CRONS] Function ${functionData.id} (${
-				functionData.name
-			}) processed. Resulting exit code: ${exitCode}. Total time: ${
-				(Date.now() - starting_time) / 1000
-			} seconds`
+			`[SHSF] fn#${functionData.id} (${functionData.name}) done — exit ${exitCode}, total ${
+				((Date.now() - starting_time) / 1000).toFixed(3)
+			}s`
 		);
 
 		try {
