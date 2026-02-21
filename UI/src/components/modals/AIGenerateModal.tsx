@@ -211,6 +211,29 @@ function AIGenerateModal({
 						</div>
 					</div>
 
+					{/* Kickoff warning notice */}
+					<div
+						className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-xs"
+						style={{
+							background: "rgba(234,179,8,0.07)",
+							border: "1px solid rgba(234,179,8,0.2)",
+							color: "#fde68a",
+						}}
+					>
+						<svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+							<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+							<line x1="12" y1="9" x2="12" y2="13" />
+							<line x1="12" y1="17" x2="12.01" y2="17" />
+						</svg>
+						<span className="text-yellow-200/70">
+							{mode === "kickoff" ? (
+								<><span className="font-bold text-yellow-300">Kickoff</span> generates files from scratch and may produce incorrect or incomplete code. Always review the output before running.</>
+							) : (
+								<><span className="font-bold text-yellow-300">Revision</span> modifies existing files and may introduce unintended changes. Always review the output before running.</>
+							)}
+						</span>
+					</div>
+
 					{/* Revision: file selector */}
 					{mode === "revision" && (
 						<div>
