@@ -4,6 +4,60 @@ import { checkAuthentication } from "../../../lib/Authentication";
 import { cleanupFunctionContainer } from "../../../lib/Runner";
 
 export = new fileRouter.Path("/")
+	.http("PATCH", "/api/account/settings", (http) =>
+		http
+			.ratelimit((limit) => limit.hits(10).window(60000).penalty(5000))
+			.onRequest(async (ctr) => {
+				const authCheck = await checkAuthentication(
+					ctr.cookies.get(COOKIE),
+					ctr.headers.get(API_KEY_HEADER),
+				);
+
+				if (!authCheck.success) {
+					return ctr.status(ctr.$status.UNAUTHORIZED).print({
+						status: "FAILED",
+						message: authCheck.message,
+					});
+				}
+
+				const [data, error] = await ctr.bindBody((z) =>
+					z.object({
+						openRouterKey: z.string().max(512).nullable().optional(),
+					}),
+				);
+
+				if (!data) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: "FAILED",
+						message: error.toString(),
+					});
+				}
+
+				const updatePayload: any = {};
+				if (data.openRouterKey !== undefined) {
+					// null clears the key, empty string also clears it
+					updatePayload.openRouterKey =
+						data.openRouterKey === "" ? null : data.openRouterKey;
+				}
+
+				if (Object.keys(updatePayload).length === 0) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: "FAILED",
+						message: "No settings to update",
+					});
+				}
+
+				await prisma.user.update({
+					where: { id: authCheck.user.id },
+					data: updatePayload,
+				});
+
+				return ctr.print({
+					status: "OK",
+					message: "Settings updated successfully",
+				});
+			}),
+	)
 	.http("GET", "/api/account/export", (http) =>
 		http
 			.ratelimit((limit) => limit.hits(5).window(60000).penalty(10000))

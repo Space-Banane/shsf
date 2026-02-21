@@ -13,6 +13,7 @@ import UpdateEnvModal from "../../components/modals/UpdateEnvModal";
 import TriggerLogsModal from "../../components/modals/TriggerLogsModal";
 import GuestManagement from "../../components/modals/GuestManagement";
 import LoadDefaultModal from "../../components/modals/LoadDefaultModal";
+import AIGenerateModal from "../../components/modals/AIGenerateModal";
 import {
 	FunctionFile,
 	XFunction,
@@ -131,6 +132,7 @@ function FunctionDetail() {
 	} | null>(null);
 	const [showGuestModal, setShowGuestModal] = useState(false);
 	const [showLoadDefaultModal, setShowLoadDefaultModal] = useState(false);
+	const [showAIModal, setShowAIModal] = useState(false);
 
 	useEffect(() => {
 		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
@@ -1175,6 +1177,7 @@ function FunctionDetail() {
 								setSelectedFile(file);
 								setShowDeleteModal(true);
 							}}
+							onAIGenerate={() => setShowAIModal(true)}
 						/>
 
 						<TriggersCard
@@ -1464,6 +1467,22 @@ function FunctionDetail() {
 					onClose={() => setShowLoadDefaultModal(false)}
 					onLoadDefault={handleLoadDefaultContent}
 					functionLanguage={functionData?.image}
+				/>
+
+				<AIGenerateModal
+					isOpen={showAIModal}
+					onClose={() => setShowAIModal(false)}
+					functionId={functionData?.id ?? 0}
+					existingFiles={files}
+					onSuccess={() => {
+						if (id) {
+							getFiles(parseInt(id)).then((filesData) => {
+								if (filesData.status === "OK") {
+									setFiles(filesData.data);
+								}
+							});
+						}
+					}}
 				/>
 			</div>
 		</div>

@@ -20,6 +20,8 @@ model User {
 
   password String? @db.VarChar(256)
 
+  openRouterKey String? @db.VarChar(512) // User-supplied OpenRouter API key for AI features
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

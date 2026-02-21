@@ -1,6 +1,6 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { UserContext } from "../App";
-import { deleteAccount, exportAccountData } from "../services/backend.account";
+import { deleteAccount, exportAccountData, updateAccountSettings } from "../services/backend.account";
 
 export const AccountPage = ({}) => {
 	const { user, refreshUser, loading } = useContext(UserContext);
@@ -9,6 +9,41 @@ export const AccountPage = ({}) => {
 	const [deleteLoading, setDeleteLoading] = useState(false);
 	const [deleteError, setDeleteError] = useState("");
 	const [exportLoading, setExportLoading] = useState(false);
+
+	// AI Settings state
+	const [openRouterKey, setOpenRouterKey] = useState<string>("");
+	const [openRouterKeyInitialized, setOpenRouterKeyInitialized] = useState(false);
+	const [aiSettingsSaving, setAiSettingsSaving] = useState(false);
+	const [aiSettingsMessage, setAiSettingsMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+	const [showKey, setShowKey] = useState(false);
+
+	// Sync key from user object when user is first loaded
+	useEffect(() => {
+		if (user && !openRouterKeyInitialized) {
+			setOpenRouterKey(user.openRouterKey ?? "");
+			setOpenRouterKeyInitialized(true);
+		}
+	}, [user, openRouterKeyInitialized]);
+
+	const handleSaveAiSettings = async () => {
+		setAiSettingsSaving(true);
+		setAiSettingsMessage(null);
+		try {
+			const result = await updateAccountSettings({
+				openRouterKey: openRouterKey.trim() === "" ? null : openRouterKey.trim(),
+			});
+			if (result.status === "OK") {
+				setAiSettingsMessage({ type: "ok", text: "API key saved successfully" });
+				refreshUser();
+			} else {
+				setAiSettingsMessage({ type: "err", text: result.message });
+			}
+		} catch {
+			setAiSettingsMessage({ type: "err", text: "An error occurred while saving" });
+		} finally {
+			setAiSettingsSaving(false);
+		}
+	};
 
 	const handleDeleteAccount = async () => {
 		if (deleteConfirmation !== "DELETE_MY_ACCOUNT") {
@@ -134,6 +169,79 @@ export const AccountPage = ({}) => {
 										}
 										subtitle="Account creation date"
 									/>
+								</div>
+							</div>
+						</div>
+
+						{/* AI Settings Card */}
+						<div className="lg:col-span-2">
+							<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-2xl p-8 hover:border-primary/40 hover:shadow-[0_0_30px_rgba(124,131,253,0.1)] transition-all duration-300">
+								<h2 className="text-2xl font-bold text-primary mb-2 flex items-center gap-3">
+									<div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
+										🤖
+									</div>
+									AI Settings
+								</h2>
+								<p className="text-text/50 text-sm mb-6">
+									Provide your own{" "}
+									<a
+										href="https://openrouter.ai/keys"
+										target="_blank"
+										rel="noreferrer"
+										className="text-primary/70 hover:text-primary underline underline-offset-2"
+									>
+										OpenRouter API key
+									</a>{" "}
+									to enable AI-powered code generation for your functions. Your key is
+									stored securely and used only for your requests.
+								</p>
+
+								<div className="space-y-4">
+									<div>
+										<label className="block text-text/70 text-sm font-medium mb-2">
+											OpenRouter API Key
+										</label>
+										<div className="flex gap-2">
+											<input
+												type={showKey ? "text" : "password"}
+												value={openRouterKey}
+												onChange={(e) => setOpenRouterKey(e.target.value)}
+												placeholder="sk-or-…"
+												className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text font-mono text-sm focus:border-primary/50 focus:outline-none placeholder:text-text/30"
+											/>
+											<button
+												onClick={() => setShowKey((v) => !v)}
+												className="px-3 py-3 bg-background/50 border border-primary/20 rounded-lg text-text/60 hover:text-text hover:border-primary/40 transition-all duration-300"
+												title={showKey ? "Hide key" : "Show key"}
+											>
+												{showKey ? "🙈" : "👁️"}
+											</button>
+										</div>
+										<p className="text-text/40 text-xs mt-1">
+											Leave blank to remove the key. With no key set, AI features depend on
+											the server-level configuration.
+										</p>
+									</div>
+
+									{aiSettingsMessage && (
+										<div
+											className={`p-3 rounded-lg text-sm border ${
+												aiSettingsMessage.type === "ok"
+													? "bg-green-500/10 border-green-500/30 text-green-300"
+													: "bg-red-500/10 border-red-500/30 text-red-300"
+											}`}
+										>
+											{aiSettingsMessage.text}
+										</div>
+									)}
+
+									<button
+										onClick={handleSaveAiSettings}
+										disabled={aiSettingsSaving}
+										className="px-6 py-2.5 bg-primary/20 border border-primary/30 rounded-lg text-primary font-semibold hover:bg-primary/30 hover:border-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+									>
+										{aiSettingsSaving ? "Saving…" : "Save AI Settings"}
+									</button>
 								</div>
 							</div>
 						</div>

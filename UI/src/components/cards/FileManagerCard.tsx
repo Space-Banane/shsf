@@ -8,6 +8,7 @@ export function FileManagerCard({
 	onCreateFile,
 	onRenameFile,
 	onDeleteFile,
+	onAIGenerate,
 }: {
 	files: FunctionFile[];
 	activeFile: FunctionFile | null;
@@ -15,6 +16,7 @@ export function FileManagerCard({
 	onCreateFile: () => void;
 	onRenameFile: (file: FunctionFile) => void;
 	onDeleteFile: (file: FunctionFile) => void;
+	onAIGenerate?: () => void;
 }) {
 	return (
 		<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4">
@@ -74,6 +76,34 @@ export function FileManagerCard({
 				variant="primary"
 				onClick={onCreateFile}
 			/>
+			{onAIGenerate && (
+				<button
+					onClick={onAIGenerate}
+					className="w-full mt-2 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-widest transition-all duration-200"
+					style={{
+						background:
+							"linear-gradient(135deg,rgba(99,102,241,0.18),rgba(139,92,246,0.12))",
+						border: "1px solid rgba(99,102,241,0.3)",
+						color: "#a5b4fc",
+					}}
+					onMouseEnter={(e) => {
+						(e.currentTarget as HTMLButtonElement).style.boxShadow =
+							"0 0 14px rgba(99,102,241,0.3)";
+						(e.currentTarget as HTMLButtonElement).style.borderColor =
+							"rgba(99,102,241,0.55)";
+					}}
+					onMouseLeave={(e) => {
+						(e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
+						(e.currentTarget as HTMLButtonElement).style.borderColor =
+							"rgba(99,102,241,0.3)";
+					}}
+				>
+					<svg className="w-3.5 h-3.5 text-orange-400 fill-orange-400" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+						<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+					</svg>
+					KICKOFF
+				</button>
+			)}
 		</div>
 	);
 }

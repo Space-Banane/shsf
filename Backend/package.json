@@ -5,6 +5,7 @@
 	"private": true,
 	"license": "MIT-0",
 	"dependencies": {
+		"@openrouter/sdk": "^0.8.0",
 		"@prisma/client": "^6.19.2",
 		"@rjweb/runtime-node": "^1.1.1",
 		"@rjweb/utils": "^1.12.29",

@@ -62,6 +62,7 @@ interface User {
 	role: UserRole;
 
 	password?: string;
+	openRouterKey?: string | null;
 
 	createdAt?: Date;
 	updatedAt?: Date;

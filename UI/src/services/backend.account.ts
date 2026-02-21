@@ -53,4 +53,21 @@ async function exportAccountData() {
 	return response;
 }
 
-export { getUserInfo, deleteAccount, exportAccountData };
+async function updateAccountSettings(settings: {
+	openRouterKey?: string | null;
+}) {
+	const response = await fetch(`${BASE_URL}/api/account/settings`, {
+		method: "PATCH",
+		credentials: "include",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(settings),
+	});
+	const data = (await response.json()) as
+		| { status: "OK"; message: string }
+		| { status: "FAILED"; message: string };
+	return data;
+}
+
+export { getUserInfo, deleteAccount, exportAccountData, updateAccountSettings };
