@@ -144,7 +144,7 @@ function AIGenerateModal({
 									letterSpacing: "0.14em",
 								}}
 							>
-								AI Generation
+								KICKOFF // REVISION
 							</h2>
 							<p className="text-xs text-gray-500 tracking-wider mt-0.5 uppercase">
 								{mode === "kickoff"
