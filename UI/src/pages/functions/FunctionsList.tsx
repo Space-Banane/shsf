@@ -6,6 +6,7 @@ import {
 } from "../../services/backend.namespaces";
 import CreateNamespaceModal from "../../components/modals/CreateNamespaceModal";
 import CreateFunctionModal from "../../components/modals/CreateFunctionModal";
+import CloneFunctionModal from "../../components/modals/CloneFunctionModal";
 import RenameNamespaceModal from "../../components/modals/RenameNamespaceModal";
 import DeleteNamespaceModal from "../../components/modals/DeleteNamespaceModal";
 import DeleteFunctionModal from "../../components/modals/DeleteFunctionModal";
@@ -25,11 +26,16 @@ function FunctionsList() {
 	const [isFunctionModalOpen, setFunctionModalOpen] = useState(false);
 	const [isDeleteFunctionModalOpen, setDeleteFunctionModalOpen] =
 		useState(false);
+	const [isCloneFunctionModalOpen, setCloneFunctionModalOpen] = useState(false);
 	const [selectedNamespace, setSelectedNamespace] = useState<{
 		id: number;
 		name: string;
 	} | null>(null);
 	const [selectedFunction, setSelectedFunction] = useState<{
+		id: number;
+		name: string;
+	} | null>(null);
+	const [selectedFunctionForClone, setSelectedFunctionForClone] = useState<{
 		id: number;
 		name: string;
 	} | null>(null);
@@ -202,6 +208,10 @@ function FunctionsList() {
 										setSelectedFunction(func);
 										setDeleteFunctionModalOpen(true);
 									}}
+									onCloneFunction={(func) => {
+										setSelectedFunctionForClone(func);
+										setCloneFunctionModalOpen(true);
+									}}
 								/>
 							))}
 					</div>
@@ -219,6 +229,16 @@ function FunctionsList() {
 				onClose={() => setFunctionModalOpen(false)}
 				onSuccess={refreshData}
 				namespaces={namespaces}
+			/>
+			<CloneFunctionModal
+				isOpen={isCloneFunctionModalOpen}
+				onClose={() => setCloneFunctionModalOpen(false)}
+				onSuccess={() => {
+					setSelectedFunctionForClone(null);
+					refreshData();
+				}}
+				namespaces={namespaces}
+				functionId={selectedFunctionForClone?.id || null}
 			/>
 			<RenameNamespaceModal
 				isOpen={isRenameNamespaceModalOpen}
@@ -283,6 +303,7 @@ function NamespaceCard({
 	onRename,
 	onDelete,
 	onDeleteFunction,
+	onCloneFunction,
 }: {
 	namespace: NamespaceResponseWithFunctions["data"];
 	isExpanded: boolean;
@@ -290,6 +311,7 @@ function NamespaceCard({
 	onRename: (ns: { id: number; name: string }) => void;
 	onDelete: (ns: { id: number; name: string }) => void;
 	onDeleteFunction: (func: { id: number; name: string }) => void;
+	onCloneFunction: (func: { id: number; name: string }) => void;
 }) {
 	return (
 		<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-xl overflow-hidden hover:border-primary/40 transition-all duration-300">
@@ -376,6 +398,7 @@ function NamespaceCard({
 										key={func.id}
 										func={func}
 										onDelete={() => onDeleteFunction({ id: func.id, name: func.name })}
+										onClone={() => onCloneFunction({ id: func.id, name: func.name })}
 									/>
 								))}
 						</div>
@@ -389,9 +412,11 @@ function NamespaceCard({
 function FunctionCard({
 	func,
 	onDelete,
+	onClone,
 }: {
 	func: { id: number; name: string; description?: string };
 	onDelete: () => void;
+	onClone?: () => void;
 }) {
 	return (
 		<a
@@ -414,6 +439,20 @@ function FunctionCard({
 				</div>
 
 				<div className="flex items-center gap-1 ml-3">
+					{onClone && (
+						<button
+							onClick={(e) => {
+								e.stopPropagation();
+								e.preventDefault();
+								onClone();
+							}}
+							className="p-1.5 text-yellow-400 hover:bg-yellow-400/10 rounded-lg transition-all duration-300 hover:scale-110 opacity-0 group-hover:opacity-100"
+							title="Clone function"
+						>
+							📄
+						</button>
+					)
+					}
 					<button
 						onClick={(e) => {
 							e.stopPropagation();

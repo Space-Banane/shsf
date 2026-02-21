@@ -331,6 +331,22 @@ async function updateFunctionCorsOrigins(id: number, cors_origins: string) {
 	return await response.json();
 }
 
+async function cloneFunction(
+	id: number,
+	config?: { name?: string; namespaceId?: number },
+) {
+	const response = await fetch(`${BASE_URL}/api/function/${id}/clone`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		credentials: "include",
+		body: JSON.stringify(config || {}),
+	});
+
+	return await response.json();
+}
+
 export {
 	createFunction,
 	deleteFunction,
@@ -343,6 +359,7 @@ export {
 	installDependencies,
 	getFunctionCorsOrigins,
 	updateFunctionCorsOrigins,
+	cloneFunction,
 };
 export type { OKResponse, ErrorResponse };
 export type {
