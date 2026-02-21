@@ -108,7 +108,7 @@ function FunctionDetail() {
 	const [showLogsDetails, setShowLogsDetails] = useState<boolean>(false);
 	const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(false);
 	const logPollingRef = useRef<NodeJS.Timeout | null>(null);
-	const [showTriggersDetails, setShowTriggersDetails] = useState<boolean>(true);
+	const [showTriggersDetails, setShowTriggersDetails] = useState<boolean>(false);
 	const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
 	const [pipRunning, setPipRunning] = useState<boolean>(false);
 	const [showPopup, setShowPopup] = useState<boolean>(false);
@@ -270,6 +270,7 @@ function FunctionDetail() {
 
 					if (triggersData.status === "OK") {
 						setTriggers(triggersData.data);
+						setShowTriggersDetails(triggersData.data.length > 0);
 					} else {
 						console.error("Error fetching triggers:", triggersData.message);
 					}
