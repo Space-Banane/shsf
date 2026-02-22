@@ -1,0 +1,10 @@
+export type OpenAPITags =
+	| "System"
+	| "User"
+	| "Functions"
+	| "Function Files"
+	| "Function Triggers"
+	| "Namespaces"
+	| "KICKOFF"
+	| "Storage"
+	| "VERSION // CONTROL"

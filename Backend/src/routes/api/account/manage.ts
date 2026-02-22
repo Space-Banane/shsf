@@ -2,10 +2,48 @@ import * as bcrypt from "bcrypt";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import { cleanupFunctionContainer } from "../../../lib/Runner";
+import { OpenAPITags } from "../../../lib/openapi";
 
 export = new fileRouter.Path("/")
 	.http("PATCH", "/api/account/settings", (http) =>
 		http
+			.document({
+				description: "Update account settings (OpenRouter API key)",
+				tags: ["User"] as OpenAPITags[],
+				operationId: "updateOpenRouterKey",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								properties: {
+									openRouterKey: {
+										type: "string",
+										maxLength: 512,
+										description: "OpenRouter API key (null or empty string to clear)",
+									},
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					200: {
+						description: "Settings updated successfully",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										message: { type: "string" },
+									},
+								},
+							},
+						},
+					},
+				},
+			})
 			.ratelimit((limit) => limit.hits(10).window(60000).penalty(5000))
 			.onRequest(async (ctr) => {
 				const authCheck = await checkAuthentication(
@@ -60,6 +98,34 @@ export = new fileRouter.Path("/")
 	)
 	.http("GET", "/api/account/export", (http) =>
 		http
+			.document({
+				description: "Export all account data as JSON",
+				tags: ["User"] as OpenAPITags[],
+				operationId: "exportAccountData",
+				responses: {
+					200: {
+						description: "Account export successful",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										user: { type: "object" },
+										functions: { type: "array" },
+										namespaces: { type: "array" },
+										sessions: { type: "array" },
+										exportedAt: { type: "string" },
+										exportVersion: { type: "string" },
+										guestUsers: { type: "array" },
+										storages: { type: "array" },
+										accessTokens: { type: "array" },
+									},
+								},
+							},
+						},
+					},
+				},
+			})
 			.ratelimit((limit) => limit.hits(5).window(60000).penalty(10000))
 			.onRequest(async (ctr) => {
 				const authCheck = await checkAuthentication(
@@ -145,6 +211,50 @@ export = new fileRouter.Path("/")
 	)
 	.http("DELETE", "/api/account/delete", (http) =>
 		http
+			.document({
+				description: "Delete user account (requires password and confirmation)",
+				tags: ["User"] as OpenAPITags[],
+				operationId: "deleteAccount",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								required: ["password", "confirmation"],
+								properties: {
+									password: {
+										type: "string",
+										minLength: 8,
+										maxLength: 120,
+										description: "User password",
+									},
+									confirmation: {
+										type: "string",
+										enum: ["DELETE_MY_ACCOUNT"],
+										description: "Must be 'DELETE_MY_ACCOUNT' to confirm deletion",
+									},
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					200: {
+						description: "Account deleted successfully",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										message: { type: "string" },
+									},
+								},
+							},
+						},
+					},
+				},
+			})
 			.ratelimit((limit) => limit.hits(2).window(60000).penalty(5000))
 			.onRequest(async (ctr) => {
 				const [data, error] = await ctr.bindBody((z) =>

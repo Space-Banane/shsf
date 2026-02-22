@@ -1,11 +1,7 @@
 import { OpenRouter } from "@openrouter/sdk";
-import {
-	API_KEY_HEADER,
-	COOKIE,
-	fileRouter,
-	prisma,
-} from "../..";
+import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
+import { OpenAPITags } from "../../lib/openapi";
 
 const DisallowedFiles = ["_runner.py", "_runner.js", "init.sh"];
 
@@ -413,76 +409,135 @@ export = new fileRouter.Path("/").http(
 	"POST",
 	"/api/function/{id}/ai/generate",
 	(http) =>
-		http.onRequest(async (ctr) => {
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+		http
+			.document({
+				description: "Generate or revise function files using AI code generation",
+				tags: ["KICKOFF"] as OpenAPITags[],
+				operationId: "aiGenerateFunctionFiles",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								required: ["mode", "prompt"],
+								properties: {
+									mode: {
+										type: "string",
+										enum: ["kickoff", "revision"],
+										description:
+											"Generation mode: 'kickoff' for new, 'revision' for update",
+									},
+									prompt: {
+										type: "string",
+										description: "User prompt describing the function or revision",
+									},
+									files: {
+										type: "array",
+										items: { type: "string" },
+										description: "List of filenames to revise (only for 'revision' mode)",
+									},
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					200: {
+						description: "AI generation completed successfully",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										message: { type: "string" },
+										data: {
+											type: "object",
+											properties: {
+												writtenFiles: {
+													type: "array",
+													items: { type: "string" },
+												},
+												model: { type: "string" },
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+			.onRequest(async (ctr) => {
+				const authCheck = await checkAuthentication(
+					ctr.cookies.get(COOKIE),
+					ctr.headers.get(API_KEY_HEADER),
+				);
 
-			if (!authCheck.success) {
-				return ctr.print({ status: 401, message: authCheck.message });
-			}
+				if (!authCheck.success) {
+					return ctr.print({ status: 401, message: authCheck.message });
+				}
 
-			const openRouterKey = authCheck.user.openRouterKey;
+				const openRouterKey = authCheck.user.openRouterKey;
 
-			if (!openRouterKey) {
-				return ctr.status(ctr.$status.SERVICE_UNAVAILABLE).print({
-					status: 503,
-					message:
-						"AI features are unavailable: add your OpenRouter API key in Account Settings",
+				if (!openRouterKey) {
+					return ctr.status(ctr.$status.SERVICE_UNAVAILABLE).print({
+						status: 503,
+						message:
+							"AI features are unavailable: add your OpenRouter API key in Account Settings",
+					});
+				}
+
+				const [data, error] = await ctr.bindBody((z) =>
+					z.object({
+						mode: z.enum(["kickoff", "revision"]),
+						prompt: z.string().min(1).max(4096),
+						files: z.array(z.string().min(1).max(256)).max(3).optional(),
+					}),
+				);
+
+				if (!data) {
+					return ctr
+						.status(ctr.$status.BAD_REQUEST)
+						.print({ status: 400, message: error.toString() });
+				}
+
+				const id = ctr.params.get("id");
+				if (!id) {
+					return ctr
+						.status(ctr.$status.BAD_REQUEST)
+						.print({ status: 400, message: "Missing function id" });
+				}
+
+				const functionId = parseInt(id);
+				if (isNaN(functionId)) {
+					return ctr
+						.status(ctr.$status.BAD_REQUEST)
+						.print({ status: 400, message: "Invalid function id" });
+				}
+
+				const func = await prisma.function.findFirst({
+					where: { id: functionId, userId: authCheck.user.id },
+					include: { files: true },
 				});
-			}
 
-			const [data, error] = await ctr.bindBody((z) =>
-				z.object({
-					mode: z.enum(["kickoff", "revision"]),
-					prompt: z.string().min(1).max(4096),
-					files: z.array(z.string().min(1).max(256)).max(3).optional(),
-				}),
-			);
+				if (!func) {
+					return ctr
+						.status(ctr.$status.NOT_FOUND)
+						.print({ status: 404, message: "Function not found" });
+				}
 
-			if (!data) {
-				return ctr
-					.status(ctr.$status.BAD_REQUEST)
-					.print({ status: 400, message: error.toString() });
-			}
+				const model = "qwen/qwen3-coder-next";
 
-			const id = ctr.params.get("id");
-			if (!id) {
-				return ctr
-					.status(ctr.$status.BAD_REQUEST)
-					.print({ status: 400, message: "Missing function id" });
-			}
+				const openRouter = new OpenRouter({
+					apiKey: openRouterKey,
+					httpReferer: "https://github.com/Space-Banane/shsf",
+					xTitle: "SHSF - Self-Hostable Serverless Functions",
+				});
 
-			const functionId = parseInt(id);
-			if (isNaN(functionId)) {
-				return ctr
-					.status(ctr.$status.BAD_REQUEST)
-					.print({ status: 400, message: "Invalid function id" });
-			}
+				const maxFiles = data.mode === "kickoff" ? 5 : 3;
 
-			const func = await prisma.function.findFirst({
-				where: { id: functionId, userId: authCheck.user.id },
-				include: { files: true },
-			});
-
-			if (!func) {
-				return ctr
-					.status(ctr.$status.NOT_FOUND)
-					.print({ status: 404, message: "Function not found" });
-			}
-
-			const model = "qwen/qwen3-coder-next";
-
-			const openRouter = new OpenRouter({
-				apiKey: openRouterKey,
-				httpReferer: "https://github.com/Space-Banane/shsf",
-				xTitle: "SHSF - Self-Hostable Serverless Functions",
-			});
-
-			const maxFiles = data.mode === "kickoff" ? 5 : 3;
-
-			const systemPrompt = `You are an expert code-generation assistant integrated into SHSF (Self-Hostable Serverless Functions).
+				const systemPrompt = `You are an expert code-generation assistant integrated into SHSF (Self-Hostable Serverless Functions).
 Your sole job is to write complete, production-ready code files using the write_file tool.
 
 Function context:
@@ -505,136 +560,136 @@ Rules you MUST follow:
 
 ${AIDOC}`;
 
-			const messages: any[] = [{ role: "system", content: systemPrompt }];
+				const messages: any[] = [{ role: "system", content: systemPrompt }];
 
-			if (data.mode === "revision") {
-				// Attach current file contents so the AI has full context
-				const filenames = data.files ?? [];
-				const existingFiles = func.files.filter((f) => filenames.includes(f.name));
+				if (data.mode === "revision") {
+					// Attach current file contents so the AI has full context
+					const filenames = data.files ?? [];
+					const existingFiles = func.files.filter((f) => filenames.includes(f.name));
 
-				if (existingFiles.length === 0 && filenames.length > 0) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: "None of the specified files were found for this function",
-					});
-				}
-
-				const fileContext = existingFiles
-					.map(
-						(f) => `=== FILE: ${f.name} ===\n${f.content}\n=== END: ${f.name} ===`,
-					)
-					.join("\n\n");
-
-				messages.push({
-					role: "user",
-					content: `Revise the following files based on this request:\n\n${data.prompt}\n\nCurrent file contents:\n\n${fileContext}\n\nIMPORTANT: Use write_file and return the COMPLETE revised file — no partials.`,
-				});
-			} else {
-				// KICKOFF — generate from scratch
-				messages.push({
-					role: "user",
-					content: `Create the serverless function as described:\n\n${data.prompt}`,
-				});
-			}
-
-			// Agentic loop — keep calling OpenRouter until the model stops requesting tools
-			const writtenFiles: string[] = [];
-			const MAX_ITERATIONS = 20;
-			let iterations = 0;
-
-			while (iterations < MAX_ITERATIONS) {
-				iterations++;
-
-				const response = await openRouter.chat.send({
-					chatGenerationParams: {
-						model,
-						messages,
-						tools: [writeFileTool] as any,
-						stream: false,
-					},
-				} as any);
-
-				const responseMessage = response.choices[0].message;
-				// Push the raw assistant message so the model has full context in subsequent turns
-				messages.push(responseMessage);
-
-				// Normalise tool_calls vs toolCalls (SDK may differ from raw API)
-				const toolCalls: any[] =
-					(responseMessage as any).toolCalls ??
-					(responseMessage as any).tool_calls ??
-					[];
-
-				if (toolCalls.length === 0) {
-					// No more tool calls — model is done
-					break;
-				}
-
-				for (const toolCall of toolCalls) {
-					const toolName: string = toolCall.function?.name ?? "";
-					const toolArgs: { filename?: string; content?: string } = JSON.parse(
-						toolCall.function?.arguments ?? "{}",
-					);
-					const toolCallId: string = toolCall.id ?? "";
-
-					let toolResult: string;
-
-					if (toolName === "write_file") {
-						const { filename, content = "" } = toolArgs;
-
-						if (!filename || filename.length === 0) {
-							toolResult = "Error: filename is required";
-						} else if (filename.includes("/") || filename.includes("\\")) {
-							toolResult = "Error: filename must not contain path separators";
-						} else if (DisallowedFiles.includes(filename)) {
-							toolResult = `Error: filename "${filename}" is reserved and cannot be used`;
-						} else if (
-							writtenFiles.length >= maxFiles &&
-							!writtenFiles.includes(filename)
-						) {
-							toolResult = `Error: maximum file limit of ${maxFiles} reached`;
-						} else {
-							try {
-								const existing = await prisma.functionFile.findFirst({
-									where: { functionId, name: filename },
-								});
-
-								if (existing) {
-									await prisma.functionFile.update({
-										where: { id: existing.id },
-										data: { content },
-									});
-								} else {
-									await prisma.functionFile.create({
-										data: { name: filename, content, functionId },
-									});
-								}
-
-								if (!writtenFiles.includes(filename)) {
-									writtenFiles.push(filename);
-								}
-
-								toolResult = `File "${filename}" written successfully (${content.length} bytes)`;
-							} catch (err) {
-								toolResult = `Error writing file "${filename}": ${err}`;
-							}
-						}
-					} else {
-						toolResult = `Unknown tool: ${toolName}`;
+					if (existingFiles.length === 0 && filenames.length > 0) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: "None of the specified files were found for this function",
+						});
 					}
 
+					const fileContext = existingFiles
+						.map(
+							(f) => `=== FILE: ${f.name} ===\n${f.content}\n=== END: ${f.name} ===`,
+						)
+						.join("\n\n");
+
 					messages.push({
-						role: "tool",
-						toolCallId,
-						name: toolName || "write_file",
-						content: toolResult,
+						role: "user",
+						content: `Revise the following files based on this request:\n\n${data.prompt}\n\nCurrent file contents:\n\n${fileContext}\n\nIMPORTANT: Use write_file and return the COMPLETE revised file — no partials.`,
+					});
+				} else {
+					// KICKOFF — generate from scratch
+					messages.push({
+						role: "user",
+						content: `Create the serverless function as described:\n\n${data.prompt}`,
 					});
 				}
-			}
 
-			return ctr.print({
-				status: "OK",
-				message: `AI generation complete. ${writtenFiles.length} file(s) written.`,
-				data: { writtenFiles, model },
-			});
-		}),
+				// Agentic loop — keep calling OpenRouter until the model stops requesting tools
+				const writtenFiles: string[] = [];
+				const MAX_ITERATIONS = 20;
+				let iterations = 0;
+
+				while (iterations < MAX_ITERATIONS) {
+					iterations++;
+
+					const response = await openRouter.chat.send({
+						chatGenerationParams: {
+							model,
+							messages,
+							tools: [writeFileTool] as any,
+							stream: false,
+						},
+					} as any);
+
+					const responseMessage = response.choices[0].message;
+					// Push the raw assistant message so the model has full context in subsequent turns
+					messages.push(responseMessage);
+
+					// Normalise tool_calls vs toolCalls (SDK may differ from raw API)
+					const toolCalls: any[] =
+						(responseMessage as any).toolCalls ??
+						(responseMessage as any).tool_calls ??
+						[];
+
+					if (toolCalls.length === 0) {
+						// No more tool calls — model is done
+						break;
+					}
+
+					for (const toolCall of toolCalls) {
+						const toolName: string = toolCall.function?.name ?? "";
+						const toolArgs: { filename?: string; content?: string } = JSON.parse(
+							toolCall.function?.arguments ?? "{}",
+						);
+						const toolCallId: string = toolCall.id ?? "";
+
+						let toolResult: string;
+
+						if (toolName === "write_file") {
+							const { filename, content = "" } = toolArgs;
+
+							if (!filename || filename.length === 0) {
+								toolResult = "Error: filename is required";
+							} else if (filename.includes("/") || filename.includes("\\")) {
+								toolResult = "Error: filename must not contain path separators";
+							} else if (DisallowedFiles.includes(filename)) {
+								toolResult = `Error: filename "${filename}" is reserved and cannot be used`;
+							} else if (
+								writtenFiles.length >= maxFiles &&
+								!writtenFiles.includes(filename)
+							) {
+								toolResult = `Error: maximum file limit of ${maxFiles} reached`;
+							} else {
+								try {
+									const existing = await prisma.functionFile.findFirst({
+										where: { functionId, name: filename },
+									});
+
+									if (existing) {
+										await prisma.functionFile.update({
+											where: { id: existing.id },
+											data: { content },
+										});
+									} else {
+										await prisma.functionFile.create({
+											data: { name: filename, content, functionId },
+										});
+									}
+
+									if (!writtenFiles.includes(filename)) {
+										writtenFiles.push(filename);
+									}
+
+									toolResult = `File "${filename}" written successfully (${content.length} bytes)`;
+								} catch (err) {
+									toolResult = `Error writing file "${filename}": ${err}`;
+								}
+							}
+						} else {
+							toolResult = `Unknown tool: ${toolName}`;
+						}
+
+						messages.push({
+							role: "tool",
+							toolCallId,
+							name: toolName || "write_file",
+							content: toolResult,
+						});
+					}
+				}
+
+				return ctr.print({
+					status: "OK",
+					message: `AI generation complete. ${writtenFiles.length} file(s) written.`,
+					data: { writtenFiles, model },
+				});
+			}),
 );

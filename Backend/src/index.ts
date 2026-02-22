@@ -179,6 +179,8 @@ server.notFound(async (ctr) => {
 	return ctr.status(ctr.$status.NOT_FOUND).print({
 		status: "FAILED",
 		message: "The requested resource was not found",
+		note: `IMPORTANT NOTE:
+This endpoint does not exist in this instance as of this moment, if you are reading this, it means that this instance is either outdated, broken, or the endpoint you are trying to reach is not implemented yet. Please contact the administrator of this instance to resolve this issue.`,
 	});
 });
 

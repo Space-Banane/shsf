@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
+import { OpenAPITags } from "../../../lib/openapi";
 
 function maskToken(token: string) {
 	if (token.length <= 8) return token;
@@ -11,6 +12,56 @@ export = new fileRouter.Path("/")
 	// Generate a new access token
 	.http("POST", "/api/account/accesstoken/generate", (http) =>
 		http
+			.document({
+				description: "Generate a new access token for the authenticated user.",
+				tags: ["User"] as OpenAPITags[],
+				operationId: "generateAccessToken",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								required: ["name"],
+								properties: {
+									name: {
+										type: "string",
+										description: "Token name (min 2, max 128 chars)",
+									},
+									purpose: {
+										type: "string",
+										description: "Optional purpose (max 512 chars)",
+									},
+									expires_in: {
+										type: "integer",
+										description: "Optional expiry in days (1-365)",
+									},
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					200: {
+						description: "Access token created successfully.",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										id: { type: "number" },
+										name: { type: "string" },
+										purpose: { type: "string" },
+										expiresAt: { type: "string", format: "date-time" },
+										createdAt: { type: "string", format: "date-time" },
+										token: { type: "string" },
+									},
+								},
+							},
+						},
+					},
+				},
+			})
 			.ratelimit((limit) => limit.hits(3).window(60000).penalty(10000))
 			.onRequest(async (ctr) => {
 				const [data, error] = await ctr.bindBody((z) =>
@@ -101,6 +152,43 @@ export = new fileRouter.Path("/")
 	// Revoke (delete) an access token
 	.http("DELETE", "/api/account/accesstoken/revoke", (http) =>
 		http
+			.document({
+				description: "Revoke (delete) an access token owned by the authenticated user.",
+				tags: ["User"] as OpenAPITags[],
+				operationId: "revokeAccessToken",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								required: ["id"],
+								properties: {
+									id: {
+										type: "integer",
+										description: "Access token ID",
+									},
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					200: {
+						description: "Access token revoked successfully.",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										message: { type: "string" },
+									},
+								},
+							},
+						},
+					},
+				},
+			})
 			.ratelimit((limit) => limit.hits(5).window(60000).penalty(10000))
 			.onRequest(async (ctr) => {
 				const [data, error] = await ctr.bindBody((z) =>
@@ -154,6 +242,41 @@ export = new fileRouter.Path("/")
 	// List all access tokens for the user (masked)
 	.http("GET", "/api/account/accesstoken/list", (http) =>
 		http
+			.document({
+				description: "List all access tokens for the authenticated user (masked).",
+				tags: ["User"] as OpenAPITags[],
+				operationId: "listAccessTokens",
+				responses: {
+					200: {
+						description: "List of access tokens.",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										tokens: {
+											type: "array",
+											items: {
+												type: "object",
+												properties: {
+													id: { type: "number" },
+													name: { type: "string" },
+													purpose: { type: "string" },
+													expiresAt: { type: "string", format: "date-time" },
+													createdAt: { type: "string", format: "date-time" },
+													expired: { type: "boolean" },
+													tokenMasked: { type: "string" },
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
 			.ratelimit((limit) => limit.hits(10).window(60000).penalty(5000))
 			.onRequest(async (ctr) => {
 				const authCheck = await checkAuthentication(
@@ -191,6 +314,49 @@ export = new fileRouter.Path("/")
 	// Update access token name and purpose
 	.http("PATCH", "/api/account/accesstoken/update", (http) =>
 		http
+			.document({
+				description: "Update access token name and/or purpose for the authenticated user.",
+				tags: ["User"] as OpenAPITags[],
+				operationId: "updateAccessToken",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								required: ["id"],
+								properties: {
+									id: { type: "integer", description: "Access token ID" },
+									name: { type: "string", description: "New token name (optional)" },
+									purpose: { type: "string", description: "New purpose (optional)" },
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					200: {
+						description: "Access token updated successfully.",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										id: { type: "number" },
+										name: { type: "string" },
+										purpose: { type: "string" },
+										expiresAt: { type: "string", format: "date-time" },
+										createdAt: { type: "string", format: "date-time" },
+										expired: { type: "boolean" },
+										hidden: { type: "boolean" },
+										tokenMasked: { type: "string" },
+									},
+								},
+							},
+						},
+					},
+				},
+			})
 			.ratelimit((limit) => limit.hits(5).window(60000).penalty(10000))
 			.onRequest(async (ctr) => {
 				const [data, error] = await ctr.bindBody((z) =>
@@ -265,6 +431,29 @@ export = new fileRouter.Path("/")
 	// Auth Check
 	.http("GET", "/api/account/accesstoken/authcheck", (http) =>
 		http
+			.document({
+				description: "Check authentication status for access token.",
+				tags: ["User"] as OpenAPITags[],
+				operationId: "accessTokenAuthCheck",
+				responses: {
+					200: {
+						description: "Authenticated successfully.",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										message: { type: "string" },
+										userId: { type: "number" },
+										method: { type: "string" },
+									},
+								},
+							},
+						},
+					},
+				},
+			})
 			.ratelimit((limit) => limit.hits(20).window(60000).penalty(2000))
 			.onRequest(async (ctr) => {
 				const authCheck = await checkAuthentication(

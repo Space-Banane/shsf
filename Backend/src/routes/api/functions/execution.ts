@@ -4,7 +4,6 @@ import { checkHttpExecutionPermission } from "../../../lib/Authentication";
 import {
 	buildPayloadFromGET,
 	buildPayloadFromPOST,
-	cleanupFunctionContainer,
 	executeFunction,
 } from "../../../lib/Runner";
 
