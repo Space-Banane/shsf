@@ -1,36 +1,27 @@
 ---
-mode: agent
-description: Generate a Document for a Feature or Topic
-model: GPT-4.1 (copilot)
-tools: ["edit", "search", "usages", "problems", "changes"]
+agent: agent
+description: Generate and sequence a new documentation page based on codebase changes
+model: Claude Sonnet 4.6 (copilot)
+tools: ["edit", "search", "search/changes", "read", "edit/editFiles", "edit/createFile", "agent", "read/readFile"]
 ---
 
-You've been provided with the Task of Generating a Document.
+You are tasked with generating a new documentation page by analyzing recent codebase modifications and integrating it into the existing sequence. People generally fail to keep track of updates, so you must ensure the chain is unbroken.
 
-## How to write a good doc
+## Requirements
 
-- When formatting code, use a proper background, proper indentation, and appropriate syntax highlighting for readability.
-- Structure your document with clear headings and subheadings to organize content logically.
-- Use concise and precise language to explain concepts, avoiding unnecessary jargon.
-- Include examples and sample code snippets to illustrate key points.
-- Provide step-by-step instructions for complex tasks or workflows.
-- Proofread your document for grammar, spelling, and clarity.
-- Add warning or note boxes for important information that users should be aware of.
+1. **Mandatory Change Analysis:** Use the `changes` tool to perform a comprehensive review of all recent commits and file modifications. Do not guess; rely strictly on the diffs to understand what actually happened in the code.
+2. **Identify Sequence:** Locate the current "latest" documentation file in `UI/src/pages/docs` to determine the correct numbering and identify which file needs to be updated to point to the new one.
 
-## How to add a Doc
+## Implementation Steps
 
-PRE-WRITING:
+1. **Create Document:** Write the new file within `UI/src/pages/docs`.
+   - The content must reflect the analyzed changes accurately.
+   - Include a "Previous" link pointing to the old last doc.
+   - Add a notice: "Keep your instance updated; there is no newer documentation beyond this page yet."
+2. **Link the Chain:** Open the file that was previously the "last" doc. Edit it to remove any "latest" notices and add a "Next" link pointing to the new document you just created.
+3. **Register Route:** Add the new page as a Route within `UI/src/Routes.tsx`.
+4. **Update Gallery/Index:** Add an entry to the `lessons` constant list within `UI/src/pages/index/docs.tsx`.
 
-- Take a look at older docs, see how they are structured and formatted.
-- Identify the last doc in the sequence to link from it to the new doc.
+## Task Initiation
 
-1. Write the within the UI/src/pages/docs directory
-2. Add it as a Route within UI/src/Routes.tsx
-3. Add a entry in the lessons const list within UI/src/pages/index/docs.tsx
-4. Find out the last doc and add a propper next link to it, to the new doc
-5. To the new doc add the message back to the previous doc that the user should keep their instance updated as there is no new doc after the new one yet.
-
-## Task
-
-Ask for the information, feature and specifics you need to generate a good document about.
-If told to "Check the Changes" or "Look at the Changes", use the changes tool to find out what has changed in the codebase recently.
+Begin by using the `changes` tool to identify the latest modifications. If the user hasn't specified a feature, report what you found and ask which specific logic requires the new doc.
