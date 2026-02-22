@@ -33,6 +33,7 @@ import GuestAccessPage from "./pages/Guest-Access";
 import { FfmpegInstallPage } from "./pages/docs/ffmpeg-install";
 import { DocsGoRuntime } from "./pages/docs/go-runtime";
 import { DOCSKICKOFF } from "./pages/docs/kickoff";
+import { DocsVersionControl } from "./pages/docs/version-control";
 // Added back the routes array
 export interface AppRoute {
 	path: string;
@@ -195,6 +196,12 @@ export const routes: AppRoute[] = [
 		path: "/docs/kickoff",
 		component: DOCSKICKOFF,
 		name: "Kickoff",
+		requireAuth: false,
+	},
+	{
+		path: "/docs/version-control",
+		component: DocsVersionControl,
+		name: "Version Control",
 		requireAuth: false,
 	},
 

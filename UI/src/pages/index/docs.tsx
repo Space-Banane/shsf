@@ -281,5 +281,13 @@ const lessons: {
 		description:
 			"KICKOFF your new functions with AI-powered code generation.",
 		link: "/docs/kickoff",
-	}
+	},
+	{
+		key: "version-control",
+		identifier: "#22",
+		title: "VERSION // CONTROL",
+		description:
+			"Deploy functions directly from a Git repository. Clone, pull, and keep your code in sync — automatically or on demand.",
+		link: "/docs/version-control",
+	},
 ];

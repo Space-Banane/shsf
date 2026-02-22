@@ -198,32 +198,18 @@ status code. Handle network errors gracefully.`}</code>
 				{/* CTA */}
 				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
 					<h2 className="text-xl font-bold text-primary mb-3">
-						📚 Keep Your Instance Updated
+						🚀 Next Step - VERSION // CONTROL
 					</h2>
 					<p className="text-text/90 mb-4">
-						This is the latest documentation available. Make sure to keep your SHSF
-						instance updated to get access to new features and improvements!
+						Want to pull from a repo and not have to manually copy files or write code in the UI? Check out the VERSION // CONTROL documentation to learn how to connect your functions to Git repositories!
 					</p>
-					<div className="flex flex-wrap gap-4">
-						<a
-							href="/docs/docker-mount"
-							className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors text-sm"
-						>
-							Docker Mount →
-						</a>
-						<a
-							href="/docs/go-runtime"
-							className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors text-sm"
-						>
-							Go Runtime →
-						</a>
-						<a
-							href="/docs/custom-responses"
-							className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors text-sm"
-						>
-							Custom Responses →
-						</a>
-					</div>
+					<a
+						href="/docs/version-control"
+						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+					>
+						#22 VERSION // CONTROL
+						<span className="text-lg">→</span>
+					</a>
 				</div>
 			</div>
 		</div>
