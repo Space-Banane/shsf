@@ -6,12 +6,12 @@ module.exports = {
 			colors: {
 				text: "#f8f8fe",
 				subhead: "#fbf2c4",
-				background: "#121325",
+				background: "#0d0e1a",
 				primary: "#7c83fd",
 				secondary: "#96baff",
 				accent: "#7dedff",
 				footer: "#121325",
-				navbar: "#121325",
+				navbar: "#131424",
 				grayed: "#6a7282",
 			},
 			borderColor: {
