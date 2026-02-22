@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from "react";
 import Modal from "./Modal";
 import { updateFunction } from "../../services/backend.functions";
-import { Image, ImagesAsArray, XFunction } from "../../types/Prisma";
+import {
+	Image,
+	ImagesAsArray,
+	TriggerLog,
+	XFunction,
+} from "../../types/Prisma";
 
 interface UpdateFunctionModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	onSuccess: () => void;
 	functionData: XFunction | null;
+	lastLogs: TriggerLog[]; // Pass recent logs for context in the update modal
 }
 
 function UpdateFunctionModal({
@@ -15,6 +21,7 @@ function UpdateFunctionModal({
 	onClose,
 	onSuccess,
 	functionData,
+	lastLogs,
 }: UpdateFunctionModalProps) {
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
@@ -141,6 +148,45 @@ function UpdateFunctionModal({
 			setError("");
 		}
 	};
+
+	// extract urls from logs
+	const [loggedUrls, setLoggedUrls] = useState<string[]>([]);
+	useEffect(() => {
+		if (!lastLogs || lastLogs.length === 0) {
+			setLoggedUrls([]);
+			return;
+		}
+
+		const urls = lastLogs
+			.flatMap((log) => {
+				const payload = JSON.parse(JSON.parse(log.result!).payload);
+				if (payload) {
+					const url = payload.headers?.host;
+					if (url) {
+						return url;
+					} else {
+						return [];
+					}
+				} else {
+					return [];
+				}
+			})
+			.filter((url, index, self) => self.indexOf(url) === index); // unique
+
+		// Make sure we don't have the same urls in loggedUrls and corsOriginsArray
+		const filteredUrls = urls
+			.filter(
+				(url) =>
+					!corsOriginsArray.includes(`https://${url}`) &&
+					!corsOriginsArray.includes(`http://${url}`),
+			)
+			.slice(0, 5); // limit to 5 URLs
+
+		setLoggedUrls(filteredUrls);
+	}, [lastLogs, corsOriginsArray]);
+
+	// console.log("Last logs passed to UpdateFunctionModal:", lastLogs); // Debug log
+	console.log("Logged URLs for CORS suggestions:", loggedUrls); // Debug log
 
 	return (
 		<Modal
@@ -493,6 +539,46 @@ function UpdateFunctionModal({
 								Leave empty to allow only default origins. Each origin will be sent
 								comma separated.
 							</p>
+							{loggedUrls.length > 0 && (
+								<div className="mt-4">
+									<p className="text-xs text-blue-300 mb-2">
+										We found these URLs to be possible origins you might want to add:
+									</p>
+									<div className="flex flex-wrap gap-3">
+										{loggedUrls.map((url) => (
+											<div
+												key={url}
+												className="bg-gray-800 border border-blue-600/40 rounded-lg px-4 py-2 flex items-center gap-2 shadow-sm"
+											>
+												<span className="text-blue-400 text-xs break-all">{url}</span>
+												{["https://", "http://"].map((protocol) => {
+													const origin = `${protocol}${url}`;
+													const alreadyAdded = corsOriginsArray.includes(origin);
+													return (
+														<button
+															key={protocol}
+															type="button"
+															className={`ml-2 px-2 py-0.5 ${
+																protocol === "https://"
+																	? "bg-blue-600 hover:bg-blue-700"
+																	: "bg-gray-600 hover:bg-gray-700"
+															} text-white rounded text-xs font-medium transition`}
+															onClick={() => {
+																if (!alreadyAdded) {
+																	setCorsOrigins([...corsOriginsArray, origin].join(", "));
+																}
+															}}
+															disabled={isLoading || alreadyAdded}
+														>
+															Add {protocol.replace("://", "")}
+														</button>
+													);
+												})}
+											</div>
+										))}
+									</div>
+								</div>
+							)}
 						</div>
 					</div>
 				</div>

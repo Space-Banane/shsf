@@ -41,21 +41,6 @@ function TriggerLogsModal({
 		}));
 	};
 
-	const getStatusDisplay = (status: string) => {
-		switch (status) {
-			case "success":
-				return { icon: "✅", color: "text-green-400", bg: "bg-green-500/10" };
-			case "error":
-				return { icon: "⚠️", color: "text-red-400", bg: "bg-red-500/10" };
-			case "failed":
-				return { icon: "❌", color: "text-red-400", bg: "bg-red-500/10" };
-			case "running":
-				return { icon: "⏳", color: "text-yellow-400", bg: "bg-yellow-500/10" };
-			default:
-				return { icon: "❔", color: "text-gray-400", bg: "bg-gray-500/10" };
-		}
-	};
-
 	// Sort logs by date (newest first)
 	const sortedLogs = [...logs].sort(
 		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),

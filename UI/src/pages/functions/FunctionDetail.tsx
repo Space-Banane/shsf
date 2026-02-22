@@ -1446,6 +1446,7 @@ function FunctionDetail() {
 					onClose={() => setShowUpdateModal(false)}
 					onSuccess={loadData}
 					functionData={functionData}
+					lastLogs={logs} // Pass last 5 logs for context in the update modal
 				/>
 
 				<UpdateEnvModal
