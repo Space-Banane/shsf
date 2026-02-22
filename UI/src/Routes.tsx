@@ -31,6 +31,8 @@ import { GuestUsersDocPage } from "./pages/docs/guest-users";
 import GuestUsersPage from "./pages/GuestUsers";
 import GuestAccessPage from "./pages/Guest-Access";
 import { FfmpegInstallPage } from "./pages/docs/ffmpeg-install";
+import { DocsGoRuntime } from "./pages/docs/go-runtime";
+import { DOCSKICKOFF } from "./pages/docs/kickoff";
 // Added back the routes array
 export interface AppRoute {
 	path: string;
@@ -181,6 +183,18 @@ export const routes: AppRoute[] = [
 		path: "/docs/ffmpeg-install",
 		component: FfmpegInstallPage,
 		name: "FFmpeg Installation",
+		requireAuth: false,
+	},
+	{
+		path: "/docs/go-runtime",
+		component: DocsGoRuntime,
+		name: "Go Runtime",
+		requireAuth: false,
+	},
+	{
+		path: "/docs/kickoff",
+		component: DOCSKICKOFF,
+		name: "Kickoff",
 		requireAuth: false,
 	},
 

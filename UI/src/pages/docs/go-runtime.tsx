@@ -341,12 +341,18 @@ func main_user(args interface{}) (interface{}, error) {
 
 				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
 					<h2 className="text-xl font-bold text-primary mb-3">
-						📚 Keep Your Instance Updated
+						🚀 Next Step - KICKOFF
 					</h2>
 					<p className="text-text/90 mb-4">
-						This is the latest documentation available. Make sure to keep your SHSF
-						instance updated to get access to new features and improvements!
+						Interested in starting a new project with SHSF? Learn how an AI might help you kick it off faster.
 					</p>
+					<a
+						href="/docs/kickoff"
+						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+					>
+						#21 KICKOFF
+						<span className="text-lg">→</span>
+					</a>
 				</div>
 			</div>
 		</div>

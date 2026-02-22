@@ -266,4 +266,20 @@ const lessons: {
 			"Learn how to enable automatic FFmpeg installation for media processing in your functions.",
 		link: "/docs/ffmpeg-install",
 	},
+	{
+		key: "go-runtime",
+		identifier: "#20",
+		title: "Go Runtime",
+		description:
+			"Learn how to set up and use the Go runtime for your serverless functions.",
+		link: "/docs/go-runtime",
+	},
+	{
+		key: "kickoff",
+		identifier: "#21",
+		title: "Kickoff",
+		description:
+			"KICKOFF your new functions with AI-powered code generation.",
+		link: "/docs/kickoff",
+	}
 ];
