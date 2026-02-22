@@ -1,4 +1,4 @@
-# SHSF (Self-Hostable Serverless Functions)
+# SHSF (Self-Hostable Serverless Functions) V2
 
 All because i don't want to pay for AWS Lambda
 

@@ -11,13 +11,29 @@ import dotenv from "dotenv";
 // load env file
 dotenv.config();
 
+export const VERSION: {
+	type: "SHSF API" | "SHSF UI";
+	major: number;
+	minor: number;
+	patch: number;
+	toString: () => string;
+} = {
+	type: "SHSF API",
+	major: 2,
+	minor: 0,
+	patch: 0,
+	toString() {
+		return `${this.major}.${this.minor}.${this.patch}`;
+	},
+};
 export const URL = env.UI_URL!;
 export const UI_URL = env.UI_URL!;
 export const REACT_APP_API_URL = env.REACT_APP_API_URL!;
 export const COOKIE = "shsf_session";
 export const DOMAIN = env.DOMAIN!;
 export const API_KEY_HEADER = "x-access-key";
-export const INSTANCE_SECRET = env.INSTANCE_SECRET ?? "default_insecure_secret_please_set";
+export const INSTANCE_SECRET =
+	env.INSTANCE_SECRET ?? "default_insecure_secret_please_set";
 export const prisma = new PrismaClient({
 	log: ["info", "error", "warn"],
 	errorFormat: "pretty",
@@ -329,12 +345,19 @@ async function processGitPulls() {
 		try {
 			const result = await performGitPull(fn.id);
 			if (result.success) {
-				console.log(`[SHSF GIT] Pull successful for function #${fn.id} (${fn.name})`);
+				console.log(
+					`[SHSF GIT] Pull successful for function #${fn.id} (${fn.name})`,
+				);
 			} else {
-				console.error(`[SHSF GIT] Pull failed for function #${fn.id} (${fn.name}):\n${result.logs}`);
+				console.error(
+					`[SHSF GIT] Pull failed for function #${fn.id} (${fn.name}):\n${result.logs}`,
+				);
 			}
 		} catch (err) {
-			console.error(`[SHSF GIT] Unexpected error pulling function #${fn.id}:`, err);
+			console.error(
+				`[SHSF GIT] Unexpected error pulling function #${fn.id}:`,
+				err,
+			);
 		}
 	}
 }
