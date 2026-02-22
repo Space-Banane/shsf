@@ -5,6 +5,7 @@ import { network } from "@rjweb/utils";
 import { env } from "process";
 import { CronExpressionParser } from "cron-parser";
 import { executeFunction } from "./lib/Runner";
+import { performGitPull } from "./lib/GitOps";
 import dotenv from "dotenv";
 
 // load env file
@@ -16,6 +17,7 @@ export const REACT_APP_API_URL = env.REACT_APP_API_URL!;
 export const COOKIE = "shsf_session";
 export const DOMAIN = env.DOMAIN!;
 export const API_KEY_HEADER = "x-access-key";
+export const INSTANCE_SECRET = env.INSTANCE_SECRET ?? "default_insecure_secret_please_set";
 export const prisma = new PrismaClient({
 	log: ["info", "error", "warn"],
 	errorFormat: "pretty",
@@ -174,6 +176,11 @@ server
 		setInterval(async () => {
 			await processCrons();
 		}, 1000); // Every second
+
+		// Periodic git pull — checks every minute, respects per-function interval
+		setInterval(async () => {
+			await processGitPulls();
+		}, 60 * 1000);
 	})
 	.catch(console.error);
 
@@ -298,6 +305,36 @@ async function processCrons() {
 				`[SHSF CRONS] Error processing cron ${cron.name} (${cron.id}):`,
 				error,
 			);
+		}
+	}
+}
+// Periodic Git Pulls — runs every minute, each function has its own interval
+const lastGitPullAt = new Map<number, number>(); // functionId -> last pull timestamp (ms)
+async function processGitPulls() {
+	const now = Date.now();
+	const functions = await prisma.function.findMany({
+		where: {
+			git_periodic_pull: true,
+			git_url: { not: null },
+		},
+		select: { id: true, name: true, git_pull_interval: true },
+	});
+
+	for (const fn of functions) {
+		const intervalMs = (fn.git_pull_interval ?? 10) * 60 * 1000;
+		const last = lastGitPullAt.get(fn.id) ?? 0;
+		if (now - last < intervalMs) continue;
+
+		lastGitPullAt.set(fn.id, now);
+		try {
+			const result = await performGitPull(fn.id);
+			if (result.success) {
+				console.log(`[SHSF GIT] Pull successful for function #${fn.id} (${fn.name})`);
+			} else {
+				console.error(`[SHSF GIT] Pull failed for function #${fn.id} (${fn.name}):\n${result.logs}`);
+			}
+		} catch (err) {
+			console.error(`[SHSF GIT] Unexpected error pulling function #${fn.id}:`, err);
 		}
 	}
 }

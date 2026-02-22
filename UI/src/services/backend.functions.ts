@@ -347,6 +347,83 @@ async function cloneFunction(
 	return await response.json();
 }
 
+// ─── Git Version Control ──────────────────────────────────────────────────────
+
+async function getGitConfig(id: number) {
+	const response = await fetch(`${BASE_URL}/api/function/${id}/git`, {
+		method: "GET",
+		credentials: "include",
+	});
+	return await response.json() as
+		| { status: "OK"; data: { git_url: string | null; git_username: string | null; git_has_credentials: boolean; git_periodic_pull: boolean; git_pull_interval: number; git_source_dir: string | null } }
+		| { status: number; message: string };
+}
+
+async function gitClone(id: number, git_url: string, git_username?: string, git_password?: string, git_source_dir?: string) {
+	const response = await fetch(`${BASE_URL}/api/function/${id}/git/clone`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		credentials: "include",
+		body: JSON.stringify({ git_url, git_username: git_username || undefined, git_password: git_password || undefined, git_source_dir: git_source_dir || undefined }),
+	});
+	return await response.json() as
+		| { status: "OK"; message: string; logs: string }
+		| { status: "FAILED"; message: string; logs: string }
+		| { status: number; message: string };
+}
+
+async function gitPull(id: number) {
+	const response = await fetch(`${BASE_URL}/api/function/${id}/git/pull`, {
+		method: "POST",
+		credentials: "include",
+	});
+	return await response.json() as
+		| { status: "OK"; message: string; logs: string }
+		| { status: "FAILED"; message: string; logs: string }
+		| { status: number; message: string };
+}
+
+async function updateGitSettings(
+	id: number,
+	git_periodic_pull?: boolean,
+	git_username?: string | null,
+	git_password?: string | null,
+	git_pull_interval?: number,
+	git_source_dir?: string | null,
+) {
+	const response = await fetch(`${BASE_URL}/api/function/${id}/git`, {
+		method: "PATCH",
+		headers: { "Content-Type": "application/json" },
+		credentials: "include",
+		body: JSON.stringify({
+			...(git_periodic_pull !== undefined && { git_periodic_pull }),
+			...(git_username !== undefined && { git_username }),
+			...(git_password !== undefined && { git_password }),
+			...(git_pull_interval !== undefined && { git_pull_interval }),
+			...(git_source_dir !== undefined && { git_source_dir }),
+		}),
+	});
+	return await response.json() as { status: "OK" | number; message: string };
+}
+
+async function removeGitCredentials(id: number) {
+	const response = await fetch(`${BASE_URL}/api/function/${id}/git`, {
+		method: "PATCH",
+		headers: { "Content-Type": "application/json" },
+		credentials: "include",
+		body: JSON.stringify({ git_username: null, git_password: null }),
+	});
+	return await response.json() as { status: "OK" | number; message: string };
+}
+
+async function removeGitConfig(id: number) {
+	const response = await fetch(`${BASE_URL}/api/function/${id}/git`, {
+		method: "DELETE",
+		credentials: "include",
+	});
+	return await response.json() as { status: "OK" | number; message: string };
+}
+
 export {
 	createFunction,
 	deleteFunction,
@@ -360,6 +437,12 @@ export {
 	getFunctionCorsOrigins,
 	updateFunctionCorsOrigins,
 	cloneFunction,
+	getGitConfig,
+	gitClone,
+	gitPull,
+	updateGitSettings,
+	removeGitCredentials,
+	removeGitConfig,
 };
 export type { OKResponse, ErrorResponse };
 export type {

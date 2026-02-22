@@ -9,6 +9,8 @@ export function FileManagerCard({
 	onRenameFile,
 	onDeleteFile,
 	onAIGenerate,
+	disabled = false,
+	disabledReason,
 }: {
 	files: FunctionFile[];
 	activeFile: FunctionFile | null;
@@ -17,13 +19,24 @@ export function FileManagerCard({
 	onRenameFile: (file: FunctionFile) => void;
 	onDeleteFile: (file: FunctionFile) => void;
 	onAIGenerate?: () => void;
+	disabled?: boolean;
+	disabledReason?: string;
 }) {
 	return (
-		<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4">
+		<div
+			className={`bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4 relative ${
+				disabled ? "opacity-50 pointer-events-none select-none grayscale" : ""
+			}`}
+		>
 			<h2 className="text-lg font-bold text-primary mb-3 flex items-center gap-2">
 				<span>📁</span>
 				Files
 			</h2>
+			{disabled && disabledReason && (
+				<div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-2 mb-3">
+					<p className="text-yellow-300/80 text-xs">{disabledReason}</p>
+				</div>
+			)}
 
 			<div className="space-y-1 mb-3 max-h-64 overflow-y-auto scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-primary/30">
 				{files.length > 0 ? (

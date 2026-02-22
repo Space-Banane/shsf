@@ -604,13 +604,19 @@ export async function executeFunction(
 		await fs.mkdir(funcAppDir, { recursive: true });
 		await fs.mkdir(executionDir, { recursive: true });
 
-		await Promise.all(
-			files.map(async (file) => {
-				const filePath = path.join(funcAppDir, file.name);
-				await fs.writeFile(filePath, file.content);
-			})
-		);
-		mark(`Write user files (${files.length})`);
+		// Skip writing User files when git version control is active (git_url is set)
+		if (!functionData.git_url) {
+			await Promise.all(
+				files.map(async (file) => {
+					const filePath = path.join(funcAppDir, file.name);
+					await fs.writeFile(filePath, file.content);
+				})
+			);
+			mark(`Write user files (${files.length})`);
+		} else {
+			log(`[GIT] Git source active — skipping DB file writes for function ${functionData.id}`);
+			mark(`Skip DB file writes (git_url set)`);
+		}
 
 		// For Go runtime, generate the runner wrapper file and go.mod if needed
 		if (runtimeType === "golang") {
@@ -958,6 +964,7 @@ echo "[SHSF INIT] Go setup complete."
 			// Potentially throw an error if an unsupported runtime should halt execution.
 			// throw new Error(`Unsupported runtime type for init script generation: ${runtimeType}`);
 		}
+
 		initScript +=
 			"\necho '[SHSF INIT] Environment setup finished successfully.'\n";
 		await fs.writeFile(path.join(funcAppDir, "init.sh"), initScript);

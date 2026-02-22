@@ -35,6 +35,12 @@ interface XFunction {
 	docker_mount: boolean;
 	ffmpeg_install: boolean;
 
+	// Git Version Control
+	git_url?: string | null;
+	git_username?: string | null;
+	git_periodic_pull: boolean;
+	git_pull_interval: number;
+
 	createdAt: Date;
 	updatedAt: Date;
 	lastRun?: Date;

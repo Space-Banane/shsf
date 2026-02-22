@@ -14,6 +14,7 @@ import TriggerLogsModal from "../../components/modals/TriggerLogsModal";
 import GuestManagement from "../../components/modals/GuestManagement";
 import LoadDefaultModal from "../../components/modals/LoadDefaultModal";
 import AIGenerateModal from "../../components/modals/AIGenerateModal";
+import GitVersionControlModal from "../../components/modals/GitVersionControlModal";
 import {
 	FunctionFile,
 	XFunction,
@@ -133,6 +134,7 @@ function FunctionDetail() {
 	const [showGuestModal, setShowGuestModal] = useState(false);
 	const [showLoadDefaultModal, setShowLoadDefaultModal] = useState(false);
 	const [showAIModal, setShowAIModal] = useState(false);
+	const [showGitModal, setShowGitModal] = useState(false);
 
 	useEffect(() => {
 		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
@@ -1095,6 +1097,12 @@ function FunctionDetail() {
 									variant="secondary"
 									onClick={() => setShowGuestModal(true)}
 								/>
+								<ActionButton
+									icon="🔀"
+									label="Version Control"
+									variant={functionData.git_url ? "primary" : "secondary"}
+									onClick={() => setShowGitModal(true)}
+								/>
 							</div>
 						</div>
 
@@ -1179,6 +1187,8 @@ function FunctionDetail() {
 								setShowDeleteModal(true);
 							}}
 							onAIGenerate={() => setShowAIModal(true)}
+							disabled={Boolean(functionData.git_url)}
+							disabledReason="Git source active — file manager disabled. Use Version Control to manage files."
 						/>
 
 						<TriggersCard
@@ -1237,7 +1247,7 @@ function FunctionDetail() {
 										<button
 											className="bg-blue-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 											onClick={handlePipInstall}
-											disabled={pipRunning || running || saving}
+											disabled={pipRunning || running || saving || Boolean(functionData.git_url)}
 										>
 											{pipRunning ? "📦 Installing..." : "📦 Pip Install"}
 										</button>
@@ -1245,14 +1255,14 @@ function FunctionDetail() {
 									<button
 										className="bg-background/50 border border-primary/20 text-primary px-3 py-1.5 text-sm rounded-lg hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 										onClick={handleLoadDefault}
-										disabled={!activeFile || saving || running}
+										disabled={!activeFile || saving || running || Boolean(functionData.git_url)}
 									>
 										{saving ? "🚥Loading..." : "📂Load Default"}
 									</button>
 									<button
 										className="bg-background/50 border border-primary/20 text-primary px-3 py-1.5 text-sm rounded-lg hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 										onClick={handleSaveFile}
-										disabled={!activeFile || saving || running}
+										disabled={!activeFile || saving || running || Boolean(functionData.git_url)}
 									>
 										{saving ? "💾Saving..." : "💾Save"}
 									</button>
@@ -1327,7 +1337,26 @@ function FunctionDetail() {
 						{/* Code Editor - Larger */}
 						<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg overflow-hidden">
 							<div className="h-[600px] relative">
-								{!activeFile && (
+								{functionData.git_url ? (
+									<div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-sm text-center z-10">
+										<div className="space-y-4 px-6">
+											<div className="text-5xl">🔀</div>
+											<h3 className="text-lg font-bold text-primary">
+												Editor Disabled
+											</h3>
+											<p className="text-text/70 text-sm max-w-xs">
+												This function uses a git repository as its source. Manage
+												files through version control.
+											</p>
+											<button
+												onClick={() => setShowGitModal(true)}
+												className="mt-1 px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-[0_0_20px_rgba(124,131,253,0.35)] transition-all duration-300"
+											>
+												Open Version Control
+											</button>
+										</div>
+									</div>
+								) : !activeFile ? (
 									<div className="absolute inset-0 flex items-center justify-center bg-background/50 text-center">
 										<div className="space-y-3">
 											<div className="text-5xl">📝</div>
@@ -1337,7 +1366,7 @@ function FunctionDetail() {
 											</p>
 										</div>
 									</div>
-								)}
+								) : null}
 								{activeFile && (
 									<Editor
 										theme="vs-dark"
@@ -1347,7 +1376,7 @@ function FunctionDetail() {
 										onChange={handleEditorChange}
 										onMount={handleEditorDidMount}
 										options={{
-											readOnly: false,
+											readOnly: Boolean(functionData.git_url),
 											minimap: { enabled: true },
 											scrollBeyondLastLine: false,
 											fontSize: 13,
@@ -1461,6 +1490,13 @@ function FunctionDetail() {
 					isOpen={showGuestModal}
 					onClose={() => setShowGuestModal(false)}
 					functionId={functionData?.id ?? null}
+				/>
+
+				<GitVersionControlModal
+					isOpen={showGitModal}
+					onClose={() => setShowGitModal(false)}
+					functionId={functionData?.id ?? null}
+					onChanged={loadData}
 				/>
 
 				<LoadDefaultModal

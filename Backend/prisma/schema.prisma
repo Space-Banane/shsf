@@ -73,6 +73,14 @@ model Function {
   docker_mount Boolean @default(false) // Whether to mount a Docker socket
   ffmpeg_install Boolean @default(false) // Whether to install ffmpeg in the function environment
 
+  // Git Version Control
+  git_url              String?  @db.VarChar(1024) // Git repository URL for version control (without credentials)
+  git_username         String?  @db.VarChar(256)  // Git username for private repos
+  git_password         String?  @db.VarChar(512)  // Git password / access token for private repos
+  git_periodic_pull    Boolean  @default(false)    // Whether to pull periodically
+  git_pull_interval    Int      @default(10)       // Periodic pull interval in minutes
+  git_source_dir       String?  @db.VarChar(512)   // Optional subdirectory within the repo to use as the function source
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   lastRun   DateTime? // Last time the function was executed
