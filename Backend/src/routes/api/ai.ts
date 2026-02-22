@@ -1,5 +1,4 @@
 import { OpenRouter } from "@openrouter/sdk";
-import { env } from "process";
 import {
 	API_KEY_HEADER,
 	COOKIE,
@@ -424,15 +423,13 @@ export = new fileRouter.Path("/").http(
 				return ctr.print({ status: 401, message: authCheck.message });
 			}
 
-			// Resolve OpenRouter key: user key takes priority, then server env var
-			const openRouterKey =
-				(authCheck.success && authCheck.user.openRouterKey) || env.OPENROUTER_KEY;
+			const openRouterKey = authCheck.user.openRouterKey;
 
 			if (!openRouterKey) {
 				return ctr.status(ctr.$status.SERVICE_UNAVAILABLE).print({
 					status: 503,
 					message:
-						"AI features are unavailable: configure an OpenRouter API key in your account settings or ask the server admin to set OPENROUTER_KEY",
+						"AI features are unavailable: add your OpenRouter API key in Account Settings",
 				});
 			}
 
