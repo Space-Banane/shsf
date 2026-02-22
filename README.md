@@ -1,10 +1,15 @@
 # SHSF (Self-Hostable Serverless Functions) V2
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/Space-Banane/shsf/ci.yml)
+![Discord](https://img.shields.io/discord/1475098530505953441?style=flat)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/Space-Banane/shsf)
 
-All because i don't want to pay for AWS Lambda
+Because why would you use AWS Lambda when you have a raspberry pi, home lab, or even a old laptop lying around? 
+
+> SHSF is a self-hostable serverless functions platform that allows you to run your code without worrying about infrastructure. It's like having your own mini AWS Lambda, but on your own hardware.
 
 ## 🌟 Overview
 
-SHSF allows you to deploy and manage serverless functions on your own hardware. It has a web interface, supports Python and Go as main runtimes and allows you to trigger functions via HTTP(S) requests or cron jobs.
+SHSF has a web interface, supports Python and Go as main runtimes and allows you to trigger functions via HTTP(S) requests or cron jobs.
 
 ## Requiremnets
 - Docker with Compose plugin
