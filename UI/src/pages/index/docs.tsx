@@ -290,4 +290,12 @@ const lessons: {
 			"Deploy functions directly from a Git repository. Clone, pull, and keep your code in sync — automatically or on demand.",
 		link: "/docs/version-control",
 	},
+	{
+		key: "clone-function",
+		identifier: "#23",
+		title: "Cloning Functions",
+		description:
+			"Duplicate any function — including all its files and settings — into the same or a different namespace.",
+		link: "/docs/clone-function",
+	},
 ];

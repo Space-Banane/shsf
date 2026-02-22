@@ -34,6 +34,7 @@ import { FfmpegInstallPage } from "./pages/docs/ffmpeg-install";
 import { DocsGoRuntime } from "./pages/docs/go-runtime";
 import { DOCSKICKOFF } from "./pages/docs/kickoff";
 import { DocsVersionControl } from "./pages/docs/version-control";
+import { DocsCloneFunction } from "./pages/docs/clone-function";
 // Added back the routes array
 export interface AppRoute {
 	path: string;
@@ -202,6 +203,12 @@ export const routes: AppRoute[] = [
 		path: "/docs/version-control",
 		component: DocsVersionControl,
 		name: "Version Control",
+		requireAuth: false,
+	},
+	{
+		path: "/docs/clone-function",
+		component: DocsCloneFunction,
+		name: "Clone Function",
 		requireAuth: false,
 	},
 
