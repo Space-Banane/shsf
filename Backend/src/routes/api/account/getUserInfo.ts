@@ -8,7 +8,8 @@ export = new fileRouter.Path("/").http(
 	(http) =>
 		http
 			.document({
-				description: "Get information about the authenticated user (session or API key).",
+				description:
+					"Get information about the authenticated user (session or API key).",
 				tags: ["User"] as OpenAPITags[],
 				operationId: "getUserInfo",
 				responses: {
@@ -22,13 +23,13 @@ export = new fileRouter.Path("/").http(
 										status: { type: "string" },
 										user: { type: "object" },
 										session: { type: ["object", "null"] },
-										apiKey: { type: ["object", "null"] }
-									}
-								}
-							}
-						}
-					}
-				}
+										apiKey: { type: ["object", "null"] },
+									},
+								},
+							},
+						},
+					},
+				},
 			})
 			.onRequest(async (ctr) => {
 				const authCheck = await checkAuthentication(
@@ -45,7 +46,11 @@ export = new fileRouter.Path("/").http(
 
 				return ctr.print({
 					status: "OK",
-					user: authCheck.user,
+					user: {
+						...authCheck.user,
+						password: undefined,
+						openRouterKey: undefined,
+					},
 					session: authCheck.method === "session" ? authCheck.session : null,
 					apiKey: authCheck.method === "apiKey" ? authCheck.apiKey : null,
 				});

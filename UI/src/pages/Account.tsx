@@ -218,8 +218,7 @@ export const AccountPage = ({}) => {
 											</button>
 										</div>
 										<p className="text-text/40 text-xs mt-1">
-											Leave blank to remove the key. With no key set, AI features depend on
-											the server-level configuration.
+											Leave blank to remove the key. With no key set, AI features are disabled.
 										</p>
 									</div>
 

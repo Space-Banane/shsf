@@ -7,6 +7,8 @@ import { CronExpressionParser } from "cron-parser";
 import { executeFunction } from "./lib/Runner";
 import { performGitPull } from "./lib/GitOps";
 import dotenv from "dotenv";
+import { getUUID } from "./lib/DataManager";
+
 
 // load env file
 dotenv.config();
@@ -188,8 +190,9 @@ server
 	.start()
 	.then(async (port) => {
 		await prisma.$connect();
+		const uuid = await getUUID();
 
-		console.log(`[SHSF API] Running on ${port}`);
+		console.log(`[SHSF API] Running on ${port} with UUID: ${uuid}`);
 
 		setInterval(async () => {
 			await processCrons();

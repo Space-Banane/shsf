@@ -76,7 +76,6 @@ REACT_APP_PORT=3001
 
 # Runtime flags
 CONTAINERIZED=false     # true if running in Docker containers
-REGISTER_DISABLED=false # set to true to disable user registration
 
 # Limits & security
 RATELIMIT=3000          # requests per minute (example)
@@ -128,14 +127,6 @@ CORS_URLS=https://space.reversed.dev  # comma-separated allowed origins`}
 						<p className="text-text/80 text-sm">
 							Usually always true, this will attempt to use your docker instance, as we
 							don't want to run docker in docker, for performance reasons.
-						</p>
-					</div>
-
-					<div>
-						<strong className="text-primary">REGISTER_DISABLED</strong>
-						<p className="text-text/80 text-sm">
-							Set to true to prevent new user registrations (recommended for production
-							after initial setup) (never use this in production btw).
 						</p>
 					</div>
 

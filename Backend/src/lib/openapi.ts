@@ -8,3 +8,4 @@ export type OpenAPITags =
 	| "KICKOFF"
 	| "Storage"
 	| "VERSION // CONTROL"
+	| "Global";

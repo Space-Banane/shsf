@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BASE_URL } from "../..";
 import { routes } from "../../Routes";
 
@@ -12,6 +12,11 @@ export function NavBar({
 	refreshUser: () => void;
 }) {
 	const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+	const [isAdmin, setIsAdmin] = useState(user?.role === "Admin");
+
+	useEffect(() => {
+		setIsAdmin(user?.role === "Admin");
+	}, [user]);
 
 	const handleLogout = () => {
 		fetch(`${BASE_URL}/api/logout`, {
@@ -49,6 +54,7 @@ export function NavBar({
 						{routes
 							.filter((route) => !["Login", "Register"].includes(route.name))
 							.filter((route) => route.show_nav)
+							.filter((route) => !route.adminOnly || isAdmin)
 							.map((route) => (
 								<a
 									key={route.path}
@@ -85,6 +91,14 @@ export function NavBar({
 										>
 											Account
 										</a>
+										{isAdmin && (
+											<a
+												href="/admin"
+												className="block w-full text-left px-4 py-2 text-sm text-text hover:bg-[#383863]"
+											>
+												Admin
+											</a>
+										)}
 										<button
 											onClick={handleLogout}
 											className="block w-full text-left px-4 py-2 text-sm text-red-300 hover:bg-[#383863]"

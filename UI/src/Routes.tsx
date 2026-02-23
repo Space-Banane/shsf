@@ -35,6 +35,7 @@ import { DocsGoRuntime } from "./pages/docs/go-runtime";
 import { DOCSKICKOFF } from "./pages/docs/kickoff";
 import { DocsVersionControl } from "./pages/docs/version-control";
 import { DocsCloneFunction } from "./pages/docs/clone-function";
+import { AdminPage } from "./pages/Admin";
 // Added back the routes array
 export interface AppRoute {
 	path: string;
@@ -42,6 +43,7 @@ export interface AppRoute {
 	name: string;
 	requireAuth: boolean;
 	show_nav?: boolean;
+	adminOnly?: boolean;
 }
 
 export const routes: AppRoute[] = [
@@ -57,6 +59,14 @@ export const routes: AppRoute[] = [
 		component: AccountPage,
 		name: "Account",
 		requireAuth: true,
+	},
+	{
+		path: "/admin",
+		component: AdminPage,
+		name: "Admin",
+		requireAuth: true,
+		show_nav: false,
+		adminOnly: true,
 	},
 	{
 		path: "/docs",
