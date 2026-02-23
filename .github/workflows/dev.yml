@@ -39,7 +39,7 @@ jobs:
       sudo apt-get update
       sudo apt-get install docker-compose
    - name: Setup environment variables (for validation)
-     run: "UI_PORT=4000" > .env && "PORT=3000" >> .env
+     run: echo "UI_PORT=4000" > .env && echo "PORT=3000" >> .env
    - name: Validate Docker Compose files
      run: docker-compose config
 
