@@ -63,7 +63,7 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
 	})
 	.httpRequest(async (config, server, context, ctr, end) => {
 		console.log(
-			`[SHSF API] ${ctr.client.ip} [${ctr.url.method}]➡️  ${ctr.url.href}`,
+			`[SHSF API${ctr.headers.get("x-shsf-dev") === "true" ? " via shsf.dev" : ""}] ${ctr.client.ip} [${ctr.url.method}]➡️  ${ctr.url.href}`,
 		);
 
 		// Skip Ratelimit if RATELIMIT env var is set to 0 or not set at all

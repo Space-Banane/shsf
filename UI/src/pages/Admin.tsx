@@ -2,6 +2,17 @@ import { useContext, useState, useEffect } from "react";
 import { UserContext } from "../App";
 import { Navigate } from "react-router-dom";
 import { BASE_URL } from "..";
+import {
+	getLinkStatus,
+	getLinkable,
+	unlinkInstance,
+	getLinkLock,
+	setLinkLock,
+	getRegistrationDisabled,
+	setRegistrationDisabled as apiSetRegistrationDisabled,
+	getInstanceUUID,
+	type LinkStatus,
+} from "../services/backend.global";
 
 export const AdminPage = () => {
 	const { user, loading } = useContext(UserContext);
@@ -15,20 +26,48 @@ export const AdminPage = () => {
 	const [linkLockLoading, setLinkLockLoading] = useState(false);
 	const [linkLockError, setLinkLockError] = useState<string | null>(null);
 
-	const [registrationDisabled, setRegistrationDisabled] = useState<boolean | null>(null);
+	const [registrationDisabled, setRegistrationDisabledState] = useState<boolean | null>(null);
 	const [registrationLoading, setRegistrationLoading] = useState(false);
 	const [registrationError, setRegistrationError] = useState<string | null>(null);
 
+	// Link status state
+	const [linkStatus, setLinkStatus] = useState<LinkStatus | null>(null);
+	const [linkable, setLinkable] = useState<boolean | null>(null);
+	const [instanceUUID, setInstanceUUID] = useState<string | null>(null);
+	const [linkStatusLoading, setLinkStatusLoading] = useState(false);
+	const [linkStatusError, setLinkStatusError] = useState<string | null>(null);
+
+	// Unlink
+	const [unlinkLoading, setUnlinkLoading] = useState(false);
+	const [unlinkError, setUnlinkError] = useState<string | null>(null);
+
+	const refreshLinkStatus = async () => {
+		setLinkStatusLoading(true);
+		try {
+			const [statusRes, linkableRes, uuidRes] = await Promise.all([
+				getLinkStatus(),
+				getLinkable(),
+				getInstanceUUID(),
+			]);
+			if (statusRes.status === "OK") setLinkStatus(statusRes as LinkStatus);
+			if (linkableRes.status === "OK") setLinkable(linkableRes.linkable);
+			if (uuidRes.status === "OK") setInstanceUUID(uuidRes.uuid);
+		} catch {
+			setLinkStatusError("Failed to load link status.");
+		} finally {
+			setLinkStatusLoading(false);
+		}
+	};
+
 	useEffect(() => {
 		if (!user || user.role !== "Admin") return;
-		fetch(`${BASE_URL}/api/global/link-lock`, { credentials: "include" })
-			.then((r) => r.json())
+		getLinkLock()
 			.then((d) => { if (d.status === "OK") setLinkLocked(d.locked); })
 			.catch(() => setLinkLockError("Failed to load link lock state."));
-		fetch(`${BASE_URL}/api/global/registration-disabled`, { credentials: "include" })
-			.then((r) => r.json())
-			.then((d) => { if (d.status === "OK") setRegistrationDisabled(d.disabled); })
+		getRegistrationDisabled()
+			.then((d) => { if (d.status === "OK") setRegistrationDisabledState(d.disabled); })
 			.catch(() => setRegistrationError("Failed to load registration state."));
+		refreshLinkStatus();
 	}, [user]);
 
 	if (!loading && (!user || user.role !== "Admin")) {
@@ -40,17 +79,13 @@ export const AdminPage = () => {
 		setLinkLockLoading(true);
 		setLinkLockError(null);
 		try {
-			const res = await fetch(`${BASE_URL}/api/global/link-lock`, {
-				method: "PATCH",
-				credentials: "include",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ locked: !linkLocked }),
-			});
-			const data = await res.json();
+			const data = await setLinkLock(!linkLocked);
 			if (data.status === "OK") {
 				setLinkLocked(data.locked);
+				// Also refresh linkable since lock state affects it
+				getLinkable().then((r) => { if (r.status === "OK") setLinkable(r.linkable); });
 			} else {
-				setLinkLockError(data.message ?? "Failed to update.");
+				setLinkLockError("Failed to update.");
 			}
 		} catch {
 			setLinkLockError("An error occurred.");
@@ -64,22 +99,34 @@ export const AdminPage = () => {
 		setRegistrationLoading(true);
 		setRegistrationError(null);
 		try {
-			const res = await fetch(`${BASE_URL}/api/global/registration-disabled`, {
-				method: "PATCH",
-				credentials: "include",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ disabled: !registrationDisabled }),
-			});
-			const data = await res.json();
+			const data = await apiSetRegistrationDisabled(!registrationDisabled);
 			if (data.status === "OK") {
-				setRegistrationDisabled(data.disabled);
+				setRegistrationDisabledState(data.disabled);
 			} else {
-				setRegistrationError(data.message ?? "Failed to update.");
+				setRegistrationError("Failed to update.");
 			}
 		} catch {
 			setRegistrationError("An error occurred.");
 		} finally {
 			setRegistrationLoading(false);
+		}
+	};
+
+	const handleUnlink = async () => {
+		if (!linkStatus?.linked || !instanceUUID) return;
+		setUnlinkLoading(true);
+		setUnlinkError(null);
+		try {
+			const data = await unlinkInstance(linkStatus.global_user_email, instanceUUID);
+			if (data.status === "OK") {
+				await refreshLinkStatus();
+			} else {
+				setUnlinkError(data.message ?? "Failed to unlink.");
+			}
+		} catch {
+			setUnlinkError("An error occurred while unlinking.");
+		} finally {
+			setUnlinkLoading(false);
 		}
 	};
 
@@ -154,6 +201,62 @@ export const AdminPage = () => {
 					</div>
 				)}
 				{linkLockError && <p className="mt-3 text-sm text-red-400">{linkLockError}</p>}
+			</div>
+
+			{/* Link Status */}
+			<div className="bg-[#282844] border border-purple-500/20 rounded-lg p-6 mb-4">
+				<div className="flex items-center justify-between mb-2">
+					<h2 className="text-xl font-semibold text-primary">Link Status</h2>
+					<button
+						onClick={refreshLinkStatus}
+						disabled={linkStatusLoading}
+						className="text-xs text-text/50 hover:text-text transition-colors disabled:opacity-40"
+					>
+						{linkStatusLoading ? "Refreshing…" : "Refresh"}
+					</button>
+				</div>
+				<p className="text-text/70 text-sm mb-4">
+					Manage the remote-access link for this instance. Only one user may be linked at a time.
+				</p>
+
+				{linkStatus === null ? (
+					<div className="animate-pulse h-8 w-40 rounded-md bg-[#383863]" />
+				) : linkStatus.linked ? (
+					/* ── Currently linked ── */
+					<div className="space-y-3">
+						<div className="flex items-center gap-2">
+							<span className="inline-block h-2 w-2 rounded-full bg-green-400" />
+							<span className="text-text text-sm font-medium">Linked</span>
+						</div>
+						<p className="text-text/70 text-sm">
+							Linked to:{" "}
+							<span className="text-primary font-mono">{linkStatus.global_user_email}</span>
+							{" "}via SHSF.DEV
+						</p>
+						<button
+							onClick={handleUnlink}
+							disabled={unlinkLoading}
+							className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-md text-sm font-medium transition duration-150"
+						>
+							{unlinkLoading ? "Unlinking…" : "Unlink"}
+						</button>
+						{unlinkError && <p className="text-sm text-red-400">{unlinkError}</p>}
+					</div>
+				) : (
+					/* ── Not linked ── */
+					<div className="space-y-2">
+						<div className="flex items-center gap-2">
+							<span className="inline-block h-2 w-2 rounded-full bg-text/30" />
+							<span className="text-text/60 text-sm">Not linked</span>
+						</div>
+						<p className="text-xs text-text/50">
+							{linkable
+								? "This instance is open for external linking."
+								: "Linking is currently disabled (link lock is on). Disable the lock above to allow external linking."}
+						</p>
+					</div>
+				)}
+				{linkStatusError && <p className="mt-3 text-sm text-red-400">{linkStatusError}</p>}
 			</div>
 
 			{/* Disable Registration */}

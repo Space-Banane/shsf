@@ -1,5 +1,6 @@
 import { AccessToken, Function, FunctionFile, Session, User } from "@prisma/client";
-import { prisma, REACT_APP_API_URL, UI_URL } from "..";
+import { prisma, INSTANCE_SECRET, REACT_APP_API_URL, UI_URL } from "..";
+import { getLinkStatus } from "./DataManager";
 import { Cookie } from "rjweb-server";
 
 export async function checkAuthentication(
@@ -252,4 +253,34 @@ export async function checkHttpExecutionPermission(
 	}
 
 	return permissionToExecute;
+}
+
+/**
+ * Validates a global/remote request by:
+ *  1. Checking the provided secret matches INSTANCE_SECRET
+ *  2. Confirming the instance has an active link
+ *
+ * Returns a discriminated union so callers can narrow on `success`.
+ */
+export async function GlobalAuthCheck(
+	secret: string | null,
+): Promise<
+	| { success: true; linked_email: string }
+	| { success: false; message: string }
+> {
+	if (!secret) {
+		return { success: false, message: "No secret provided." };
+	}
+
+	if (secret !== INSTANCE_SECRET) {
+		return { success: false, message: "Invalid instance secret." };
+	}
+
+	const linkStatus = await getLinkStatus();
+
+	if (!linkStatus.linked) {
+		return { success: false, message: "This instance is not linked." };
+	}
+
+	return { success: true, linked_email: linkStatus.global_user_email };
 }
