@@ -35,19 +35,9 @@ export = new fileRouter.Path("/").http("GET", "/api/global/uiUrl", (http) =>
 							schema: {
 								type: "object",
 								properties: {
-									status: { type: "string" },
-									version: {
-										type: "object",
-										properties: {
-											type: { type: "string" },
-											major: { type: "number" },
-											minor: { type: "number" },
-											patch: { type: "number" },
-											toString: { type: "string" },
-											raw: { type: "string" },
-										},
-									},
-								},
+                                    status: { type: "string" },
+                                    uiUrl: { type: "string" },
+                                }
 							},
 						},
 					},
