@@ -11,6 +11,7 @@ import RenameNamespaceModal from "../../components/modals/RenameNamespaceModal";
 import DeleteNamespaceModal from "../../components/modals/DeleteNamespaceModal";
 import DeleteFunctionModal from "../../components/modals/DeleteFunctionModal";
 import { deleteFunction } from "../../services/backend.functions";
+import ImportFunctionModal from "../../components/modals/ImportFunctionModal";
 
 function FunctionsList() {
 	const [namespaces, setNamespaces] = useState<
@@ -27,6 +28,7 @@ function FunctionsList() {
 	const [isDeleteFunctionModalOpen, setDeleteFunctionModalOpen] =
 		useState(false);
 	const [isCloneFunctionModalOpen, setCloneFunctionModalOpen] = useState(false);
+	const [isImportModalOpen, setImportModalOpen] = useState(false);
 	const [selectedNamespace, setSelectedNamespace] = useState<{
 		id: number;
 		name: string;
@@ -157,6 +159,12 @@ function FunctionsList() {
 							variant="primary"
 							onClick={() => setFunctionModalOpen(true)}
 						/>
+						<ActionButton
+							icon="📥"
+							label="Import Function"
+							variant="secondary"
+							onClick={() => setImportModalOpen(true)}
+						/>
 					</div>
 
 					<div className="flex items-center gap-2">
@@ -260,6 +268,13 @@ function FunctionsList() {
 				onDelete={handleDeleteFunction}
 				functionId={selectedFunction?.id || null}
 				functionName={selectedFunction?.name || ""}
+			/>
+			<ImportFunctionModal
+				isOpen={isImportModalOpen}
+				onClose={() => {
+					setImportModalOpen(false);
+					refreshData();
+				}}
 			/>
 		</div>
 	);

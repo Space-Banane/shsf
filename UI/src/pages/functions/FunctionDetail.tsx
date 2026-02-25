@@ -1,5 +1,6 @@
 import CLICommandCard from "../../components/cards/CLICommandCard";
 import { useParams } from "react-router-dom";
+import { SHSFExport } from "../../components/modals/ImportFunctionModal";
 import { useEffect, useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import CreateFileModal from "../../components/modals/CreateFileModal";
@@ -767,6 +768,65 @@ function FunctionDetail() {
 		}
 	}, [running, exitCode, showLogsModal]);
 
+	const handleExportFunction = () => {
+		if (!functionData) return;
+
+		// Parse env to get only the keys (strip values for security)
+		let envKeys: string[] = [];
+		try {
+			const envRaw =
+				typeof functionData.env === "string"
+					? JSON.parse(functionData.env)
+					: functionData.env;
+			if (Array.isArray(envRaw)) {
+				envKeys = envRaw
+					.map((e: any) => e?.name)
+					.filter(Boolean);
+			}
+		} catch {
+			// ignore parse errors
+		}
+
+		const exportData: SHSFExport = {
+			shsf_version: "1.0",
+			name: functionData.name,
+			description: functionData.description,
+			image: functionData.image,
+			startup_file: functionData.startup_file || "main.py",
+			docker_mount: functionData.docker_mount,
+			ffmpeg_install: functionData.ffmpeg_install,
+			settings: {
+				max_ram: functionData.max_ram,
+				timeout: functionData.timeout,
+				allow_http: functionData.allow_http,
+				tags: functionData.tags
+					? functionData.tags.split(",").filter(Boolean)
+					: [],
+				retry_on_failure: functionData.retry_on_failure,
+				retry_count: functionData.max_retries,
+			},
+			cors_origins: functionData.cors_origins ?? undefined,
+			...(envKeys.length > 0 && { env_keys: envKeys }),
+			files: files.map((f) => ({ name: f.name, content: f.content })),
+			triggers: triggers.map((t) => ({
+				name: t.name,
+				description: t.description,
+				cron: t.cron,
+				data: t.data,
+				enabled: t.enabled,
+			})),
+		};
+
+		const json = JSON.stringify(exportData, null, 2);
+		const blob = new Blob([json], { type: "application/json" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = `${functionData.name}.shsf`;
+		a.click();
+		URL.revokeObjectURL(url);
+	};
+
 	const handleLoadDefault = () => {
 		if (!activeFile) {
 			alert("No file is currently selected.");
@@ -1102,6 +1162,12 @@ function FunctionDetail() {
 									label="Version Control"
 									variant={functionData.git_url ? "primary" : "secondary"}
 									onClick={() => setShowGitModal(true)}
+								/>
+								<ActionButton
+									icon="📤"
+									label="Export"
+									variant="secondary"
+									onClick={handleExportFunction}
 								/>
 							</div>
 						</div>
@@ -1522,6 +1588,7 @@ function FunctionDetail() {
 						}
 					}}
 				/>
+
 			</div>
 		</div>
 	);
