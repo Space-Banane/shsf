@@ -7,7 +7,8 @@ import { CronExpressionParser } from "cron-parser";
 import { executeFunction } from "./lib/Runner";
 import { performGitPull } from "./lib/GitOps";
 import dotenv from "dotenv";
-import { getUUID } from "./lib/DataManager";
+import { getUUID, prevDirectory } from "./lib/DataManager";
+import { join } from "path";
 
 
 // load env file
@@ -55,6 +56,10 @@ if (!API_URL) {
 	throw new Error("REACT_APP_API_URL is not defined in environment variables");
 }
 CORS_DOMAINS.push(API_URL);
+
+// DATAMANAGER
+const dataPath = join(prevDirectory, ".data");
+console.log(`DataManager: Using data directory at ${dataPath}`);
 
 // Middleware Definition
 export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
