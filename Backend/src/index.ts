@@ -82,6 +82,11 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
 			console.log(
 				`[SHSF API] OpenAPI schema requested, skipping CORS and other middleware checks.`,
 			);
+
+			// Set headers
+			ctr.headers.set("Content-Type", "application/json");
+			ctr.headers.set("Access-Control-Allow-Origin", "*");
+
 			return;
 		}
 
