@@ -10,7 +10,6 @@ import dotenv from "dotenv";
 import { getUUID, prevDirectory } from "./lib/DataManager";
 import { join } from "path";
 
-
 // load env file
 dotenv.config();
 

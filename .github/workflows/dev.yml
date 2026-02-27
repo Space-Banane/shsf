@@ -12,6 +12,9 @@ on:
    - "UI/**"
    - "docker-compose.yml"
 
+permissions:
+  contents: write
+
 jobs:
  changes:
   runs-on: ubuntu-latest
@@ -80,3 +83,59 @@ jobs:
      run: cd UI && pnpm install
    - name: Build Frontend
      run: cd UI && CI=false && pnpm build
+
+ generate_openapi_release:
+  name: Generate OpenAPI Release
+  needs: build_backend
+  runs-on: ubuntu-latest
+  steps:
+   - name: Checkout code
+     uses: actions/checkout@v4
+   - name: Setup Node.js
+     uses: actions/setup-node@v3
+     with:
+      node-version: "24"
+   - name: Install pnpm
+     uses: pnpm/action-setup@v2
+     with:
+      version: 7
+   - name: Install dependencies
+     run: cd Backend && pnpm install
+   - name: Copy environment file
+     run: cp example.env Backend/.env
+   - name: Start backend (background)
+     run: |
+      cd Backend
+      nohup pnpm dev >/tmp/backend.log 2>&1 &
+      echo $! >/tmp/backend_dev.pid
+   - name: Fetch OpenAPI spec
+     run: |
+      for i in {1..30}; do
+       if curl -sf http://localhost:5000/api/openapi.json -o openapi.json; then
+        exit 0
+       fi
+       sleep 2
+      done
+      echo "Backend did not become ready in time" >&2
+      cat /tmp/backend.log || true
+      exit 1
+   - name: Stop backend
+     if: always()
+     run: |
+      if [ -f /tmp/backend_dev.pid ]; then
+       kill "$(cat /tmp/backend_dev.pid)" || true
+      fi
+   - name: Upload OpenAPI artifact
+     uses: actions/upload-artifact@v4
+     with:
+      name: openapi-spec
+      path: openapi.json
+   - name: Publish release with OpenAPI artifact
+     uses: softprops/action-gh-release@v1
+     with:
+      tag_name: openapi-${{ github.run_number }}
+      release_name: OpenAPI ${{ github.run_number }}
+      body: Generated OpenAPI spec from DEV workflow.
+      files: openapi.json
+     env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
