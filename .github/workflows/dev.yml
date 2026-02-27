@@ -137,7 +137,7 @@ jobs:
      uses: softprops/action-gh-release@v1
      with:
       tag_name: openapi-${{ github.run_number }}
-      release_name: OpenAPI ${{ github.run_number }}
+      name: OpenAPI ${{ github.run_number }}
       body: Generated OpenAPI spec from DEV workflow.
       files: openapi.json
      env:
