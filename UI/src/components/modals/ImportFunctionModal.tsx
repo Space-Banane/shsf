@@ -144,6 +144,7 @@ function ImportFunctionModal({
 				settings: parsed.settings,
 				namespaceId: selectedNamespaceId,
 				cors_origins: parsed.cors_origins,
+				imported: true,
 			});
 
 			if (createRes.status !== "OK") {

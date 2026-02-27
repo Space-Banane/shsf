@@ -429,7 +429,7 @@ function FunctionCard({
 	onDelete,
 	onClone,
 }: {
-	func: { id: number; name: string; description?: string };
+	func: { id: number; name: string; description?: string; imported?: boolean };
 	onDelete: () => void;
 	onClone?: () => void;
 }) {
@@ -444,9 +444,16 @@ function FunctionCard({
 						🚀
 					</div>
 					<div className="flex-1 min-w-0">
-						<h4 className="text-base font-semibold text-text group-hover:text-primary transition-colors duration-300">
-							{func.name}
-						</h4>
+						<div className="flex items-center gap-2">
+							<h4 className="text-base font-semibold text-text group-hover:text-primary transition-colors duration-300">
+								{func.name}
+							</h4>
+							{func.imported && (
+								<span className="uppercase tracking-wide px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500/30 to-purple-500/30 text-blue-100 border border-blue-500/40 shadow-sm text-xs font-bold">
+									Imported
+								</span>
+							)}
+						</div>
 						<p className="text-text/60 text-xs truncate">
 							{func.description || "No description available"}
 						</p>

@@ -168,6 +168,7 @@ export = new fileRouter.Path("/")
 					docker_mount: functionData.docker_mount,
 					ffmpeg_install: functionData.ffmpeg_install,
 					cors_origins: functionData.cors_origins,
+					imported: false,
 				},
 			});
 

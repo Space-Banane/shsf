@@ -71,6 +71,10 @@ export = new fileRouter.Path("/")
 										type: "string",
 										description: "Custom execution alias",
 									},
+									imported: {
+										type: "boolean",
+										description: "Marks the function as imported",
+									},
 									settings: {
 										type: "object",
 										properties: {
@@ -154,6 +158,7 @@ export = new fileRouter.Path("/")
 							.max(128)
 							.regex(/^[a-zA-Z0-9-_]+$/)
 							.optional(), // Only allow alphanumeric, hyphens, and underscores
+						imported: z.boolean().optional(),
 						settings: z
 							.object({
 								max_ram: z.number().min(128).max(1024).optional(),
@@ -262,6 +267,7 @@ export = new fileRouter.Path("/")
 						secure_header: data.settings?.secure_header,
 						retry_on_failure: data.settings?.retry_on_failure,
 						max_retries: data.settings?.retry_count,
+						imported: data.imported ?? false,
 						env: data.environment
 							? JSON.stringify(
 									data.environment.map((env) => ({

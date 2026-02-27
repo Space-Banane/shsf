@@ -34,6 +34,7 @@ interface XFunction {
 	startup_file: string;
 	docker_mount: boolean;
 	ffmpeg_install: boolean;
+	imported: boolean;
 
 	// Git Version Control
 	git_url?: string | null;

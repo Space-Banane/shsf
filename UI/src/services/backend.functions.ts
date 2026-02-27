@@ -85,6 +85,7 @@ async function createFunction(config: {
 	namespaceId: number;
 	cors_origins?: string;
 	executionAlias?: string;
+	imported?: boolean;
 }) {
 	const response = await fetch(`${BASE_URL}/api/function`, {
 		method: "POST",
