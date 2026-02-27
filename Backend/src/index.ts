@@ -76,6 +76,15 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
 			ctr.skipRateLimit();
 		}
 
+
+		// Check if the request is openapi.json, if so, skip CORS and other checks
+		if (ctr.url.href === "/api/openapi.json") {
+			console.log(
+				`[SHSF API] OpenAPI schema requested, skipping CORS and other middleware checks.`,
+			);
+			return;
+		}
+
 		// Get origin from headers
 		const origin = ctr.headers.get("origin");
 
