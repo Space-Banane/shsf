@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { BASE_URL } from "../..";
-import { routes } from "../../Routes";
+import { AppRoute, routes } from "../../Routes";
 
 export function NavBar({
 	user,
@@ -51,9 +51,24 @@ export function NavBar({
 					</div>
 					{/* Navigation Links */}
 					<nav className="hidden md:flex items-center space-x-2">
-						{routes
+						{(
+							[
+								{
+									name: "API Docs",
+									path: "https://api-docs.shsf.dev",
+									requireAuth: false,
+									show_nav: true,
+									adminOnly: false
+								},
+								...routes,
+							] as AppRoute[]
+						)
 							.filter((route) => !["Login", "Register"].includes(route.name))
 							.filter((route) => route.show_nav)
+							.sort((a, b) => {
+								const order = ["Home", "Docs", "API Docs", "Functions", "Storage", "Guest Users" ];
+								return order.indexOf(a.name) - order.indexOf(b.name);
+							})
 							.filter((route) => !route.adminOnly || isAdmin)
 							.map((route) => (
 								<a

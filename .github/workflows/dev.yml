@@ -106,11 +106,14 @@ jobs:
    - name: Start backend (background)
      run: |
       cd Backend
+      set -a
+      source .env
+      set +a
       nohup pnpm dev >/tmp/backend.log 2>&1 &
       echo $! >/tmp/backend_dev.pid
    - name: Fetch OpenAPI spec
      run: |
-      for i in {1..30}; do
+      for i in {1..5}; do
        if curl -sf http://localhost:5000/api/openapi.json -o openapi.json; then
         exit 0
        fi
