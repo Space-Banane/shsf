@@ -768,7 +768,7 @@ function FunctionDetail() {
 		}
 	}, [running, exitCode, showLogsModal]);
 
-	const handleExportFunction = () => {
+	const handleExportFunction = async () => {
 		if (!functionData) return;
 
 		// Parse env to get only the keys (strip values for security)
@@ -787,23 +787,30 @@ function FunctionDetail() {
 			// ignore parse errors
 		}
 
+		let version = "";
+		try {
+			const res = await fetch(BASE_URL + "/api/version");
+			if (!res.ok) {
+				throw new Error("Failed to fetch version");
+			}
+			const data = await res.json();
+			version = data.version!.raw;
+		} catch (err) {
+			console.error("Error fetching version:", err);
+		}
+
 		const exportData: SHSFExport = {
-			shsf_version: "1.0",
+			shsf_version: version,
 			name: functionData.name,
 			description: functionData.description,
 			image: functionData.image,
-			startup_file: functionData.startup_file || "main.py",
+			startup_file: functionData.startup_file!,
 			docker_mount: functionData.docker_mount,
 			ffmpeg_install: functionData.ffmpeg_install,
 			settings: {
 				max_ram: functionData.max_ram,
 				timeout: functionData.timeout,
 				allow_http: functionData.allow_http,
-				tags: functionData.tags
-					? functionData.tags.split(",").filter(Boolean)
-					: [],
-				retry_on_failure: functionData.retry_on_failure,
-				retry_count: functionData.max_retries,
 			},
 			cors_origins: functionData.cors_origins ?? undefined,
 			...(envKeys.length > 0 && { env_keys: envKeys }),
@@ -1167,7 +1174,7 @@ function FunctionDetail() {
 									icon="📤"
 									label="Export"
 									variant="secondary"
-									onClick={handleExportFunction}
+									onClick={() => { handleExportFunction(); }}
 								/>
 							</div>
 						</div>

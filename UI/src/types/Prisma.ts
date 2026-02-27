@@ -31,7 +31,7 @@ interface XFunction {
 	max_retries: number;
 
 	tags?: string; // comma-separated tags
-	startup_file?: string;
+	startup_file: string;
 	docker_mount: boolean;
 	ffmpeg_install: boolean;
 
