@@ -523,7 +523,7 @@ export = new fileRouter.Path("/")
 					name: z.string().min(1).max(128).optional(),
 					description: z.string().min(3).max(128).optional(),
 					image: z.enum(Images as any).optional(),
-					startup_file: z.string().min(1).max(256),
+					startup_file: z.string().min(1).max(256).optional(),
 					executionAlias: z
 						.string()
 						.min(8)
