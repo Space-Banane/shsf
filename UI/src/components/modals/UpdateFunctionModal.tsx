@@ -159,15 +159,19 @@ function UpdateFunctionModal({
 
 		const urls = lastLogs
 			.flatMap((log) => {
-				const payload = JSON.parse(JSON.parse(log.result!).payload);
-				if (payload) {
-					const url = payload.headers?.host;
-					if (url) {
-						return url;
+				try {
+					const payload = JSON.parse(JSON.parse(log.result!).payload);
+					if (payload) {
+						const url = payload.headers?.host;
+						if (url) {
+							return url;
+						} else {
+							return [];
+						}
 					} else {
 						return [];
 					}
-				} else {
+				} catch {
 					return [];
 				}
 			})
