@@ -17,7 +17,7 @@
 		"cron-parser": "^5.4.0",
 		"dockerode": "^4.0.9",
 		"esbuild": "^0.25.11",
-		"file-type": "^19.6.0",
+		"file-type": "^21.3.1",
 		"lru-cache": "^11.2.2",
 		"prisma": "^6.18.0",
 		"rjweb-server": "^9.8.6",
