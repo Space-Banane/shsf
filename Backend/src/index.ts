@@ -75,7 +75,6 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
 			ctr.skipRateLimit();
 		}
 
-
 		// Check if the request is openapi.json, if so, skip CORS and other checks
 		if (ctr.url.href === "/api/openapi.json") {
 			console.log(
@@ -132,6 +131,29 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
 				console.log(
 					`[CORS MIDDLEWARE] Policy (Final Decision): This origin is not allowed access - ${origin}`,
 				);
+				if (ctr.url.path.startsWith("/api/exec/")) {
+					// Its a exec, but we deny access, so we'll log it, so that we can suggest this url in the UpdateFunctionModal for CORS suggestions.
+					const execId = ctr.url.path.split("/")[4]; // UUID
+					const func = await prisma.function.findFirst({
+						where: { executionId: execId },
+					});
+					if (func) {
+						console.log(
+							`[CORS MIDDLEWARE] Logging denied origin for function #${func.id} (${func.name}) - ${origin}`,
+						);
+						await prisma.triggerLog.create({
+							data: {
+								functionId: func.id,
+								result: "CORS_DENIED",
+								logs: `Denied origin: ${origin}`,
+							},
+						});
+					} else {
+						console.log(
+							`[CORS MIDDLEWARE] Could not find function for exec ID ${execId} to log denied origin ${origin}`,
+						);
+					}
+				}
 				return end(
 					ctr.status(ctr.$status.FORBIDDEN).print({
 						status: "FAILED",
