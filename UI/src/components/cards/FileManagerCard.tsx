@@ -6,6 +6,7 @@ export function FileManagerCard({
 	activeFile,
 	onFileSelect,
 	onCreateFile,
+	onDownloadFile,
 	onRenameFile,
 	onDeleteFile,
 	onAIGenerate,
@@ -16,6 +17,7 @@ export function FileManagerCard({
 	activeFile: FunctionFile | null;
 	onFileSelect: (file: FunctionFile) => void;
 	onCreateFile: () => void;
+	onDownloadFile: (file: FunctionFile) => void;
 	onRenameFile: (file: FunctionFile) => void;
 	onDeleteFile: (file: FunctionFile) => void;
 	onAIGenerate?: () => void;
@@ -53,6 +55,15 @@ export function FileManagerCard({
 							<div className="flex items-center justify-between">
 								<span className="text-text text-sm truncate flex-1">{file.name}</span>
 								<div className="flex items-center gap-0.5 ml-2 flex-shrink-0">
+									<button
+										className="p-1 text-blue-400 hover:bg-blue-400/10 rounded transition-all duration-200 text-xs"
+										onClick={(e) => {
+											e.stopPropagation();
+											onDownloadFile(file);
+										}}
+									>
+										⬇️
+									</button>
 									<button
 										className="p-1 text-yellow-400 hover:bg-yellow-400/10 rounded transition-all duration-200 text-xs"
 										onClick={(e) => {
