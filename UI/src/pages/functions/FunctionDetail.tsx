@@ -1329,11 +1329,12 @@ function FunctionDetail() {
 								</div>
 
 								<div className="flex items-center gap-2 flex-shrink-0">
-									{files.find((file) => file.name === "requirements.txt") && (
+									{/* Show Pip Install button if requirements.txt exists or if it's a git-based function (since we don't know the files) */}
+									{(files.find((file) => file.name === "requirements.txt") || Boolean(functionData.git_url)) && (
 										<button
 											className="bg-blue-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 											onClick={handlePipInstall}
-											disabled={pipRunning || running || saving || Boolean(functionData.git_url)}
+											disabled={pipRunning || running || saving}
 										>
 											{pipRunning ? "📦 Installing..." : "📦 Pip Install"}
 										</button>
