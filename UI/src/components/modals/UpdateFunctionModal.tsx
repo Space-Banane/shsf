@@ -190,7 +190,7 @@ function UpdateFunctionModal({
 	}, [lastLogs, corsOriginsArray]);
 
 	// console.log("Last logs passed to UpdateFunctionModal:", lastLogs); // Debug log
-	console.log("Logged URLs for CORS suggestions:", loggedUrls); // Debug log
+	// console.log("Logged URLs for CORS suggestions:", loggedUrls); // Debug log
 
 	return (
 		<Modal
