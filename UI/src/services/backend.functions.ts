@@ -425,6 +425,48 @@ async function removeGitConfig(id: number) {
 	return await response.json() as { status: "OK" | number; message: string };
 }
 
+async function massReplace(find: string, replace: string) {
+	const response = await fetch(`${BASE_URL}/api/functions/replace`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		credentials: "include",
+		body: JSON.stringify({ find, replace }),
+	});
+
+	const data = (await response.json()) as OKResponse | ErrorResponse;
+	return data;
+}
+
+async function getMassReplaceFindings(find: string, replace: string) {
+	const response = await fetch(`${BASE_URL}/api/functions/replace/findings`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		credentials: "include",
+		body: JSON.stringify({ find, replace }),
+	});
+
+	const data = (await response.json()) as
+		| {
+				status: "OK";
+				data: {
+					fileId: number;
+					fileName: string;
+					functionName: string;
+					matches: {
+						lineNumber: number;
+						oldLine: string;
+						newLine: string;
+					}[];
+				}[];
+		  }
+		| ErrorResponse;
+	return data;
+}
+
 export {
 	createFunction,
 	deleteFunction,
@@ -444,6 +486,8 @@ export {
 	updateGitSettings,
 	removeGitCredentials,
 	removeGitConfig,
+	massReplace,
+	getMassReplaceFindings,
 };
 export type { OKResponse, ErrorResponse };
 export type {

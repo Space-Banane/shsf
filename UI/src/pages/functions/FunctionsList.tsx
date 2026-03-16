@@ -12,6 +12,7 @@ import DeleteNamespaceModal from "../../components/modals/DeleteNamespaceModal";
 import DeleteFunctionModal from "../../components/modals/DeleteFunctionModal";
 import { deleteFunction } from "../../services/backend.functions";
 import ImportFunctionModal from "../../components/modals/ImportFunctionModal";
+import MassReplaceModal from "../../components/modals/MassReplaceModal";
 
 function FunctionsList() {
 	const [namespaces, setNamespaces] = useState<
@@ -29,6 +30,7 @@ function FunctionsList() {
 		useState(false);
 	const [isCloneFunctionModalOpen, setCloneFunctionModalOpen] = useState(false);
 	const [isImportModalOpen, setImportModalOpen] = useState(false);
+	const [isMassReplaceModalOpen, setMassReplaceModalOpen] = useState(false);
 	const [selectedNamespace, setSelectedNamespace] = useState<{
 		id: number;
 		name: string;
@@ -165,6 +167,12 @@ function FunctionsList() {
 							variant="secondary"
 							onClick={() => setImportModalOpen(true)}
 						/>
+						<ActionButton
+							icon="🔍"
+							label="Mass Find & Replace"
+							variant="secondary"
+							onClick={() => setMassReplaceModalOpen(true)}
+						/>
 					</div>
 
 					<div className="flex items-center gap-2">
@@ -273,6 +281,14 @@ function FunctionsList() {
 				isOpen={isImportModalOpen}
 				onClose={() => {
 					setImportModalOpen(false);
+					refreshData();
+				}}
+			/>
+			<MassReplaceModal
+				isOpen={isMassReplaceModalOpen}
+				onClose={() => setMassReplaceModalOpen(false)}
+				onSuccess={(msg) => {
+					alert(msg);
 					refreshData();
 				}}
 			/>
