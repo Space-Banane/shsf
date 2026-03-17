@@ -3,6 +3,20 @@ import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
 import { OpenAPITags } from "../../lib/openapi";
 
+const Images: string[] = [
+	"python:3.9",
+	"python:3.10",
+	"python:3.11",
+	"python:3.12",
+	"python:3.13",
+	"python:3.14",
+	"python:3.15",
+	"golang:1.20",
+	"golang:1.21",
+	"golang:1.22",
+	"golang:1.23",
+];
+
 const DisallowedFiles = ["_runner.py", "_runner.js", "init.sh"];
 
 // ─── SHSF platform knowledge injected into every generation prompt ───────────
@@ -405,10 +419,126 @@ const writeFileTool = {
 	},
 };
 
-export = new fileRouter.Path("/").http(
-	"POST",
-	"/api/function/{id}/ai/generate",
-	(http) =>
+export = new fileRouter.Path("/")
+	.http("POST", "/api/ai/kickoff/config", (http) =>
+		http
+			.document({
+				description: "Suggest a function name and startup file based on user description and chosen image",
+				tags: ["AI", "KICKOFF"] as OpenAPITags[],
+				operationId: "aiSuggestKickoffConfig",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								required: ["prompt", "image"],
+								properties: {
+									prompt: {
+										type: "string",
+										description: "The user description of the function",
+									},
+									image: {
+										type: "string",
+										description: "The Docker image/runtime to use",
+									},
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					200: {
+						description: "Suggested configuration",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										data: {
+											type: "object",
+											properties: {
+												name: { type: "string" },
+												description: { type: "string" },
+												startup_file: { type: "string" },
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+			.onRequest(async (ctr) => {
+				const authCheck = await checkAuthentication(ctr.cookies.get(COOKIE), ctr.headers.get(API_KEY_HEADER));
+				if (!authCheck.success) return ctr.print({ status: 401, message: authCheck.message });
+
+				const [body, error] = await ctr.bindBody((z) =>
+					z.object({
+						prompt: z.string().min(1),
+						image: z.enum(Images as [string, ...string[]]),
+					}),
+				);
+
+				if (error || !body) return ctr.status(400).print({ status: 400, message: "Invalid request body" });
+
+				const or = new OpenRouter({ apiKey: authCheck.user.openRouterKey || process.env.OPENROUTER_API_KEY });
+
+				const response = await or.chat.send({
+					chatGenerationParams: {
+						model: "qwen/qwen3-coder-next",
+						messages: [
+							{
+								role: "system",
+								content: `You are an AI that helps users configure their serverless functions on the SHSF platform.
+Based on the user's description and chosen runtime, suggest:
+1. A concise, professional name for the function (alphanumeric, max 128 chars).
+2. A clear, helpful description.
+3. The most appropriate startup file name (e.g., "main.py" for Python, "main_user.go" for Go).
+
+Return ONLY a JSON object with the following structure:
+{
+    "name": "string",
+    "description": "string",
+    "startup_file": "string"
+}
+
+Platform Rules:
+- Go functions MUST use "main_user.go" as the startup file.
+- Python functions should typically use "main.py".
+- Available runtimes: ${Images.join(", ")}`,
+							},
+							{
+								role: "user",
+								content: `User Description: ${body.prompt}\nChosen Runtime: ${body.image}`,
+							},
+						],
+						response_format: { type: "json_object" },
+					},
+				} as any);
+
+				const content = response.choices[0].message.content;
+				if (!content) return ctr.status(500).print({ status: 500, message: "AI failed to respond" });
+
+				try {
+					const rawContent = typeof content === "string" ? content : JSON.stringify(content);
+					const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+					const config = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent);
+					return ctr.print({
+						status: "OK",
+						data: {
+							name: config.name || "My Function",
+							description: config.description || body.prompt,
+							startup_file: config.startup_file || (body.image.startsWith("python") ? "main.py" : "main_user.go"),
+						},
+					});
+				} catch (e) {
+					return ctr.status(500).print({ status: 500, message: "AI returned invalid JSON: " + content });
+				}
+			}),
+	)
+	.http("POST", "/api/function/{id}/ai/generate", (http) =>
 		http
 			.document({
 				description: "Generate or revise function files using AI code generation",

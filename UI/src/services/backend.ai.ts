@@ -2,45 +2,66 @@ import { BASE_URL } from "..";
 
 export type AIMode = "kickoff" | "revision";
 
-interface AIGenerateRequest {
-	mode: AIMode;
-	prompt: string;
-	files?: string[]; // filenames for revision mode (up to 3)
+export interface AIGenerateRequest {
+mode: AIMode;
+prompt: string;
+files?: string[];
 }
 
-interface AIGenerateSuccess {
-	status: "OK";
-	message: string;
-	data: {
-		writtenFiles: string[];
-		model: string;
-	};
+export interface AIKickoffConfigResponse {
+status: "OK";
+data: {
+name: string;
+description: string;
+startup_file: string;
+};
 }
 
-interface ErrorResponse {
-	status: number | string;
-	message: string;
+export interface AIGenerateSuccess {
+status: "OK";
+message: string;
+data: {
+writtenFiles: string[];
+model: string;
+};
 }
 
-async function generateWithAI(
-	functionId: number,
-	request: AIGenerateRequest,
-	signal?: AbortSignal,
+export interface ErrorResponse {
+status: number | string;
+message: string;
+}
+
+export async function generateConfigWithAI(
+prompt: string,
+image: string,
+): Promise<AIKickoffConfigResponse | ErrorResponse> {
+const response = await fetch(BASE_URL + "/api/ai/kickoff/config", {
+method: "POST",
+headers: {
+"Content-Type": "application/json",
+},
+credentials: "include",
+body: JSON.stringify({ prompt, image }),
+});
+return response.json();
+}
+
+export async function generateWithAI(
+functionId: number,
+request: AIGenerateRequest,
+signal?: AbortSignal,
 ): Promise<AIGenerateSuccess | ErrorResponse> {
-	const response = await fetch(
-		`${BASE_URL}/api/function/${functionId}/ai/generate`,
-		{
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			credentials: "include",
-			body: JSON.stringify(request),
-			signal,
-		},
-	);
+const response = await fetch(
+BASE_URL + "/api/function/" + functionId + "/ai/generate",
+{
+method: "POST",
+headers: { "Content-Type": "application/json" },
+credentials: "include",
+body: JSON.stringify(request),
+signal,
+},
+);
 
-	const data = (await response.json()) as AIGenerateSuccess | ErrorResponse;
-	return data;
+const data = (await response.json()) as AIGenerateSuccess | ErrorResponse;
+return data;
 }
-
-export { generateWithAI };
-export type { AIGenerateRequest, AIGenerateSuccess, ErrorResponse };

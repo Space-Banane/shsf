@@ -13,6 +13,7 @@ import DeleteFunctionModal from "../../components/modals/DeleteFunctionModal";
 import { deleteFunction } from "../../services/backend.functions";
 import ImportFunctionModal from "../../components/modals/ImportFunctionModal";
 import MassReplaceModal from "../../components/modals/MassReplaceModal";
+import AIGenerateModal from "../../components/modals/AIGenerateModal";
 
 function FunctionsList() {
 	const [namespaces, setNamespaces] = useState<
@@ -26,6 +27,7 @@ function FunctionsList() {
 	const [isDeleteNamespaceModalOpen, setDeleteNamespaceModalOpen] =
 		useState(false);
 	const [isFunctionModalOpen, setFunctionModalOpen] = useState(false);
+	const [isAIModalOpen, setAIModalOpen] = useState(false);
 	const [isDeleteFunctionModalOpen, setDeleteFunctionModalOpen] =
 		useState(false);
 	const [isCloneFunctionModalOpen, setCloneFunctionModalOpen] = useState(false);
@@ -162,6 +164,12 @@ function FunctionsList() {
 							onClick={() => setFunctionModalOpen(true)}
 						/>
 						<ActionButton
+							icon="✨"
+							label="AI KICKOFF"
+							variant="primary"
+							onClick={() => setAIModalOpen(true)}
+						/>
+						<ActionButton
 							icon="📥"
 							label="Import Function"
 							variant="secondary"
@@ -245,6 +253,12 @@ function FunctionsList() {
 				onClose={() => setFunctionModalOpen(false)}
 				onSuccess={refreshData}
 				namespaces={namespaces}
+			/>
+			<AIGenerateModal
+				isOpen={isAIModalOpen}
+				onClose={() => setAIModalOpen(false)}
+				onSuccess={refreshData}
+				namespaceId={namespaces.length > 0 ? (selectedNamespace?.id || namespaces[0].id) : undefined}
 			/>
 			<CloneFunctionModal
 				isOpen={isCloneFunctionModalOpen}
