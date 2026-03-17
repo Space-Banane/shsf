@@ -1,37 +1,21 @@
-name: DEV Build Test
-run-name: Build Test Workflow
+run-name: SHSF Push Validation Workflow
 on:
- pull_request:
-  branches:
-   - dev
- push:
-  branches:
-   - dev
-  paths:
-   - "Backend/**"
-   - "UI/**"
-   - "docker-compose.yml"
+  pull_request:
+    branches-ignore:
+      - main
+  push:
+    branches-ignore:
+      - main
+    paths:
+      - "Backend/**"
+      - "UI/**"
+      - "docker-compose.yml"
 
 permissions:
   contents: write
 
 jobs:
- changes:
-  runs-on: ubuntu-latest
-  outputs:
-   compose: ${{ steps.filter.outputs.compose }}
-  steps:
-   - uses: actions/checkout@v4
-   - uses: dorny/paths-filter@v3
-     id: filter
-     with:
-      filters: |
-       compose:
-        - 'docker-compose.yml'
-
  compose_validation:
-  needs: changes
-  if: needs.changes.outputs.compose == 'true'
   name: Validate Docker Compose
   runs-on: ubuntu-latest
   steps:
