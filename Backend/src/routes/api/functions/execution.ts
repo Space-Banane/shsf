@@ -1,4 +1,4 @@
-import { fileRouter, prisma } from "../../..";
+import { fileRouter, prisma, API_KEY_HEADER } from "../../..";
 import { env } from "process";
 import { checkHttpExecutionPermission } from "../../../lib/Authentication";
 import {
@@ -6,6 +6,12 @@ import {
 	buildPayloadFromPOST,
 	executeFunction,
 } from "../../../lib/Runner";
+import {
+	getPayloadHash,
+	getFunctionCache,
+	handleFunctionResult,
+	setFunctionCache,
+} from "../../../lib/Caching";
 
 export = new fileRouter.Path("/")
 	.http("GET", "/api/exec/{namespaceId}/{functionId}", (http) =>
@@ -76,6 +82,15 @@ export = new fileRouter.Path("/")
 				// Build the payload from GET request
 				const payload = await buildPayloadFromGET(ctr);
 
+				const payloadHash = getPayloadHash(payload);
+
+				if (functionData.cache_enabled) {
+					const cached = await getFunctionCache(functionData.id, payloadHash);
+					if (cached) {
+						return handleFunctionResult(ctr, JSON.parse(cached.result), true);
+					}
+				}
+
 				// Execute with run parameter instead of inject.json
 				const result = await executeFunction(
 					functionData.id,
@@ -88,52 +103,16 @@ export = new fileRouter.Path("/")
 					})
 				);
 
-				// we might be able to do magic here
-				if (typeof result?.result === "object" && result?.result !== null) {
-					const out = result.result; // quicker to write and access
-
-					if ("_shsf" in out) {
-						const version: "v2" = out._shsf; // always v2 currently
-						const headers: { key: string; value: any }[] | null =
-							"_headers" in out
-								? Object.entries(out._headers).map(([key, value]) => ({
-										key,
-										value,
-								  }))
-								: null;
-						const response_code: number | null = "_code" in out ? out._code : null;
-						const response: any | null = "_res" in out ? out._res : null;
-
-						if (response_code === 301 || response_code === 302) {
-							// Handle redirects
-							ctr.status(response_code);
-							if (headers) {
-								headers.forEach(({ key, value }) => {
-									ctr.headers.set(key, value);
-								});
-							}
-							const link = "_location" in out ? out._location : "/";
-							return ctr.redirect(link);
-						}
-
-						ctr.status(response_code || 200);
-
-						if (headers) {
-							headers.forEach(({ key, value }) => {
-								ctr.headers.set(key, value);
-							});
-						}
-
-						if (response) {
-							return ctr.print(response);
-						} else {
-							return ctr.print("No Function Result :(");
-						}
-					}
+				if (result?.exit_code === 0 && functionData.cache_enabled) {
+					await setFunctionCache(
+						functionData.id,
+						payloadHash,
+						result.result,
+						functionData.cache_ttl ?? 60
+					);
 				}
 
-				// Return result if available from main function, otherwise output OK
-				return ctr.print(result?.result ?? "No Function Result :(");
+				return handleFunctionResult(ctr, result?.result, false);
 			})
 	)
 	.http("POST", "/api/exec/{namespaceId}/{functionId}", (http) =>
@@ -204,6 +183,15 @@ export = new fileRouter.Path("/")
 				// Build the payload from POST request
 				const payload = await buildPayloadFromPOST(ctr);
 
+				const payloadHash = getPayloadHash(payload);
+
+				if (functionData.cache_enabled) {
+					const cached = await getFunctionCache(functionData.id, payloadHash);
+					if (cached) {
+						return handleFunctionResult(ctr, JSON.parse(cached.result), true);
+					}
+				}
+
 				const result = await executeFunction(
 					functionData.id,
 					functionData,
@@ -215,51 +203,16 @@ export = new fileRouter.Path("/")
 					})
 				);
 
-				// we might be able to do magic here
-				if (typeof result?.result === "object" && result?.result !== null) {
-					const out = result.result; // quicker to write and access
-
-					if ("_shsf" in out) {
-						const version: "v2" = out._shsf; // always v2 currently
-						const headers: { key: string; value: any }[] | null =
-							"_headers" in out
-								? Object.entries(out._headers).map(([key, value]) => ({
-										key,
-										value,
-								  }))
-								: null;
-						const response_code: number | null = "_code" in out ? out._code : null;
-						const response: any | null = "_res" in out ? out._res : null;
-
-						if (response_code === 301 || response_code === 302) {
-							// Handle redirects
-							ctr.status(response_code);
-							if (headers) {
-								headers.forEach(({ key, value }) => {
-									ctr.headers.set(key, value);
-								});
-							}
-							const link = "_location" in out ? out._location : "/";
-							return ctr.redirect(link);
-						}
-
-						ctr.status(response_code || 200);
-
-						if (headers) {
-							headers.forEach(({ key, value }) => {
-								ctr.headers.set(key, value);
-							});
-						}
-
-						if (response) {
-							return ctr.print(response);
-						} else {
-							return ctr.print("No Function Result :(");
-						}
-					}
+				if (result?.exit_code === 0 && functionData.cache_enabled) {
+					await setFunctionCache(
+						functionData.id,
+						payloadHash,
+						result.result,
+						functionData.cache_ttl ?? 60
+					);
 				}
 
-				return ctr.print(result?.result ?? "No Function Result :(");
+				return handleFunctionResult(ctr, result?.result, false);
 			})
 	)
 	.http("GET", "/exec/{executionAlias}", (http) =>
@@ -328,6 +281,15 @@ export = new fileRouter.Path("/")
 				// Build the payload from GET request
 				const payload = await buildPayloadFromGET(ctr);
 
+				const payloadHash = getPayloadHash(payload);
+
+				if (functionData.cache_enabled) {
+					const cached = await getFunctionCache(functionData.id, payloadHash);
+					if (cached) {
+						return handleFunctionResult(ctr, JSON.parse(cached.result), true);
+					}
+				}
+
 				// Execute with run parameter instead of inject.json
 				const result = await executeFunction(
 					functionData.id,
@@ -340,52 +302,17 @@ export = new fileRouter.Path("/")
 					})
 				);
 
-				// we might be able to do magic here
-				if (typeof result?.result === "object" && result?.result !== null) {
-					const out = result.result; // quicker to write and access
-
-					if ("_shsf" in out) {
-						const version: "v2" = out._shsf; // always v2 currently
-						const headers: { key: string; value: any }[] | null =
-							"_headers" in out
-								? Object.entries(out._headers).map(([key, value]) => ({
-										key,
-										value,
-								  }))
-								: null;
-						const response_code: number | null = "_code" in out ? out._code : null;
-						const response: any | null = "_res" in out ? out._res : null;
-
-						if (response_code === 301 || response_code === 302) {
-							// Handle redirects
-							ctr.status(response_code);
-							if (headers) {
-								headers.forEach(({ key, value }) => {
-									ctr.headers.set(key, value);
-								});
-							}
-							const link = "_location" in out ? out._location : "/";
-							return ctr.redirect(link);
-						}
-
-						ctr.status(response_code || 200);
-
-						if (headers) {
-							headers.forEach(({ key, value }) => {
-								ctr.headers.set(key, value);
-							});
-						}
-
-						if (response) {
-							return ctr.print(response);
-						} else {
-							return ctr.print("No Function Result :(");
-						}
-					}
+				if (result?.exit_code === 0 && functionData.cache_enabled) {
+					await setFunctionCache(
+						functionData.id,
+						payloadHash,
+						result.result,
+						functionData.cache_ttl ?? 60
+					);
 				}
 
 				// Return result if available from main function, otherwise output OK
-				return ctr.print(result?.result ?? "No Function Result :(");
+				return handleFunctionResult(ctr, result?.result, false);
 			})
 	)
 	.http("POST", "/exec/{executionAlias}", (http) =>
@@ -454,6 +381,15 @@ export = new fileRouter.Path("/")
 				// Build the payload from POST request
 				const payload = await buildPayloadFromPOST(ctr);
 
+				const payloadHash = getPayloadHash(payload);
+
+				if (functionData.cache_enabled) {
+					const cached = await getFunctionCache(functionData.id, payloadHash);
+					if (cached) {
+						return handleFunctionResult(ctr, JSON.parse(cached.result), true);
+					}
+				}
+
 				const result = await executeFunction(
 					functionData.id,
 					functionData,
@@ -465,51 +401,16 @@ export = new fileRouter.Path("/")
 					})
 				);
 
-				// we might be able to do magic here
-				if (typeof result?.result === "object" && result?.result !== null) {
-					const out = result.result; // quicker to write and access
-
-					if ("_shsf" in out) {
-						const version: "v2" = out._shsf; // always v2 currently
-						const headers: { key: string; value: any }[] | null =
-							"_headers" in out
-								? Object.entries(out._headers).map(([key, value]) => ({
-										key,
-										value,
-								  }))
-								: null;
-						const response_code: number | null = "_code" in out ? out._code : null;
-						const response: any | null = "_res" in out ? out._res : null;
-
-						if (response_code === 301 || response_code === 302) {
-							// Handle redirects
-							ctr.status(response_code);
-							if (headers) {
-								headers.forEach(({ key, value }) => {
-									ctr.headers.set(key, value);
-								});
-							}
-							const link = "_location" in out ? out._location : "/";
-							return ctr.redirect(link);
-						}
-
-						ctr.status(response_code || 200);
-
-						if (headers) {
-							headers.forEach(({ key, value }) => {
-								ctr.headers.set(key, value);
-							});
-						}
-
-						if (response) {
-							return ctr.print(response);
-						} else {
-							return ctr.print("No Function Result :(");
-						}
-					}
+				if (result?.exit_code === 0 && functionData.cache_enabled) {
+					await setFunctionCache(
+						functionData.id,
+						payloadHash,
+						result.result,
+						functionData.cache_ttl ?? 60
+					);
 				}
 
-				return ctr.print(result?.result ?? "No Function Result :(");
+				return handleFunctionResult(ctr, result?.result, false);
 			})
 	)
 	.http("GET", "/api/exec/{namespaceId}/{functionId}/{route}", (http) =>

@@ -168,6 +168,8 @@ export = new fileRouter.Path("/")
 								tags: z.array(z.string().min(1).max(32)).optional(),
 								retry_on_failure: z.boolean().optional(),
 								retry_count: z.number().min(1).max(10).positive().optional(),
+								cache_enabled: z.boolean().optional(),
+								cache_ttl: z.number().min(1).max(86400).optional(),
 							})
 							.optional(),
 						environment: z
@@ -267,6 +269,8 @@ export = new fileRouter.Path("/")
 						secure_header: data.settings?.secure_header,
 						retry_on_failure: data.settings?.retry_on_failure,
 						max_retries: data.settings?.retry_count,
+						cache_enabled: data.settings?.cache_enabled ?? false,
+						cache_ttl: data.settings?.cache_ttl ?? 60,
 						imported: data.imported ?? false,
 						env: data.environment
 							? JSON.stringify(
@@ -542,6 +546,8 @@ export = new fileRouter.Path("/")
 							tags: z.array(z.string().min(1).max(32)).optional(),
 							retry_on_failure: z.boolean().optional(),
 							retry_count: z.number().min(1).max(10).positive().optional(),
+							cache_enabled: z.boolean().optional(),
+							cache_ttl: z.number().min(1).max(86400).optional(),
 						})
 						.optional(),
 					environment: z
@@ -629,6 +635,12 @@ export = new fileRouter.Path("/")
 				}),
 				...(data.settings?.retry_count && {
 					max_retries: data.settings.retry_count,
+				}),
+				...(data.settings?.cache_enabled !== undefined && {
+					cache_enabled: data.settings.cache_enabled,
+				}),
+				...(data.settings?.cache_ttl && {
+					cache_ttl: data.settings.cache_ttl,
 				}),
 				...(data.environment && {
 					env: JSON.stringify(

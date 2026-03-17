@@ -38,6 +38,8 @@ function UpdateFunctionModal({
 	const [corsOrigins, setCorsOrigins] = useState<string>("");
 	const [corsOriginInput, setCorsOriginInput] = useState<string>("");
 	const [executionAlias, setExecutionAlias] = useState<string>("");
+	const [cacheEnabled, setCacheEnabled] = useState<boolean>(false);
+	const [cacheTtl, setCacheTtl] = useState<number>(60);
 
 	// Initialize form with existing function data
 	useEffect(() => {
@@ -54,6 +56,8 @@ function UpdateFunctionModal({
 			setFfmpegInstall(functionData.ffmpeg_install ?? false);
 			setCorsOrigins(functionData.cors_origins || "");
 			setExecutionAlias(functionData.executionAlias || "");
+			setCacheEnabled(functionData.cache_enabled ?? false);
+			setCacheTtl(functionData.cache_ttl ?? 60);
 		}
 	}, [functionData, isOpen]);
 
@@ -124,6 +128,8 @@ function UpdateFunctionModal({
 					timeout,
 					allow_http: allowHttp,
 					secure_header: secureHeader?.length === 0 ? null : secureHeader,
+					cache_enabled: cacheEnabled,
+					cache_ttl: cacheTtl,
 				},
 				cors_origins: corsOrigins,
 			});
@@ -475,6 +481,63 @@ function UpdateFunctionModal({
 								<p className="text-xs text-purple-400 mt-1">
 									FFmpeg install is disabled for HTML startup files
 								</p>
+							)}
+						</div>
+
+						{/* Caching Toggle & TTL */}
+						<div className="bg-gray-800/30 border border-blue-600/50 rounded-lg p-4">
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-3">
+									<span className="text-lg">⚡</span>
+									<div>
+										<p className="text-blue-300 font-medium text-sm">
+											Response Caching
+										</p>
+										<p className="text-blue-400 text-xs">
+											Cache function responses to improve performance
+										</p>
+									</div>
+								</div>
+								<div className="relative">
+									<input
+										type="checkbox"
+										checked={cacheEnabled}
+										onChange={(e) => setCacheEnabled(e.target.checked)}
+										className="sr-only peer"
+										id="cache-enabled-update"
+									/>
+									<label
+										htmlFor="cache-enabled-update"
+										className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-cyan-500 transition-all duration-300 cursor-pointer flex items-center relative"
+									>
+										<div
+											className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
+												cacheEnabled ? "translate-x-6" : "translate-x-0.5"
+											}`}
+										></div>
+									</label>
+								</div>
+							</div>
+
+							{cacheEnabled && (
+								<div className="mt-4 pt-4 border-t border-gray-700/50 flex flex-col gap-2">
+									<label className="text-xs font-medium text-gray-400">
+										Cache TTL (seconds)
+									</label>
+									<input
+										type="number"
+										min="1"
+										max="86400"
+										value={cacheTtl}
+										onChange={(e) => setCacheTtl(parseInt(e.target.value) || 60)}
+										className="w-full p-2 bg-gray-900/50 border border-gray-600/50 text-white rounded focus:border-blue-500/50 focus:outline-none text-sm"
+										placeholder="60"
+										disabled={isLoading}
+									/>
+									<p className="text-[10px] text-gray-500">
+										How long to store the result (1 to 86400 seconds)
+									</p>
+								</div>
 							)}
 						</div>
 

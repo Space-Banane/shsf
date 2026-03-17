@@ -36,6 +36,10 @@ interface XFunction {
 	ffmpeg_install: boolean;
 	imported: boolean;
 
+	// Caching
+	cache_enabled: boolean;
+	cache_ttl: number;
+
 	// Git Version Control
 	git_url?: string | null;
 	git_username?: string | null;

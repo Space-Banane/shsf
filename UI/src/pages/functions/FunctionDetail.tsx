@@ -1008,6 +1008,11 @@ function FunctionDetail() {
 							<h2 className="text-xl font-bold mb-2 text-primary text-center">
 								{resultModalContent.title}
 							</h2>
+							{functionData.cache_enabled && (
+								<p className="text-center text-text/80 mb-1">
+									Caching is ignored here.
+								</p>
+							)}
 							<div className="text-center text-text/80 mb-2">
 								<span className="font-mono text-xs bg-blue-100 px-2 py-1 rounded text-blue-700 border border-blue-200 shadow">
 									Type: {resultModalContent.type}

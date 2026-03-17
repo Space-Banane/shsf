@@ -93,9 +93,27 @@ model Function {
   guest_access Boolean @default(false) // Whether guest users can access this function, will be kept in sync with GuestUser permissions, when changed
   imported     Boolean @default(false) // Marks whether the function was created via import
 
+  // Caching
+  cache_enabled Boolean @default(false)
+  cache_ttl     Int     @default(60) // TTL in seconds
+
   files      FunctionFile[]
   triggers   FunctionTrigger[]
   TriggerLog TriggerLog[]
+  caches     FunctionCache[]
+}
+
+model FunctionCache {
+  id         Int      @id @default(autoincrement())
+  functionId Int
+  function   Function @relation(fields: [functionId], references: [id], onDelete: Cascade)
+  hash       String   @db.VarChar(256) // Hash of the payload
+  result     String   @db.Text        // Cached result (JSON string)
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  @@unique([functionId, hash])
+  @@index([expiresAt])
 }
 
 model FunctionFile {

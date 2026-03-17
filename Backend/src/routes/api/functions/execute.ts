@@ -1,6 +1,12 @@
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import { executeFunction } from "../../../lib/Runner";
+import {
+	getFunctionCache,
+	getPayloadHash,
+	handleFunctionResult,
+	setFunctionCache,
+} from "../../../lib/Caching";
 
 export = new fileRouter.Path("/")
 	.http("POST", "/api/function/{id}/execute", (http) =>
@@ -26,10 +32,10 @@ export = new fileRouter.Path("/")
 						.object({
 							run: z.any().optional(),
 						})
-						.optional(),
+						.optional()
 				);
 
-				const runPayload = JSON.stringify({
+				const runPayload = {
 					body: runData?.run ? runData.run : {},
 					headers: Object.fromEntries(ctr.headers.entries()),
 					queries: Object.fromEntries(ctr.queries.entries()),
@@ -45,7 +51,7 @@ export = new fileRouter.Path("/")
 							? runData.run.method
 							: "POST"
 						: "POST",
-				});
+				};
 
 				const functionData = await prisma.function.findFirst({
 					where: {
@@ -84,62 +90,67 @@ export = new fileRouter.Path("/")
 				}
 
 				const streamMode = ctr.queries.get("stream") !== "false";
+				const payloadHash = getPayloadHash(runPayload);
+
+				if (!streamMode && functionData.cache_enabled) {
+					const cached = await getFunctionCache(functionData.id, payloadHash);
+					if (cached) {
+						return handleFunctionResult(ctr, JSON.parse(cached.result), true);
+					}
+				}
 
 				try {
 					if (streamMode) {
-						return ctr.printChunked(
-							(print) =>
-								new Promise<void>((end) => {
-									let output = "";
-									executeFunction(
-										functionId,
-										functionData,
-										files,
-										{
-											enabled: true,
-											onChunk: async (text) => {
-												output += text;
-												await print(
-													JSON.stringify({
-														type: "output",
-														content: text,
-													}),
-												);
-											},
+						return ctr.printChunked((print) =>
+							new Promise<void>((end) => {
+								let output = "";
+								executeFunction(
+									functionId,
+									functionData,
+									files,
+									{
+										enabled: true,
+										onChunk: async (text) => {
+											output += text;
+											await print(
+												JSON.stringify({
+													type: "output",
+													content: text,
+												})
+											);
 										},
-										JSON.stringify({
-											ran_by: "user",
-											...(typeof runPayload === "object" && runPayload !== null
-												? runPayload
-												: {}),
-										}),
-									)
-										.then(async (result) => {
-											await print(
-												JSON.stringify({
-													type: "end",
-													exitCode: 0,
-													output: output,
-													result: result?.result,
-													took: result?.tooks,
-												}),
-											);
-											end();
-										})
-										.catch(async (error) => {
-											await print(
-												JSON.stringify({
-													type: "error",
-													error: error.message || "Execution failed",
-												}),
-											);
-											end();
-										});
-
-									ctr.$abort(() => {
+									},
+									JSON.stringify({
+										ran_by: "user",
+										...runPayload,
+									})
+								)
+									.then(async (result) => {
+										await print(
+											JSON.stringify({
+												type: "end",
+												exitCode: 0,
+												output: output,
+												result: result?.result,
+												took: result?.tooks,
+											})
+										);
+										end();
+									})
+									.catch(async (error) => {
+										await print(
+											JSON.stringify({
+												type: "error",
+												error: error.message || "Execution failed",
+											})
+										);
 										end();
 									});
-								}),
+
+								ctr.$abort(() => {
+									end();
+								});
+							})
 						);
 					} else {
 						const result = await executeFunction(
@@ -149,21 +160,20 @@ export = new fileRouter.Path("/")
 							{ enabled: false },
 							JSON.stringify({
 								ran_by: "user",
-								...(typeof runPayload === "object" && runPayload !== null
-									? runPayload
-									: {}),
-							}),
+								...runPayload,
+							})
 						);
 
-						return ctr.print({
-							status: "OK",
-							data: {
-								output: result?.logs || "No output",
-								exitCode: result?.exit_code || 0,
-								result: result?.result,
-								took: result?.tooks,
-							},
-						});
+						if (functionData.cache_enabled && result?.result) {
+							await setFunctionCache(
+								functionData.id,
+								payloadHash,
+								result.result,
+								functionData.cache_ttl
+							);
+						}
+
+						return handleFunctionResult(ctr, result?.result, false);
 					}
 				} catch (error: any) {
 					if (error.message === "Timeout") {

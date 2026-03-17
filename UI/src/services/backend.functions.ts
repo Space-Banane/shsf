@@ -174,6 +174,8 @@ async function updateFunction(
 			tags?: string[];
 			retry_on_failure?: boolean;
 			retry_count?: number;
+			cache_enabled?: boolean;
+			cache_ttl?: number;
 		};
 		environment?: {
 			name: string;
