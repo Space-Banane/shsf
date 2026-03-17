@@ -25,6 +25,7 @@ interface ErrorResponse {
 async function generateWithAI(
 	functionId: number,
 	request: AIGenerateRequest,
+	signal?: AbortSignal,
 ): Promise<AIGenerateSuccess | ErrorResponse> {
 	const response = await fetch(
 		`${BASE_URL}/api/function/${functionId}/ai/generate`,
@@ -33,6 +34,7 @@ async function generateWithAI(
 			headers: { "Content-Type": "application/json" },
 			credentials: "include",
 			body: JSON.stringify(request),
+			signal,
 		},
 	);
 

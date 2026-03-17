@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { FunctionFile } from "../../types/Prisma";
 import { generateWithAI, type AIMode } from "../../services/backend.ai";
 
@@ -27,6 +27,8 @@ function AIGenerateModal({
 		model: string;
 	} | null>(null);
 
+	const abortControllerRef = useRef<AbortController | null>(null);
+
 	const MAX_REVISION_FILES = 3;
 
 	const toggleFileSelection = (filename: string) => {
@@ -53,12 +55,19 @@ function AIGenerateModal({
 		setError(null);
 		setResult(null);
 
+		const controller = new AbortController();
+		abortControllerRef.current = controller;
+
 		try {
-			const response = await generateWithAI(functionId, {
-				mode,
-				prompt: prompt.trim(),
-				files: mode === "revision" ? selectedFiles : undefined,
-			});
+			const response = await generateWithAI(
+				functionId,
+				{
+					mode,
+					prompt: prompt.trim(),
+					files: mode === "revision" ? selectedFiles : undefined,
+				},
+				controller.signal,
+			);
 
 			if (response.status === "OK" && "data" in response) {
 				setResult(response.data);
@@ -68,15 +77,30 @@ function AIGenerateModal({
 					(response as any).message || "Unknown error occurred",
 				);
 			}
-		} catch (err) {
+		} catch (err: any) {
+			if (err.name === "AbortError") {
+				console.log("AI generation request aborted");
+				return;
+			}
 			setError("Network error — please try again");
 		} finally {
 			setIsLoading(false);
+			abortControllerRef.current = null;
 		}
 	};
 
+	const handleCancel = () => {
+		if (abortControllerRef.current) {
+			abortControllerRef.current.abort();
+		}
+		setIsLoading(false);
+		abortControllerRef.current = null;
+	};
+
 	const handleClose = () => {
-		if (isLoading) return;
+		if (isLoading) {
+			handleCancel();
+		}
 		setPrompt("");
 		setSelectedFiles([]);
 		setError(null);
@@ -122,17 +146,6 @@ function AIGenerateModal({
 					}}
 				>
 					<div className="flex items-center gap-3">
-						{/* KICKOFF icon */}
-						<div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-							style={{
-								background: "linear-gradient(135deg,rgba(99,102,241,0.3),rgba(139,92,246,0.15))",
-								border: "1px solid rgba(99,102,241,0.3)",
-							}}
-						>
-							<svg className="w-4 h-4 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-								<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-							</svg>
-						</div>
 						<div>
 							<h2
 								className="text-base font-bold tracking-widest uppercase"
@@ -154,17 +167,15 @@ function AIGenerateModal({
 						</div>
 					</div>
 
-					{!isLoading && (
-						<button
-							onClick={handleClose}
-							className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 transition-colors"
-							style={{ background: "rgba(255,255,255,0.04)" }}
-						>
-							<svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-								<path d="M18 6L6 18M6 6l12 12" />
-							</svg>
-						</button>
-					)}
+					<button
+						onClick={handleClose}
+						className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 transition-colors"
+						style={{ background: "rgba(255,255,255,0.04)" }}
+					>
+						<svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+							<path d="M18 6L6 18M6 6l12 12" />
+						</svg>
+					</button>
 				</div>
 
 				{/* Scrollable body */}
@@ -320,6 +331,14 @@ function AIGenerateModal({
 								border: "1px solid rgba(99,102,241,0.2)",
 								padding: "12px 14px",
 								lineHeight: "1.6",
+							}}
+							onKeyDown={(e) => {
+								if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+									e.preventDefault();
+									if (!isLoading && prompt.trim()) {
+										handleSubmit();
+									}
+								}
 							}}
 							onFocus={(e) => {
 								e.target.style.border = "1px solid rgba(99,102,241,0.5)";
