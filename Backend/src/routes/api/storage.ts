@@ -338,7 +338,7 @@ export = new fileRouter.Path("/")
 								"Key must be alphanumeric with underscores or hyphens",
 							),
 						value: z.any(),
-						expiresAt: z.union([z.string().datetime(), z.number()]).optional(),
+						expiresAt: z.union([z.string(), z.number()]).optional(),
 					}),
 				);
 				if (!data) {

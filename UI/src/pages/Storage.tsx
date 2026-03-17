@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from "react";
 import {
-	createStorage,
 	listStorages,
-	deleteStorage,
-	clearStorageItems,
-	setStorageItem,
-	getStorageItem,
 	listStorageItems,
-	deleteStorageItem,
 	Storage,
 	StorageItem,
 } from "../services/backend.storage";
+import CreateStorageModal from "../components/modals/CreateStorageModal";
+import DeleteStorageModal from "../components/modals/DeleteStorageModal";
+import ClearStorageModal from "../components/modals/ClearStorageModal";
+import AddStorageItemModal from "../components/modals/AddStorageItemModal";
+import DeleteStorageItemModal from "../components/modals/DeleteStorageItemModal";
+import GetStorageItemModal from "../components/modals/GetStorageItemModal";
 
 function StoragePage() {
 	const [storages, setStorages] = useState<Storage[]>([]);
@@ -20,33 +20,15 @@ function StoragePage() {
 	const [items, setItems] = useState<StorageItem[]>([]);
 	const [itemLoading, setItemLoading] = useState(false);
 	const [itemError, setItemError] = useState("");
+	
 	const [showCreateModal, setShowCreateModal] = useState(false);
-	const [createName, setCreateName] = useState("");
-	const [createPurpose, setCreatePurpose] = useState("");
-	const [createLoading, setCreateLoading] = useState(false);
-	const [createError, setCreateError] = useState("");
 	const [showDeleteModal, setShowDeleteModal] = useState(false);
 	const [deleteTarget, setDeleteTarget] = useState<Storage | null>(null);
-	const [deleteLoading, setDeleteLoading] = useState(false);
-	const [deleteError, setDeleteError] = useState("");
 	const [showClearModal, setShowClearModal] = useState(false);
-	const [clearLoading, setClearLoading] = useState(false);
-	const [clearError, setClearError] = useState("");
 	const [showAddItemModal, setShowAddItemModal] = useState(false);
-	const [addItemKey, setAddItemKey] = useState("");
-	const [addItemValue, setAddItemValue] = useState("");
-	const [addItemExpiresAt, setAddItemExpiresAt] = useState("");
-	const [addItemLoading, setAddItemLoading] = useState(false);
-	const [addItemError, setAddItemError] = useState("");
 	const [showDeleteItemModal, setShowDeleteItemModal] = useState(false);
 	const [deleteItemKey, setDeleteItemKey] = useState<string | null>(null);
-	const [deleteItemLoading, setDeleteItemLoading] = useState(false);
-	const [deleteItemError, setDeleteItemError] = useState("");
 	const [showGetItemModal, setShowGetItemModal] = useState(false);
-	const [getItemKey, setGetItemKey] = useState("");
-	const [getItemResult, setGetItemResult] = useState<StorageItem | null>(null);
-	const [getItemLoading, setGetItemLoading] = useState(false);
-	const [getItemError, setGetItemError] = useState("");
 
 	// Load storages
 	const loadStorages = async () => {
@@ -95,141 +77,6 @@ function StoragePage() {
 			setItems([]);
 		}
 	}, [selectedStorage]);
-
-	// Create storage
-	const handleCreateStorage = async () => {
-		setCreateLoading(true);
-		setCreateError("");
-		try {
-			const res = await createStorage({
-				name: createName,
-				purpose: createPurpose,
-			});
-			if (res.status === "OK") {
-				setShowCreateModal(false);
-				setCreateName("");
-				setCreatePurpose("");
-				loadStorages();
-			} else {
-				setCreateError(res.message || "Failed to create storage");
-			}
-		} catch (e) {
-			setCreateError("Failed to create storage");
-		} finally {
-			setCreateLoading(false);
-		}
-	};
-
-	// Delete storage
-	const handleDeleteStorage = async () => {
-		if (!deleteTarget) return;
-		setDeleteLoading(true);
-		setDeleteError("");
-		try {
-			const res = await deleteStorage(deleteTarget.name);
-			if (res.status === "OK") {
-				setShowDeleteModal(false);
-				setDeleteTarget(null);
-				if (selectedStorage?.id === deleteTarget.id) setSelectedStorage(null);
-				loadStorages();
-			} else {
-				setDeleteError(res.message || "Failed to delete storage");
-			}
-		} catch (e) {
-			setDeleteError("Failed to delete storage");
-		} finally {
-			setDeleteLoading(false);
-		}
-	};
-
-	// Clear all items in storage
-	const handleClearStorage = async () => {
-		if (!selectedStorage) return;
-		setClearLoading(true);
-		setClearError("");
-		try {
-			const res = await clearStorageItems(selectedStorage.name);
-			if (res.status === "OK") {
-				setShowClearModal(false);
-				loadItems(selectedStorage);
-			} else {
-				setClearError(res.message || "Failed to clear items");
-			}
-		} catch (e) {
-			setClearError("Failed to clear items");
-		} finally {
-			setClearLoading(false);
-		}
-	};
-
-	// Add or update item
-	const handleAddItem = async (parsedValue?: any) => {
-		if (!selectedStorage) return;
-		setAddItemLoading(true);
-		setAddItemError("");
-		try {
-			const payload: any = {
-				key: addItemKey,
-				value: parsedValue !== undefined ? parsedValue : addItemValue,
-			};
-			if (addItemExpiresAt) payload.expiresAt = addItemExpiresAt;
-			const res = await setStorageItem(selectedStorage.name, payload);
-			if (res.status === "OK") {
-				setShowAddItemModal(false);
-				setAddItemKey("");
-				setAddItemValue("");
-				setAddItemExpiresAt("");
-				loadItems(selectedStorage);
-			} else {
-				setAddItemError(res.message || "Failed to set item");
-			}
-		} catch (e) {
-			setAddItemError("Failed to set item");
-		} finally {
-			setAddItemLoading(false);
-		}
-	};
-
-	// Delete item
-	const handleDeleteItem = async () => {
-		if (!selectedStorage || !deleteItemKey) return;
-		setDeleteItemLoading(true);
-		setDeleteItemError("");
-		try {
-			const res = await deleteStorageItem(selectedStorage.name, deleteItemKey);
-			if (res.status === "OK") {
-				setShowDeleteItemModal(false);
-				setDeleteItemKey(null);
-				loadItems(selectedStorage);
-			} else {
-				setDeleteItemError(res.message || "Failed to delete item");
-			}
-		} catch (e) {
-			setDeleteItemError("Failed to delete item");
-		} finally {
-			setDeleteItemLoading(false);
-		}
-	};
-
-	// Get item by key
-	const handleGetItem = async () => {
-		if (!selectedStorage) return;
-		setGetItemLoading(true);
-		setGetItemError("");
-		setGetItemResult(null);
-		try {
-			const res = await getStorageItem(selectedStorage.name, getItemKey);
-			if (res.status === "OK") {
-				setGetItemResult(res.data);
-			} else {
-				setGetItemError(res.message || "Item not found");
-			}
-		} catch (e) {
-			setGetItemError("Failed to get item");
-		} finally {
-			setGetItemLoading(false);
-		}
-	};
 
 	// UI
 	return (
@@ -418,323 +265,55 @@ function StoragePage() {
 				)}
 			</div>
 
-			{/* Create Storage Modal */}
-			{showCreateModal && (
-				<Modal onClose={() => setShowCreateModal(false)}>
-					<div className="text-center mb-6">
-						<div className="text-5xl mb-2">🗄️</div>
-						<h2 className="text-2xl font-bold text-primary mb-2">Create Storage</h2>
-						<p className="text-text/70">Create a new virtual database (storage).</p>
-					</div>
-					<div className="space-y-4">
-						<input
-							type="text"
-							className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none font-mono"
-							placeholder="Storage Name"
-							value={createName}
-							onChange={(e) => setCreateName(e.target.value)}
-							disabled={createLoading}
-						/>
-						<input
-							type="text"
-							className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none font-mono"
-							placeholder="Purpose (optional)"
-							value={createPurpose}
-							onChange={(e) => setCreatePurpose(e.target.value)}
-							disabled={createLoading}
-						/>
-						{createError && (
-							<div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-								{createError}
-							</div>
-						)}
-						<div className="flex gap-3 pt-2">
-							<button
-								onClick={() => setShowCreateModal(false)}
-								className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text hover:border-primary/40 transition-all duration-300"
-								disabled={createLoading}
-							>
-								Cancel
-							</button>
-							<button
-								onClick={handleCreateStorage}
-								disabled={createLoading || !createName}
-								className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-all duration-300"
-							>
-								{createLoading ? "Creating..." : "Create"}
-							</button>
-						</div>
-					</div>
-				</Modal>
-			)}
+			<CreateStorageModal
+				isOpen={showCreateModal}
+				onClose={() => setShowCreateModal(false)}
+				onSuccess={loadStorages}
+			/>
 
-			{/* Delete Storage Modal */}
-			{showDeleteModal && deleteTarget && (
-				<Modal
-					onClose={() => {
-						setShowDeleteModal(false);
-						setDeleteTarget(null);
-					}}
-				>
-					<div className="text-center mb-6">
-						<div className="text-5xl mb-2">⚠️</div>
-						<h2 className="text-2xl font-bold text-red-400 mb-2">Delete Storage</h2>
-						<p className="text-text/70">
-							Are you sure you want to delete{" "}
-							<span className="font-bold text-primary">{deleteTarget.name}</span>? This
-							cannot be undone.
-						</p>
-					</div>
-					{deleteError && (
-						<div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-							{deleteError}
-						</div>
-					)}
-					<div className="flex gap-3 pt-2">
-						<button
-							onClick={() => {
-								setShowDeleteModal(false);
-								setDeleteTarget(null);
-							}}
-							className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text hover:border-primary/40 transition-all duration-300"
-							disabled={deleteLoading}
-						>
-							Cancel
-						</button>
-						<button
-							onClick={handleDeleteStorage}
-							disabled={deleteLoading}
-							className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed transition-all duration-300"
-						>
-							{deleteLoading ? "Deleting..." : "Delete"}
-						</button>
-					</div>
-				</Modal>
-			)}
+			<DeleteStorageModal
+				isOpen={showDeleteModal}
+				onClose={() => {
+					setShowDeleteModal(false);
+					setDeleteTarget(null);
+				}}
+				onSuccess={() => {
+					if (selectedStorage?.id === deleteTarget?.id) setSelectedStorage(null);
+					loadStorages();
+				}}
+				target={deleteTarget}
+			/>
 
-			{/* Clear Storage Modal */}
-			{showClearModal && selectedStorage && (
-				<Modal onClose={() => setShowClearModal(false)}>
-					<div className="text-center mb-6">
-						<div className="text-5xl mb-2">🧹</div>
-						<h2 className="text-2xl font-bold text-primary mb-2">Clear All Items</h2>
-						<p className="text-text/70">
-							Are you sure you want to clear all items in{" "}
-							<span className="font-bold text-primary">{selectedStorage.name}</span>?
-						</p>
-					</div>
-					{clearError && (
-						<div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-							{clearError}
-						</div>
-					)}
-					<div className="flex gap-3 pt-2">
-						<button
-							onClick={() => setShowClearModal(false)}
-							className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text hover:border-primary/40 transition-all duration-300"
-							disabled={clearLoading}
-						>
-							Cancel
-						</button>
-						<button
-							onClick={handleClearStorage}
-							disabled={clearLoading}
-							className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-all duration-300"
-						>
-							{clearLoading ? "Clearing..." : "Clear All"}
-						</button>
-					</div>
-				</Modal>
-			)}
+			<ClearStorageModal
+				isOpen={showClearModal}
+				onClose={() => setShowClearModal(false)}
+				onSuccess={() => selectedStorage && loadItems(selectedStorage)}
+				selectedStorage={selectedStorage}
+			/>
 
-			{/* Add Item Modal */}
-			{showAddItemModal && selectedStorage && (
-				<Modal onClose={() => setShowAddItemModal(false)}>
-					<div className="text-center mb-6">
-						<div className="text-5xl mb-2">➕</div>
-						<h2 className="text-2xl font-bold text-primary mb-2">Add Item</h2>
-						<p className="text-text/70">
-							Add or update an item in{" "}
-							<span className="font-bold text-primary">{selectedStorage.name}</span>.
-						</p>
-					</div>
-					<div className="space-y-4">
-						<input
-							type="text"
-							className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none font-mono"
-							placeholder="Key"
-							value={addItemKey}
-							onChange={(e) => setAddItemKey(e.target.value)}
-							disabled={addItemLoading}
-						/>
-						<textarea
-							className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none font-mono"
-							placeholder="Value (JSON or string)"
-							value={addItemValue}
-							onChange={(e) => setAddItemValue(e.target.value)}
-							disabled={addItemLoading}
-							rows={3}
-						/>
-						<input
-							type="datetime-local"
-							className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none font-mono"
-							placeholder="Expires At (optional)"
-							value={addItemExpiresAt}
-							onChange={(e) => setAddItemExpiresAt(e.target.value)}
-							disabled={addItemLoading}
-						/>
-						{addItemError && (
-							<div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-								{addItemError}
-							</div>
-						)}
-						<div className="flex gap-3 pt-2">
-							<button
-								onClick={() => setShowAddItemModal(false)}
-								className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text hover:border-primary/40 transition-all duration-300"
-								disabled={addItemLoading}
-							>
-								Cancel
-							</button>
-							<button
-								onClick={() => {
-									// Try to parse value as JSON, fallback to string
-									let value = addItemValue;
-									try {
-										value = JSON.parse(addItemValue);
-									} catch {
-										// Intentionally ignore JSON parse errors and use the string value
-									}
-									handleAddItem(value);
-								}}
-								disabled={addItemLoading || !addItemKey}
-								className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-all duration-300"
-							>
-								{addItemLoading ? "Saving..." : "Save"}
-							</button>
-						</div>
-					</div>
-				</Modal>
-			)}
+			<AddStorageItemModal
+				isOpen={showAddItemModal}
+				onClose={() => setShowAddItemModal(false)}
+				onSuccess={() => selectedStorage && loadItems(selectedStorage)}
+				selectedStorage={selectedStorage}
+			/>
 
-			{/* Delete Item Modal */}
-			{showDeleteItemModal && selectedStorage && deleteItemKey && (
-				<Modal
-					onClose={() => {
-						setShowDeleteItemModal(false);
-						setDeleteItemKey(null);
-					}}
-				>
-					<div className="text-center mb-6">
-						<div className="text-5xl mb-2">⚠️</div>
-						<h2 className="text-2xl font-bold text-red-400 mb-2">Delete Item</h2>
-						<p className="text-text/70">
-							Are you sure you want to delete the item{" "}
-							<span className="font-bold text-primary">{deleteItemKey}</span>?
-						</p>
-					</div>
-					{deleteItemError && (
-						<div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-							{deleteItemError}
-						</div>
-					)}
-					<div className="flex gap-3 pt-2">
-						<button
-							onClick={() => {
-								setShowDeleteItemModal(false);
-								setDeleteItemKey(null);
-							}}
-							className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text hover:border-primary/40 transition-all duration-300"
-							disabled={deleteItemLoading}
-						>
-							Cancel
-						</button>
-						<button
-							onClick={handleDeleteItem}
-							disabled={deleteItemLoading}
-							className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed transition-all duration-300"
-						>
-							{deleteItemLoading ? "Deleting..." : "Delete"}
-						</button>
-					</div>
-				</Modal>
-			)}
+			<DeleteStorageItemModal
+				isOpen={showDeleteItemModal}
+				onClose={() => {
+					setShowDeleteItemModal(false);
+					setDeleteItemKey(null);
+				}}
+				onSuccess={() => selectedStorage && loadItems(selectedStorage)}
+				selectedStorage={selectedStorage}
+				deleteItemKey={deleteItemKey}
+			/>
 
-			{/* Get Item Modal */}
-			{showGetItemModal && selectedStorage && (
-				<Modal
-					onClose={() => {
-						setShowGetItemModal(false);
-						setGetItemKey("");
-						setGetItemResult(null);
-						setGetItemError("");
-					}}
-				>
-					<div className="text-center mb-6">
-						<div className="text-5xl mb-2">🔍</div>
-						<h2 className="text-2xl font-bold text-primary mb-2">Get Item by Key</h2>
-						<p className="text-text/70">
-							Retrieve a single item from{" "}
-							<span className="font-bold text-primary">{selectedStorage.name}</span> by
-							key.
-						</p>
-					</div>
-					<div className="space-y-4">
-						<input
-							type="text"
-							className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none font-mono"
-							placeholder="Key"
-							value={getItemKey}
-							onChange={(e) => setGetItemKey(e.target.value)}
-							disabled={getItemLoading}
-						/>
-						<div className="flex gap-3 pt-2">
-							<button
-								onClick={() => {
-									setShowGetItemModal(false);
-									setGetItemKey("");
-									setGetItemResult(null);
-									setGetItemError("");
-								}}
-								className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text hover:border-primary/40 transition-all duration-300"
-								disabled={getItemLoading}
-							>
-								Cancel
-							</button>
-							<button
-								onClick={handleGetItem}
-								disabled={getItemLoading || !getItemKey}
-								className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-all duration-300"
-							>
-								{getItemLoading ? "Searching..." : "Get Item"}
-							</button>
-						</div>
-						{getItemError && (
-							<div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-								{getItemError}
-							</div>
-						)}
-						{getItemResult && (
-							<div className="bg-background/30 border border-primary/10 rounded-xl p-4 mt-2">
-								<div className="font-mono text-primary mb-1">
-									Key: {getItemResult.key}
-								</div>
-								<div className="font-mono text-text mb-1">
-									Value: {JSON.stringify(getItemResult.value)}
-								</div>
-								<div className="text-xs text-text/60">
-									Expires At:{" "}
-									{getItemResult.expiresAt ? (
-										new Date(getItemResult.expiresAt).toLocaleString()
-									) : (
-										<span className="text-text/30">Never</span>
-									)}
-								</div>
-							</div>
-						)}
-					</div>
-				</Modal>
-			)}
+			<GetStorageItemModal
+				isOpen={showGetItemModal}
+				onClose={() => setShowGetItemModal(false)}
+				selectedStorage={selectedStorage}
+			/>
 		</div>
 	);
 }
