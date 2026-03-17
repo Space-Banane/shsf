@@ -242,6 +242,11 @@ server
 		setInterval(async () => {
 			await processGitPulls();
 		}, 60 * 1000);
+
+		// Periodic cleanup for expired storage items
+		setInterval(async () => {
+			await processStorageCleanup();
+		}, 60 * 1000); // Every minute
 	})
 	.catch(console.error);
 
@@ -404,5 +409,28 @@ async function processGitPulls() {
 				err,
 			);
 		}
+	}
+}
+
+// Storage Cleanup
+async function processStorageCleanup() {
+	const now = new Date();
+	try {
+		const expiredCount = await prisma.functionStorageItem.deleteMany({
+			where: {
+				expiresAt: {
+					not: null,
+					lt: now,
+				},
+			},
+		});
+
+		if (expiredCount.count > 0) {
+			console.log(
+				`[SHSF STORAGE] Cleaned up ${expiredCount.count} expired storage item(s)`,
+			);
+		}
+	} catch (error) {
+		console.error(`[SHSF STORAGE] Error during storage cleanup:`, error);
 	}
 }
