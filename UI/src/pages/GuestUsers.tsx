@@ -1,481 +1,314 @@
 import { useEffect, useState } from "react";
 import {
-	listGuestUsers,
-	createGuestUser,
-	updateGuestUser,
-	deleteGuestUser,
-	assignFunctionToGuest,
-	unassignFunctionFromGuest,
-	GuestUser,
-	getFunctionNamesForGuest,
-	clearGuestSessions,
+listGuestUsers,
+GuestUser,
+getFunctionNamesForGuest,
 } from "../services/backend.guest";
-import { ActionButton } from "../components/buttons/ActionButton";
-import { MotionButton } from "../components/buttons/MotionButtons";
-
-function GuestUserCard({
-	guest,
-	functionNames,
-	deleteLoading,
-	deleteId,
-	clearSessionsLoading,
-	clearSessionsError,
-	deleteError,
-	onEdit,
-	onDelete,
-	onClearSessions,
-}: {
-	guest: GuestUser;
-	functionNames: Record<number, string[]>;
-	deleteLoading: boolean;
-	deleteId: number | null;
-	clearSessionsLoading: number | null;
-	clearSessionsError: string | null;
-	deleteError: string | null;
-	onEdit: (g: GuestUser) => void;
-	onDelete: (id: number) => void;
-	onClearSessions: (id: number) => void;
-}) {
-	return (
-		<div
-			key={guest.id}
-			className="rounded-xl overflow-hidden shadow-lg border border-primary/30 bg-gradient-to-br from-blue-950/60 via-purple-950/50 to-indigo-950/60"
-		>
-			{/* Card header */}
-			<div className="flex items-center gap-3 px-5 py-3 border-b border-primary/20">
-				<div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-indigo-500 flex items-center justify-center text-2xl shadow">
-					<span role="img" aria-label="guest">
-						👤
-					</span>
-				</div>
-				<div className="flex-1">
-					<div className="font-bold text-primary text-lg">{guest.displayName}</div>
-					<div className="text-xs text-text/60">{guest.email}</div>
-				</div>
-				<div className="flex gap-2">
-					<ActionButton
-						icon="✏️"
-						label="Edit"
-						variant="secondary"
-						onClick={() => onEdit(guest)}
-					/>
-					<ActionButton
-						icon="🗑️"
-						label={deleteLoading && deleteId === guest.id ? "Deleting..." : "Delete"}
-						variant="delete"
-						onClick={() => onDelete(guest.id)}
-						disabled={deleteLoading && deleteId === guest.id}
-					/>
-					<ActionButton
-						icon="🧹"
-						label={
-							clearSessionsLoading === guest.id ? "Clearing..." : "Clear Sessions"
-						}
-						variant="secondary"
-						onClick={() => onClearSessions(guest.id)}
-						disabled={clearSessionsLoading === guest.id}
-					/>
-				</div>
-			</div>
-			{/* Card body */}
-			<div className="px-5 py-4 flex flex-col gap-2 bg-background/70">
-				<div className="flex flex-col md:flex-row md:gap-8 gap-2">
-					<div>
-						<div className="text-xs text-text/50">
-							Created: {new Date(guest.createdAt).toLocaleString()}
-						</div>
-						<div className="text-xs text-text/60 mt-1">
-							Active Sessions:{" "}
-							<span className="font-semibold">{guest.activeSessions ?? 0}</span>
-						</div>
-					</div>
-					<div>
-						<div className="text-xs text-text/60">
-							Permitted Functions:{" "}
-							{guest.permittedFunctions && guest.permittedFunctions.length > 0 ? (
-								<span className="font-semibold text-blue-400">
-									{guest.permittedFunctions && guest.permittedFunctions.length > 0
-										? guest.permittedFunctions.map((fnId, idx) => (
-											<a
-												key={fnId}
-												href={`/functions/${fnId}?preopen=guests`}
-												rel="noopener noreferrer"
-												className="underline hover:text-blue-300 mr-2"
-											>
-												{functionNames[guest.id] && functionNames[guest.id][idx]
-													? functionNames[guest.id][idx]
-													: fnId}
-											</a>
-										))
-										: null}
-								</span>
-							) : (
-								<span className="text-text/40">None</span>
-							)}
-						</div>
-					</div>
-				</div>
-				<div className="mt-2">
-					<p className="text-sm text-text/60 italic">
-						To unassign a guest from a Function, go to the Function's detail page.
-					</p>
-				</div>
-				{deleteError && deleteId === guest.id && (
-					<div className="text-red-400">{deleteError}</div>
-				)}
-				{clearSessionsError && (
-					<div className="text-red-400">{clearSessionsError}</div>
-				)}
-			</div>
-		</div>
-	);
-}
+import CreateGuestModal from "../components/modals/CreateGuestModal";
+import UpdateGuestModal from "../components/modals/UpdateGuestModal";
+import DeleteGuestModal from "../components/modals/DeleteGuestModal";
+import ClearGuestSessionsModal from "../components/modals/ClearGuestSessionsModal";
 
 export default function GuestUsersPage() {
-	const [guests, setGuests] = useState<GuestUser[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
+const [guests, setGuests] = useState<GuestUser[]>([]);
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState<string | null>(null);
 
-	// Create form state
-	const [showCreate, setShowCreate] = useState(false);
-	const [createName, setCreateName] = useState("");
-	const [createEmail, setCreateEmail] = useState("");
-	const [createPassword, setCreatePassword] = useState("");
-	const [createLoading, setCreateLoading] = useState(false);
-	const [createError, setCreateError] = useState<string | null>(null);
+const [selectedGuest, setSelectedGuest] = useState<GuestUser | null>(null);
+const [functionNames, setFunctionNames] = useState<string[]>([]);
+const [itemLoading, setItemLoading] = useState(false);
+const [itemError, setItemError] = useState("");
 
-	// Edit state
-	const [editId, setEditId] = useState<number | null>(null);
-	const [editName, setEditName] = useState("");
-	const [editPassword, setEditPassword] = useState("");
-	const [editLoading, setEditLoading] = useState(false);
-	const [editError, setEditError] = useState<string | null>(null);
+const [showCreateModal, setShowCreateModal] = useState(false);
+const [showUpdateModal, setShowUpdateModal] = useState(false);
+const [showDeleteModal, setShowDeleteModal] = useState(false);
+const [showClearModal, setShowClearModal] = useState(false);
+const [targetGuest, setTargetGuest] = useState<GuestUser | null>(null);
 
-	// Delete state
-	const [deleteId, setDeleteId] = useState<number | null>(null);
-	const [deleteLoading, setDeleteLoading] = useState(false);
-	const [deleteError, setDeleteError] = useState<string | null>(null);
+// Load all guests
+const fetchGuests = async () => {
+setLoading(true);
+setError(null);
+try {
+const res = await listGuestUsers();
+const guestsArr =
+(res as any).guests ??
+((res as any).data && (res as any).data.guests) ??
+[];
+if (Array.isArray(guestsArr)) {
+setGuests(guestsArr);
+// Update selectedGuest if it's currently selected
+if (selectedGuest) {
+const updated = guestsArr.find(g => g.id === selectedGuest.id);
+if (updated) setSelectedGuest(updated);
+}
+} else {
+setError(res.error || "Failed to load guests");
+}
+} catch {
+setError("Failed to load guests");
+} finally {
+setLoading(false);
+}
+};
 
-	// Clear sessions state
-	const [clearSessionsLoading, setClearSessionsLoading] = useState<
-		number | null
-	>(null);
-	const [clearSessionsError, setClearSessionsError] = useState<string | null>(
-		null,
-	);
+// Load function names for selected guest
+const loadGuestDetails = async (guest: GuestUser) => {
+setItemLoading(true);
+setItemError("");
+try {
+if (guest.permittedFunctions && guest.permittedFunctions.length > 0) {
+const res = await getFunctionNamesForGuest(guest.permittedFunctions);
+let names: string[] = [];
+if (res.status === "OK") {
+if (Array.isArray((res as any).data)) {
+names = (res as any).data;
+} else if ((res as any).data && Array.isArray((res as any).data.data)) {
+names = (res as any).data.data;
+}
+setFunctionNames(names);
+} else {
+setItemError("Failed to load permitted functions");
+}
+} else {
+setFunctionNames([]);
+}
+} catch {
+setItemError("Failed to load guest details");
+} finally {
+setItemLoading(false);
+}
+};
 
-	// Map of guestId to function names
-	const [functionNames, setFunctionNames] = useState<Record<number, string[]>>(
-		{},
-	);
+useEffect(() => {
+fetchGuests();
+}, []);
 
-	// Fetch function names for all guests
-	const fetchFunctionNames = async (guests: GuestUser[]) => {
-		const fnMap: Record<number, string[]> = {};
-		for (const g of guests) {
-			if (g.permittedFunctions && g.permittedFunctions.length > 0) {
-				const res = await getFunctionNamesForGuest(g.permittedFunctions);
-				// Accept both { data: [...] } and { data: { data: [...] } }
-				let names: string[] = [];
-				if (res.status === "OK") {
-					if (Array.isArray((res as any).data)) {
-						names = (res as any).data;
-					} else if ((res as any).data && Array.isArray((res as any).data.data)) {
-						names = (res as any).data.data;
-					}
-				}
-				fnMap[g.id] = names;
-			} else {
-				fnMap[g.id] = [];
-			}
-		}
-		setFunctionNames(fnMap);
-	};
+useEffect(() => {
+if (selectedGuest) {
+loadGuestDetails(selectedGuest);
+} else {
+setFunctionNames([]);
+}
+}, [selectedGuest]);
 
-	// Fetch guests and their function names
-	const fetchGuests = async () => {
-		setLoading(true);
-		setError(null);
-		try {
-			const res = await listGuestUsers();
-			const guestsArr =
-				(res as any).guests ??
-				((res as any).data && (res as any).data.guests) ??
-				[];
-			if (res.guests && Array.isArray(guestsArr)) {
-				setGuests(guestsArr);
-				fetchFunctionNames(guestsArr);
-			} else {
-				setError(res.error || "Failed to load guests");
-			}
-		} catch {
-			setError("Failed to load guests");
-		} finally {
-			setLoading(false);
-		}
-	};
+return (
+<div className="min-h-screen bg-background">
+{/* Hero Header */}
+<div className="relative bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-b border-primary/20">
+<div className="max-w-6xl mx-auto px-4 py-16">
+<div className="text-center space-y-4">
+<h1 className="text-5xl font-bold text-primary mb-4">Guest Users</h1>
+<div className="h-1 w-24 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
+<p className="text-xl text-text/70 max-w-2xl mx-auto">
+Manage guest accounts and their access to your serverless functions.
+</p>
+</div>
+</div>
+</div>
 
-	useEffect(() => {
-		fetchGuests();
-	}, []);
+<div className="max-w-6xl mx-auto px-4 py-12">
+{selectedGuest ? (
+<div className="max-w-3xl mx-auto">
+<button
+className="mb-6 flex items-center gap-2 text-primary font-semibold hover:underline hover:scale-105 transition-all duration-200"
+onClick={() => setSelectedGuest(null)}
+>
+<span className="text-2xl">←</span> Back to Guest List
+</button>
+<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-2xl p-8">
+<div className="flex items-center justify-between mb-6">
+<div>
+<h2 className="text-2xl font-bold text-primary flex items-center gap-2">
+<span className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
+👤
+</span>
+{selectedGuest.displayName}
+</h2>
+<div className="text-text/60 text-sm mt-1">
+{selectedGuest.email}
+</div>
+</div>
+<div className="flex gap-2">
+<button
+className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-[0_0_20px_rgba(124,131,253,0.2)] transition-all duration-300"
+onClick={() => {
+setTargetGuest(selectedGuest);
+setShowUpdateModal(true);
+}}
+>
+Edit Profile
+</button>
+<button
+className="px-4 py-2 bg-background/20 border border-primary/10 rounded-lg text-primary hover:border-primary/30 hover:bg-primary/5 font-semibold transition-all duration-300"
+onClick={() => {
+setTargetGuest(selectedGuest);
+setShowClearModal(true);
+}}
+>
+Clear Sessions
+</button>
+</div>
+</div>
 
-	// Create guest handler
-	const handleCreate = async (e: React.FormEvent) => {
-		e.preventDefault();
-		setCreateLoading(true);
-		setCreateError(null);
-		try {
-			const res = await createGuestUser({
-				displayName: createName,
-				email: createEmail,
-				password: createPassword,
-			});
-			if (res.status === "OK") {
-				setShowCreate(false);
-				setCreateName("");
-				setCreateEmail("");
-				setCreatePassword("");
-				fetchGuests();
-			} else {
-				setCreateError((res as any).message || "Failed to create guest");
-			}
-		} catch {
-			setCreateError("Failed to create guest");
-		} finally {
-			setCreateLoading(false);
-		}
-	};
+<div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+<div className="bg-background/30 p-4 rounded-xl border border-primary/10">
+<div className="text-xs text-text/50 uppercase tracking-wider mb-1">Created At</div>
+<div className="text-text font-medium">
+{new Date(selectedGuest.createdAt).toLocaleString()}
+</div>
+</div>
+<div className="bg-background/30 p-4 rounded-xl border border-primary/10">
+<div className="text-xs text-text/50 uppercase tracking-wider mb-1">Active Sessions</div>
+<div className="text-text font-medium">
+{selectedGuest.activeSessions ?? 0}
+</div>
+</div>
+</div>
 
-	// Edit guest handler
-	const handleEdit = async (e: React.FormEvent) => {
-		e.preventDefault();
-		if (editId == null) return;
-		setEditLoading(true);
-		setEditError(null);
-		try {
-			const res = await updateGuestUser({
-				id: editId,
-				displayName: editName,
-				password: editPassword || undefined,
-			});
-			if (res.status === "OK") {
-				setEditId(null);
-				setEditName("");
-				setEditPassword("");
-				fetchGuests();
-			} else {
-				setEditError((res as any).message || "Failed to update guest");
-			}
-		} catch {
-			setEditError("Failed to update guest");
-		} finally {
-			setEditLoading(false);
-		}
-	};
+<h3 className="text-lg font-semibold text-primary mb-4 flex items-center gap-2">
+<span className="text-xl">⚡</span> Permitted Functions
+</h3>
 
-	// Delete guest handler
-	const handleDelete = async (id: number) => {
-		setDeleteId(id);
-		setDeleteLoading(true);
-		setDeleteError(null);
-		try {
-			const res = await deleteGuestUser(id);
-			if (res.status === "OK") {
-				fetchGuests();
-			} else {
-				setDeleteError((res as any).message || "Failed to delete guest");
-			}
-		} catch {
-			setDeleteError("Failed to delete guest");
-		} finally {
-			setDeleteId(null);
-			setDeleteLoading(false);
-		}
-	};
+{itemLoading ? (
+<div className="text-center py-8">
+<div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-2"></div>
+<p className="text-text/70">Loading permissions...</p>
+</div>
+) : itemError ? (
+<div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
+{itemError}
+</div>
+) : !selectedGuest.permittedFunctions || selectedGuest.permittedFunctions.length === 0 ? (
+<div className="text-center py-8 text-text/60 bg-background/20 rounded-xl border border-dashed border-primary/20">
+No functions assigned to this guest.
+</div>
+) : (
+<div className="grid grid-cols-1 gap-2">
+{selectedGuest.permittedFunctions.map((fnId, idx) => (
+<a
+key={fnId}
+href={`/functions/${fnId}?preopen=guests`}
+className="flex items-center justify-between p-3 bg-background/30 border border-primary/10 rounded-lg hover:border-primary/30 hover:bg-primary/5 transition-all duration-200"
+>
+<span className="font-mono text-primary">
+{functionNames[idx] || `Function #${fnId}`}
+</span>
+<span className="text-xs text-text/40">View Access →</span>
+</a>
+))}
+</div>
+)}
+<p className="text-xs text-text/40 mt-6 italic bg-primary/5 p-3 rounded-lg border border-primary/10">
+Note: To manage function permissions, please visit the specific function's configuration page.
+</p>
+</div>
+</div>
+) : (
+<div className="flex flex-col items-center">
+<div className="w-full max-w-lg space-y-6">
+<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-2xl p-6 shadow-xl">
+<div className="flex items-center justify-between mb-6">
+<h2 className="text-2xl font-bold text-primary flex items-center gap-2">
+<span className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
+👤
+</span>
+Guest List
+</h2>
+<button
+className="px-4 py-2 bg-primary text-background rounded-lg font-bold hover:scale-105 transition-all duration-300 shadow-lg shadow-primary/20"
+onClick={() => setShowCreateModal(true)}
+>
++ New Guest
+</button>
+</div>
+{loading ? (
+<div className="text-center py-12">
+<div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4"></div>
+<p className="text-text/70 animate-pulse">Fetching guests...</p>
+</div>
+) : error ? (
+<div className="p-4 bg-red-500/20 border border-red-500/30 rounded-xl text-red-300 text-sm">
+{error}
+</div>
+) : guests.length === 0 ? (
+<div className="text-center py-12 text-text/60 bg-background/20 rounded-xl border border-dashed border-primary/20">
+No guest users found.
+</div>
+) : (
+<ul className="space-y-3">
+{guests.map((guest) => (
+<li key={guest.id}>
+<button
+className="w-full flex items-center gap-4 p-4 rounded-xl border border-primary/10 bg-background/40 transition-all duration-300 hover:border-primary/40 hover:bg-primary/5 hover:translate-x-1 group"
+onClick={() => setSelectedGuest(guest)}
+>
+<div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform duration-300">
+👤
+</div>
+<div className="flex-1 text-left">
+<div className="font-bold text-primary group-hover:text-blue-400 transition-colors">
+{guest.displayName}
+</div>
+<div className="text-xs text-text/60">{guest.email}</div>
+</div>
+<button
+className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition-all duration-300 hover:scale-110 opacity-0 group-hover:opacity-100"
+title="Delete guest"
+onClick={(e) => {
+e.stopPropagation();
+setTargetGuest(guest);
+setShowDeleteModal(true);
+}}
+>
+🗑️
+</button>
+</button>
+</li>
+))}
+</ul>
+)}
+</div>
+</div>
+</div>
+)}
+</div>
 
-	// Assign/unassign function handlers (simple demo, expects functionId input)
-	const handleAssignFunction = async (guestId: number, functionId: number) => {
-		await assignFunctionToGuest(guestId, functionId);
-		fetchGuests();
-	};
-	const handleUnassignFunction = async (guestId: number, functionId: number) => {
-		await unassignFunctionFromGuest(guestId, functionId);
-		fetchGuests();
-	};
+<CreateGuestModal
+isOpen={showCreateModal}
+onClose={() => setShowCreateModal(false)}
+onSuccess={fetchGuests}
+/>
 
-	// Handler for clearing sessions
-	const handleClearSessions = async (guestId: number) => {
-		setClearSessionsLoading(guestId);
-		setClearSessionsError(null);
-		try {
-			const res = await clearGuestSessions(guestId);
-			if (res.status === "OK") {
-				fetchGuests();
-			} else {
-				setClearSessionsError((res as any).message || "Failed to clear sessions");
-			}
-		} catch {
-			setClearSessionsError("Failed to clear sessions");
-		} finally {
-			setClearSessionsLoading(null);
-		}
-	};
+<UpdateGuestModal
+isOpen={showUpdateModal}
+onClose={() => {
+setShowUpdateModal(false);
+setTargetGuest(null);
+}}
+onSuccess={fetchGuests}
+guest={targetGuest}
+/>
 
-	return (
-		<div className="min-h-screen bg-gradient-to-br from-[#181e2a] via-[#191726] to-[#1a1a22]">
-			<div className="bg-gradient-to-r from-blue-900/70 via-purple-900/60 to-indigo-900/70 border-b border-primary/20 py-12 mb-10 shadow-lg">
-				<div className="max-w-3xl mx-auto px-4 flex flex-col items-center text-center">
-					<div className="flex items-center justify-center mb-4">
-						<div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-indigo-500 flex items-center justify-center shadow-lg border-4 border-background/40 text-4xl">
-							<span role="img" aria-label="guest">
-								👤
-							</span>
-						</div>
-					</div>
-					<h1 className="text-4xl md:text-5xl font-extrabold text-primary mb-2 drop-shadow">
-						Guest Users
-					</h1>
-					<p className="text-lg text-text/70 max-w-xl mx-auto">
-						Manage guest users for your account. Create, update, delete, and assign
-						function permissions.
-					</p>
-				</div>
-			</div>
-			<div className="max-w-3xl mx-auto px-4 pb-16">
-				<div className="mb-8">
-					<ActionButton
-						icon={showCreate ? "✖️" : "➕"}
-						label={showCreate ? "Cancel" : "Add Guest User"}
-						variant="primary"
-						onClick={() => setShowCreate((v) => !v)}
-					/>
-				</div>
-				{showCreate && (
-					<form
-						onSubmit={handleCreate}
-						className="bg-gradient-to-br from-blue-900/30 via-purple-900/30 to-indigo-900/30 border border-primary/30 rounded-2xl p-6 mb-8 flex flex-col gap-4 shadow-lg"
-					>
-						<h2 className="text-xl font-bold text-primary mb-2">Create Guest User</h2>
-						<input
-							type="text"
-							required
-							minLength={2}
-							maxLength={128}
-							placeholder="Display Name"
-							className="px-4 py-2 border border-primary/20 rounded-lg bg-background/80 text-text"
-							value={createName}
-							onChange={(e) => setCreateName(e.target.value)}
-							disabled={createLoading}
-						/>
-						<input
-							type="email"
-							required
-							placeholder="Email"
-							className="px-4 py-2 border border-primary/20 rounded-lg bg-background/80 text-text"
-							value={createEmail}
-							onChange={(e) => setCreateEmail(e.target.value)}
-							disabled={createLoading}
-						/>
-						<input
-							type="password"
-							required
-							minLength={8}
-							maxLength={256}
-							placeholder="Password (min 8 chars)"
-							className="px-4 py-2 border border-primary/20 rounded-lg bg-background/80 text-text"
-							value={createPassword}
-							onChange={(e) => setCreatePassword(e.target.value)}
-							disabled={createLoading}
-						/>
-						<MotionButton
-							label={createLoading ? "Creating..." : "Create"}
-							variant="default"
-							onClick={() => {}}
-							size="sm"
-						/>
-						{createError && <div className="text-red-400">{createError}</div>}
-					</form>
-				)}
-				<h2 className="text-xl font-bold text-primary mb-4">Guest Users</h2>
-				{loading ? (
-					<div className="text-text/60">Loading...</div>
-				) : error ? (
-					<div className="text-red-400">{error}</div>
-				) : guests.length === 0 ? (
-					<div className="text-text/60">No guest users found.</div>
-				) : (
-					<div className="space-y-6">
-						{guests.map((g) =>
-							editId === g.id ? (
-								<form
-									key={g.id}
-									onSubmit={handleEdit}
-									className="bg-background/60 border border-primary/20 rounded-lg p-4 flex flex-col gap-2"
-								>
-									<div className="flex flex-col md:flex-row gap-2 text-text">
-										<input
-											type="text"
-											required
-											minLength={2}
-											maxLength={128}
-											value={editName}
-											onChange={(e) => setEditName(e.target.value)}
-											className="flex-1 px-2 py-1 rounded border border-primary/20 bg-background/80"
-											placeholder="Display Name"
-											disabled={editLoading}
-										/>
-										<input
-											type="password"
-											minLength={8}
-											maxLength={256}
-											value={editPassword}
-											onChange={(e) => setEditPassword(e.target.value)}
-											className="flex-1 px-2 py-1 rounded border border-primary/20 bg-background/80"
-											placeholder="New Password (optional)"
-											disabled={editLoading}
-										/>
-									</div>
-									<div className="flex gap-2 mt-2">
-										<ActionButton
-											icon="💾"
-											label={editLoading ? "Saving..." : "Save"}
-											variant="primary"
-											onClick={() => {}}
-											disabled={editLoading}
-										/>
-										<ActionButton
-											icon="✖️"
-											label="Cancel"
-											variant="secondary"
-											onClick={() => setEditId(null)}
-											disabled={editLoading}
-										/>
-									</div>
-									{editError && <div className="text-red-400">{editError}</div>}
-								</form>
-							) : (
-								<GuestUserCard
-									key={g.id}
-									guest={g}
-									functionNames={functionNames}
-									deleteLoading={deleteLoading}
-									deleteId={deleteId}
-									clearSessionsLoading={clearSessionsLoading}
-									clearSessionsError={clearSessionsError}
-									deleteError={deleteError}
-									onEdit={(guest) => {
-										setEditId(guest.id);
-										setEditName(guest.displayName);
-										setEditPassword("");
-									}}
-									onDelete={handleDelete}
-									onClearSessions={handleClearSessions}
-								/>
-							),
-						)}
-					</div>
-				)}
-			</div>
-		</div>
-	);
+<DeleteGuestModal
+isOpen={showDeleteModal}
+onClose={() => {
+setShowDeleteModal(false);
+setTargetGuest(null);
+}}
+onSuccess={() => {
+if (selectedGuest?.id === targetGuest?.id) setSelectedGuest(null);
+fetchGuests();
+}}
+guest={targetGuest}
+/>
+
+<ClearGuestSessionsModal
+isOpen={showClearModal}
+onClose={() => setShowClearModal(false)}
+onSuccess={fetchGuests}
+guest={targetGuest}
+/>
+</div>
+);
 }
