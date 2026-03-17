@@ -124,6 +124,31 @@ async function updateTrigger(
 	return data;
 }
 
-export { createTrigger, getTriggers, getTrigger, deleteTrigger, updateTrigger };
+async function listAllTriggers() {
+	const response = await fetch(`${BASE_URL}/api/triggers`, {
+		method: "GET",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		credentials: "include",
+	});
+
+	const data = (await response.json()) as
+		| {
+				status: "OK";
+				data: (Trigger & { function: { name: string } })[];
+		  }
+		| ErrorResponse;
+	return data;
+}
+
+export {
+	createTrigger,
+	getTriggers,
+	getTrigger,
+	deleteTrigger,
+	updateTrigger,
+	listAllTriggers,
+};
 export type { OKResponse, ErrorResponse };
 export type { CreateTriggerResponse };

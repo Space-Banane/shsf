@@ -13,6 +13,84 @@ async function validateCronExpression(cron: string): Promise<boolean> {
 }
 
 export = new fileRouter.Path("/")
+	.http("GET", "/api/triggers", (http) =>
+		http
+			.document({
+				description: "List all triggers for the current user",
+				tags: ["Function Triggers"] as OpenAPITags[],
+				operationId: "listAllUserTriggers",
+				responses: {
+					200: {
+						description: "Triggers listed successfully",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										data: {
+											type: "array",
+											items: {
+												type: "object",
+												properties: {
+													id: { type: "number" },
+													name: { type: "string" },
+													description: { type: "string" },
+													cron: { type: "string" },
+													data: { type: "string" },
+													enabled: { type: "boolean" },
+													functionId: { type: "number" },
+													nextRun: { type: "string", format: "date-time" },
+													function: {
+														type: "object",
+														properties: {
+															name: { type: "string" },
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+			.onRequest(async (ctr) => {
+				const authCheck = await checkAuthentication(
+					ctr.cookies.get(COOKIE),
+					ctr.headers.get(API_KEY_HEADER),
+				);
+
+				if (!authCheck.success) {
+					return ctr.print({
+						status: 401,
+						message: authCheck.message,
+					});
+				}
+
+				const triggers = await prisma.functionTrigger.findMany({
+					where: {
+						function: {
+							userId: authCheck.user.id,
+						},
+					},
+					include: {
+						function: {
+							select: {
+								name: true,
+							},
+						},
+					},
+				});
+
+				return ctr.print({
+					status: "OK",
+					data: triggers,
+				});
+			}),
+	)
 	.http("POST", "/api/functions/{functionId}/triggers", (http) =>
 		http
 			.document({

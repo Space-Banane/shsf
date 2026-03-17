@@ -613,16 +613,15 @@ function FunctionDetail() {
 	};
 
 	const handleCreateTrigger = async (
+		functionId: number,
 		name: string,
 		description: string,
 		cron: string,
 		data: string,
 		enabled: boolean,
 	) => {
-		if (!id) return false;
-
 		try {
-			const response = await createTrigger(parseInt(id), {
+			const response = await createTrigger(functionId, {
 				name,
 				description,
 				cron,
@@ -632,9 +631,11 @@ function FunctionDetail() {
 
 			if (response.status === "OK") {
 				// Reload triggers
-				const triggersData = await getTriggers(parseInt(id));
-				if (triggersData.status === "OK") {
-					setTriggers(triggersData.data);
+				if (id) {
+					const triggersData = await getTriggers(parseInt(id));
+					if (triggersData.status === "OK") {
+						setTriggers(triggersData.data);
+					}
 				}
 				return true;
 			} else {
@@ -1551,6 +1552,7 @@ function FunctionDetail() {
 					isOpen={showCreateTriggerModal}
 					onClose={() => setShowCreateTriggerModal(false)}
 					onCreate={handleCreateTrigger}
+					initialFunctionId={id ? parseInt(id) : undefined}
 				/>
 
 				<EditTriggerModal

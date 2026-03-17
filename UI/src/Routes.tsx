@@ -25,6 +25,7 @@ import { AccessTokensDocPage } from "./pages/docs/access-tokens";
 import AccessTokensPage from "./pages/AccessTokens";
 import { CLIDocPage } from "./pages/docs/cli";
 import StoragePage from "./pages/Storage";
+import CronJobsPage from "./pages/CronJobs";
 import { RoutingDocPage } from "./pages/docs/routing";
 import { CustomCorsDocPage } from "./pages/docs/custom-cors";
 import { GuestUsersDocPage } from "./pages/docs/guest-users";
@@ -246,6 +247,13 @@ export const routes: AppRoute[] = [
 		path: "/storage",
 		name: "Storage",
 		component: StoragePage,
+		requireAuth: true,
+		show_nav: true,
+	},
+	{
+		path: "/cron-jobs",
+		name: "Cron Jobs",
+		component: CronJobsPage,
 		requireAuth: true,
 		show_nav: true,
 	},
