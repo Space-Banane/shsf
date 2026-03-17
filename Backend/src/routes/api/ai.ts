@@ -483,7 +483,11 @@ export = new fileRouter.Path("/")
 
 				if (error || !body) return ctr.status(400).print({ status: 400, message: "Invalid request body" });
 
-				const or = new OpenRouter({ apiKey: authCheck.user.openRouterKey || process.env.OPENROUTER_API_KEY });
+				const or = new OpenRouter({
+					apiKey: authCheck.user.openRouterKey || process.env.OPENROUTER_API_KEY,
+					httpReferer: "https://github.com/Space-Banane/shsf",
+					xTitle: "SHSF - Self-Hostable Serverless Functions",
+				});
 
 				const response = await or.chat.send({
 					chatGenerationParams: {
