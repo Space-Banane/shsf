@@ -305,7 +305,31 @@ export = new fileRouter.Path("/")
 			}),
 	)
 	.http("DELETE", "/api/function/{id}", (http) =>
-		http.onRequest(async (ctr) => {
+		http
+			.document({
+				description: "Delete a serverless function",
+				tags: ["Functions"],
+				operationId: "deleteFunction",
+				responses: {
+					200: {
+						description: "Function deleted successfully",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										message: { type: "string" },
+									},
+								},
+							},
+						},
+					},
+					401: { description: "Unauthorized" },
+					404: { description: "Function not found" },
+				},
+			})
+			.onRequest(async (ctr) => {
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
 				ctr.headers.get(API_KEY_HEADER),
@@ -363,7 +387,48 @@ export = new fileRouter.Path("/")
 		}),
 	)
 	.http("GET", "/api/functions", (http) =>
-		http.onRequest(async (ctr) => {
+		http
+			.document({
+				description: "Get all serverless functions for the current user",
+				tags: ["Functions"],
+				operationId: "getFunctions",
+				responses: {
+					200: {
+						description: "List of functions",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										data: {
+											type: "array",
+											items: {
+												type: "object",
+												properties: {
+													id: { type: "number" },
+													name: { type: "string" },
+													description: { type: "string" },
+													image: { type: "string" },
+													namespace: {
+														type: "object",
+														properties: {
+															id: { type: "number" },
+															name: { type: "string" },
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					401: { description: "Unauthorized" },
+				},
+			})
+			.onRequest(async (ctr) => {
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
 				ctr.headers.get(API_KEY_HEADER),
@@ -397,7 +462,47 @@ export = new fileRouter.Path("/")
 		}),
 	)
 	.http("GET", "/api/function/{id}", (http) =>
-		http.onRequest(async (ctr) => {
+		http
+			.document({
+				description: "Get detailed information about a function",
+				tags: ["Functions"],
+				operationId: "getFunction",
+				responses: {
+					200: {
+						description: "Function details",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										data: {
+											type: "object",
+											properties: {
+												id: { type: "number" },
+												name: { type: "string" },
+												description: { type: "string" },
+												image: { type: "string" },
+												startup_file: { type: "string" },
+												namespace: {
+													type: "object",
+													properties: {
+														id: { type: "number" },
+														name: { type: "string" },
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					401: { description: "Unauthorized" },
+					404: { description: "Function not found" },
+				},
+			})
+			.onRequest(async (ctr) => {
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
 				ctr.headers.get(API_KEY_HEADER),
@@ -453,7 +558,45 @@ export = new fileRouter.Path("/")
 		}),
 	)
 	.http("GET", "/api/function/{id}/logs", (http) =>
-		http.onRequest(async (ctr) => {
+		http
+			.document({
+				description: "Get execution logs for a function",
+				tags: ["Functions"],
+				operationId: "getFunctionLogs",
+				responses: {
+					200: {
+						description: "Function execution logs",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										data: {
+											type: "array",
+											items: {
+												type: "object",
+												properties: {
+													id: { type: "number" },
+													functionId: { type: "number" },
+													output: { type: "string" },
+													error: { type: "string", nullable: true },
+													status: { type: "string" },
+													duration: { type: "number" },
+													createdAt: { type: "string", format: "date-time" },
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					401: { description: "Unauthorized" },
+					404: { description: "Function not found" },
+				},
+			})
+			.onRequest(async (ctr) => {
 			const authCheck = await checkAuthentication(
 				ctr.cookies.get(COOKIE),
 				ctr.headers.get(API_KEY_HEADER),
@@ -507,7 +650,75 @@ export = new fileRouter.Path("/")
 		}),
 	)
 	.http("PATCH", "/api/function/{id}", (http) =>
-		http.onRequest(async (ctr) => {
+		http
+			.document({
+				description: "Update function details or settings",
+				tags: ["Functions"],
+				operationId: "updateFunction",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								properties: {
+									name: { type: "string", description: "Function name" },
+									description: { type: "string", description: "Function description" },
+									image: { type: "string", description: "Docker image tag" },
+									startup_file: { type: "string", description: "Startup file name" },
+									docker_mount: { type: "boolean", description: "Enable Docker mount" },
+									ffmpeg_install: { type: "boolean", description: "Install ffmpeg" },
+									executionAlias: { type: "string" },
+									settings: {
+										type: "object",
+										properties: {
+											max_ram: { type: "number" },
+											timeout: { type: "number" },
+											allow_http: { type: "boolean" },
+											secure_header: { type: "string"},
+											tags: { type: "array", items: { type: "string" } },
+											retry_on_failure: { type: "boolean" },
+											retry_count: { type: "number" },
+											cache_enabled: { type: "boolean" },
+											cache_ttl: { type: "number" },
+										},
+									},
+									environment: {
+										type: "array",
+										items: {
+											type: "object",
+											properties: {
+												name: { type: "string" },
+												value: { type: "string" },
+											},
+										},
+									},
+									cors_origins: { type: "string" },
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					200: {
+						description: "Function updated successfully",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										data: { type: "object" },
+										relaunch: { type: "string", description: "Informs if container relaunch started" },
+									},
+								},
+							},
+						},
+					},
+					401: { description: "Unauthorized" },
+					404: { description: "Function not found" },
+				},
+			})
+			.onRequest(async (ctr) => {
 			const id = ctr.params.get("id");
 			if (!id) {
 				return ctr.status(ctr.$status.BAD_REQUEST).print({
