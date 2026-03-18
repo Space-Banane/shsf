@@ -7,10 +7,61 @@ import {
 	handleFunctionResult,
 	setFunctionCache,
 } from "../../../lib/Caching";
+import { OpenAPITags } from "../../../lib/openapi";
 
 export = new fileRouter.Path("/")
 	.http("POST", "/api/function/{id}/execute", (http) =>
 		http
+			.document({
+				description:
+					"Execute a function. Cache is applied only for non-stream executions when cache_enabled is true.",
+				tags: ["Functions"] as OpenAPITags[],
+				operationId: "executeFunction",
+				parameters: [
+					{
+						name: "id",
+						in: "path",
+						required: true,
+						schema: { type: "number" },
+						description: "Function ID",
+					},
+					{
+						name: "stream",
+						in: "query",
+						required: false,
+						schema: { type: "string", enum: ["true", "false"], default: "true" },
+						description:
+							"When false, returns a single response and enables cache lookup/write if caching is configured.",
+					},
+				],
+				requestBody: {
+					required: false,
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								properties: {
+									run: {
+										type: "object",
+										description: "Execution payload forwarded to the runtime",
+										additionalProperties: true,
+									},
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					200: {
+						description:
+							"Execution output. In stream mode this is chunked output; in non-stream mode this is the final result.",
+					},
+					401: { description: "Unauthorized" },
+					404: { description: "Function not found" },
+					408: { description: "Execution timeout" },
+					500: { description: "Execution error" },
+				},
+			})
 			.onRequest(async (ctr) => {
 				const id = ctr.params.get("id");
 				if (!id) {

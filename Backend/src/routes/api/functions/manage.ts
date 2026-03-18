@@ -95,6 +95,14 @@ export = new fileRouter.Path("/")
 												description: "Retry on failure",
 											},
 											retry_count: { type: "number", description: "Retry count" },
+											cache_enabled: {
+												type: "boolean",
+												description: "Enable response caching for non-stream execution",
+											},
+											cache_ttl: {
+												type: "number",
+												description: "Cache TTL in seconds (1-86400)",
+											},
 										},
 									},
 									environment: {
@@ -410,6 +418,14 @@ export = new fileRouter.Path("/")
 													name: { type: "string" },
 													description: { type: "string" },
 													image: { type: "string" },
+												cache_enabled: {
+													type: "boolean",
+													description: "Whether response caching is enabled",
+												},
+												cache_ttl: {
+													type: "number",
+													description: "Cache TTL in seconds",
+												},
 													namespace: {
 														type: "object",
 														properties: {
@@ -484,6 +500,14 @@ export = new fileRouter.Path("/")
 												description: { type: "string" },
 												image: { type: "string" },
 												startup_file: { type: "string" },
+												cache_enabled: {
+													type: "boolean",
+													description: "Whether response caching is enabled",
+												},
+												cache_ttl: {
+													type: "number",
+													description: "Cache TTL in seconds",
+												},
 												namespace: {
 													type: "object",
 													properties: {
@@ -678,8 +702,14 @@ export = new fileRouter.Path("/")
 											tags: { type: "array", items: { type: "string" } },
 											retry_on_failure: { type: "boolean" },
 											retry_count: { type: "number" },
-											cache_enabled: { type: "boolean" },
-											cache_ttl: { type: "number" },
+												cache_enabled: {
+													type: "boolean",
+													description: "Enable response caching for non-stream execution",
+												},
+												cache_ttl: {
+													type: "number",
+													description: "Cache TTL in seconds (1-86400)",
+												},
 										},
 									},
 									environment: {
