@@ -150,7 +150,7 @@ function CronJobsPage() {
 							<span className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
 								⏰
 							</span>
-							Active Cron Jobs
+							Your Cron Jobs
 						</h2>
 						<div className="flex items-center gap-3">
 							<button
