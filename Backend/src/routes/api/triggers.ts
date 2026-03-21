@@ -2,15 +2,9 @@ import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
 import { CronExpressionParser } from "cron-parser";
 import { OpenAPITags } from "../../lib/openapi";
+import { validateCronExpression } from "../../lib/Cron";
 
-async function validateCronExpression(cron: string): Promise<boolean> {
-	try {
-		CronExpressionParser.parse(cron);
-		return true;
-	} catch {
-		return false;
-	}
-}
+
 
 export = new fileRouter.Path("/")
 	.http("GET", "/api/triggers", (http) =>

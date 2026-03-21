@@ -68,9 +68,29 @@ jobs:
    - name: Build Frontend
      run: cd UI && CI=false && pnpm build
 
+ test_backend:
+  name: Test Backend
+  needs: build_backend
+  runs-on: ubuntu-latest
+  steps:
+   - name: Checkout code
+     uses: actions/checkout@v4
+   - name: Setup Node.js
+     uses: actions/setup-node@v3
+     with:
+      node-version: "24"
+   - name: Install pnpm
+     uses: pnpm/action-setup@v2
+     with:
+      version: 7
+   - name: Install dependencies
+     run: cd Backend && pnpm install
+   - name: Run backend tests
+     run: cd Backend && pnpm test
+
  generate_openapi_release:
   name: Generate OpenAPI Release
-  needs: build_backend
+  needs: build_backend, test_backend
   runs-on: ubuntu-latest
   steps:
    - name: Checkout code

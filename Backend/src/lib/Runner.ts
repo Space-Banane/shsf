@@ -9,6 +9,7 @@ import * as fs from "fs/promises";
 import * as fsSync from "fs";
 import * as path from "path";
 import { randomBytes } from "crypto";
+import { getLoggingConfigFromData, stripHeadersFromPayload } from "./FunctionLogging";
 
 interface TimingEntry {
 	timestamp: number;
@@ -1354,28 +1355,35 @@ echo "[SHSF INIT] Go setup complete."
 					? func_result
 					: JSON.stringify(null);
 			const DB_FIELD_LIMIT = 10000; // Reasonable DB field size limit
+			const loggingConfig = await getLoggingConfigFromData(functionData.logging);
+			if (loggingConfig.enabled) {
+				let newpayload = payload;
+				if (loggingConfig.hide_payload_headers) {
+					newpayload = await stripHeadersFromPayload(newpayload);
+				}
 
-			await prisma.triggerLog.create({
-				data: {
-					functionId: id,
-					logs:
-						logs.length > DB_FIELD_LIMIT
-							? logs.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
-							: logs,
-					result: JSON.stringify({
-						exit_code: exitCode,
-						tooks: tooks,
-						output:
-							resultForDb.length > DB_FIELD_LIMIT
-								? resultForDb.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
-								: resultForDb,
-						payload:
-							payload.length > DB_FIELD_LIMIT
-								? payload.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
-								: payload,
-					}),
-				},
-			});
+				await prisma.triggerLog.create({
+					data: {
+						functionId: id,
+						logs:
+							logs.length > DB_FIELD_LIMIT
+								? logs.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
+								: logs,
+						result: JSON.stringify({
+							exit_code: exitCode,
+							tooks: tooks,
+							output:
+								resultForDb.length > DB_FIELD_LIMIT
+									? resultForDb.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
+									: resultForDb,
+							payload:
+								newpayload.length > DB_FIELD_LIMIT
+									? newpayload.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
+									: newpayload,
+						}),
+					},
+				});
+			}
 		} catch (error) {
 			console.error("Error creating trigger log:", error);
 		}

@@ -24,7 +24,12 @@ export function getSanitizedPayload(payload: any) {
 			"tracestate",
 			"x-amzn-trace-id",
 			"x-request-id",
-			"x-correlation-id"
+			"x-correlation-id",
+			"cf-connecting-ip",
+			"cf-connecting-ipv6",
+			"cf-pseudo-ipv4",
+			"x-forwarded-for",
+			"x-real-ip",
 		];
 		toStrip.forEach((h) => delete headers[h.toLowerCase()]);
 		sanitized.headers = headers;
@@ -39,15 +44,17 @@ export function getSanitizedPayload(payload: any) {
  */
 export function getPayloadHash(payload: any) {
 	const sanitized = getSanitizedPayload(payload);
-	return createHash("sha256")
-		.update(JSON.stringify(sanitized))
-		.digest("hex");
+	return createHash("sha256").update(JSON.stringify(sanitized)).digest("hex");
 }
 
 /**
  * Common response logic for direct execution or cache hits
  */
-export function handleFunctionResult(ctr: any, result: any, cached: boolean = false) {
+export function handleFunctionResult(
+	ctr: any,
+	result: any,
+	cached: boolean = false,
+) {
 	if (cached) {
 		ctr.headers.set("X-SHSF-Cache", "HIT");
 	} else {
@@ -62,7 +69,7 @@ export function handleFunctionResult(ctr: any, result: any, cached: boolean = fa
 				? Object.entries(out._headers).map(([key, value]) => ({
 						key,
 						value,
-				  }))
+					}))
 				: null;
 		const response_code: number | null = "_code" in out ? out._code : null;
 		const response: any | null = "_res" in out ? out._res : null;
@@ -112,7 +119,12 @@ export async function getFunctionCache(functionId: number, hash: string) {
 /**
  * Stores a function execution result in the cache.
  */
-export async function setFunctionCache(functionId: number, hash: string, result: any, ttl: number) {
+export async function setFunctionCache(
+	functionId: number,
+	hash: string,
+	result: any,
+	ttl: number,
+) {
 	return await prisma.functionCache.upsert({
 		where: {
 			functionId_hash: {

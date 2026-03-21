@@ -1,4 +1,5 @@
 onlyBuiltDependencies:
+  - '@openrouter/sdk'
   - '@prisma/client'
   - '@prisma/engines'
   - bcrypt

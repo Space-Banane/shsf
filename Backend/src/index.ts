@@ -11,7 +11,9 @@ import { getUUID, prevDirectory } from "./lib/DataManager";
 import { join } from "path";
 
 // load env file
-dotenv.config();
+if (process.env.NODE_ENV !== "test") {
+	dotenv.config();
+}
 
 export const VERSION: {
 	type: "SHSF API" | "SHSF UI";
@@ -45,11 +47,15 @@ export const prisma = new PrismaClient({
 const CORS_DOMAINS = env.CORS_URLS!.split(",");
 CORS_DOMAINS.push(URL);
 CORS_DOMAINS.push(REACT_APP_API_URL.replace(/\/+$/, "")); // Remove trailing slash if present
-console.log(CORS_DOMAINS);
+if (process.env.NODE_ENV !== "test") {
+	console.log(CORS_DOMAINS);
+}
 
-console.log(
-	`Im reachable on ${env.PORT}; For Example: ${env.REACT_APP_API_URL}`,
-);
+if (process.env.NODE_ENV !== "test") {
+	console.log(
+		`Im reachable on ${env.PORT}; For Example: ${env.REACT_APP_API_URL}`,
+	);
+}
 export const API_URL = env.REACT_APP_API_URL;
 if (!API_URL) {
 	throw new Error("REACT_APP_API_URL is not defined in environment variables");
@@ -58,7 +64,9 @@ CORS_DOMAINS.push(API_URL);
 
 // DATAMANAGER
 const dataPath = join(prevDirectory, ".data");
-console.log(`DataManager: Using data directory at ${dataPath}`);
+if (process.env.NODE_ENV !== "test") {
+	console.log(`DataManager: Using data directory at ${dataPath}`);
+}
 
 // Middleware Definition
 export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
@@ -213,9 +221,11 @@ export const server = new Server(
 	[middleware.use({})],
 );
 
-export const fileRouter = new server.FileLoader("/")
-	.load("./routes", { fileBasedRouting: false })
-	.export();
+const loader = new server.FileLoader("/");
+if (process.env.NODE_ENV !== "test") {
+	loader.load("./routes", { fileBasedRouting: false });
+}
+export const fileRouter = loader.export();
 
 server.notFound(async (ctr) => {
 	return ctr.status(ctr.$status.NOT_FOUND).print({
@@ -226,29 +236,31 @@ This endpoint does not exist in this instance as of this moment, if you are read
 	});
 });
 
-server
-	.start()
-	.then(async (port) => {
-		await prisma.$connect();
-		const uuid = await getUUID();
+if (process.env.NODE_ENV !== "test") {
+	server
+		.start()
+		.then(async (port) => {
+			await prisma.$connect();
+			const uuid = await getUUID();
 
-		console.log(`[SHSF API] Running on ${port} with UUID: ${uuid}`);
+			console.log(`[SHSF API] Running on ${port} with UUID: ${uuid}`);
 
-		setInterval(async () => {
-			await processCrons();
-		}, 1000); // Every second
+			setInterval(async () => {
+				await processCrons();
+			}, 1000); // Every second
 
-		// Periodic git pull — checks every minute, respects per-function interval
-		setInterval(async () => {
-			await processGitPulls();
-		}, 60 * 1000);
+			// Periodic git pull — checks every minute, respects per-function interval
+			setInterval(async () => {
+				await processGitPulls();
+			}, 60 * 1000);
 
-		// Periodic cleanup for expired storage items
-		setInterval(async () => {
-			await processStorageCleanup();
-		}, 60 * 1000); // Every minute
-	})
-	.catch(console.error);
+			// Periodic cleanup for expired storage items
+			setInterval(async () => {
+				await processStorageCleanup();
+			}, 60 * 1000); // Every minute
+		})
+		.catch(console.error);
+}
 
 server.error("httpRequest", async (ctr, error) => {
 	console.error(error);

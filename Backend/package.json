@@ -13,6 +13,7 @@
 		"@types/dockerode": "^3.3.47",
 		"@types/node": "^22.19.15",
 		"@types/nodemailer": "^6.4.23",
+		"@vitest/coverage-v8": "^4.1.0",
 		"axios": "^1.13.6",
 		"bcrypt": "^5.1.1",
 		"cron-parser": "^5.5.0",
@@ -24,7 +25,8 @@
 		"prisma": "^6.19.2",
 		"rjweb-server": "^9.8.6",
 		"tar": "^7.5.11",
-		"typescript": "^5.9.3"
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.0"
 	},
 	"scripts": {
 		"prism": "npx prisma generate && npx prisma db push",
@@ -33,6 +35,8 @@
 		"start": "cd dist && node index.js && cd ..",
 		"prod": "npm run build && npm run start",
 		"dev": "rm -rf dist && esbuild `find src \\( -name '*.ts' -o -name '*.tsx' \\)` --platform='node' --sourcemap --ignore-annotations --format='cjs' --target='es2022' --outdir='dist' && cd dist && node index.js && cd ..",
-		"test": "npm run build"
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage"
 	}
 }

@@ -1315,6 +1315,7 @@ function FunctionDetail() {
 							onToggleDetails={() => setShowLogsDetails(!showLogsDetails)}
 							onRefreshLogs={fetchLogs}
 							onViewLogs={() => setShowLogsModal(true)}
+							functionId={functionData?.id ?? 0}
 							disabled={serveHtmlOnly}
 							disabledReason="This function is set to only serve an .html file"
 						/>
@@ -1579,6 +1580,8 @@ function FunctionDetail() {
 					onClose={() => setShowLogsModal(false)}
 					logs={logs}
 					isLoading={isLoadingLogs}
+					functionId={functionData?.id ?? 0}
+					onRefresh={fetchLogs}
 				/>
 
 				<GuestManagement

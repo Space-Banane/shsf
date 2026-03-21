@@ -2,12 +2,15 @@ import React, { useState, useEffect } from "react";
 import Modal from "./Modal";
 import { TriggerLog } from "../../types/Prisma";
 import TriggerLogCard from "./TriggerLogCard";
+import { deleteSpecificLog } from "../../services/backend.function.logs";
 
 interface TriggerLogsModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	logs: TriggerLog[];
 	isLoading?: boolean;
+	functionId: number;
+	onRefresh: () => void;
 }
 
 function TriggerLogsModal({
@@ -15,6 +18,8 @@ function TriggerLogsModal({
 	onClose,
 	logs,
 	isLoading = false,
+	functionId,
+	onRefresh,
 }: TriggerLogsModalProps) {
 	const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
 
@@ -24,12 +29,13 @@ function TriggerLogsModal({
 			const sortedLogs = [...logs].sort(
 				(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
 			);
-			// Expand only the latest log
-			const newExpandedState: Record<number, boolean> = {};
-			if (sortedLogs.length > 0) {
-				newExpandedState[sortedLogs[0].id] = true;
-			}
-			setExpandedLogs(newExpandedState);
+			// Expand only the latest log if not already expanded
+			setExpandedLogs((prev) => {
+				if (Object.keys(prev).length === 0 && sortedLogs.length > 0) {
+					return { [sortedLogs[0].id]: true };
+				}
+				return prev;
+			});
 		}
 	}, [logs]);
 
@@ -39,6 +45,13 @@ function TriggerLogsModal({
 			...prev,
 			[logId]: !prev[logId],
 		}));
+	};
+
+	const handleDeleteLog = async (logId: number) => {
+		const res = await deleteSpecificLog(functionId, logId);
+		if (res.status === "OK") {
+			onRefresh();
+		}
 	};
 
 	// Sort logs by date (newest first)
@@ -68,6 +81,7 @@ function TriggerLogsModal({
 								log={log}
 								expanded={!!expandedLogs[log.id]}
 								onToggle={toggleExpand}
+								onDelete={() => handleDeleteLog(log.id)}
 							/>
 						))}
 					</div>

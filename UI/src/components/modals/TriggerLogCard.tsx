@@ -5,13 +5,22 @@ interface TriggerLogCardProps {
 	log: TriggerLog;
 	expanded: boolean;
 	onToggle: (logId: number) => void;
+	onDelete: () => void;
 }
 
 const TriggerLogCard: React.FC<TriggerLogCardProps> = ({
 	log,
 	expanded,
 	onToggle,
+	onDelete,
 }) => {
+	const handleDelete = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (window.confirm("Are you sure you want to delete this specific log?")) {
+			onDelete();
+		}
+	};
+
 	return (
 		<div className="bg-gray-800/50 border border-gray-700/50 rounded-lg overflow-hidden hover:border-primary/30 transition-all duration-300">
 			{/* Log Header */}
@@ -31,7 +40,14 @@ const TriggerLogCard: React.FC<TriggerLogCardProps> = ({
 							<p className="text-gray-400 text-xs">Execution #{log.id}</p>
 						</div>
 					</div>
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-4">
+						<button
+							onClick={handleDelete}
+							className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-md border border-red-500/20 transition-all"
+							title="Delete specific log"
+						>
+							<span className="text-xs">🗑️</span>
+						</button>
 						<span
 							className={`transform transition-transform duration-300 ${
 								expanded ? "rotate-90" : ""
