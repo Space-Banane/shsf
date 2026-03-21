@@ -46,7 +46,7 @@ interface ExecuteFunctionResponse {
 	status: "OK";
 	data: {
 		output: string;
-		exitCode: any; // TODO: Add a propper type
+		exitCode: number;
 		raw: string;
 	};
 }
