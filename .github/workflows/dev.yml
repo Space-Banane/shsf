@@ -7,6 +7,7 @@ on:
     branches-ignore:
       - main
     paths:
+      - ".github/workflows/dev.yml"
       - "Backend/**"
       - "UI/**"
       - "docker-compose.yml"
@@ -83,6 +84,8 @@ jobs:
      uses: pnpm/action-setup@v2
      with:
       version: 7
+   - name: Copy environment file
+     run: cp Backend/example.env Backend/.env
    - name: Install dependencies
      run: cd Backend && pnpm install
    - name: Run backend tests
