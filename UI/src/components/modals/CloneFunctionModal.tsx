@@ -59,9 +59,16 @@ function CloneFunctionModal({
 		}
 	};
 
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			handleSubmit();
+		}
+	};
+
 	return (
 		<Modal isOpen={isOpen} onClose={handleClose} title="Clone Function" maxWidth="md" isLoading={isLoading}>
-			<div className="space-y-4">
+			<div className="space-y-4" onKeyDown={handleKeyDown}>
 				{error && (
 					<div className="bg-red-500/10 border border-red-500/30 p-3 rounded">
 						<p className="text-red-300 text-sm">{error}</p>

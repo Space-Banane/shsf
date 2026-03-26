@@ -195,6 +195,13 @@ function UpdateFunctionModal({
 		setLoggedUrls(filteredUrls);
 	}, [lastLogs, corsOriginsArray]);
 
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			handleSubmit();
+		}
+	};
+
 	// console.log("Last logs passed to UpdateFunctionModal:", lastLogs); // Debug log
 	// console.log("Logged URLs for CORS suggestions:", loggedUrls); // Debug log
 
@@ -206,7 +213,7 @@ function UpdateFunctionModal({
 			maxWidth="lg"
 			isLoading={isLoading}
 		>
-			<div className="space-y-6">
+			<div className="space-y-6" onKeyDown={handleKeyDown}>
 				{/* Error Message */}
 				{error && (
 					<div className="bg-red-500/10 border border-red-500/30 p-4 rounded-lg">

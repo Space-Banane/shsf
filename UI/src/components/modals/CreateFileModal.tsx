@@ -64,6 +64,13 @@ function CreateFileModal({
 		}
 	};
 
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			handleCreate();
+		}
+	};
+
 	return (
 		<Modal
 			isOpen={isOpen}
@@ -71,7 +78,7 @@ function CreateFileModal({
 			title="Create File"
 			isLoading={isLoading}
 		>
-			<div className="space-y-6">
+			<div className="space-y-6" onKeyDown={handleKeyDown}>
 				{/* Filename Input */}
 				<div className="space-y-2">
 					<label className="flex items-center gap-2 text-sm font-medium text-gray-300">

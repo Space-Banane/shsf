@@ -141,6 +141,13 @@ function CreateFunctionModal({
 		setCorsOrigins(corsOriginsArray.filter((o) => o !== origin).join(", "));
 	};
 
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			handleSubmit();
+		}
+	};
+
 	return (
 		<Modal
 			isOpen={isOpen}
@@ -149,7 +156,7 @@ function CreateFunctionModal({
 			maxWidth="lg"
 			isLoading={isLoading}
 		>
-			<div className="space-y-6">
+			<div className="space-y-6" onKeyDown={handleKeyDown}>
 				{/* Error Message */}
 				{error && (
 					<div className="bg-red-500/10 border border-red-500/30 p-4 rounded-lg">
