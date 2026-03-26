@@ -85,7 +85,7 @@ jobs:
      with:
       version: 7
    - name: Copy environment file
-     run: cp Backend/example.env Backend/.env
+     run: cp example.env Backend/.env
    - name: Install dependencies
      run: cd Backend && pnpm install
    - name: Run backend tests
