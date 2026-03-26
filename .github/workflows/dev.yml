@@ -90,7 +90,7 @@ jobs:
 
  generate_openapi_release:
   name: Generate OpenAPI Release
-  needs: build_backend, test_backend
+  needs: [build_backend, test_backend]
   runs-on: ubuntu-latest
   steps:
    - name: Checkout code
