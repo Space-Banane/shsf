@@ -5,7 +5,7 @@ interface ModalProps {
 	onClose: () => void;
 	title: string;
 	children: React.ReactNode;
-	maxWidth?: string;
+	maxWidth?: "sm" | "md" | "lg" | "xl";
 	isLoading?: boolean;
 }
 
@@ -21,26 +21,40 @@ function Modal({
 		const handleEscape = (e: KeyboardEvent) => {
 			if (e.key === "Escape" && !isLoading) onClose();
 		};
-		document.addEventListener("keydown", handleEscape);
-		return () => document.removeEventListener("keydown", handleEscape);
-	}, [onClose, isLoading]);
+
+		if (isOpen) {
+			document.addEventListener("keydown", handleEscape);
+			// Prevent scrolling on body when modal is open
+			document.body.style.overflow = "hidden";
+		}
+
+		return () => {
+			document.removeEventListener("keydown", handleEscape);
+			document.body.style.overflow = "unset";
+		};
+	}, [isOpen, onClose, isLoading]);
 
 	if (!isOpen) return null;
 
-	const maxWidthClass =
-		{
-			sm: "max-w-sm",
-			md: "max-w-md",
-			lg: "max-w-2xl",
-			xl: "max-w-4xl",
-		}[maxWidth] || "max-w-md";
+	const maxWidthClass = {
+		sm: "max-w-sm",
+		md: "max-w-md",
+		lg: "max-w-2xl",
+		xl: "max-w-4xl",
+	}[maxWidth];
 
 	return (
-		<div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 animate-fadeIn p-4">
+		/* Overlay: Added onClick to close */
+		<div
+			className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 animate-fadeIn p-4"
+			onClick={() => !isLoading && onClose()}
+		>
+			{/* Modal Content: Added stopPropagation to prevent overlay click trigger */}
 			<div
+				onClick={(e) => e.stopPropagation()}
 				className={`bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-xl border border-primary/20 text-white rounded-2xl shadow-2xl ${maxWidthClass} w-full animate-slideIn flex flex-col max-h-[90vh] relative overflow-hidden`}
 			>
-				{/* Gradient overlay */}
+				{/* Gradient overlay line */}
 				<div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
 
 				{/* Header */}
@@ -76,13 +90,13 @@ function Modal({
 					)}
 				</div>
 
-				{/* Content */}
+				{/* Content Area */}
 				<div
 					className="overflow-y-auto p-6 relative flex-1"
 					style={{ scrollbarWidth: "thin" }}
 				>
 					{isLoading && (
-						<div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-10 rounded-2xl">
+						<div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-10">
 							<div className="flex flex-col items-center gap-4">
 								<div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
 								<p className="text-primary text-sm font-medium">Processing...</p>
