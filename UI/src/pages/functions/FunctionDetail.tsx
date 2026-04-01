@@ -136,6 +136,7 @@ function FunctionDetail() {
 	const [showLoadDefaultModal, setShowLoadDefaultModal] = useState(false);
 	const [showAIModal, setShowAIModal] = useState(false);
 	const [showGitModal, setShowGitModal] = useState(false);
+	const [stopShowingResult, setStopShowingResult] = useState(false);
 
 	useEffect(() => {
 		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
@@ -370,7 +371,7 @@ function FunctionDetail() {
 		};
 
 		const showResultIfNotPopup = (result: any) => {
-			if (!checkPopup(result)) {
+			if (!stopShowingResult && !checkPopup(result)) {
 				setResultModalContent({
 					title: "Function Result",
 					value: result,
@@ -1367,6 +1368,17 @@ function FunctionDetail() {
 									>
 										{running ? "🚀Running..." : "🚀Run Startup"}
 									</button>
+                                    <button
+                                        className={`px-3 py-1.5 text-sm rounded-lg transition-all duration-300 border ${
+                                            stopShowingResult
+                                                ? "bg-red-500/20 border-red-500/40 text-red-400"
+                                                : "bg-green-500/20 border-green-500/40 text-green-400"
+                                        }`}
+                                        onClick={() => setStopShowingResult(!stopShowingResult)}
+                                        title={stopShowingResult ? "Result Modal is disabled" : "Result Modal is enabled"}
+                                    >
+                                        {stopShowingResult ? "Hide Modal" : "Show Modal"}
+                                    </button>
 									<select
 										className={`bg-background/50 border border-primary/20 text-primary px-2 py-1.5 text-sm rounded-lg transition-all duration-300
                       hover:border-primary/40
