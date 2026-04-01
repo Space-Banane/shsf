@@ -1363,6 +1363,7 @@ echo "[SHSF INIT] Go setup complete."
 
 		try {
 			// Ensure func_result is a string for the DB, even if it's an error message or empty
+			let disableResult = false;
 			const resultForDb =
 				typeof func_result === "string" && func_result !== ""
 					? func_result
@@ -1373,6 +1374,11 @@ echo "[SHSF INIT] Go setup complete."
 				let newpayload = payload;
 				if (loggingConfig.hide_payload_headers) {
 					newpayload = await stripHeadersFromPayload(newpayload);
+				}
+
+				if (functionData.startup_file.endsWith(".html")) {
+					// Don't log HTML content to results
+					disableResult = true;
 				}
 
 				await prisma.triggerLog.create({
@@ -1386,7 +1392,7 @@ echo "[SHSF INIT] Go setup complete."
 							exit_code: exitCode,
 							tooks: tooks,
 							output:
-								resultForDb.length > DB_FIELD_LIMIT
+								disableResult ? "HTML Content IGNORED" : resultForDb.length > DB_FIELD_LIMIT
 									? resultForDb.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
 									: resultForDb,
 							payload:
