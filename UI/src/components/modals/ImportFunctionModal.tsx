@@ -105,10 +105,26 @@ function ImportFunctionModal({
 				const data = JSON.parse(content) as SHSFExport;
 
 				// Basic validation
-				if (!data.shsf_version || !data.name || !data.image || !data.files) {
-					setParseError(
-						"Invalid .shsf file: missing required fields (name, image, files).",
-					);
+				if (!data.shsf_version) {
+					setParseError("Invalid .shsf file: missing shsf_version field.");
+					setParsed(null);
+					return;
+				}
+
+				if (!data.name) {
+					setParseError("Invalid .shsf file: missing name field.");
+					setParsed(null);
+					return;
+				}
+
+				if (!data.image) {
+					setParseError("Invalid .shsf file: missing image field.");
+					setParsed(null);
+					return;
+				}
+
+				if (!data.files) {
+					setParseError("Invalid .shsf file: missing files field.");
 					setParsed(null);
 					return;
 				}

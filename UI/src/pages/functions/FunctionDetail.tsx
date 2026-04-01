@@ -802,7 +802,7 @@ function FunctionDetail() {
 
 		let version = "";
 		try {
-			const res = await fetch(BASE_URL + "/api/version");
+			const res = await fetch(BASE_URL + "/version");
 			if (!res.ok) {
 				throw new Error("Failed to fetch version");
 			}
