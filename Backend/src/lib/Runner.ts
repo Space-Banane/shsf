@@ -1566,6 +1566,47 @@ export async function installDependencies(
 }
 
 // Helper function to clean up container when deleting a function
+export async function deleteContainerForFunction(functionId: number) {
+	const functionIdStr = String(functionId);
+	const containerName = `shsf_func_${functionIdStr}`;
+
+	try {
+		const docker = new Docker();
+		// Try to stop and remove the container if it exists
+		try {
+			const container = docker.getContainer(containerName);
+			const containerInfo = await container.inspect();
+
+			if (containerInfo.State.Running) {
+				console.log(`[SHSF] Stopping container for function ${functionId}`);
+				await container.kill({ t: 10 }); // 10-second timeout
+			}
+
+			console.log(`[SHSF] Removing container for function ${functionId}`);
+			await container.remove();
+		} catch (containerError: any) {
+			if (containerError.statusCode !== 404) {
+				console.error(
+					`[SHSF] Error removing container for function ${functionId}:`,
+					containerError
+				);
+			} else {
+				console.log(
+					`[SHSF] Container for function ${functionId} not found, skipping removal`
+				);
+			}
+		}
+
+		return true;
+	} catch (error) {
+		console.error(
+			`[SHSF] Error during container deletion for function ${functionId}:`,
+			error
+		);
+		return false;
+	}
+}
+
 export async function cleanupFunctionContainer(functionId: number) {
 	const functionIdStr = String(functionId);
 	const containerName = `shsf_func_${functionIdStr}`;

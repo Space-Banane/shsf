@@ -120,10 +120,10 @@ function UpdateFunctionModal({
 				return;
 			}
 			const response = await updateFunction(functionData.id, {
-				name,
-				description,
+				name: name.trim() || undefined,
+				description: description.trim() || undefined,
 				image,
-				startup_file: startupFile,
+				startup_file: startupFile?.trim() || undefined,
 				docker_mount: dockerMount,
 				ffmpeg_install: ffmpegInstall,
 				opencv_install: opencv_install,
@@ -339,7 +339,7 @@ function UpdateFunctionModal({
 								const isDisabled = img.split(":")[0] !== image.split(":")[0];
 								return (
 									<option key={img} value={img} disabled={isDisabled}>
-										{img}
+										{img} {isDisabled && "(Language change not allowed)"}
 									</option>
 								);
 							})}
