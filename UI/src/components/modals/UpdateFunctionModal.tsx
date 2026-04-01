@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from "react";
 import Modal from "./Modal";
-import { updateFunction, reinstallFfmpeg, reinstallOpencv } from "../../services/backend.functions";
+import {
+	updateFunction,
+	reinstallFfmpeg,
+	reinstallOpencv,
+} from "../../services/backend.functions";
 import {
 	Image,
 	ImagesAsArray,
 	TriggerLog,
 	XFunction,
 } from "../../types/Prisma";
+import { InlineCode } from "../InlineCode";
 
 interface UpdateFunctionModalProps {
 	isOpen: boolean;
@@ -258,6 +263,31 @@ function UpdateFunctionModal({
 						</div>
 					</div>
 				)}
+				<div className="bg-yellow-900/30 border-l-4 border-yellow-500 p-4 rounded-lg flex items-start gap-4 mb-2">
+					<span className="text-yellow-400 text-2xl mt-0.5">⚠️</span>
+					<div>
+						<h3 className="text-yellow-300 text-base font-semibold mb-1">
+							Data Deletion Warning
+						</h3>
+						<p className="text-yellow-200 text-xs leading-relaxed">
+							<strong>
+								Updating this function may cause temporary downtime and could{" "}
+								<span className="underline decoration-yellow-400">
+									delete all files in
+								</span>{" "}
+								<InlineCode color="yellow">/app</InlineCode>.
+							</strong>
+							<br />
+							Back up any important data before updating fields that trigger a redeploy
+							like {["Image", "Docker Mount", "FFMPEG Install", "OpenCV Install"].map((field, index) => (
+								<React.Fragment key={field}>
+									<InlineCode color="yellow">{field}</InlineCode>
+									{index < 3 && ", "}
+								</React.Fragment>
+							))}.
+						</p>
+					</div>
+				</div>
 
 				{/* Basic Information */}
 				<div className="space-y-4">
@@ -600,9 +630,7 @@ function UpdateFunctionModal({
 								<div className="flex items-center gap-3">
 									<span className="text-lg">⚡</span>
 									<div>
-										<p className="text-blue-300 font-medium text-sm">
-											Response Caching
-										</p>
+										<p className="text-blue-300 font-medium text-sm">Response Caching</p>
 										<p className="text-blue-400 text-xs">
 											Cache function responses to improve performance
 										</p>
