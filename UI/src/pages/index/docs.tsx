@@ -298,4 +298,12 @@ const lessons: {
 			"Duplicate any function — including all its files and settings — into the same or a different namespace.",
 		link: "/docs/clone-function",
 	},
+	{
+		key: "opencv-install",
+		identifier: "#24",
+		title: "OpenCV Installation",
+		description:
+			"Learn how to enable automatic OpenCV installation for computer vision in your functions.",
+		link: "/docs/opencv-install",
+	},
 ];

@@ -836,6 +836,19 @@ fi
       `;
 			}
 
+			// Add opencv installation if requested
+			if (functionData.opencv_install) {
+				initScript += `
+      echo "[SHSF INIT] Checking opencv installation..."
+      if [ ! -f ".already_installed_opencv" ]; then
+          python3 -c "import cv2" >/dev/null 2>&1 || (apt update && apt install -y python3-opencv && touch /app/.already_installed_opencv)
+      else
+          echo "[SHSF INIT] opencv already installed (marker file present)."
+      fi
+      echo "[SHSF INIT] opencv check complete."
+      `;
+			}
+
 			initScript += `
 if [ -f "requirements.txt" ]; then 
 	echo "[SHSF INIT] Setting up Python environment for function ${functionData.id}"

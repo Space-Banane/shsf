@@ -69,6 +69,7 @@ async function createFunction(config: {
 	startup_file?: string;
 	docker_mount?: boolean;
 	ffmpeg_install?: boolean;
+	opencv_install?: boolean;
 	settings?: {
 		max_ram?: number;
 		timeout?: number;
@@ -166,6 +167,7 @@ async function updateFunction(
 		startup_file?: string;
 		docker_mount?: boolean;
 		ffmpeg_install?: boolean;
+		opencv_install?: boolean;
 		settings?: {
 			max_ram?: number;
 			timeout?: number;
@@ -237,6 +239,54 @@ async function installDependencies(
 		return data;
 	} catch (error) {
 		console.error("Error installing dependencies:", error);
+	}
+}
+
+async function reinstallFfmpeg(
+	id: number,
+): Promise<OKResponse | string | undefined> {
+	try {
+		const response = await fetch(
+			`${BASE_URL}/api/function/${id}/reinstall-ffmpeg`,
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				credentials: "include",
+			},
+		);
+		const data = await response.json();
+		if (data.status !== "OK") {
+			return data.message || "Failed to trigger FFmpeg reinstall";
+		}
+		return data;
+	} catch (error) {
+		console.error("Error reinstalling FFmpeg:", error);
+	}
+}
+
+async function reinstallOpencv(
+	id: number,
+): Promise<OKResponse | string | undefined> {
+	try {
+		const response = await fetch(
+			`${BASE_URL}/api/function/${id}/reinstall-opencv`,
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				credentials: "include",
+			},
+		);
+		const data = await response.json();
+		if (data.status !== "OK") {
+			return data.message || "Failed to trigger OpenCV reinstall";
+		}
+		return data;
+	} catch (error) {
+		console.error("Error reinstalling OpenCV:", error);
 	}
 }
 
@@ -479,6 +529,8 @@ export {
 	executeFunctionStreaming,
 	getLogsByFuncId,
 	installDependencies,
+	reinstallFfmpeg,
+	reinstallOpencv,
 	getFunctionCorsOrigins,
 	updateFunctionCorsOrigins,
 	cloneFunction,

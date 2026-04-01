@@ -52,6 +52,8 @@ interface XFunction {
 
 	namespaceId: number;
 
+	opencv_install?: boolean;
+
 	files?: FunctionFile[];
 }
 

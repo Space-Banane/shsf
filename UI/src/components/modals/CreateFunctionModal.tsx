@@ -20,7 +20,7 @@ function CreateFunctionModal({
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
 	const [namespaceId, setNamespaceId] = useState<number | null>(null);
-	const [image, setImage] = useState<Image>("python:3.9");
+	const [image, setImage] = useState<Image>("python:3.11"); // Default to Python 3.11 (3.9 is deprecated)
 	const [maxRam, setMaxRam] = useState<number | undefined>();
 	const [timeout, setTimeout] = useState<number | undefined>();
 	const [allowHttp, setAllowHttp] = useState<boolean>(false);
@@ -30,6 +30,7 @@ function CreateFunctionModal({
 	const [error, setError] = useState("");
 	const [dockerMount, setDockerMount] = useState<boolean>(false);
 	const [ffmpegInstall, setFfmpegInstall] = useState<boolean>(false);
+	const [opencvInstall, setOpencvInstall] = useState<boolean>(false);
 	const [corsOrigins, setCorsOrigins] = useState<string>("");
 	const [corsOriginInput, setCorsOriginInput] = useState<string>("");
 
@@ -44,6 +45,7 @@ function CreateFunctionModal({
 		setExecutionAlias("");
 		setDockerMount(false);
 		setFfmpegInstall(false);
+		setOpencvInstall(false);
 		setCorsOrigins("");
 		setError("");
 	};
@@ -88,6 +90,7 @@ function CreateFunctionModal({
 				startup_file: startupFile,
 				docker_mount: dockerMount,
 				ffmpeg_install: ffmpegInstall,
+				opencv_install: opencvInstall,
 				executionAlias: executionAlias.trim() === "" ? undefined : executionAlias,
 				settings: {
 					max_ram: maxRam,
@@ -461,6 +464,50 @@ function CreateFunctionModal({
 						{isHtmlFunction && (
 							<p className="text-xs text-purple-400 mt-1">
 								FFmpeg install is disabled for HTML startup files
+							</p>
+						)}
+					</div>
+
+					{/* OpenCV Install Toggle */}
+					<div
+						className={`bg-gray-800/30 border border-teal-600/50 rounded-lg p-4 ${
+							isHtmlFunction ? "opacity-50 pointer-events-none" : ""
+						}`}
+					>
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-3">
+								<span className="text-lg">👁️</span>
+								<div>
+									<p className="text-teal-300 font-medium text-sm">Install OpenCV</p>
+									<p className="text-teal-400 text-xs">
+										Installs python3-opencv for computer vision
+									</p>
+								</div>
+							</div>
+							<div className="relative">
+								<input
+									type="checkbox"
+									checked={opencvInstall}
+									onChange={(e) => setOpencvInstall(e.target.checked)}
+									className="sr-only peer"
+									disabled={isLoading || isHtmlFunction}
+									id="opencv-install-create"
+								/>
+								<label
+									htmlFor="opencv-install-create"
+									className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-teal-500 peer-checked:to-emerald-500 transition-all duration-300 cursor-pointer flex items-center relative"
+								>
+									<div
+										className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
+											opencvInstall ? "translate-x-6" : "translate-x-0.5"
+										}`}
+									></div>
+								</label>
+							</div>
+						</div>
+						{isHtmlFunction && (
+							<p className="text-xs text-teal-400 mt-1">
+								OpenCV install is disabled for HTML startup files
 							</p>
 						)}
 					</div>

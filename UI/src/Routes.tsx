@@ -36,6 +36,7 @@ import { DocsGoRuntime } from "./pages/docs/go-runtime";
 import { DOCSKICKOFF } from "./pages/docs/kickoff";
 import { DocsVersionControl } from "./pages/docs/version-control";
 import { DocsCloneFunction } from "./pages/docs/clone-function";
+import { OpencvInstallPage } from "./pages/docs/opencv-install";
 import { AdminPage } from "./pages/Admin";
 // Added back the routes array
 export interface AppRoute {
@@ -220,6 +221,12 @@ export const routes: AppRoute[] = [
 		path: "/docs/clone-function",
 		component: DocsCloneFunction,
 		name: "Clone Function",
+		requireAuth: false,
+	},
+	{
+		path: "/docs/opencv-install",
+		component: OpencvInstallPage,
+		name: "OpenCV Installation",
 		requireAuth: false,
 	},
 

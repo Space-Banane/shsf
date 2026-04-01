@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Modal from "./Modal";
-import { updateFunction } from "../../services/backend.functions";
+import { updateFunction, reinstallFfmpeg, reinstallOpencv } from "../../services/backend.functions";
 import {
 	Image,
 	ImagesAsArray,
@@ -35,11 +35,14 @@ function UpdateFunctionModal({
 	const [secureHeader, setSecureHeader] = useState<string | undefined>();
 	const [dockerMount, setDockerMount] = useState<boolean>(false);
 	const [ffmpegInstall, setFfmpegInstall] = useState<boolean>(false);
+	const [opencv_install, setOpencvInstall] = useState<boolean>(false);
 	const [corsOrigins, setCorsOrigins] = useState<string>("");
 	const [corsOriginInput, setCorsOriginInput] = useState<string>("");
 	const [executionAlias, setExecutionAlias] = useState<string>("");
 	const [cacheEnabled, setCacheEnabled] = useState<boolean>(false);
 	const [cacheTtl, setCacheTtl] = useState<number>(60);
+	const [isReinstallingFfmpeg, setIsReinstallingFfmpeg] = useState(false);
+	const [isReinstallingOpencv, setIsReinstallingOpencv] = useState(false);
 
 	// Initialize form with existing function data
 	useEffect(() => {
@@ -54,6 +57,7 @@ function UpdateFunctionModal({
 			setSecureHeader(functionData.secure_header || undefined);
 			setDockerMount(functionData.docker_mount ?? false);
 			setFfmpegInstall(functionData.ffmpeg_install ?? false);
+			setOpencvInstall(functionData.opencv_install ?? false);
 			setCorsOrigins(functionData.cors_origins || "");
 			setExecutionAlias(functionData.executionAlias || "");
 			setCacheEnabled(functionData.cache_enabled ?? false);
@@ -122,6 +126,7 @@ function UpdateFunctionModal({
 				startup_file: startupFile,
 				docker_mount: dockerMount,
 				ffmpeg_install: ffmpegInstall,
+				opencv_install: opencv_install,
 				executionAlias: executionAlias.trim() === "" ? undefined : executionAlias,
 				settings: {
 					max_ram: maxRam,
@@ -145,6 +150,36 @@ function UpdateFunctionModal({
 			console.error(err);
 		} finally {
 			setIsLoading(false);
+		}
+	};
+
+	const handleReinstallFfmpeg = async () => {
+		if (!functionData) return;
+		setIsReinstallingFfmpeg(true);
+		try {
+			const res = await reinstallFfmpeg(functionData.id);
+			if (typeof res === "string") {
+				setError(res);
+			}
+		} catch (err) {
+			setError("Failed to trigger FFmpeg reinstall");
+		} finally {
+			setIsReinstallingFfmpeg(false);
+		}
+	};
+
+	const handleReinstallOpencv = async () => {
+		if (!functionData) return;
+		setIsReinstallingOpencv(true);
+		try {
+			const res = await reinstallOpencv(functionData.id);
+			if (typeof res === "string") {
+				setError(res);
+			}
+		} catch (err) {
+			setError("Failed to trigger OpenCV reinstall");
+		} finally {
+			setIsReinstallingOpencv(false);
 		}
 	};
 
@@ -484,9 +519,77 @@ function UpdateFunctionModal({
 									</label>
 								</div>
 							</div>
+							{ffmpegInstall && (
+								<div className="mt-3 pt-3 border-t border-purple-600/20 flex justify-end">
+									<button
+										type="button"
+										onClick={handleReinstallFfmpeg}
+										disabled={isReinstallingFfmpeg || isLoading}
+										className="text-xs px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 rounded border border-purple-600/30 transition-all duration-300 disabled:opacity-50"
+									>
+										{isReinstallingFfmpeg ? "🔄 Reinstalling..." : "🔄 Trigger Reinstall"}
+									</button>
+								</div>
+							)}
 							{isHtmlFunction && (
 								<p className="text-xs text-purple-400 mt-1">
 									FFmpeg install is disabled for HTML startup files
+								</p>
+							)}
+						</div>
+
+						{/* OpenCV Install Toggle */}
+						<div
+							className={`bg-gray-800/30 border border-teal-600/50 rounded-lg p-4 ${
+								isHtmlFunction ? "opacity-50 pointer-events-none" : ""
+							}`}
+						>
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-3">
+									<span className="text-lg">👁️</span>
+									<div>
+										<p className="text-teal-300 font-medium text-sm">Install OpenCV</p>
+										<p className="text-teal-400 text-xs">
+											Installs python3-opencv for computer vision
+										</p>
+									</div>
+								</div>
+								<div className="relative">
+									<input
+										type="checkbox"
+										checked={opencv_install}
+										onChange={(e) => setOpencvInstall(e.target.checked)}
+										className="sr-only peer"
+										disabled={isLoading || isHtmlFunction}
+										id="opencv-install-update"
+									/>
+									<label
+										htmlFor="opencv-install-update"
+										className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-teal-500 peer-checked:to-emerald-500 transition-all duration-300 cursor-pointer flex items-center relative"
+									>
+										<div
+											className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
+												opencv_install ? "translate-x-6" : "translate-x-0.5"
+											}`}
+										></div>
+									</label>
+								</div>
+							</div>
+							{opencv_install && (
+								<div className="mt-3 pt-3 border-t border-teal-600/20 flex justify-end">
+									<button
+										type="button"
+										onClick={handleReinstallOpencv}
+										disabled={isReinstallingOpencv || isLoading}
+										className="text-xs px-3 py-1.5 bg-teal-600/20 hover:bg-teal-600/40 text-teal-300 rounded border border-teal-600/30 transition-all duration-300 disabled:opacity-50"
+									>
+										{isReinstallingOpencv ? "🔄 Reinstalling..." : "🔄 Trigger Reinstall"}
+									</button>
+								</div>
+							)}
+							{isHtmlFunction && (
+								<p className="text-xs text-teal-400 mt-1">
+									OpenCV install is disabled for HTML startup files
 								</p>
 							)}
 						</div>

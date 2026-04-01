@@ -67,6 +67,10 @@ export = new fileRouter.Path("/")
 										type: "boolean",
 										description: "Install ffmpeg in container",
 									},
+									opencv_install: {
+										type: "boolean",
+										description: "Install opencv in container",
+									},
 									executionAlias: {
 										type: "string",
 										description: "Custom execution alias",
@@ -160,6 +164,7 @@ export = new fileRouter.Path("/")
 						startup_file: z.string().min(1).max(256),
 						docker_mount: z.boolean().optional(),
 						ffmpeg_install: z.boolean().optional(),
+						opencv_install: z.boolean().optional(),
 						executionAlias: z
 							.string()
 							.min(8)
@@ -292,6 +297,7 @@ export = new fileRouter.Path("/")
 						executionId: randomUUID(),
 						docker_mount: data.docker_mount || false,
 						ffmpeg_install: data.ffmpeg_install || false,
+						opencv_install: data.opencv_install || false,
 						cors_origins: data.cors_origins,
 						executionAlias: data.executionAlias,
 						files: {
@@ -691,6 +697,7 @@ export = new fileRouter.Path("/")
 									startup_file: { type: "string", description: "Startup file name" },
 									docker_mount: { type: "boolean", description: "Enable Docker mount" },
 									ffmpeg_install: { type: "boolean", description: "Install ffmpeg" },
+									opencv_install: { type: "boolean", description: "Install opencv" },
 									executionAlias: { type: "string" },
 									settings: {
 										type: "object",
@@ -778,6 +785,7 @@ export = new fileRouter.Path("/")
 						.optional(), // Only allow alphanumeric, hyphens, and underscores
 					docker_mount: z.boolean().optional(),
 					ffmpeg_install: z.boolean().optional(),
+					opencv_install: z.boolean().optional(),
 					settings: z
 						.object({
 							max_ram: z.number().min(128).max(1024).optional(),
@@ -897,6 +905,9 @@ export = new fileRouter.Path("/")
 				...(data.ffmpeg_install !== undefined && {
 					ffmpeg_install: data.ffmpeg_install,
 				}),
+				...(data.opencv_install !== undefined && {
+					opencv_install: data.opencv_install,
+				}),
 				...(data.cors_origins !== undefined && {
 					cors_origins: data.cors_origins,
 				}),
@@ -914,7 +925,9 @@ export = new fileRouter.Path("/")
 				(data.docker_mount !== undefined &&
 					data.docker_mount !== existingFunction.docker_mount) ||
 				(data.ffmpeg_install !== undefined &&
-					data.ffmpeg_install !== existingFunction.ffmpeg_install)
+					data.ffmpeg_install !== existingFunction.ffmpeg_install) ||
+				(data.opencv_install !== undefined &&
+					data.opencv_install !== existingFunction.opencv_install)
 			) {
 				relaunchTriggered = true; // Set flag regardless of container existence
 				// Check if a container exists for this function before cleanup

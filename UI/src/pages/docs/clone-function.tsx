@@ -192,16 +192,10 @@ my-function-copy-1 → ✅ used`}</code>
 					</p>
 					<div className="flex flex-wrap gap-4">
 						<a
-							href="/docs/version-control"
+							href="/docs/opencv-install"
 							className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors text-sm"
 						>
-							VERSION // CONTROL →
-						</a>
-						<a
-							href="/docs/kickoff"
-							className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors text-sm"
-						>
-							KICKOFF →
+							OPENCV INSTALLATION →
 						</a>
 					</div>
 				</div>
