@@ -1381,6 +1381,11 @@ echo "[SHSF INIT] Go setup complete."
 					disableResult = true;
 				}
 
+				if (resultForDb.includes("<!DOCTYPE html>") || resultForDb.includes("<html")) {
+					// Don't log results containing HTML, wasted storage
+					disableResult = true;
+				}
+
 				await prisma.triggerLog.create({
 					data: {
 						functionId: id,
