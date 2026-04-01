@@ -383,6 +383,8 @@ require (
 
 ### 13. Absolute rules — violations will cause the function to fail
 
+- When the image is set to python, don't create go files, and vice versa
+- If no packages are needed, don't create a requirements.txt or go.mod file — these are optional and only needed if you have dependencies
 - FORBIDDEN filenames: _runner.py, _runner.js, init.sh  (reserved by the SHSF runtime)
 - Filenames must NEVER contain / or \\\\ (no subdirectories)
 - Never write partial files or placeholder comments like "# ... rest of code"
