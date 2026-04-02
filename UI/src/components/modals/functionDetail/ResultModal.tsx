@@ -19,6 +19,12 @@ const ResultModal: React.FC<ResultModalProps> = ({
 }) => {
 	if (!isOpen) return null;
 
+	if (content.type === "object" && content.value === null) {
+		alert("function returned null, skipping modal");
+		onClose();
+		return null;
+	}
+
 	return (
 		<div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm overflow-y-auto">
 			<div className="min-h-full w-full flex items-center justify-center p-3 sm:p-4">
