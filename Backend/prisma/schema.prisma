@@ -81,6 +81,7 @@ model Function {
   git_periodic_pull    Boolean  @default(false)    // Whether to pull periodically
   git_pull_interval    Int      @default(10)       // Periodic pull interval in minutes
   git_source_dir       String?  @db.VarChar(512)   // Optional subdirectory within the repo to use as the function source
+  git_branch           String?  @db.VarChar(256)   // Git branch to use for version control
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

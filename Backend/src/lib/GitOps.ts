@@ -1,11 +1,11 @@
 import * as path from "path";
 import * as fs from "fs/promises";
 import * as fsSync from "fs";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
 // Encryption helpers — AES-256-GCM, key derived from the instance secret.
@@ -144,11 +144,11 @@ export async function runGitCommand(
 	cwd: string,
 	args: string[],
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-	const command = `git ${args.join(" ")}`;
 	try {
-		const { stdout, stderr } = await execAsync(command, {
+		const { stdout, stderr } = await execFileAsync("git", args, {
 			cwd,
 			timeout: 120_000,
+			maxBuffer: 10 * 1024 * 1024,
 			env: {
 				...process.env,
 				GIT_TERMINAL_PROMPT: "0",
@@ -160,7 +160,7 @@ export async function runGitCommand(
 		return {
 			stdout: err.stdout ?? "",
 			stderr: err.stderr ?? err.message ?? "Unknown error",
-			exitCode: err.code ?? 1,
+			exitCode: typeof err.code === "number" ? err.code : 1,
 		};
 	}
 }

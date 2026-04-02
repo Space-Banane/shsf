@@ -55,6 +55,7 @@ export = new fileRouter.Path("/")
 												git_periodic_pull: { type: "boolean" },
 												git_pull_interval: { type: "number" },
 												git_source_dir: { type: "string", nullable: true },
+												git_branch: { type: "string", nullable: true },
 											},
 										},
 									},
@@ -98,6 +99,7 @@ export = new fileRouter.Path("/")
 						git_periodic_pull: functionData.git_periodic_pull,
 						git_pull_interval: functionData.git_pull_interval,
 						git_source_dir: functionData.git_source_dir ?? null,
+						git_branch: functionData.git_branch ?? null,
 					},
 				});
 			}),
@@ -124,6 +126,10 @@ export = new fileRouter.Path("/")
 									git_source_dir: {
 										type: "string",
 										description: "Source directory inside repo",
+									},
+									git_branch: {
+										type: "string",
+										description: "Git branch to clone",
 									},
 								},
 							},
@@ -157,20 +163,6 @@ export = new fileRouter.Path("/")
 					return ctr.print({ status: 401, message: authCheck.message });
 				}
 
-				const [body, err] = await ctr.bindBody((z) =>
-					z.object({
-						git_url: z.string().min(3).max(1024),
-						git_username: z.string().max(256).optional(),
-						git_password: z.string().max(512).optional(),
-						git_source_dir: z.string().max(512).optional(),
-					}),
-				);
-				if (!body) {
-					return ctr
-						.status(ctr.$status.BAD_REQUEST)
-						.print({ status: 400, message: err.toString() });
-				}
-
 				const id = ctr.params.get("id");
 				if (!id || isNaN(parseInt(id))) {
 					return ctr
@@ -188,16 +180,49 @@ export = new fileRouter.Path("/")
 						.print({ status: 404, message: "Function not found" });
 				}
 
+				const [body, err] = await ctr.bindBody((z) =>
+					z.object({
+						git_url: z.string().min(3).max(1024),
+						git_username: z.string().max(256).optional(),
+						git_password: z.string().max(512).optional(),
+						git_source_dir: z.string().max(512).optional(),
+						git_branch: z.string().max(256).optional(),
+					}),
+				);
+				if (!body) {
+					return ctr
+						.status(ctr.$status.BAD_REQUEST)
+						.print({ status: 400, message: err.toString() });
+				}
+
 				const appDir = getFuncAppDir(functionId);
 				const logLines: string[] = [];
 
+				let savedPassword: string | null = null;
+				if (functionData.git_password) {
+					savedPassword = decryptSecret(functionData.git_password, INSTANCE_SECRET);
+					if (savedPassword === null) {
+						return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+							status: 500,
+							message:
+								"Stored git credentials could not be decrypted. Re-save your credentials.",
+						});
+					}
+				}
+
+				const resolvedUsername =
+					body.git_username?.trim() || functionData.git_username || null;
+				const resolvedPassword =
+					body.git_password !== undefined ? body.git_password || null : savedPassword;
+
 				// Build the URL used for cloning — embeds credentials if provided
 				const cloneUrl =
-					body.git_username && body.git_password
-						? buildAuthUrl(body.git_url, body.git_username, body.git_password)
+					resolvedUsername && resolvedPassword
+						? buildAuthUrl(body.git_url, resolvedUsername, resolvedPassword)
 						: body.git_url;
 
 				const sourceDir = body.git_source_dir?.trim() || null;
+				const branch = body.git_branch?.trim() || null;
 
 				if (sourceDir) {
 					// ── Source-dir mode: clone into git_repo/, then sync subdir → app/ ──
@@ -210,13 +235,12 @@ export = new fileRouter.Path("/")
 					logLines.push(`[GIT] git_repo cleared.`);
 
 					logLines.push(
-						`[GIT] Cloning ${stripCredentialsFromUrl(cloneUrl)} into git_repo ...`,
+						`[GIT] Cloning ${stripCredentialsFromUrl(cloneUrl)}${branch ? ` (branch: ${branch})` : ""} into git_repo ...`,
 					);
-					const cloneResult = await runGitCommand(path.dirname(gitRepoDir), [
-						"clone",
-						cloneUrl,
-						"git_repo",
-					]);
+					const cloneArgs = branch
+						? ["clone", "-b", branch, cloneUrl, "git_repo"]
+						: ["clone", cloneUrl, "git_repo"];
+					const cloneResult = await runGitCommand(path.dirname(gitRepoDir), cloneArgs);
 					if (cloneResult.stdout)
 						logLines.push(`[stdout]\n${redactLogs(cloneResult.stdout)}`);
 					if (cloneResult.stderr)
@@ -252,12 +276,13 @@ export = new fileRouter.Path("/")
 					await clearAppDirectory(appDir);
 					logLines.push(`[GIT] App directory cleared.`);
 
-					logLines.push(`[GIT] Cloning ${stripCredentialsFromUrl(cloneUrl)} ...`);
-					const cloneResult = await runGitCommand(path.dirname(appDir), [
-						"clone",
-						cloneUrl,
-						"app",
-					]);
+					logLines.push(
+						`[GIT] Cloning ${stripCredentialsFromUrl(cloneUrl)}${branch ? ` (branch: ${branch})` : ""} ...`,
+					);
+					const cloneArgs = branch
+						? ["clone", "-b", branch, cloneUrl, "app"]
+						: ["clone", cloneUrl, "app"];
+					const cloneResult = await runGitCommand(path.dirname(appDir), cloneArgs);
 					if (cloneResult.stdout)
 						logLines.push(`[stdout]\n${redactLogs(cloneResult.stdout)}`);
 					if (cloneResult.stderr)
@@ -282,11 +307,18 @@ export = new fileRouter.Path("/")
 					where: { id: functionId },
 					data: {
 						git_url: body.git_url,
-						git_username: body.git_username ?? null,
-						git_password: body.git_password
-							? encryptSecret(body.git_password, INSTANCE_SECRET)
-							: null,
+						git_username:
+							body.git_username !== undefined
+								? body.git_username?.trim() || null
+								: functionData.git_username,
+						git_password:
+							body.git_password !== undefined
+								? body.git_password
+									? encryptSecret(body.git_password, INSTANCE_SECRET)
+									: null
+								: functionData.git_password,
 						git_source_dir: sourceDir,
+						git_branch: branch,
 					},
 				});
 
@@ -395,6 +427,7 @@ export = new fileRouter.Path("/")
 									git_username: { type: "string", description: "Git username" },
 									git_password: { type: "string", description: "Git password" },
 									git_source_dir: { type: "string", description: "Source directory" },
+									git_branch: { type: "string", description: "Git branch" },
 								},
 							},
 						},
@@ -433,6 +466,7 @@ export = new fileRouter.Path("/")
 						git_username: z.string().max(256).optional().nullable(),
 						git_password: z.string().max(512).optional().nullable(),
 						git_source_dir: z.string().max(512).optional().nullable(),
+						git_branch: z.string().max(256).optional().nullable(),
 					}),
 				);
 				if (!body) {
@@ -476,6 +510,9 @@ export = new fileRouter.Path("/")
 				if (body.git_source_dir !== undefined) {
 					updateData.git_source_dir = body.git_source_dir?.trim() || null;
 				}
+				if (body.git_branch !== undefined) {
+					updateData.git_branch = body.git_branch?.trim() || null;
+				}
 
 				const credentialsChanging =
 					body.git_username !== undefined || body.git_password !== undefined;
@@ -483,7 +520,7 @@ export = new fileRouter.Path("/")
 				if (credentialsChanging) {
 					const newUsername =
 						body.git_username !== undefined
-							? body.git_username
+							? body.git_username?.trim() || null
 							: functionData.git_username;
 
 					// Determine the plaintext password (for building the auth URL)
@@ -498,10 +535,18 @@ export = new fileRouter.Path("/")
 							: null;
 					} else if (functionData.git_password) {
 						// Reuse the existing encrypted password — decrypt to build the URL.
-						newPasswordPlaintext = decryptSecret(
+						const decryptedPassword = decryptSecret(
 							functionData.git_password,
 							INSTANCE_SECRET,
 						);
+						if (decryptedPassword === null) {
+							return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+								status: 500,
+								message:
+									"Stored git credentials could not be decrypted. Re-save your credentials.",
+							});
+						}
+						newPasswordPlaintext = decryptedPassword;
 						newPasswordEncrypted = functionData.git_password;
 					}
 
@@ -517,7 +562,19 @@ export = new fileRouter.Path("/")
 						newUsername && newPasswordPlaintext
 							? buildAuthUrl(functionData.git_url, newUsername, newPasswordPlaintext)
 							: functionData.git_url;
-					await updateGitRemoteUrl(resolvedGitDir, newAuthUrl);
+
+					if (fsSync.existsSync(path.join(resolvedGitDir, ".git"))) {
+						const remoteUpdateResult = await updateGitRemoteUrl(
+							resolvedGitDir,
+							newAuthUrl,
+						);
+						if (!remoteUpdateResult.success) {
+							return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+								status: 500,
+								message: remoteUpdateResult.message,
+							});
+						}
+					}
 				}
 
 				await prisma.function.update({
@@ -590,6 +647,7 @@ export = new fileRouter.Path("/")
 						git_password: null,
 						git_periodic_pull: false,
 						git_source_dir: null,
+						git_branch: null,
 					},
 				});
 
@@ -603,5 +661,322 @@ export = new fileRouter.Path("/")
 					status: "OK",
 					message: "Git configuration removed",
 				});
+			}),
+	)
+
+	// POST /api/function/{id}/git/branches — get available branches for a repository URL
+	.http("POST", "/api/function/{id}/git/branches", (http) =>
+		http
+			.document({
+				description:
+					"Get available branches for a git repository (requires valid URL and optional credentials)",
+				tags: ["VERSION // CONTROL"] as OpenAPITags[],
+				operationId: "getFunctionGitBranches",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								properties: {
+									git_url: { type: "string", description: "Git repository URL" },
+									git_username: { type: "string", description: "Git username" },
+									git_password: { type: "string", description: "Git password" },
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					200: {
+						description: "Branches fetched successfully",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										data: {
+											type: "array",
+											items: { type: "string" },
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+			.onRequest(async (ctr) => {
+				const authCheck = await checkAuthentication(
+					ctr.cookies.get(COOKIE),
+					ctr.headers.get(API_KEY_HEADER),
+				);
+				if (!authCheck.success) {
+					return ctr.print({ status: 401, message: authCheck.message });
+				}
+
+				const id = ctr.params.get("id");
+				if (!id || isNaN(parseInt(id))) {
+					return ctr
+						.status(ctr.$status.BAD_REQUEST)
+						.print({ status: 400, message: "Invalid function id" });
+				}
+				const functionId = parseInt(id);
+
+				const functionData = await prisma.function.findFirst({
+					where: { id: functionId, userId: authCheck.user.id },
+				});
+				if (!functionData) {
+					return ctr
+						.status(ctr.$status.NOT_FOUND)
+						.print({ status: 404, message: "Function not found" });
+				}
+
+				const [body, err] = await ctr.bindBody((z) =>
+					z.object({
+						git_url: z.string().min(3).max(1024).optional(),
+						git_username: z.string().max(256).optional(),
+						git_password: z.string().max(512).optional(),
+					}),
+				);
+				if (!body) {
+					return ctr
+						.status(ctr.$status.BAD_REQUEST)
+						.print({ status: 400, message: err.toString() });
+				}
+
+				const resolvedGitUrl = body.git_url?.trim() || functionData.git_url;
+				if (!resolvedGitUrl) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "No git URL configured. Configure git first.",
+					});
+				}
+
+				let savedPassword: string | null = null;
+				if (functionData.git_password) {
+					savedPassword = decryptSecret(
+						functionData.git_password,
+						INSTANCE_SECRET,
+					);
+					if (savedPassword === null) {
+						return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+							status: 500,
+							message:
+								"Stored git credentials could not be decrypted. Re-save your credentials.",
+						});
+					}
+				}
+
+				const resolvedUsername =
+					body.git_username?.trim() || functionData.git_username || null;
+				const resolvedPassword = body.git_password?.trim() || savedPassword;
+
+				const authUrl =
+					resolvedUsername && resolvedPassword
+						? buildAuthUrl(resolvedGitUrl, resolvedUsername, resolvedPassword)
+						: resolvedGitUrl;
+
+				const result = await runGitCommand(process.cwd(), [
+					"ls-remote",
+					"--heads",
+					authUrl,
+				]);
+				if (result.exitCode !== 0) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Failed to fetch branches. Check URL and credentials.",
+						logs: redactLogs(result.stderr),
+					});
+				}
+
+				const branches = result.stdout
+					.split("\n")
+					.filter((line) => line.trim().length > 0)
+					.map((line) => {
+						const match = line.match(/[\s\t]+refs\/heads\/(.+)$/);
+						return match ? match[1] : null;
+					})
+					.filter((b) => b !== null) as string[];
+
+				return ctr.print({
+					status: "OK",
+					data: branches,
+				});
+			}),
+	)
+
+	// POST /api/function/{id}/git/tree — get directory tree for a repository, branch and optional source dir
+	.http("POST", "/api/function/{id}/git/tree", (http) =>
+		http
+			.document({
+				description:
+					"Get directory tree for a git repository (requires valid URL and optional credentials/branch)",
+				tags: ["VERSION // CONTROL"] as OpenAPITags[],
+				operationId: "getFunctionGitTree",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: {
+								type: "object",
+								properties: {
+									git_url: { type: "string", description: "Git repository URL" },
+									git_username: { type: "string", description: "Git username" },
+									git_password: { type: "string", description: "Git password" },
+									git_branch: { type: "string", description: "Git branch" },
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					200: {
+						description: "Directory tree fetched successfully",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										data: {
+											type: "array",
+											items: { type: "string" },
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+			.onRequest(async (ctr) => {
+				const authCheck = await checkAuthentication(
+					ctr.cookies.get(COOKIE),
+					ctr.headers.get(API_KEY_HEADER),
+				);
+				if (!authCheck.success) {
+					return ctr.print({ status: 401, message: authCheck.message });
+				}
+
+				const id = ctr.params.get("id");
+				if (!id || isNaN(parseInt(id))) {
+					return ctr
+						.status(ctr.$status.BAD_REQUEST)
+						.print({ status: 400, message: "Invalid function id" });
+				}
+				const functionId = parseInt(id);
+
+				const functionData = await prisma.function.findFirst({
+					where: { id: functionId, userId: authCheck.user.id },
+				});
+				if (!functionData) {
+					return ctr
+						.status(ctr.$status.NOT_FOUND)
+						.print({ status: 404, message: "Function not found" });
+				}
+
+				const [body, err] = await ctr.bindBody((z) =>
+					z.object({
+						git_url: z.string().min(3).max(1024).optional(),
+						git_username: z.string().max(256).optional(),
+						git_password: z.string().max(512).optional(),
+						git_branch: z.string().max(256).optional(),
+					}),
+				);
+				if (!body) {
+					return ctr
+						.status(ctr.$status.BAD_REQUEST)
+						.print({ status: 400, message: err.toString() });
+				}
+
+				const resolvedGitUrl = body.git_url?.trim() || functionData.git_url;
+				if (!resolvedGitUrl) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "No git URL configured. Configure git first.",
+					});
+				}
+
+				let savedPassword: string | null = null;
+				if (functionData.git_password) {
+					savedPassword = decryptSecret(
+						functionData.git_password,
+						INSTANCE_SECRET,
+					);
+					if (savedPassword === null) {
+						return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+							status: 500,
+							message:
+								"Stored git credentials could not be decrypted. Re-save your credentials.",
+						});
+					}
+				}
+
+				const resolvedUsername =
+					body.git_username?.trim() || functionData.git_username || null;
+				const resolvedPassword = body.git_password?.trim() || savedPassword;
+
+				const authUrl =
+					resolvedUsername && resolvedPassword
+						? buildAuthUrl(resolvedGitUrl, resolvedUsername, resolvedPassword)
+						: resolvedGitUrl;
+
+				const branch = body.git_branch || "HEAD";
+
+				// We use ls-remote --symref to find the default branch if branch is not provided
+				// But git ls-tree requires a local clone or a very specific server capability
+				// A better way without a full clone is to use a temporary shallow clone or just use git archive
+				// However, if we want to be efficient, we can't easily get the tree without cloning.
+				// For the sake of this feature, we'll use a temporary directory to clone the repo partially.
+
+				const tmpDir = await fs.mkdtemp(path.join("/tmp", `shsf-git-tree-${functionId}-`));
+				try {
+					await fs.mkdir(tmpDir, { recursive: true });
+					const cloneArgs = ["clone", "--depth", "1", "--no-checkout", "--filter=blob:none"];
+					if (body.git_branch) {
+						cloneArgs.push("-b", body.git_branch);
+					}
+					cloneArgs.push(authUrl, "repo");
+
+					const cloneResult = await runGitCommand(tmpDir, cloneArgs);
+					if (cloneResult.exitCode !== 0) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: "Failed to fetch repository tree.",
+							logs: redactLogs(cloneResult.stderr),
+						});
+					}
+
+					const repoDir = path.join(tmpDir, "repo");
+					const treeResult = await runGitCommand(repoDir, [
+						"ls-tree",
+						"-r",
+						"-d",
+						"--name-only",
+						branch,
+					]);
+					if (treeResult.exitCode !== 0) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: "Failed to list repository directories.",
+							logs: redactLogs(treeResult.stderr),
+						});
+					}
+
+					const directories = treeResult.stdout
+						.split("\n")
+						.filter((d) => d.trim().length > 0);
+					// Add root
+					directories.unshift(".");
+
+					return ctr.print({
+						status: "OK",
+						data: directories,
+					});
+				} finally {
+					if (fsSync.existsSync(tmpDir)) {
+						await fs.rm(tmpDir, { recursive: true, force: true });
+					}
+				}
 			}),
 	);

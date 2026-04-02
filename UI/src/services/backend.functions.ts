@@ -407,19 +407,43 @@ async function getGitConfig(id: number) {
 		method: "GET",
 		credentials: "include",
 	});
-	return await response.json() as
-		| { status: "OK"; data: { git_url: string | null; git_username: string | null; git_has_credentials: boolean; git_periodic_pull: boolean; git_pull_interval: number; git_source_dir: string | null } }
+	return (await response.json()) as
+		| {
+				status: "OK";
+				data: {
+					git_url: string | null;
+					git_username: string | null;
+					git_has_credentials: boolean;
+					git_periodic_pull: boolean;
+					git_pull_interval: number;
+					git_source_dir: string | null;
+					git_branch: string | null;
+				};
+		  }
 		| { status: number; message: string };
 }
 
-async function gitClone(id: number, git_url: string, git_username?: string, git_password?: string, git_source_dir?: string) {
+async function gitClone(
+	id: number,
+	git_url: string,
+	git_username?: string,
+	git_password?: string,
+	git_source_dir?: string,
+	git_branch?: string,
+) {
 	const response = await fetch(`${BASE_URL}/api/function/${id}/git/clone`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		credentials: "include",
-		body: JSON.stringify({ git_url, git_username: git_username || undefined, git_password: git_password || undefined, git_source_dir: git_source_dir || undefined }),
+		body: JSON.stringify({
+			git_url,
+			git_username: git_username || undefined,
+			git_password: git_password || undefined,
+			git_source_dir: git_source_dir || undefined,
+			git_branch: git_branch || undefined,
+		}),
 	});
-	return await response.json() as
+	return (await response.json()) as
 		| { status: "OK"; message: string; logs: string }
 		| { status: "FAILED"; message: string; logs: string }
 		| { status: number; message: string };
@@ -430,7 +454,7 @@ async function gitPull(id: number) {
 		method: "POST",
 		credentials: "include",
 	});
-	return await response.json() as
+	return (await response.json()) as
 		| { status: "OK"; message: string; logs: string }
 		| { status: "FAILED"; message: string; logs: string }
 		| { status: number; message: string };
@@ -443,6 +467,7 @@ async function updateGitSettings(
 	git_password?: string | null,
 	git_pull_interval?: number,
 	git_source_dir?: string | null,
+	git_branch?: string | null,
 ) {
 	const response = await fetch(`${BASE_URL}/api/function/${id}/git`, {
 		method: "PATCH",
@@ -454,9 +479,54 @@ async function updateGitSettings(
 			...(git_password !== undefined && { git_password }),
 			...(git_pull_interval !== undefined && { git_pull_interval }),
 			...(git_source_dir !== undefined && { git_source_dir }),
+			...(git_branch !== undefined && { git_branch }),
 		}),
 	});
-	return await response.json() as { status: "OK" | number; message: string };
+	return (await response.json()) as { status: "OK" | number; message: string };
+}
+
+async function getGitBranches(
+	id: number,
+	git_url: string,
+	git_username?: string,
+	git_password?: string,
+) {
+	const response = await fetch(`${BASE_URL}/api/function/${id}/git/branches`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		credentials: "include",
+		body: JSON.stringify({
+			git_url,
+			git_username: git_username || undefined,
+			git_password: git_password || undefined,
+		}),
+	});
+	return (await response.json()) as
+		| { status: "OK"; data: string[] }
+		| { status: number; message: string };
+}
+
+async function getGitTree(
+	id: number,
+	git_url: string,
+	git_username?: string,
+	git_password?: string,
+	git_branch?: string,
+) {
+	const response = await fetch(`${BASE_URL}/api/function/${id}/git/tree`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		credentials: "include",
+		body: JSON.stringify({
+			git_url,
+			git_username: git_username || undefined,
+			git_password: git_password || undefined,
+			git_branch: git_branch || undefined,
+		}),
+	});
+	return (await response.json()) as
+		| { status: "OK"; data: string[] }
+		| { status: number; message: string };
 }
 
 async function removeGitCredentials(id: number) {
@@ -561,6 +631,8 @@ export {
 	updateGitSettings,
 	removeGitCredentials,
 	removeGitConfig,
+	getGitBranches,
+	getGitTree,
 	massReplace,
 	getMassReplaceFindings,
 	isFunctionImageDeprecated,
