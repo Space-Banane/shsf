@@ -624,10 +624,94 @@ export async function executeFunction(
 			const runnerWrapperCode = `package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 )
+
+const shsfBinaryTransport = "base64-bytes-v1"
+
+func envelopeBytes(raw []byte) map[string]interface{} {
+	return map[string]interface{}{
+		"__shsf_transport": shsfBinaryTransport,
+		"data":             base64.StdEncoding.EncodeToString(raw),
+		"length":           len(raw),
+	}
+}
+
+func normalizeForTransport(value interface{}) interface{} {
+	if value == nil {
+		return nil
+	}
+
+	if raw, ok := value.([]byte); ok {
+		return envelopeBytes(raw)
+	}
+
+	rv := reflect.ValueOf(value)
+
+	switch rv.Kind() {
+	case reflect.Pointer, reflect.Interface:
+		if rv.IsNil() {
+			return nil
+		}
+		return normalizeForTransport(rv.Elem().Interface())
+
+	case reflect.Slice:
+		if rv.Type().Elem().Kind() == reflect.Uint8 {
+			raw := make([]byte, rv.Len())
+			reflect.Copy(reflect.ValueOf(raw), rv)
+			return envelopeBytes(raw)
+		}
+
+		out := make([]interface{}, rv.Len())
+		for i := 0; i < rv.Len(); i++ {
+			out[i] = normalizeForTransport(rv.Index(i).Interface())
+		}
+		return out
+
+	case reflect.Array:
+		if rv.Type().Elem().Kind() == reflect.Uint8 {
+			raw := make([]byte, rv.Len())
+			for i := 0; i < rv.Len(); i++ {
+				raw[i] = byte(rv.Index(i).Uint())
+			}
+			return envelopeBytes(raw)
+		}
+
+		out := make([]interface{}, rv.Len())
+		for i := 0; i < rv.Len(); i++ {
+			out[i] = normalizeForTransport(rv.Index(i).Interface())
+		}
+		return out
+
+	case reflect.Map:
+		out := make(map[string]interface{}, rv.Len())
+		iter := rv.MapRange()
+		for iter.Next() {
+			out[fmt.Sprint(iter.Key().Interface())] = normalizeForTransport(iter.Value().Interface())
+		}
+		return out
+
+	case reflect.Struct:
+		out := make(map[string]interface{}, rv.NumField())
+		rt := rv.Type()
+		for i := 0; i < rv.NumField(); i++ {
+			field := rt.Field(i)
+			// Skip unexported fields.
+			if field.PkgPath != "" {
+				continue
+			}
+			out[field.Name] = normalizeForTransport(rv.Field(i).Interface())
+		}
+		return out
+
+	default:
+		return value
+	}
+}
 
 // Runner wrapper that handles payload loading and result marshaling
 func runFunction(payloadPath string, out *os.File) error {
@@ -652,8 +736,9 @@ func runFunction(payloadPath string, out *os.File) error {
 		return fmt.Errorf("error executing main function: %w", err)
 	}
 	
-	// Marshal result to JSON
-	resultJSON, err := json.Marshal(result)
+	// Marshal normalized result so binary values are transport-safe across runtimes.
+	normalizedResult := normalizeForTransport(result)
+	resultJSON, err := json.Marshal(normalizedResult)
 	if err != nil {
 		return fmt.Errorf("error serializing result: %w", err)
 	}
@@ -715,7 +800,28 @@ python3 - "$@" << 'PYTHON_SCRIPT_EOF'
 import json
 import sys
 import os
+import base64
 import traceback
+
+SHSF_BINARY_TRANSPORT = "base64-bytes-v1"
+
+def _shsf_json_default(obj):
+	if isinstance(obj, (bytes, bytearray, memoryview)):
+		raw = bytes(obj)
+		return {
+			"__shsf_transport": SHSF_BINARY_TRANSPORT,
+			"data": base64.b64encode(raw).decode("ascii"),
+			"length": len(raw)
+		}
+
+	if isinstance(obj, set):
+		return list(obj)
+
+	if hasattr(obj, "__dict__"):
+		return obj.__dict__
+
+	# Last-resort fallback keeps execution alive for unknown object types.
+	return repr(obj)
 
 # Get payload file path from command line argument
 if len(sys.argv) < 2:
@@ -757,16 +863,13 @@ try:
     if hasattr(target_module, 'main') and callable(target_module.main):
         try:
             # User's main function is called. Its print() statements will go to current sys.stdout (which is sys.stderr).
-            if run_data is not None:
-                user_result = target_module.main(run_data)
-            else:
-                user_result = target_module.main()
-            
+            user_result = target_module.main(run_data) if run_data is not None else target_module.main()
+
             # Restore original stdout for printing the JSON result
             sys.stdout = original_stdout
             # Wrap the output in markers for clear identification on the *original* stdout
             sys.stdout.write("SHSF_FUNCTION_RESULT_START\\n")
-            sys.stdout.write(json.dumps(user_result))
+            sys.stdout.write(json.dumps(user_result, default=_shsf_json_default))
             sys.stdout.write("\\nSHSF_FUNCTION_RESULT_END")
             sys.stdout.flush()
         except Exception as e:
@@ -1364,10 +1467,13 @@ echo "[SHSF INIT] Go setup complete."
 		try {
 			// Ensure func_result is a string for the DB, even if it's an error message or empty
 			let disableResult = false;
+			let disableResultReason = "";
 			const resultForDb =
 				typeof func_result === "string" && func_result !== ""
 					? func_result
 					: JSON.stringify(null);
+			const containsBase64TransportEnvelope =
+				/"__shsf_transport"\s*:\s*"base64-bytes-v1"/.test(resultForDb);
 			const DB_FIELD_LIMIT = 10000; // Reasonable DB field size limit
 			const loggingConfig = await getLoggingConfigFromData(functionData.logging);
 			if (loggingConfig.enabled) {
@@ -1379,11 +1485,19 @@ echo "[SHSF INIT] Go setup complete."
 				if (functionData.startup_file.endsWith(".html")) {
 					// Don't log HTML content to results
 					disableResult = true;
+					disableResultReason = "HTML content detected in startup file";
 				}
 
 				if (resultForDb.includes("<!DOCTYPE html>") || resultForDb.includes("<html")) {
 					// Don't log results containing HTML, wasted storage
 					disableResult = true;
+					disableResultReason = "HTML content detected in result";
+				}
+
+				if (containsBase64TransportEnvelope) {
+					// Binary payloads are base64-wrapped and can be very large.
+					disableResult = true;
+					disableResultReason = "Base64 transport envelope detected in result";
 				}
 
 				await prisma.triggerLog.create({
@@ -1397,7 +1511,7 @@ echo "[SHSF INIT] Go setup complete."
 							exit_code: exitCode,
 							tooks: tooks,
 							output:
-								disableResult ? "HTML Content IGNORED" : resultForDb.length > DB_FIELD_LIMIT
+								disableResult ? disableResultReason : resultForDb.length > DB_FIELD_LIMIT
 									? resultForDb.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
 									: resultForDb,
 							payload:

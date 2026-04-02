@@ -119,6 +119,14 @@ function FunctionDetail() {
 		html: string;
 		code: number;
 	} | null>(null);
+	const [showImagePopup, setShowImagePopup] = useState<boolean>(false);
+	const [imagePopupContent, setImagePopupContent] = useState<{
+		headers: Record<string, string>;
+		code: number;
+		src: string;
+		contentType: string;
+	} | null>(null);
+	const [showAllImageHeaders, setShowAllImageHeaders] = useState<boolean>(false);
 	const [serveHtmlOnly, setServeHtmlOnly] = useState<boolean>(false);
 	const [showDepModal, setShowDepModal] = useState(false);
 	const [depModalContent, setDepModalContent] = useState<{
@@ -352,6 +360,56 @@ function FunctionDetail() {
 		}
 
 		const checkPopup = (result: any) => {
+			const normalizeMaybeJson = (value: any): any => {
+				if (typeof value !== "string") return value;
+				const trimmed = value.trim();
+				if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+					try {
+						return JSON.parse(trimmed);
+					} catch {
+						return value;
+					}
+				}
+				return value;
+			};
+
+			const getHeader = (headers: Record<string, string>, name: string) => {
+				const target = name.toLowerCase();
+				for (const [key, value] of Object.entries(headers || {})) {
+					if (key.toLowerCase() === target) return value;
+				}
+				return "";
+			};
+
+			if (
+				result &&
+				typeof result === "object" &&
+				result._shsf === "v2" &&
+				typeof result._headers === "object"
+			) {
+				const headers = result._headers as Record<string, string>;
+				const contentType = getHeader(headers, "content-type");
+				const normalizedRes = normalizeMaybeJson(result._res);
+
+				if (
+					contentType.toLowerCase().startsWith("image/") &&
+					normalizedRes &&
+					typeof normalizedRes === "object" &&
+					normalizedRes.__shsf_transport === "base64-bytes-v1" &&
+					typeof normalizedRes.data === "string"
+				) {
+					setShowAllImageHeaders(false);
+					setImagePopupContent({
+						headers,
+						code: result._code ?? 200,
+						src: `data:${contentType};base64,${normalizedRes.data}`,
+						contentType,
+					});
+					setShowImagePopup(true);
+					return true;
+				}
+			}
+
 			if (
 				result &&
 				typeof result === "object" &&
@@ -1002,35 +1060,43 @@ function FunctionDetail() {
 
 			{/* Result Modal */}
 			{showResultModal && resultModalContent && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-					<div className="bg-background/50 rounded-xl shadow-2xl border border-primary/30 max-w-sm w-full p-6 animate-fadein">
-						<div className="flex flex-col items-center">
-							<div className="text-4xl mb-2 text-blue-500">📦</div>
-							<h2 className="text-xl font-bold mb-2 text-primary text-center">
+				<div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm overflow-y-auto">
+					<div className="min-h-full w-full flex items-center justify-center p-3 sm:p-4">
+						<div className="bg-background/80 rounded-xl shadow-2xl border border-primary/30 w-full max-w-2xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden animate-fadein">
+						<div className="flex flex-col h-full">
+							<div className="px-5 pt-5 pb-3 border-b border-primary/15 flex items-center justify-between gap-3">
+								<div className="flex items-center gap-2 min-w-0">
+									<div className="text-2xl text-blue-500">📦</div>
+									<h2 className="text-lg font-bold text-primary truncate">
 								{resultModalContent.title}
-							</h2>
-							{functionData.cache_enabled && (
-								<p className="text-center text-text/80 mb-1">
-									Caching is ignored here.
-								</p>
-							)}
-							<div className="text-center text-text/80 mb-2">
-								<span className="font-mono text-xs bg-blue-100 px-2 py-1 rounded text-blue-700 border border-blue-200 shadow">
+									</h2>
+								</div>
+								<button
+									className="px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition text-sm"
+									onClick={() => setShowResultModal(false)}
+								>
+									Close
+								</button>
+							</div>
+
+							<div className="px-5 py-3 flex flex-wrap items-center gap-2 border-b border-primary/10">
+								<span className="font-mono text-xs bg-blue-100 px-2 py-1 rounded text-blue-700 border border-blue-200">
 									Type: {resultModalContent.type}
 								</span>
+								{functionData.cache_enabled && (
+									<span className="text-xs text-text/70">Caching is ignored here.</span>
+								)}
 							</div>
-							<pre className="w-full bg-background/80 border border-primary/10 rounded-lg p-3 text-xs font-mono text-text/90 shadow-inner text-left overflow-x-auto mb-4">
-								{typeof resultModalContent.value === "string"
-									? resultModalContent.value
-									: JSON.stringify(resultModalContent.value, null, 2)}
-							</pre>
-							<button
-								className="mt-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition"
-								onClick={() => setShowResultModal(false)}
-							>
-								Close
-							</button>
+
+							<div className="p-4 sm:p-5 overflow-auto min-h-0">
+								<pre className="w-full bg-background/70 border border-primary/10 rounded-lg p-3 text-xs font-mono text-text/90 shadow-inner text-left overflow-auto max-h-[calc(100dvh-14rem)] sm:max-h-[calc(100dvh-16rem)]">
+									{typeof resultModalContent.value === "string"
+										? resultModalContent.value
+										: JSON.stringify(resultModalContent.value, null, 2)}
+								</pre>
+							</div>
 						</div>
+					</div>
 					</div>
 					<style>{`
             .animate-fadein {
@@ -1100,6 +1166,74 @@ function FunctionDetail() {
               to { opacity: 1; transform: scale(1);}
             }
           `}</style>
+				</div>
+			)}
+
+			{/* Popup Modal for Image result */}
+			{showImagePopup && imagePopupContent && (
+				<div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm overflow-y-auto">
+					<div className="min-h-full w-full flex items-center justify-center p-3 sm:p-4 animate-fadein">
+						<div className="relative w-full max-w-4xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] rounded-2xl overflow-hidden shadow-2xl border border-primary/30 bg-gradient-to-br from-white/80 to-blue-100/80 backdrop-blur-lg">
+							<button
+								className="absolute top-4 right-4 text-2xl text-blue-700 hover:text-blue-900 bg-white/60 rounded-full px-2 py-1 shadow transition-all duration-200 border border-blue-200"
+								onClick={() => setShowImagePopup(false)}
+								aria-label="Close"
+								style={{ zIndex: 2 }}
+							>
+								×
+							</button>
+							<div className="h-full flex flex-col">
+								<div className="px-5 pt-5 pb-3 border-b border-blue-200/70 pr-14">
+									<h2 className="text-xl font-bold text-blue-800 text-center drop-shadow">
+										Image Result
+									</h2>
+									<div className="mt-3 flex flex-wrap gap-2 items-center justify-center">
+										<span className="font-mono text-xs bg-blue-100 px-3 py-1 rounded-full text-blue-700 border border-blue-200 shadow">
+											HTTP {imagePopupContent.code}
+										</span>
+										<span className="font-mono text-xs bg-blue-100 px-3 py-1 rounded-full text-blue-700 border border-blue-200 shadow">
+											{imagePopupContent.contentType}
+										</span>
+									</div>
+								</div>
+
+								<div className="p-4 sm:p-5 overflow-auto min-h-0 space-y-3">
+									<div>
+										<div className="flex items-center justify-between gap-2 mb-2">
+											<h3 className="text-sm font-semibold text-blue-700">Headers</h3>
+											<button
+												className="text-xs px-2.5 py-1 rounded-md bg-blue-100 text-blue-700 border border-blue-200 hover:bg-blue-200 transition"
+												onClick={() => setShowAllImageHeaders((prev) => !prev)}
+											>
+												{showAllImageHeaders ? "Show Less" : "Show All"}
+											</button>
+										</div>
+										<div className="bg-white/60 border border-blue-200 rounded-lg p-3 text-xs font-mono text-blue-900 shadow-inner max-h-36 overflow-auto">
+											{Object.entries(imagePopupContent.headers)
+												.filter(([k]) =>
+													showAllImageHeaders
+														? true
+														: ["content-type", "content-length", "etag", "last-modified", "cache-control"].includes(k.toLowerCase())
+												)
+												.map(([k, v]) => (
+													<div key={k} className="flex gap-2 py-0.5">
+														<span className="font-bold text-blue-700">{k}:</span>
+														<span className="text-blue-900">{v}</span>
+													</div>
+												))}
+										</div>
+									</div>
+									<div className="border-2 border-blue-200 rounded-xl bg-white/70 shadow-lg overflow-auto p-2">
+										<img
+											src={imagePopupContent.src}
+											alt="Function result"
+											className="max-h-[45dvh] w-auto max-w-full mx-auto rounded"
+										/>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
 				</div>
 			)}
 

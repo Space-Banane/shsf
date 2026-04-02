@@ -493,52 +493,7 @@ export = new fileRouter.Path("/")
 					})
 				);
 
-				// we might be able to do magic here
-				if (typeof result?.result === "object" && result?.result !== null) {
-					const out = result.result; // quicker to write and access
-
-					if ("_shsf" in out) {
-						const version: "v2" = out._shsf; // always v2 currently
-						const headers: { key: string; value: any }[] | null =
-							"_headers" in out
-								? Object.entries(out._headers).map(([key, value]) => ({
-										key,
-										value,
-								  }))
-								: null;
-						const response_code: number | null = "_code" in out ? out._code : null;
-						const response: any | null = "_res" in out ? out._res : null;
-
-						if (response_code === 301 || response_code === 302) {
-							// Handle redirects
-							ctr.status(response_code);
-							if (headers) {
-								headers.forEach(({ key, value }) => {
-									ctr.headers.set(key, value);
-								});
-							}
-							const link = "_location" in out ? out._location : "/";
-							return ctr.redirect(link);
-						}
-
-						ctr.status(response_code || 200);
-
-						if (headers) {
-							headers.forEach(({ key, value }) => {
-								ctr.headers.set(key, value);
-							});
-						}
-
-						if (response) {
-							return ctr.print(response);
-						} else {
-							return ctr.print("No Function Result :(");
-						}
-					}
-				}
-
-				// Return result if available from main function, otherwise output OK
-				return ctr.print(result?.result ?? "No Function Result :(");
+				return handleFunctionResult(ctr, result?.result, false);
 			})
 	)
 	.http("POST", "/api/exec/{namespaceId}/{functionId}/{route}", (http) =>
@@ -620,50 +575,6 @@ export = new fileRouter.Path("/")
 					})
 				);
 
-				// we might be able to do magic here
-				if (typeof result?.result === "object" && result?.result !== null) {
-					const out = result.result; // quicker to write and access
-
-					if ("_shsf" in out) {
-						const version: "v2" = out._shsf; // always v2 currently
-						const headers: { key: string; value: any }[] | null =
-							"_headers" in out
-								? Object.entries(out._headers).map(([key, value]) => ({
-										key,
-										value,
-								  }))
-								: null;
-						const response_code: number | null = "_code" in out ? out._code : null;
-						const response: any | null = "_res" in out ? out._res : null;
-
-						if (response_code === 301 || response_code === 302) {
-							// Handle redirects
-							ctr.status(response_code);
-							if (headers) {
-								headers.forEach(({ key, value }) => {
-									ctr.headers.set(key, value);
-								});
-							}
-							const link = "_location" in out ? out._location : "/";
-							return ctr.redirect(link);
-						}
-
-						ctr.status(response_code || 200);
-
-						if (headers) {
-							headers.forEach(({ key, value }) => {
-								ctr.headers.set(key, value);
-							});
-						}
-
-						if (response) {
-							return ctr.print(response);
-						} else {
-							return ctr.print("No Function Result :(");
-						}
-					}
-				}
-
-				return ctr.print(result?.result ?? "No Function Result :(");
+				return handleFunctionResult(ctr, result?.result, false);
 			})
 	);
