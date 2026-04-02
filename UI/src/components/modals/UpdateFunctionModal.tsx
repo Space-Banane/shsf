@@ -4,6 +4,8 @@ import {
 	updateFunction,
 	reinstallFfmpeg,
 	reinstallOpencv,
+	isFunctionImageDeprecated,
+	getDeprecatedImages,
 } from "../../services/backend.functions";
 import {
 	Image,
@@ -48,6 +50,33 @@ function UpdateFunctionModal({
 	const [cacheTtl, setCacheTtl] = useState<number>(60);
 	const [isReinstallingFfmpeg, setIsReinstallingFfmpeg] = useState(false);
 	const [isReinstallingOpencv, setIsReinstallingOpencv] = useState(false);
+	const [isDeprecated, setIsDeprecated] = useState<boolean>(false);
+	const [deprecatedImages, setDeprecatedImages] = useState<string[]>([]);
+
+	useEffect(() => {
+		const checkDeprecation = async () => {
+			if (functionData) {
+				try {
+					setIsDeprecated(await isFunctionImageDeprecated(functionData.id));
+				} catch (err) {
+					console.error("Failed to check image deprecation:", err);
+				}
+			}
+		};
+		checkDeprecation();
+	}, [functionData]);
+
+	useEffect(() => {
+		const fetchDeprecatedImages = async () => {
+			try {
+				const deprecated = await getDeprecatedImages();
+				setDeprecatedImages(deprecated);
+			} catch (err) {
+				console.error("Failed to fetch deprecated images:", err);
+			}
+		};
+		fetchDeprecatedImages();
+	}, []);
 
 	// Initialize form with existing function data
 	useEffect(() => {
@@ -279,12 +308,16 @@ function UpdateFunctionModal({
 							</strong>
 							<br />
 							Back up any important data before updating fields that trigger a redeploy
-							like {["Image", "Docker Mount", "FFMPEG Install", "OpenCV Install"].map((field, index) => (
-								<React.Fragment key={field}>
-									<InlineCode color="yellow">{field}</InlineCode>
-									{index < 3 && ", "}
-								</React.Fragment>
-							))}.
+							like{" "}
+							{["Image", "Docker Mount", "FFMPEG Install", "OpenCV Install"].map(
+								(field, index) => (
+									<React.Fragment key={field}>
+										<InlineCode color="yellow">{field}</InlineCode>
+										{index < 3 && ", "}
+									</React.Fragment>
+								),
+							)}
+							.
 						</p>
 					</div>
 				</div>
@@ -359,6 +392,22 @@ function UpdateFunctionModal({
 					</h3>
 					<div className={isHtmlFunction ? "opacity-50 pointer-events-none" : ""}>
 						<label className="text-sm font-medium text-gray-300">Runtime Image</label>
+						{isDeprecated && functionData && (
+							<div className="bg-red-500/10 border-l-4 border-red-500 p-4 rounded-r-lg mb-4 flex items-start gap-3">
+								<span className="text-red-400 text-xl mt-0.5">🚫</span>
+								<div>
+									<h3 className="text-sm font-bold text-red-400 mb-1">
+										Deprecated Runtime Image
+									</h3>
+									<p className="text-xs text-red-300/80 leading-relaxed">
+										The current image{" "}
+										<InlineCode color="red">{functionData.image}</InlineCode> is no longer
+										maintained. Please switch to a newer version to ensure security and
+										performance.
+									</p>
+								</div>
+							</div>
+						)}
 						<select
 							value={image}
 							onChange={(e) => setImage(e.target.value as Image)}
@@ -366,10 +415,17 @@ function UpdateFunctionModal({
 							disabled={isLoading || isHtmlFunction}
 						>
 							{ImagesAsArray.map((img) => {
-								const isDisabled = img.split(":")[0] !== image.split(":")[0];
+								let isDisabled: { state?: boolean; message?: string } = {};
+								if (img.split(":")[0] !== image.split(":")[0]) {
+									isDisabled = {state: true, message: "Changing language/runtime is not allowed"}
+								}
+								if (deprecatedImages.includes(img)) {
+									isDisabled = {state: true, message: "This image is deprecated and cannot be selected"}
+								}
+								
 								return (
-									<option key={img} value={img} disabled={isDisabled}>
-										{img} {isDisabled && "(Language change not allowed)"}
+									<option key={img} value={img} disabled={isDisabled.state}>
+										{img} {isDisabled.message && `(${isDisabled.message})`}
 									</option>
 								);
 							})}

@@ -519,6 +519,27 @@ async function getMassReplaceFindings(find: string, replace: string) {
 	return data;
 }
 
+async function isFunctionImageDeprecated(functionId: number): Promise<boolean> {
+	const response = await fetch(
+		`${BASE_URL}/api/function/${functionId}/isDeprecated`,
+		{
+			method: "GET",
+			credentials: "include",
+		},
+	);
+	const data = await response.json();
+	return data.data.isDeprecated;
+}
+
+async function getDeprecatedImages() {
+	const response = await fetch(`${BASE_URL}/api/function/deprecatedImages`, {
+		method: "GET",
+		credentials: "include"
+	});
+	const data = await response.json();
+	return data.data as string[];
+}
+
 export {
 	createFunction,
 	deleteFunction,
@@ -542,6 +563,8 @@ export {
 	removeGitConfig,
 	massReplace,
 	getMassReplaceFindings,
+	isFunctionImageDeprecated,
+	getDeprecatedImages,
 };
 export type { OKResponse, ErrorResponse };
 export type {

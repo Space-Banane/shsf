@@ -31,10 +31,10 @@
 	"scripts": {
 		"prism": "npx prisma generate && npx prisma db push",
 		"generate": "npx prisma generate",
-		"build": "rm -rf dist && tsc && cd ..",
-		"start": "cd dist && node index.js && cd ..",
-		"prod": "npm run build && npm run start",
-		"dev": "rm -rf dist && esbuild `find src \\( -name '*.ts' -o -name '*.tsx' \\)` --platform='node' --sourcemap --ignore-annotations --format='cjs' --target='es2022' --outdir='dist' && cd dist && node index.js && cd ..",
+		"build": "rm -rf dist && tsc",
+		"start": "cd dist && node index.js",
+		"prod": "pnpm build && pnpm start",
+		"dev": "rm -rf dist && esbuild `find src \\( -name '*.ts' -o -name '*.tsx' \\)` --platform='node' --sourcemap --ignore-annotations --format='cjs' --target='es2022' --outdir='dist' && cd dist && node index.js",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage"

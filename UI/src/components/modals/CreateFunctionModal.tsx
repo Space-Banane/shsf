@@ -1,8 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Modal from "./Modal";
-import { createFunction } from "../../services/backend.functions";
+import {
+	createFunction,
+	getDeprecatedImages,
+} from "../../services/backend.functions";
 import { NamespaceResponseWithFunctions } from "../../services/backend.namespaces";
 import { Image, ImagesAsArray } from "../../types/Prisma";
+import { InlineCode } from "../InlineCode";
 
 interface CreateFunctionModalProps {
 	isOpen: boolean;
@@ -33,6 +37,19 @@ function CreateFunctionModal({
 	const [opencvInstall, setOpencvInstall] = useState<boolean>(false);
 	const [corsOrigins, setCorsOrigins] = useState<string>("");
 	const [corsOriginInput, setCorsOriginInput] = useState<string>("");
+	const [deprecatedImages, setDeprecatedImages] = useState<string[]>([]);
+
+	useEffect(() => {
+		const fetchDeprecatedImages = async () => {
+			try {
+				const deprecated = await getDeprecatedImages();
+				setDeprecatedImages(deprecated);
+			} catch (err) {
+				console.error("Failed to fetch deprecated images:", err);
+			}
+		};
+		fetchDeprecatedImages();
+	}, []);
 
 	const resetForm = () => {
 		setName("");
@@ -244,30 +261,44 @@ function CreateFunctionModal({
 					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
 						<span>⚙️</span> Runtime Configuration
 					</h3>
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div className={isHtmlFunction ? "opacity-50 pointer-events-none" : ""}>
-							<div className="space-y-2">
-								<label className="text-sm font-medium text-gray-300">
-									Runtime Image
-								</label>
-								<select
-									value={image}
-									onChange={(e) => setImage(e.target.value as Image)}
-									className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
-									disabled={isLoading || isHtmlFunction}
-								>
-									{ImagesAsArray.map((img) => (
-										<option key={img} value={img}>
-											{img}
+					<div className={isHtmlFunction ? "opacity-50 pointer-events-none" : ""}>
+						<div className="space-y-2">
+							<label className="text-sm font-medium text-gray-300">
+								Runtime Image
+							</label>
+							<select
+								value={image}
+								onChange={(e) => setImage(e.target.value as Image)}
+								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+								disabled={isLoading || isHtmlFunction}
+							>
+								{ImagesAsArray.map((img) => {
+									let isDisabled: { state?: boolean; message?: string } = {};
+									if (deprecatedImages.includes(img)) {
+										isDisabled = {
+											state: true,
+											message: "This image is deprecated and cannot be selected",
+										};
+									}
+									if (img.split(":")[0] !== image.split(":")[0]) {
+										isDisabled = {
+											state: true,
+											message: "Changing language/runtime is not allowed",
+										};
+									}
+
+									return (
+										<option key={img} value={img} disabled={isDisabled.state}>
+											{img} {isDisabled.message && `(${isDisabled.message})`}
 										</option>
-									))}
-								</select>
-								{isHtmlFunction && (
-									<p className="text-xs text-yellow-400 mt-1">
-										Disabled for HTML startup files
-									</p>
-								)}
-							</div>
+									);
+								})}
+							</select>
+							{isHtmlFunction && (
+								<p className="text-xs text-yellow-400 mt-1">
+									Disabled for HTML startup files
+								</p>
+							)}
 						</div>
 						<div className="space-y-2">
 							<label className="text-sm font-medium text-gray-300">Startup File</label>

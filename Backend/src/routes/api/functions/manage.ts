@@ -23,11 +23,50 @@ const Images: string[] = [
 	"golang:1.22",
 	"golang:1.23",
 ];
+const deprecatedImages: string[] = [
+	"python:3.9",
+	"python:3.10",
+	"golang:1.20",
+	"golang:1.21",
+];
 
 // Create Docker client instance for container management
 const docker = new Docker();
 
 export = new fileRouter.Path("/")
+	.http("GET", "/api/function/deprecatedImages", (http) =>
+		http
+			.document({
+				description: "Get list of deprecated runtime images",
+				tags: ["Functions"],
+				operationId: "getDeprecatedImages",
+				responses: {
+					200: {
+						description: "List of deprecated images",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										data: {
+											type: "array",
+											items: { type: "string" },
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+			.onRequest(async (ctr) => {
+				return ctr.print({
+					status: "OK",
+					data: deprecatedImages,
+				});
+			}),
+	)
 	.http("POST", "/api/function", (http) =>
 		http
 			.document({
@@ -215,6 +254,13 @@ export = new fileRouter.Path("/")
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						status: 400,
 						message: "Invalid image",
+					});
+				}
+
+				if (deprecatedImages.includes(data.image)) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: `The selected runtime image (${data.image}) is deprecated and cannot be used for new functions. Please choose a different image.`,
 					});
 				}
 
@@ -758,8 +804,6 @@ export = new fileRouter.Path("/")
 							},
 						},
 					},
-					401: { description: "Unauthorized" },
-					404: { description: "Function not found" },
 				},
 			})
 			.onRequest(async (ctr) => {
@@ -934,23 +978,45 @@ export = new fileRouter.Path("/")
 						// We prohibit language changes due to absolute nightmares of edge cases.
 						return ctr.status(ctr.$status.BAD_REQUEST).print({
 							status: 400,
-							message: "Changing the language (base image) of a function is not allowed. Please create a new function for this.",
+							message:
+								"Changing the language (base image) of a function is not allowed. Please create a new function for this.",
+						});
+					}
+					if (deprecatedImages.includes(data.image)) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: `The selected runtime image (${data.image}) is deprecated and cannot be used. Please choose a different image.`,
 						});
 					}
 				}
-				if (data.docker_mount !== undefined && data.docker_mount !== existingFunction.docker_mount) {
-					changes.push(`docker_mount: ${existingFunction.docker_mount} -> ${data.docker_mount}`);
+				if (
+					data.docker_mount !== undefined &&
+					data.docker_mount !== existingFunction.docker_mount
+				) {
+					changes.push(
+						`docker_mount: ${existingFunction.docker_mount} -> ${data.docker_mount}`,
+					);
 				}
-				if (data.ffmpeg_install !== undefined && data.ffmpeg_install !== existingFunction.ffmpeg_install) {
-					changes.push(`ffmpeg_install: ${existingFunction.ffmpeg_install} -> ${data.ffmpeg_install}`);
+				if (
+					data.ffmpeg_install !== undefined &&
+					data.ffmpeg_install !== existingFunction.ffmpeg_install
+				) {
+					changes.push(
+						`ffmpeg_install: ${existingFunction.ffmpeg_install} -> ${data.ffmpeg_install}`,
+					);
 				}
-				if (data.opencv_install !== undefined && data.opencv_install !== existingFunction.opencv_install) {
-					changes.push(`opencv_install: ${existingFunction.opencv_install} -> ${data.opencv_install}`);
+				if (
+					data.opencv_install !== undefined &&
+					data.opencv_install !== existingFunction.opencv_install
+				) {
+					changes.push(
+						`opencv_install: ${existingFunction.opencv_install} -> ${data.opencv_install}`,
+					);
 				}
 
 				if (changes.length > 0) {
 					relaunchTriggered = true; // Set flag regardless of container existence
-					
+
 					// Check if a container exists for this function before cleanup
 					try {
 						const container = await docker.getContainer(`shsf_func_${functionId}`);
@@ -958,7 +1024,7 @@ export = new fileRouter.Path("/")
 							console.log(
 								`[SHSF] Function ${functionId} configuration changed (${changes.join(", ")}). Container will be recreated.`,
 							);
-							
+
 							// Clean up existing container to force recreation
 							if (data.image && data.image !== existingFunction.image) {
 								await deleteContainerForFunction(functionId);
@@ -998,5 +1064,84 @@ export = new fileRouter.Path("/")
 				};
 
 				return ctr.print(response);
+			}),
+	)
+	.http("GET", "/api/function/{id}/isDeprecated", (http) =>
+		http
+			.document({
+				description: "Check if the function's runtime image is deprecated",
+				tags: ["Functions"],
+				operationId: "isFunctionDeprecated",
+				responses: {
+					200: {
+						description: "Deprecation status",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										data: {
+											type: "object",
+											properties: {
+												isDeprecated: { type: "boolean" },
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+			.onRequest(async (ctr) => {
+				const authCheck = await checkAuthentication(
+					ctr.cookies.get(COOKIE),
+					ctr.headers.get(API_KEY_HEADER),
+				);
+
+				if (!authCheck.success) {
+					return ctr.print({
+						status: 401,
+						message: authCheck.message,
+					});
+				}
+
+				const id = ctr.params.get("id");
+				if (!id) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Missing function id",
+					});
+				}
+				const functionId = parseInt(id);
+				if (isNaN(functionId)) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Invalid function id",
+					});
+				}
+
+				const functionData = await prisma.function.findFirst({
+					where: {
+						id: functionId,
+						userId: authCheck.user.id,
+					},
+				});
+				if (!functionData) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "Function not found",
+					});
+				}
+
+				const isDeprecated = deprecatedImages.includes(functionData.image);
+
+				return ctr.print({
+					status: "OK",
+					data: {
+						isDeprecated,
+					},
+				});
 			}),
 	);
