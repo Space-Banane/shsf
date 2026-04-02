@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import Modal from "../Modal";
 import { Trigger } from "../../../types/Prisma";
 import { cronPresets as ImportedcronPresets } from "./CreateTriggerModal";
@@ -43,7 +44,7 @@ function EditTriggerModal({
 
 	const handleSubmit = async () => {
 		if (!name.trim() || !cron.trim()) {
-			alert("Name and cron expression are required");
+			toast.error("Name and cron expression are required");
 			return;
 		}
 

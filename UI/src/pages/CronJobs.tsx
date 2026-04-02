@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import {
 	listAllTriggers,
 	deleteTrigger,
@@ -73,11 +74,11 @@ function CronJobsPage() {
 				setShowCreateModal(false);
 				return true;
 			} else {
-				alert(res.message);
+				toast.error(res.message);
 				return false;
 			}
 		} catch (e) {
-			alert("Failed to create trigger");
+			toast.error("Failed to create trigger");
 			return false;
 		}
 	};
@@ -102,11 +103,11 @@ function CronJobsPage() {
 				loadData();
 				return true;
 			} else {
-				alert(res.message);
+				toast.error(res.message);
 				return false;
 			}
 		} catch (e) {
-			alert("Failed to update trigger");
+			toast.error("Failed to update trigger");
 			return false;
 		}
 	};
@@ -119,11 +120,11 @@ function CronJobsPage() {
 				loadData();
 				return true;
 			} else {
-				alert(res.message);
+				toast.error(res.message);
 				return false;
 			}
 		} catch (e) {
-			alert("Failed to delete trigger");
+			toast.error("Failed to delete trigger");
 			return false;
 		}
 	};

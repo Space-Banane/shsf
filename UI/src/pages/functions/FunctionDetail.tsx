@@ -1,4 +1,5 @@
 import CLICommandCard from "../../components/cards/CLICommandCard";
+import { toast } from "react-toastify";
 import { useParams } from "react-router-dom";
 import { SHSFExport } from "../../components/modals/functions/ImportFunctionModal";
 import { useEffect, useState, useRef } from "react";
@@ -261,7 +262,7 @@ function FunctionDetail() {
 							}
 						});
 					} else {
-						alert("Error fetching function: " + functionData.message);
+						toast.error("Error fetching function: " + functionData.message);
 						return;
 					}
 
@@ -293,7 +294,7 @@ function FunctionDetail() {
 							setCode(null);
 						}
 					} else {
-						alert("Error fetching files: " + filesData.message);
+						toast.error("Error fetching files: " + filesData.message);
 					}
 
 					if (triggersData.status === "OK") {
@@ -305,7 +306,7 @@ function FunctionDetail() {
 				})
 				.catch((error) => {
 					console.error("Error fetching data:", error);
-					alert("An error occurred while fetching data.");
+					toast.error("An error occurred while fetching data.");
 				})
 				.finally(() => {
 					setLoading(false);
@@ -330,11 +331,11 @@ function FunctionDetail() {
 					),
 				);
 			} else {
-				alert("Error saving file: " + data.message);
+				toast.error("Error saving file: " + data.message);
 			}
 		} catch (error) {
 			console.error("Error saving file:", error);
-			alert("An error occurred while saving the file.");
+			toast.error("An error occurred while saving the file.");
 		} finally {
 			setSaving(false);
 		}
@@ -606,7 +607,7 @@ function FunctionDetail() {
 		content: string,
 	): Promise<boolean> => {
 		if (!id) {
-			alert("Function ID is missing.");
+			toast.error("Function ID is missing.");
 			return false;
 		}
 
@@ -619,12 +620,12 @@ function FunctionDetail() {
 				setFiles((prev) => [...prev, { ...data.data, content }]); // Ensure the new file has the correct content
 				return true;
 			} else {
-				alert("Error creating file: " + data.message);
+				toast.error("Error creating file: " + data.message);
 				return false;
 			}
 		} catch (error) {
 			console.error("Error creating file:", error);
-			alert("An error occurred while creating the file.");
+			toast.error("An error occurred while creating the file.");
 			return false;
 		}
 	};
@@ -642,12 +643,12 @@ function FunctionDetail() {
 				);
 				return true;
 			} else {
-				alert("Error renaming file: " + data.message);
+				toast.error("Error renaming file: " + data.message);
 				return false;
 			}
 		} catch (error) {
 			console.error("Error renaming file:", error);
-			alert("An error occurred while renaming the file.");
+			toast.error("An error occurred while renaming the file.");
 			return false;
 		}
 	};
@@ -665,12 +666,12 @@ function FunctionDetail() {
 				}
 				return true;
 			} else {
-				alert("Error deleting file: " + data.message);
+				toast.error("Error deleting file: " + data.message);
 				return false;
 			}
 		} catch (error) {
 			console.error("Error deleting file:", error);
-			alert("An error occurred while deleting the file.");
+			toast.error("An error occurred while deleting the file.");
 			return false;
 		}
 	};
@@ -702,12 +703,12 @@ function FunctionDetail() {
 				}
 				return true;
 			} else {
-				alert("Error creating trigger: " + (response as any).message);
+				toast.error("Error creating trigger: " + (response as any).message);
 				return false;
 			}
 		} catch (error) {
 			console.error("Error creating trigger:", error);
-			alert("An error occurred while creating the trigger.");
+			toast.error("An error occurred while creating the trigger.");
 			return false;
 		}
 	};
@@ -739,12 +740,12 @@ function FunctionDetail() {
 				);
 				return true;
 			} else {
-				alert("Error updating trigger: " + (response as any).message);
+				toast.error("Error updating trigger: " + (response as any).message);
 				return false;
 			}
 		} catch (error) {
 			console.error("Error updating trigger:", error);
-			alert("An error occurred while updating the trigger.");
+			toast.error("An error occurred while updating the trigger.");
 			return false;
 		}
 	};
@@ -762,12 +763,12 @@ function FunctionDetail() {
 				);
 				return true;
 			} else {
-				alert("Error deleting trigger: " + response.message);
+				toast.error("Error deleting trigger: " + response.message);
 				return false;
 			}
 		} catch (error) {
 			console.error("Error deleting trigger:", error);
-			alert("An error occurred while deleting the trigger.");
+			toast.error("An error occurred while deleting the trigger.");
 			return false;
 		}
 	};
@@ -790,12 +791,12 @@ function FunctionDetail() {
 				});
 				return true;
 			} else {
-				alert("Error updating environment variables: " + response.message);
+				toast.error("Error updating environment variables: " + response.message);
 				return false;
 			}
 		} catch (error) {
 			console.error("Error updating environment variables:", error);
-			alert("An error occurred while updating environment variables.");
+			toast.error("An error occurred while updating environment variables.");
 			return false;
 		}
 	};
@@ -912,7 +913,7 @@ function FunctionDetail() {
 
 	const handleLoadDefault = () => {
 		if (!activeFile) {
-			alert("No file is currently selected.");
+			toast.error("No file is currently selected.");
 			return;
 		}
 		setShowLoadDefaultModal(true);
@@ -942,12 +943,12 @@ function FunctionDetail() {
 				);
 				return true;
 			} else {
-				alert("Error loading default: " + response.message);
+				toast.error("Error loading default: " + response.message);
 				return false;
 			}
 		} catch (error) {
 			console.error("Error loading default content:", error);
-			alert("An error occurred while loading the default template.");
+			toast.error("An error occurred while loading the default template.");
 			return false;
 		} finally {
 			setSaving(false);

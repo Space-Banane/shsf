@@ -5,6 +5,7 @@ import { User } from "./types/Prisma";
 import { BASE_URL } from ".";
 import { Footer } from "./components/ui/Footer";
 import { NavBar } from "./components/ui/NavBar";
+import { ToastContainer } from "react-toastify";
 
 // Create a context for user data
 export const UserContext = createContext<{
@@ -45,14 +46,12 @@ function App() {
 		fetchUserData();
 	}, []);
 
-	
-
 	return (
 		<UserContext.Provider value={{ user, loading, refreshUser: fetchUserData }}>
 			<BrowserRouter>
 				<div className="min-h-screen flex flex-col bg-background">
 					<NavBar user={user} loading={loading} refreshUser={fetchUserData} />
-
+					<ToastContainer theme="dark" autoClose={3500} limit={15} />
 					<main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-6">
 						<Routes>
 							{routes.map((route) => (

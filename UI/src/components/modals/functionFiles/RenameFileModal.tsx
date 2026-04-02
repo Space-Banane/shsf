@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Modal from "../Modal";
+import { toast } from "react-toastify";
 
 interface RenameFileModalProps {
 	isOpen: boolean;
@@ -25,7 +26,7 @@ function RenameFileModal({
 
 	const handleRename = async () => {
 		if (!newFilename.trim() || newFilename.trim().length < 3) {
-			alert("Filename must be at least 3 characters long.");
+			toast.error("Filename must be at least 3 characters long.");
 			return;
 		}
 

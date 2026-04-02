@@ -1,4 +1,5 @@
 import React from "react";
+import { toast } from "react-toastify";
 
 interface ResultModalProps {
 	isOpen: boolean;
@@ -20,7 +21,7 @@ const ResultModal: React.FC<ResultModalProps> = ({
 	if (!isOpen) return null;
 
 	if (content.type === "object" && content.value === null) {
-		alert("function returned null, skipping modal");
+		toast.warning("Function returned null, skipping modal");
 		onClose();
 		return null;
 	}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "react-toastify";
 import Modal from "../Modal";
 import { XFunction } from "../../../types/Prisma";
 import { Link } from "react-router-dom";
@@ -51,11 +52,11 @@ function CreateTriggerModal({
 
 	const handleSubmit = async () => {
 		if (!selectedFunctionId) {
-			alert("Please select a function first");
+			toast.error("Please select a function first");
 			return;
 		}
 		if (!name.trim() || !cron.trim()) {
-			alert("Name and cron expression are required");
+			toast.error("Name and cron expression are required");
 			return;
 		}
 
@@ -87,7 +88,7 @@ function CreateTriggerModal({
 
 	const handleNext = () => {
 		if (!selectedFunctionId) {
-			alert("Please select a function");
+			toast.error("Please select a function");
 			return;
 		}
 		setStep(2);

@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import { UserContext } from "../../App";
 import {
 	getNamespaces,
@@ -57,7 +58,7 @@ function FunctionsList() {
 				// Expand all namespaces by default
 				setExpandedNamespaces(loadedNamespaces.map((ns) => ns.id));
 			} else {
-				alert("Error fetching namespaces:" + data.message);
+				toast.error("Error fetching namespaces:" + data.message);
 			}
 			setLoading(false);
 		});
@@ -94,12 +95,12 @@ function FunctionsList() {
 				refreshData();
 				return true;
 			} else {
-				alert("Error deleting function: " + response.message);
+				toast.error("Error deleting function: " + response.message);
 				return false;
 			}
 		} catch (error) {
 			console.error("Error deleting function:", error);
-			alert("An error occurred while deleting the function.");
+			toast.error("An error occurred while deleting the function.");
 			return false;
 		}
 	};
@@ -302,7 +303,7 @@ function FunctionsList() {
 				isOpen={isMassReplaceModalOpen}
 				onClose={() => setMassReplaceModalOpen(false)}
 				onSuccess={(msg) => {
-					alert(msg);
+					toast.success(msg);
 					refreshData();
 				}}
 			/>
