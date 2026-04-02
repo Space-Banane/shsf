@@ -1,21 +1,25 @@
 import CLICommandCard from "../../components/cards/CLICommandCard";
 import { useParams } from "react-router-dom";
-import { SHSFExport } from "../../components/modals/ImportFunctionModal";
+import { SHSFExport } from "../../components/modals/functions/ImportFunctionModal";
 import { useEffect, useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
-import CreateFileModal from "../../components/modals/CreateFileModal";
-import RenameFileModal from "../../components/modals/RenameFileModal";
-import DeleteFileModal from "../../components/modals/DeleteFileModal";
-import UpdateFunctionModal from "../../components/modals/UpdateFunctionModal";
-import CreateTriggerModal from "../../components/modals/CreateTriggerModal";
-import EditTriggerModal from "../../components/modals/EditTriggerModal";
-import DeleteTriggerModal from "../../components/modals/DeleteTriggerModal";
-import UpdateEnvModal from "../../components/modals/UpdateEnvModal";
-import TriggerLogsModal from "../../components/modals/TriggerLogsModal";
-import GuestManagement from "../../components/modals/GuestManagement";
-import LoadDefaultModal from "../../components/modals/LoadDefaultModal";
+import CreateFileModal from "../../components/modals/functionFiles/CreateFileModal";
+import RenameFileModal from "../../components/modals/functionFiles/RenameFileModal";
+import DeleteFileModal from "../../components/modals/functionFiles/DeleteFileModal";
+import UpdateFunctionModal from "../../components/modals/functions/UpdateFunctionModal";
+import CreateTriggerModal from "../../components/modals/functionTriggers/CreateTriggerModal";
+import EditTriggerModal from "../../components/modals/functionTriggers/EditTriggerModal";
+import DeleteTriggerModal from "../../components/modals/functionTriggers/DeleteTriggerModal";
+import UpdateEnvModal from "../../components/modals/functions/UpdateEnvModal";
+import TriggerLogsModal from "../../components/modals/functionTriggers/TriggerLogsModal";
+import GuestManagement from "../../components/modals/guests/GuestManagement";
+import LoadDefaultModal from "../../components/modals/functionFiles/LoadDefaultModal";
 import AIGenerateModal from "../../components/modals/AIGenerateModal";
-import GitVersionControlModal from "../../components/modals/GitVersionControlModal";
+import GitVersionControlModal from "../../components/modals/functions/GitVersionControlModal";
+import DependencyModal from "../../components/modals/functionDetail/DependencyModal";
+import ResultModal from "../../components/modals/functionDetail/ResultModal";
+import HtmlResultModal from "../../components/modals/functionDetail/HtmlResultModal";
+import ImageResultModal from "../../components/modals/functionDetail/ImageResultModal";
 import {
 	FunctionFile,
 	XFunction,
@@ -1021,221 +1025,33 @@ function FunctionDetail() {
 	return (
 		<div className="min-h-screen bg-background w-full">
 			{/* Dependency Install Modal */}
-			{showDepModal && depModalContent && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-					<div className="bg-background/50 rounded-xl shadow-2xl border border-primary/30 max-w-sm w-full p-6 animate-fadein">
-						<div className="flex flex-col items-center">
-							<div
-								className={`text-4xl mb-2 ${
-									depModalContent.success ? "text-green-500" : "text-red-500"
-								}`}
-							>
-								{depModalContent.success ? "✅" : "❌"}
-							</div>
-							<h2 className="text-xl font-bold mb-2 text-primary text-center">
-								{depModalContent.title}
-							</h2>
-							<p className="text-center text-text/80 mb-4">
-								{depModalContent.message}
-							</p>
-							<button
-								className="mt-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition"
-								onClick={() => setShowDepModal(false)}
-							>
-								Close
-							</button>
-						</div>
-					</div>
-					<style>{`
-            .animate-fadein {
-              animation: fadein 0.2s cubic-bezier(.4,0,.2,1);
-            }
-            @keyframes fadein {
-              from { opacity: 0; transform: scale(0.98);}
-              to { opacity: 1; transform: scale(1);}
-            }
-          `}</style>
-				</div>
-			)}
+			<DependencyModal
+				isOpen={showDepModal}
+				onClose={() => setShowDepModal(false)}
+				content={depModalContent || { success: false, title: "", message: "" }}
+			/>
 
 			{/* Result Modal */}
-			{showResultModal && resultModalContent && (
-				<div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm overflow-y-auto">
-					<div className="min-h-full w-full flex items-center justify-center p-3 sm:p-4">
-						<div className="bg-background/80 rounded-xl shadow-2xl border border-primary/30 w-full max-w-2xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden animate-fadein">
-						<div className="flex flex-col h-full">
-							<div className="px-5 pt-5 pb-3 border-b border-primary/15 flex items-center justify-between gap-3">
-								<div className="flex items-center gap-2 min-w-0">
-									<div className="text-2xl text-blue-500">📦</div>
-									<h2 className="text-lg font-bold text-primary truncate">
-								{resultModalContent.title}
-									</h2>
-								</div>
-								<button
-									className="px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition text-sm"
-									onClick={() => setShowResultModal(false)}
-								>
-									Close
-								</button>
-							</div>
-
-							<div className="px-5 py-3 flex flex-wrap items-center gap-2 border-b border-primary/10">
-								<span className="font-mono text-xs bg-blue-100 px-2 py-1 rounded text-blue-700 border border-blue-200">
-									Type: {resultModalContent.type}
-								</span>
-								{functionData.cache_enabled && (
-									<span className="text-xs text-text/70">Caching is ignored here.</span>
-								)}
-							</div>
-
-							<div className="p-4 sm:p-5 overflow-auto min-h-0">
-								<pre className="w-full bg-background/70 border border-primary/10 rounded-lg p-3 text-xs font-mono text-text/90 shadow-inner text-left overflow-auto max-h-[calc(100dvh-14rem)] sm:max-h-[calc(100dvh-16rem)]">
-									{typeof resultModalContent.value === "string"
-										? resultModalContent.value
-										: JSON.stringify(resultModalContent.value, null, 2)}
-								</pre>
-							</div>
-						</div>
-					</div>
-					</div>
-					<style>{`
-            .animate-fadein {
-              animation: fadein 0.2s cubic-bezier(.4,0,.2,1);
-            }
-            @keyframes fadein {
-              from { opacity: 0; transform: scale(0.98);}
-              to { opacity: 1; transform: scale(1);}
-            }
-          `}</style>
-				</div>
-			)}
+			<ResultModal
+				isOpen={showResultModal}
+				onClose={() => setShowResultModal(false)}
+				content={resultModalContent || { title: "", value: "", type: "" }}
+				cacheEnabled={functionData?.cache_enabled}
+			/>
 
 			{/* Popup Modal for HTML result */}
-			{showPopup && popupContent && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadein">
-					<div className="relative max-w-2xl w-full rounded-2xl p-0 overflow-hidden shadow-2xl border border-primary/30 bg-gradient-to-br from-white/80 to-violet-100/80 backdrop-blur-lg">
-						<button
-							className="absolute top-4 right-4 text-2xl text-violet-700 hover:text-violet-900 bg-white/60 rounded-full px-2 py-1 shadow transition-all duration-200 border border-violet-200"
-							onClick={() => setShowPopup(false)}
-							aria-label="Close"
-							style={{ zIndex: 2 }}
-						>
-							×
-						</button>
-						<div className="p-6">
-							<h2 className="text-2xl font-bold text-violet-800 mb-4 text-center drop-shadow">
-								HTML Result
-							</h2>
-							<div className="mb-4 flex flex-wrap gap-2 items-center justify-center">
-								<span className="font-mono text-xs bg-violet-100 px-3 py-1 rounded-full text-violet-700 border border-violet-200 shadow">
-									HTTP {popupContent.code}
-								</span>
-							</div>
-							<div className="mb-4">
-								<h3 className="text-sm font-semibold text-violet-700 mb-2">Headers</h3>
-								<div className="bg-white/60 border border-violet-200 rounded-lg p-3 text-xs font-mono text-violet-900 shadow-inner">
-									{Object.entries(popupContent.headers).map(([k, v]) => (
-										<div key={k} className="flex gap-2 py-0.5">
-											<span className="font-bold text-violet-700">{k}:</span>
-											<span className="text-violet-900">{v}</span>
-										</div>
-									))}
-								</div>
-							</div>
-							<div>
-								<h3 className="text-sm font-semibold text-violet-700 mb-2">
-									HTML Content
-								</h3>
-								<div className="border-2 border-violet-200 rounded-xl bg-white/70 shadow-lg overflow-hidden">
-									<iframe
-										srcDoc={popupContent.html}
-										title="Popup HTML"
-										className="w-full h-96 rounded-xl border-none"
-										sandbox="allow-scripts allow-same-origin"
-									/>
-								</div>
-							</div>
-						</div>
-					</div>
-					<style>{`
-            .animate-fadein {
-              animation: fadein 0.25s cubic-bezier(.4,0,.2,1);
-            }
-            @keyframes fadein {
-              from { opacity: 0; transform: scale(0.98);}
-              to { opacity: 1; transform: scale(1);}
-            }
-          `}</style>
-				</div>
-			)}
+			<HtmlResultModal
+				isOpen={showPopup}
+				onClose={() => setShowPopup(false)}
+				content={popupContent || { code: 0, headers: {}, html: "" }}
+			/>
 
 			{/* Popup Modal for Image result */}
-			{showImagePopup && imagePopupContent && (
-				<div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm overflow-y-auto">
-					<div className="min-h-full w-full flex items-center justify-center p-3 sm:p-4 animate-fadein">
-						<div className="relative w-full max-w-4xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] rounded-2xl overflow-hidden shadow-2xl border border-primary/30 bg-gradient-to-br from-white/80 to-blue-100/80 backdrop-blur-lg">
-							<button
-								className="absolute top-4 right-4 text-2xl text-blue-700 hover:text-blue-900 bg-white/60 rounded-full px-2 py-1 shadow transition-all duration-200 border border-blue-200"
-								onClick={() => setShowImagePopup(false)}
-								aria-label="Close"
-								style={{ zIndex: 2 }}
-							>
-								×
-							</button>
-							<div className="h-full flex flex-col">
-								<div className="px-5 pt-5 pb-3 border-b border-blue-200/70 pr-14">
-									<h2 className="text-xl font-bold text-blue-800 text-center drop-shadow">
-										Image Result
-									</h2>
-									<div className="mt-3 flex flex-wrap gap-2 items-center justify-center">
-										<span className="font-mono text-xs bg-blue-100 px-3 py-1 rounded-full text-blue-700 border border-blue-200 shadow">
-											HTTP {imagePopupContent.code}
-										</span>
-										<span className="font-mono text-xs bg-blue-100 px-3 py-1 rounded-full text-blue-700 border border-blue-200 shadow">
-											{imagePopupContent.contentType}
-										</span>
-									</div>
-								</div>
-
-								<div className="p-4 sm:p-5 overflow-auto min-h-0 space-y-3">
-									<div>
-										<div className="flex items-center justify-between gap-2 mb-2">
-											<h3 className="text-sm font-semibold text-blue-700">Headers</h3>
-											<button
-												className="text-xs px-2.5 py-1 rounded-md bg-blue-100 text-blue-700 border border-blue-200 hover:bg-blue-200 transition"
-												onClick={() => setShowAllImageHeaders((prev) => !prev)}
-											>
-												{showAllImageHeaders ? "Show Less" : "Show All"}
-											</button>
-										</div>
-										<div className="bg-white/60 border border-blue-200 rounded-lg p-3 text-xs font-mono text-blue-900 shadow-inner max-h-36 overflow-auto">
-											{Object.entries(imagePopupContent.headers)
-												.filter(([k]) =>
-													showAllImageHeaders
-														? true
-														: ["content-type", "content-length", "etag", "last-modified", "cache-control"].includes(k.toLowerCase())
-												)
-												.map(([k, v]) => (
-													<div key={k} className="flex gap-2 py-0.5">
-														<span className="font-bold text-blue-700">{k}:</span>
-														<span className="text-blue-900">{v}</span>
-													</div>
-												))}
-										</div>
-									</div>
-									<div className="border-2 border-blue-200 rounded-xl bg-white/70 shadow-lg overflow-auto p-2">
-										<img
-											src={imagePopupContent.src}
-											alt="Function result"
-											className="max-h-[45dvh] w-auto max-w-full mx-auto rounded"
-										/>
-									</div>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-			)}
+			<ImageResultModal
+				isOpen={showImagePopup}
+				onClose={() => setShowImagePopup(false)}
+				content={imagePopupContent || { code: 0, contentType: "", headers: {}, src: "" }}
+			/>
 
 			{/* Hero Header Section - Full Width */}
 			<div className="relative bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-b border-primary/20 w-full">

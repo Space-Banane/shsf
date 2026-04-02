@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { FunctionFile, Image, ImagesAsArray } from "../../types/Prisma";
 import { generateWithAI, generateConfigWithAI, type AIMode } from "../../services/backend.ai";
 import { createFunction } from "../../services/backend.functions";
+import Modal from "./Modal";
 
 interface AIGenerateModalProps {
 	isOpen: boolean;
@@ -206,71 +207,20 @@ function AIGenerateModal({
 	if (!isOpen) return null;
 
 	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-			{/* Backdrop */}
-			<div
-				className="absolute inset-0 bg-black/80 backdrop-blur-md"
-				onClick={handleClose}
-			/>
-
-			{/* Modal panel */}
-			<div
-				className="relative w-full max-w-2xl flex flex-col max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl"
-				style={{
-					background:
-						"linear-gradient(160deg, #0a0a0f 0%, #0d0d18 50%, #0a0f1a 100%)",
-					border: "1px solid rgba(99,102,241,0.25)",
-					boxShadow:
-						"0 0 0 1px rgba(99,102,241,0.1), 0 25px 60px rgba(0,0,0,0.85), 0 0 80px rgba(99,102,241,0.08)",
-				}}
-			>
-				{/* Scanline accent at top */}
-				<div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/70 to-transparent" />
-
-				{/* Header */}
-				<div
-					className="flex items-center justify-between px-6 py-4 shrink-0"
-					style={{
-						borderBottom: "1px solid rgba(99,102,241,0.12)",
-						background:
-							"linear-gradient(90deg,rgba(99,102,241,0.06) 0%,rgba(16,16,32,0) 100%)",
-					}}
-				>
-					<div className="flex items-center gap-3">
-						<div>
-							<h2
-								className="text-base font-bold tracking-widest uppercase"
-								style={{
-									background:
-										"linear-gradient(90deg,#818cf8,#a78bfa)",
-									WebkitBackgroundClip: "text",
-									WebkitTextFillColor: "transparent",
-									letterSpacing: "0.14em",
-								}}
-							>
-								{functionId ? "AI ASSISTANT" : "AI KICKOFF"}
-							</h2>
-							<p className="text-xs text-gray-500 tracking-wider mt-0.5 uppercase">
-								{stage === "intake" ? "Configure your function" : stage === "review" ? "Review configuration" : "Generating files..."}
-							</p>
-						</div>
-					</div>
-
-					<button
-						onClick={handleClose}
-						className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 transition-colors"
-						style={{ background: "rgba(255,255,255,0.04)" }}
-					>
-						<svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-							<path d="M18 6L6 18M6 6l12 12" />
-						</svg>
-					</button>
-				</div>
-
-				{/* Scrollable body */}
-				<div className="overflow-y-auto flex-1 px-6 py-5 space-y-5" style={{ scrollbarWidth: "thin" }}>
-					
-					{stage === "intake" && !functionId && (
+		<Modal
+			isOpen={isOpen}
+			onClose={handleClose}
+			title={functionId ? "AI ASSISTANT" : "AI KICKOFF"}
+			maxWidth="lg"
+			isLoading={isLoading}
+		>
+			{/* Scrollable body */}
+			<div className="space-y-5">
+				<p className="text-xs text-gray-500 tracking-wider mt-0.5 uppercase">
+					{stage === "intake" ? "Configure your function" : stage === "review" ? "Review configuration" : "Generating files..."}
+				</p>
+				
+				{stage === "intake" && !functionId && (
 						<>
 							{/* Kickoff warning notice */}
 							<div
@@ -632,8 +582,8 @@ function AIGenerateModal({
 
 				{/* Footer */}
 				<div
-					className="px-6 py-4 shrink-0 flex items-center justify-between"
-					style={{ borderTop: "1px solid rgba(99,102,241,0.12)", background: "rgba(255,255,255,0.01)" }}
+					className="py-4 shrink-0 flex items-center justify-between"
+					style={{ borderTop: "1px solid rgba(99,102,241,0.12)" }}
 				>
 					<div className="flex items-center gap-4">
 						{isLoading ? (
@@ -693,8 +643,7 @@ function AIGenerateModal({
 						)}
 					</div>
 				</div>
-			</div>
-		</div>
+		</Modal>
 	);
 }
 

@@ -4,15 +4,15 @@ import {
 	getNamespaces,
 	NamespaceResponseWithFunctions,
 } from "../../services/backend.namespaces";
-import CreateNamespaceModal from "../../components/modals/CreateNamespaceModal";
-import CreateFunctionModal from "../../components/modals/CreateFunctionModal";
-import CloneFunctionModal from "../../components/modals/CloneFunctionModal";
-import RenameNamespaceModal from "../../components/modals/RenameNamespaceModal";
-import DeleteNamespaceModal from "../../components/modals/DeleteNamespaceModal";
-import DeleteFunctionModal from "../../components/modals/DeleteFunctionModal";
+import CreateNamespaceModal from "../../components/modals/namespaces/CreateNamespaceModal";
+import CreateFunctionModal from "../../components/modals/functions/CreateFunctionModal";
+import CloneFunctionModal from "../../components/modals/functions/CloneFunctionModal";
+import RenameNamespaceModal from "../../components/modals/namespaces/RenameNamespaceModal";
+import DeleteNamespaceModal from "../../components/modals/namespaces/DeleteNamespaceModal";
+import DeleteFunctionModal from "../../components/modals/functions/DeleteFunctionModal";
 import { deleteFunction } from "../../services/backend.functions";
-import ImportFunctionModal from "../../components/modals/ImportFunctionModal";
-import MassReplaceModal from "../../components/modals/MassReplaceModal";
+import ImportFunctionModal from "../../components/modals/functions/ImportFunctionModal";
+import MassReplaceModal from "../../components/modals/functionFiles/MassReplaceModal";
 import AIGenerateModal from "../../components/modals/AIGenerateModal";
 
 function FunctionsList() {

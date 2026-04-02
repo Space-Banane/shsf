@@ -4,10 +4,10 @@ listGuestUsers,
 GuestUser,
 getFunctionNamesForGuest,
 } from "../services/backend.guest";
-import CreateGuestModal from "../components/modals/CreateGuestModal";
-import UpdateGuestModal from "../components/modals/UpdateGuestModal";
-import DeleteGuestModal from "../components/modals/DeleteGuestModal";
-import ClearGuestSessionsModal from "../components/modals/ClearGuestSessionsModal";
+import CreateGuestModal from "../components/modals/guests/CreateGuestModal";
+import UpdateGuestModal from "../components/modals/guests/UpdateGuestModal";
+import DeleteGuestModal from "../components/modals/guests/DeleteGuestModal";
+import ClearGuestSessionsModal from "../components/modals/guests/ClearGuestSessionsModal";
 
 export default function GuestUsersPage() {
 const [guests, setGuests] = useState<GuestUser[]>([]);

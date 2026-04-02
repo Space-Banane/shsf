@@ -5,12 +5,12 @@ import {
 	Storage,
 	StorageItem,
 } from "../services/backend.storage";
-import CreateStorageModal from "../components/modals/CreateStorageModal";
-import DeleteStorageModal from "../components/modals/DeleteStorageModal";
-import ClearStorageModal from "../components/modals/ClearStorageModal";
-import AddStorageItemModal from "../components/modals/AddStorageItemModal";
-import DeleteStorageItemModal from "../components/modals/DeleteStorageItemModal";
-import GetStorageItemModal from "../components/modals/GetStorageItemModal";
+import CreateStorageModal from "../components/modals/storage/CreateStorageModal";
+import DeleteStorageModal from "../components/modals/storage/DeleteStorageModal";
+import ClearStorageModal from "../components/modals/storage/ClearStorageModal";
+import AddStorageItemModal from "../components/modals/storage/AddStorageItemModal";
+import DeleteStorageItemModal from "../components/modals/storage/DeleteStorageItemModal";
+import GetStorageItemModal from "../components/modals/storage/GetStorageItemModal";
 
 function StoragePage() {
 	const [storages, setStorages] = useState<Storage[]>([]);

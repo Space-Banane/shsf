@@ -24,13 +24,10 @@ function Modal({
 
 		if (isOpen) {
 			document.addEventListener("keydown", handleEscape);
-			// Prevent scrolling on body when modal is open
-			document.body.style.overflow = "hidden";
 		}
 
 		return () => {
 			document.removeEventListener("keydown", handleEscape);
-			document.body.style.overflow = "unset";
 		};
 	}, [isOpen, onClose, isLoading]);
 
@@ -52,25 +49,22 @@ function Modal({
 			{/* Modal Content: Added stopPropagation to prevent overlay click trigger */}
 			<div
 				onClick={(e) => e.stopPropagation()}
-				className={`bg-gradient-to-br from-gray-900/95 to-gray-800/95 backdrop-blur-xl border border-primary/20 text-white rounded-2xl shadow-2xl ${maxWidthClass} w-full animate-slideIn flex flex-col max-h-[90vh] relative overflow-hidden`}
+				className={`bg-gray-900/95 backdrop-blur-xl border border-white/5 text-white rounded-3xl shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] ${maxWidthClass} w-full animate-slideIn flex flex-col max-h-[90vh] relative overflow-hidden`}
 			>
-				{/* Gradient overlay line */}
-				<div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
-
 				{/* Header */}
-				<div className="flex justify-between items-center p-6 border-b border-primary/10 bg-gradient-to-r from-blue-900/10 to-purple-900/10">
-					<div className="flex items-center gap-3">
-						<div className="w-8 h-8 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-lg flex items-center justify-center">
-							<div className="w-4 h-4 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full"></div>
+				<div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/[0.02]">
+					<div className="flex items-center gap-4">
+						<div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl flex items-center justify-center border border-white/10">
+							<div className="w-2.5 h-2.5 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full shadow-[0_0_10px_rgba(96,165,250,0.5)]"></div>
 						</div>
-						<h2 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+						<h2 className="text-xl font-bold tracking-tight text-gray-100">
 							{title}
 						</h2>
 					</div>
 					{!isLoading && (
 						<button
 							onClick={onClose}
-							className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white hover:bg-red-500/20 rounded-lg transition-all duration-300 hover:scale-110"
+							className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition-all duration-200"
 							title="Close"
 						>
 							<svg
@@ -92,14 +86,17 @@ function Modal({
 
 				{/* Content Area */}
 				<div
-					className="overflow-y-auto p-6 relative flex-1"
+					className="overflow-y-auto p-8 relative flex-1"
 					style={{ scrollbarWidth: "thin" }}
 				>
 					{isLoading && (
-						<div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-10">
-							<div className="flex flex-col items-center gap-4">
-								<div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
-								<p className="text-primary text-sm font-medium">Processing...</p>
+						<div className="absolute inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center z-10 transition-all duration-300">
+							<div className="flex flex-col items-center gap-5">
+								<div className="relative">
+									<div className="w-12 h-12 border-[3px] border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+									<div className="absolute inset-0 blur-sm w-12 h-12 border-[3px] border-transparent border-t-blue-400 rounded-full animate-spin opacity-50"></div>
+								</div>
+								<p className="text-gray-300 text-sm font-medium tracking-widest uppercase">Processing</p>
 							</div>
 						</div>
 					)}

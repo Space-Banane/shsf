@@ -7,9 +7,9 @@ import {
 } from "../services/backend.triggers";
 import { getFunctions } from "../services/backend.functions";
 import { Trigger, XFunction } from "../types/Prisma";
-import EditTriggerModal from "../components/modals/EditTriggerModal";
-import DeleteTriggerModal from "../components/modals/DeleteTriggerModal";
-import CreateTriggerModal from "../components/modals/CreateTriggerModal";
+import EditTriggerModal from "../components/modals/functionTriggers/EditTriggerModal";
+import DeleteTriggerModal from "../components/modals/functionTriggers/DeleteTriggerModal";
+import CreateTriggerModal from "../components/modals/functionTriggers/CreateTriggerModal";
 import { ActionButton } from "../components/buttons/ActionButton";
 import { Link } from "react-router-dom";
 
