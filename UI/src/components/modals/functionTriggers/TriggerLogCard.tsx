@@ -1,5 +1,6 @@
 import React from "react";
 import { TriggerLog } from "../../../types/Prisma";
+import { useConfirm } from "../../modals/ConfirmModal";
 
 interface TriggerLogCardProps {
 	log: TriggerLog;
@@ -14,9 +15,16 @@ const TriggerLogCard: React.FC<TriggerLogCardProps> = ({
 	onToggle,
 	onDelete,
 }) => {
-	const handleDelete = (e: React.MouseEvent) => {
+	const confirm = useConfirm();
+	const handleDelete = async (e: React.MouseEvent) => {
 		e.stopPropagation();
-		if (window.confirm("Are you sure you want to delete this specific log?")) {
+		const confirmed = await confirm({
+			title: "Delete Log",
+			message: "Are you sure you want to delete this specific log?",
+			confirmText: "Delete",
+			variant: "delete",
+		});
+		if (confirmed) {
 			onDelete();
 		}
 	};

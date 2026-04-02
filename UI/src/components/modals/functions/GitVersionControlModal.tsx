@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "react-toastify";
 import Modal from "../Modal";
+import { useConfirm } from "../ConfirmModal";
 
 import { ActionButton } from "../../buttons/ActionButton";
 import {
@@ -29,6 +31,7 @@ function GitVersionControlModal({
 	functionId,
 	onChanged,
 }: GitVersionControlModalProps) {
+	const confirm = useConfirm();
 	const [loading, setLoading] = useState(false);
 	const [isBusy, setIsBusy] = useState(false);
 
@@ -39,6 +42,7 @@ function GitVersionControlModal({
 	const [periodicPull, setPeriodicPull] = useState(false);
 	const [pullInterval, setPullInterval] = useState(10);
 	const [savedHasCredentials, setSavedHasCredentials] = useState(false);
+	const [showLogs, setShowLogs] = useState(false);
 
 	// Input state
 	const [urlInput, setUrlInput] = useState("");
@@ -159,6 +163,7 @@ function GitVersionControlModal({
 			if ("logs" in res) appendLog(res.logs);
 			if (res.status === "OK") {
 				appendLog(`\n✅ ${hasUrl ? "Re-initialization" : "Setup"} completed!`);
+				toast.success(`${hasUrl ? "Re-initialization" : "Setup"} completed!`);
 				setLogStatus("ok");
 				setSavedUrl(trimmedUrl);
 				setSavedBranch(trimmedBranch);
@@ -168,10 +173,12 @@ function GitVersionControlModal({
 				onChanged?.();
 			} else {
 				appendLog("\n❌ Failed: " + res.message);
+				toast.error("Git failed: " + res.message);
 				setLogStatus("error");
 			}
 		} catch (err: any) {
 			appendLog("[ERROR] " + (err?.message ?? "Unexpected error"));
+			toast.error("Unexpected error: " + (err?.message ?? "Check console"));
 			setLogStatus("error");
 		} finally {
 			setIsBusy(false);
@@ -190,13 +197,16 @@ function GitVersionControlModal({
 			if ("logs" in res) appendLog(res.logs);
 			if (res.status === "OK") {
 				appendLog("\n✅ Pull successful!");
+				toast.success("Pull successful!");
 				setLogStatus("ok");
 			} else {
 				appendLog("\n❌ Pull failed: " + res.message);
+				toast.error("Pull failed: " + res.message);
 				setLogStatus("error");
 			}
 		} catch (err: any) {
 			appendLog("[ERROR] " + (err?.message ?? "Unexpected error"));
+			toast.error("Pull error: " + (err?.message ?? "Check console"));
 			setLogStatus("error");
 		} finally {
 			setIsBusy(false);
@@ -211,11 +221,14 @@ function GitVersionControlModal({
 			if (res.status !== "OK") {
 				setPeriodicPull(!enabled); // revert
 				appendLog("[ERROR] Failed to update periodic pull setting.");
+				toast.error("Failed to update auto-sync.");
 			} else {
 				appendLog(`[GIT] Periodic pull ${enabled ? "enabled" : "disabled"}.`);
+				toast.info(`Auto-sync ${enabled ? "enabled" : "disabled"}.`);
 			}
 		} catch {
 			setPeriodicPull(!enabled);
+			toast.error("Error updating auto-sync.");
 		}
 	};
 
@@ -226,11 +239,14 @@ function GitVersionControlModal({
 			const res = await updateGitSettings(functionId, undefined, undefined, undefined, minutes);
 			if (res.status !== "OK") {
 				appendLog("[ERROR] Failed to update pull interval.");
+				toast.error("Failed to update pull interval.");
 			} else {
 				appendLog(`[GIT] Pull interval set to ${minutes} minute${minutes === 1 ? "" : "s"}.`);
+				toast.info(`Pull interval set to ${minutes}m.`);
 			}
 		} catch {
 			appendLog("[ERROR] Unexpected error updating pull interval.");
+			toast.error("Error updating pull interval.");
 		}
 	};
 
@@ -238,17 +254,30 @@ function GitVersionControlModal({
 		if (!functionId) return;
 		if (!inputHasContent) {
 			appendLog("[ERROR] Repository URL is required before updating credentials.");
+			toast.error("Repo URL is required.");
 			setLogStatus("error");
 			return;
 		}
-		if (!window.confirm("Updating credentials will require a full re-clone of the repository. All current files in the /app directory will be replaced. Continue?")) return;
+		const confirmed = await confirm({
+			title: "Update Credentials",
+			message: "Updating credentials will require a full re-clone of the repository. All current files in the /app directory will be replaced. Continue?",
+			confirmText: "Update & Re-clone",
+			variant: "delete",
+		});
+		if (!confirmed) return;
 
 		await handleClone();
 	};
 
 	const handleRemoveCredentials = async () => {
 		if (!functionId) return;
-		if (!window.confirm("Remove saved credentials? The repository remote URL will be updated to use no authentication.")) return;
+		const confirmed = await confirm({
+			title: "Remove Credentials",
+			message: "Remove saved credentials? The repository remote URL will be updated to use no authentication.",
+			confirmText: "Remove",
+			variant: "delete",
+		});
+		if (!confirmed) return;
 		setIsBusy(true);
 		try {
 			const res = await removeGitCredentials(functionId);
@@ -257,13 +286,16 @@ function GitVersionControlModal({
 				setUsernameInput("");
 				clearPassword();
 				appendLog("[GIT] Credentials removed.");
+				toast.success("Credentials removed.");
 				setLogStatus("ok");
 			} else {
 				appendLog("[ERROR] Failed to remove credentials: " + res.message);
+				toast.error("Failed to remove credentials.");
 				setLogStatus("error");
 			}
 		} catch (err: any) {
 			appendLog("[ERROR] " + (err?.message ?? "Unexpected error"));
+			toast.error("Error removing credentials.");
 			setLogStatus("error");
 		} finally {
 			setIsBusy(false);
@@ -272,22 +304,25 @@ function GitVersionControlModal({
 
 	const handleRemoveGit = async () => {
 		if (!functionId) return;
-		if (
-			!window.confirm(
-				"Remove git configuration? The cloned files will remain in the app directory but git control will be disabled.",
-			)
-		)
-			return;
+		const confirmed = await confirm({
+			title: "Remove Git",
+			message: "Remove git configuration? The cloned files will remain in the app directory but git control will be disabled.",
+			confirmText: "Remove Git",
+			variant: "delete",
+		});
+		if (!confirmed) return;
 		setIsBusy(true);
 		try {
 			const res = await removeGitConfig(functionId);
 			if (res.status === "OK") {
 				resetGitState();
 				setLogs("[GIT] Git configuration removed.");
+				toast.success("Git disconnected.");
 				setLogStatus("ok");
 				onChanged?.();
 			} else {
 				appendLog("[ERROR] " + res.message);
+				toast.error("Failed to disconnect Git.");
 				setLogStatus("error");
 			}
 		} finally {
@@ -669,17 +704,27 @@ function GitVersionControlModal({
 				{/* Output Console */}
 				{logs && (
 					<div className="space-y-2">
-						<div className="flex items-center gap-2">
-							<span className="text-primary text-sm">📺</span>
-							<h3 className="text-xs font-bold uppercase tracking-widest text-primary/70">Console Output</h3>
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-2">
+								<span className="text-primary text-sm">📺</span>
+								<h3 className="text-xs font-bold uppercase tracking-widest text-primary/70">Console Output</h3>
+							</div>
+							<button
+								onClick={() => setShowLogs(!showLogs)}
+								className="text-[10px] font-bold uppercase tracking-widest text-primary/50 hover:text-primary transition-colors bg-primary/5 px-2 py-1 rounded border border-primary/10"
+							>
+								{showLogs ? "Hide Logs" : "Show Logs"}
+							</button>
 						</div>
-						<pre
-							ref={logsRef}
-							className={`bg-black/60 border ${logBorderColor} rounded-xl p-4 text-[11px] font-mono text-gray-300 max-h-48 overflow-y-auto whitespace-pre-wrap break-words shadow-inner`}
-							style={{ scrollbarWidth: "thin" }}
-						>
-							{logs}
-						</pre>
+						{showLogs && (
+							<pre
+								ref={logsRef}
+								className={`bg-black/60 border ${logBorderColor} rounded-xl p-4 text-[11px] font-mono text-gray-300 max-h-48 overflow-y-auto whitespace-pre-wrap break-words shadow-inner animate-in fade-in slide-in-from-top-1 duration-200`}
+								style={{ scrollbarWidth: "thin" }}
+							>
+								{logs}
+							</pre>
+						)}
 					</div>
 				)}
 

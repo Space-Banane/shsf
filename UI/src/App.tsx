@@ -6,6 +6,7 @@ import { BASE_URL } from ".";
 import { Footer } from "./components/ui/Footer";
 import { NavBar } from "./components/ui/NavBar";
 import { ToastContainer } from "react-toastify";
+import { ConfirmProvider } from "./components/modals/ConfirmModal";
 
 // Create a context for user data
 export const UserContext = createContext<{
@@ -48,31 +49,33 @@ function App() {
 
 	return (
 		<UserContext.Provider value={{ user, loading, refreshUser: fetchUserData }}>
-			<BrowserRouter>
-				<div className="min-h-screen flex flex-col bg-background">
-					<NavBar user={user} loading={loading} refreshUser={fetchUserData} />
-					<ToastContainer theme="dark" autoClose={3500} limit={15} />
-					<main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-6">
-						<Routes>
-							{routes.map((route) => (
-								<Route
-									key={route.path}
-									path={route.path}
-									element={
-										route.requireAuth && !user && !loading ? (
-											<Navigate to="/login" replace />
-										) : (
-											<route.component />
-										)
-									}
-								/>
-							))}
-						</Routes>
-					</main>
+			<ConfirmProvider>
+				<BrowserRouter>
+					<div className="min-h-screen flex flex-col bg-background">
+						<NavBar user={user} loading={loading} refreshUser={fetchUserData} />
+						<ToastContainer theme="dark" autoClose={3500} limit={15} />
+						<main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-6">
+							<Routes>
+								{routes.map((route) => (
+									<Route
+										key={route.path}
+										path={route.path}
+										element={
+											route.requireAuth && !user && !loading ? (
+												<Navigate to="/login" replace />
+											) : (
+												<route.component />
+											)
+										}
+									/>
+								))}
+							</Routes>
+						</main>
 
-					<Footer />
-				</div>
-			</BrowserRouter>
+						<Footer />
+					</div>
+				</BrowserRouter>
+			</ConfirmProvider>
 		</UserContext.Provider>
 	);
 }

@@ -6,6 +6,7 @@ import {
 } from "../../services/backend.function.logs";
 import { TriggerLog } from "../../types/Prisma";
 import { ActionButton } from "../buttons/ActionButton";
+import { useConfirm } from "../modals/ConfirmModal";
 
 export function LogsCard({
 	logs,
@@ -28,6 +29,7 @@ export function LogsCard({
 	disabled?: boolean;
 	disabledReason?: string;
 }) {
+	const confirm = useConfirm();
 	const [loggingEnabled, setLoggingEnabled] = useState(true);
 	const [hidePayloadHeaders, setHidePayloadHeaders] = useState(false);
 	const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
@@ -73,7 +75,13 @@ export function LogsCard({
 
 	const handleClearAll = async () => {
 		if (!functionId || disabled) return;
-		if (!window.confirm("Are you sure you want to clear all logs?")) return;
+		const confirmed = await confirm({
+			title: "Clear Logs",
+			message: "Are you sure you want to clear all logs?",
+			confirmText: "Clear All",
+			variant: "delete",
+		});
+		if (!confirmed) return;
 
 		const res = await deleteAllLogs(functionId);
 		if (res.status === "OK") {
