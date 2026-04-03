@@ -10,6 +10,7 @@ import * as fsSync from "fs";
 import * as path from "path";
 import { randomBytes } from "crypto";
 import { getLoggingConfigFromData, stripHeadersFromPayload } from "./FunctionLogging";
+import { replaceApiBaseInContent } from "./FileHelpers";
 
 interface TimingEntry {
 	timestamp: number;
@@ -552,15 +553,19 @@ export async function executeFunction(
 
 	// Serve Only HTML (serve-only)
 	if (functionData.startup_file?.endsWith(".html")) {
+		const startupFileObj = files.find((f) => f.name === functionData.startup_file);
+		const rawHtml = startupFileObj?.content || ServeOnlyFileNotFoundHTML;
+		const replacedHtml = typeof rawHtml === "string"
+			? (replaceApiBaseInContent(rawHtml, functionData.namespaceId, functionData.executionId) as string)
+			: rawHtml;
+
 		return {
 			logs: "Serve Only HTML function executed.",
 			result: {
 				_shsf: "v2",
 				_headers: { "Content-Type": "text/html; charset=utf-8" },
 				_code: 200,
-				_res:
-					files.find((f) => f.name === functionData.startup_file)?.content ||
-					ServeOnlyFileNotFoundHTML,
+				_res: replacedHtml,
 			},
 			tooks: [
 				{
@@ -607,10 +612,15 @@ export async function executeFunction(
 
 		// Skip writing User files when git version control is active (git_url is set)
 		if (!functionData.git_url) {
+
 			await Promise.all(
 				files.map(async (file) => {
 					const filePath = path.join(funcAppDir, file.name);
-					await fs.writeFile(filePath, file.content);
+					let content: string | Buffer = file.content as any;
+					if (typeof content === "string") {
+						content = replaceApiBaseInContent(content, functionData.namespaceId, functionData.executionId);
+					}
+					await fs.writeFile(filePath, content as any);
 				})
 			);
 			mark(`Write user files (${files.length})`);

@@ -1,4 +1,8 @@
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
+import { API_KEY_HEADER, COOKIE, fileRouter, prisma, API_URL } from "../..";
+import {
+	getFunctionExecInfo,
+	replaceApiBaseInContent,
+} from "../../lib/FileHelpers";
 import { checkAuthentication } from "../../lib/Authentication";
 import Docker from "dockerode";
 import path from "path";
@@ -155,17 +159,26 @@ export = new fileRouter.Path("/")
 				}
 
 				// Also write the file to the host function app directory so persistent containers
-				// that use a bind mount will see the changes.
-				const funcAppDir = path.join(
-					"/opt/shsf_data/functions",
-					String(functionId),
-					"app",
-				);
+				// that use a bind mount will see the changes. Replace {{API_BASE}} at write time.
 				try {
+					const funcInfo = await getFunctionExecInfo(functionId);
+					const funcAppDir = path.join(
+						"/opt/shsf_data/functions",
+						String(functionId),
+						"app",
+					);
 					await fs.mkdir(funcAppDir, { recursive: true });
-					await fs.writeFile(path.join(funcAppDir, data.filename), data.code, {
+					let contentToWrite: string | Buffer = data.code;
+					if (funcInfo && typeof contentToWrite === "string") {
+						contentToWrite = replaceApiBaseInContent(contentToWrite, funcInfo.namespaceId, funcInfo.executionId);
+					}
+					await fs.writeFile(path.join(funcAppDir, data.filename), contentToWrite, {
 						encoding: "utf-8",
 					});
+					// If this is a dependency file, ensure container dependencies are updated using the replaced content
+					if (data.filename === "requirements.txt" || data.filename === "package.json") {
+						await updateContainerDependencies(functionId, data.filename, contentToWrite as string);
+					}
 					console.log(
 						`[SHSF] Wrote updated file to host app dir: ${path.join(funcAppDir, data.filename)}`,
 					);
@@ -173,9 +186,7 @@ export = new fileRouter.Path("/")
 					console.error(`[SHSF] Failed to write updated file to host:`, err);
 				}
 
-				console.log(
-					`[SHSF] Updated host file for function ${functionId}: ${path.join(funcAppDir, data.filename)}`,
-				);
+				// host write logged above inside try
 
 				return ctr.print({
 					status: "OK",
@@ -487,15 +498,24 @@ export = new fileRouter.Path("/")
 							data.newFilename === "requirements.txt" ||
 							data.newFilename === "package.json"
 						) {
-							await fs.writeFile(
-								path.join(funcAppDir, data.newFilename),
-								updatedFile.content,
-							);
-							await updateContainerDependencies(
-								functionId,
-								data.newFilename,
-								updatedFile.content,
-							);
+							try {
+								const funcInfo = await getFunctionExecInfo(functionId);
+								let contentToWrite: string | Buffer = updatedFile.content;
+								if (funcInfo && typeof contentToWrite === "string") {
+									contentToWrite = replaceApiBaseInContent(contentToWrite, funcInfo.namespaceId, funcInfo.executionId);
+								}
+								await fs.writeFile(
+									path.join(funcAppDir, data.newFilename),
+									contentToWrite,
+								);
+								await updateContainerDependencies(
+									functionId,
+									data.newFilename,
+									contentToWrite as string,
+								);
+							} catch (err) {
+								console.error(`[SHSF] Error writing renamed dependency file:`, err);
+							}
 						}
 					} catch (err) {
 						console.error(`[SHSF] Error handling rename of dependency file:`, err);
