@@ -262,7 +262,7 @@ function UpdateFunctionModal({
 			.slice(0, 5); // limit to 5 URLs
 
 		setLoggedUrls(filteredUrls);
-	}, [lastLogs, corsOriginsArray]);
+	}, [lastLogs, corsOrigins]);
 
 	const handleKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
