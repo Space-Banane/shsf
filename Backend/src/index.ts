@@ -350,6 +350,19 @@ async function processCrons() {
 				const files = await prisma.functionFile.findMany({
 					where: { functionId: cron.functionId },
 				});
+				
+				let cronExecutionData = {};
+
+				if (cron.data) {
+					try {
+						cronExecutionData = JSON.parse(cron.data as string);
+					} catch (err) {
+						console.error(
+							`[SHSF CRONS] Failed to parse cron data for Cron #${cron.id}:`,
+							err,
+						);
+					}
+				}
 
 				await executeFunction(
 					cron.functionId,
@@ -360,7 +373,7 @@ async function processCrons() {
 					},
 					JSON.stringify({
 						ran_by: "cron",
-						...(typeof cron.data === "object" && cron.data !== null ? cron.data : {}),
+						...cronExecutionData
 					}), // ran_by can be cron, user, or exec(api)
 				);
 
