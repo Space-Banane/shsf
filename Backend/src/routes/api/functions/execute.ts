@@ -56,10 +56,6 @@ export = new fileRouter.Path("/")
 						description:
 							"Execution output. In stream mode this is chunked output; in non-stream mode this is the final result.",
 					},
-					401: { description: "Unauthorized" },
-					404: { description: "Function not found" },
-					408: { description: "Execution timeout" },
-					500: { description: "Execution error" },
 				},
 			})
 			.onRequest(async (ctr) => {
@@ -125,6 +121,13 @@ export = new fileRouter.Path("/")
 					return ctr.print({
 						status: 401,
 						message: "Unauthorized",
+					});
+				}
+
+				if (functionData.userId !== authCheck.user.id) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "You do not have access to this function",
 					});
 				}
 
