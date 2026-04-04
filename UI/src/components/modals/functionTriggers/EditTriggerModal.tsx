@@ -14,6 +14,7 @@ interface EditTriggerModalProps {
 		data: string,
 		enabled: boolean,
 	) => Promise<boolean>;
+	onRun?: () => Promise<boolean>;
 	trigger: Trigger | null;
 }
 
@@ -21,6 +22,7 @@ function EditTriggerModal({
 	isOpen,
 	onClose,
 	onUpdate,
+	onRun,
 	trigger,
 }: EditTriggerModalProps) {
 	const [name, setName] = useState("");
@@ -56,6 +58,26 @@ function EditTriggerModal({
 			}
 		} catch (error) {
 			console.error("Error updating trigger:", error);
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
+	const handleRunNow = async () => {
+		if (!trigger) {
+			toast.error("No trigger selected");
+			return;
+		}
+
+		setIsSubmitting(true);
+		try {
+			await onRun?.();
+			// We don't have a toast here because the function we are calling, "onRun", has toasts already.
+			// Adding toasts here is stupid and would just have 2 toasts
+			// Don't ask me how i know... Thanks Copilot
+		} catch (error) {
+			console.error("Error running trigger:", error);
+			toast.error("Error running trigger");
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -147,7 +169,7 @@ function EditTriggerModal({
 						<div className="grid grid-cols-2 md:grid-cols-3 gap-2">
 							{cronPresets.map((preset) => (
 								<button
-									key={preset.value}
+									key={`${preset.value}-${preset.label}`}
 									type="button"
 									className="p-2 text-xs bg-gray-700/50 hover:bg-gray-700 border border-gray-600/50 hover:border-primary/30 text-gray-300 hover:text-white rounded-lg transition-all duration-300"
 									onClick={() => setCron(preset.value)}
@@ -223,6 +245,15 @@ function EditTriggerModal({
 						disabled={isSubmitting}
 					>
 						Cancel
+					</button>
+					<button
+						onClick={handleRunNow}
+						className="px-6 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-green-400/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+						disabled={isSubmitting}
+						aria-label="Run trigger now"
+					>
+						<span className="text-sm">▶️</span>
+						Run Now
 					</button>
 					<button
 						onClick={handleSubmit}

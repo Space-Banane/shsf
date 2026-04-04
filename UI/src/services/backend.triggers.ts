@@ -149,6 +149,25 @@ export {
 	deleteTrigger,
 	updateTrigger,
 	listAllTriggers,
+	runTrigger,
 };
 export type { OKResponse, ErrorResponse };
 export type { CreateTriggerResponse };
+
+async function runTrigger(functionId: number, triggerId: number) {
+	const response = await fetch(
+		`${BASE_URL}/api/functions/${functionId}/triggers/${triggerId}/run`,
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
+		},
+	);
+
+	const data = (await response.json()) as
+		| { status: "OK"; data: { result?: any; exit_code?: number; logs?: string } }
+		| ErrorResponse;
+	return data;
+}

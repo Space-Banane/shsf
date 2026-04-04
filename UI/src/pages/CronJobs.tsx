@@ -5,6 +5,7 @@ import {
 	deleteTrigger,
 	updateTrigger,
 	createTrigger,
+	runTrigger,
 } from "../services/backend.triggers";
 import { getFunctions } from "../services/backend.functions";
 import { Trigger, XFunction } from "../types/Prisma";
@@ -129,6 +130,27 @@ function CronJobsPage() {
 		}
 	};
 
+	const handleRunTrigger = async (
+		trigger: (Trigger & { function: { name: string } }) | null,
+	) => {
+		if (!trigger) return false;
+
+		try {
+			const res = await runTrigger(trigger.functionId, trigger.id);
+			if ((res as any).status === "OK") {
+				toast.success("Trigger executed");
+				loadData();
+				return true;
+			} else {
+				toast.error((res as any).message || "Failed to run trigger");
+				return false;
+			}
+		} catch (e) {
+			toast.error("Failed to run trigger");
+			return false;
+		}
+	};
+
 	return (
 		<div className="min-h-screen bg-background">
 			{/* Hero Header */}
@@ -238,6 +260,14 @@ function CronJobsPage() {
 											<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
 												<div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
 													<button
+														className="p-2 text-green-400 hover:bg-green-400/10 rounded-lg transition-all duration-300"
+														title="Run Trigger Now"
+														onClick={() => handleRunTrigger(trigger)}
+														aria-label={`Run trigger ${trigger.name}`}
+													>
+														▶️
+													</button>
+													<button
 														className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all duration-300"
 														title="Edit Trigger"
 														onClick={() => {
@@ -286,6 +316,7 @@ function CronJobsPage() {
 							setSelectedTrigger(null);
 						}}
 						onUpdate={handleUpdateTrigger}
+						onRun={() => handleRunTrigger(selectedTrigger)}
 						trigger={selectedTrigger}
 					/>
 					<DeleteTriggerModal

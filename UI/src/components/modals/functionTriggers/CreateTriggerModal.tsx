@@ -14,7 +14,6 @@ export const cronPresets: { label: string; value: string }[] = [
 	{ label: "Every first day of the month", value: "0 0 1 * *" },
 	{ label: "Every last day of the month", value: "0 0 L * *" },
 	{ label: "Every year on January 1st", value: "0 0 1 1 *" },
-	{ label: "Every month on the 1st", value: "0 0 1 * *" },
 ];
 
 interface CreateTriggerModalProps {
@@ -252,7 +251,7 @@ function CreateTriggerModal({
 								<div className="grid grid-cols-2 md:grid-cols-3 gap-2">
 									{cronPresets.map((preset) => (
 										<button
-											key={preset.value}
+											key={`${preset.value}-${preset.label}`}
 											type="button"
 											className="p-2 text-xs bg-gray-700/50 hover:bg-gray-700 border border-gray-600/50 hover:border-primary/30 text-gray-300 hover:text-white rounded-lg transition-all duration-300"
 											onClick={() => {

@@ -48,6 +48,7 @@ import {
 	getTriggers,
 	updateTrigger,
 	deleteTrigger,
+	runTrigger,
 } from "../../services/backend.triggers";
 import { getNamespace } from "../../services/backend.namespaces";
 import { BASE_URL } from "../..";
@@ -773,6 +774,26 @@ function FunctionDetail() {
 		}
 	};
 
+	const handleRunTrigger = async (trigger: Trigger | null) => {
+		if (!id || !trigger) return false;
+
+		try {
+			const response = await runTrigger(parseInt(id), trigger.id);
+			if ((response as any).status === "OK") {
+				toast.success("Trigger executed");
+				await fetchLogs();
+				return true;
+			} else {
+				toast.error("Error running trigger: " + (response as any).message);
+				return false;
+			}
+		} catch (error) {
+			console.error("Error running trigger:", error);
+			toast.error("An error occurred while running the trigger.");
+			return false;
+		}
+	};
+
 	const handleUpdateEnvironment = async (
 		env: { name: string; value: string }[],
 	) => {
@@ -1250,6 +1271,9 @@ function FunctionDetail() {
 								setSelectedTrigger(trigger);
 								setShowDeleteTriggerModal(true);
 							}}
+							onRunTrigger={(trigger) => {
+								handleRunTrigger(trigger);
+							}}
 						/>
 
 						<TimingCard
@@ -1528,6 +1552,7 @@ function FunctionDetail() {
 					isOpen={showEditTriggerModal}
 					onClose={() => setShowEditTriggerModal(false)}
 					onUpdate={handleUpdateTrigger}
+					onRun={() => handleRunTrigger(selectedTrigger)}
 					trigger={selectedTrigger}
 				/>
 

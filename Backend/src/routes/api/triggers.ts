@@ -3,8 +3,7 @@ import { checkAuthentication } from "../../lib/Authentication";
 import { CronExpressionParser } from "cron-parser";
 import { OpenAPITags } from "../../lib/openapi";
 import { validateCronExpression } from "../../lib/Cron";
-
-
+import { executeFunction } from "../../lib/Runner";
 
 export = new fileRouter.Path("/")
 	.http("GET", "/api/triggers", (http) =>
@@ -695,5 +694,143 @@ export = new fileRouter.Path("/")
 					status: "OK",
 					data: updatedTrigger,
 				});
+			}),
+	)
+	.http("POST", "/api/functions/{functionId}/triggers/{triggerId}/run", (http) =>
+		http
+			.document({
+				description: "Run a trigger now once",
+				tags: ["Function Triggers"] as OpenAPITags[],
+				operationId: "runFunctionTriggerNow",
+				responses: {
+					200: {
+						description: "Trigger executed successfully",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										data: { type: "object" },
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+			.onRequest(async (ctr) => {
+				const authCheck = await checkAuthentication(
+					ctr.cookies.get(COOKIE),
+					ctr.headers.get(API_KEY_HEADER),
+				);
+
+				if (!authCheck.success) {
+					return ctr.print({
+						status: 401,
+						message: authCheck.message,
+					});
+				}
+
+				const id = ctr.params.get("functionId");
+				if (!id) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Missing function id",
+					});
+				}
+				const functionId = parseInt(id);
+				if (isNaN(functionId)) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Invalid function id",
+					});
+				}
+				const triggerId = ctr.params.get("triggerId");
+				if (!triggerId) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Missing trigger id",
+					});
+				}
+				const triggerIdInt = parseInt(triggerId);
+				if (isNaN(triggerIdInt)) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Invalid trigger id",
+					});
+				}
+
+				const func = await prisma.function.findFirst({
+					where: {
+						id: functionId,
+						userId: authCheck.user.id,
+					},
+					include: {
+						files: true,
+					},
+				});
+
+				if (!func) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "Function not found",
+					});
+				}
+
+				const trigger = await prisma.functionTrigger.findFirst({
+					where: {
+						id: triggerIdInt,
+						functionId: func.id,
+					},
+				});
+
+				if (!trigger) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "Trigger not found",
+					});
+				}
+
+				// Build payload from trigger data
+				let triggerDataPayload: any = {};
+				if (trigger.data) {
+					try {
+						triggerDataPayload = JSON.parse(trigger.data as string); // usually always a string, if not, gulp
+					} catch (e) {
+						triggerDataPayload = { data: trigger.data };
+					}
+				}
+
+				const payload = JSON.stringify({
+					ran_by: "trigger",
+					triggerId: trigger.id,
+					...triggerDataPayload,
+				});
+
+				try {
+					const result = await executeFunction(
+						func.id,
+						func,
+						func.files,
+						{ enabled: false },
+						payload,
+					);
+
+					return ctr.print({
+						status: "OK",
+						data: {
+							result: result?.result,
+							exit_code: result?.exit_code,
+							logs: result?.logs,
+						},
+					});
+				} catch (error) {
+					console.error(`[runFunctionTriggerNow] executeFunction failed for function ${func.id}:`, error);
+					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+						status: 500,
+						message: "Failed to execute function",
+					});
+				}
 			}),
 	);

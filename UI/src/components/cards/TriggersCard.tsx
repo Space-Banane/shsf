@@ -8,6 +8,7 @@ export function TriggersCard({
 	onCreateTrigger,
 	onEditTrigger,
 	onDeleteTrigger,
+	onRunTrigger,
 	disabled = false,
 	disabledReason,
 }: {
@@ -17,6 +18,7 @@ export function TriggersCard({
 	onCreateTrigger: () => void;
 	onEditTrigger: (trigger: Trigger) => void;
 	onDeleteTrigger: (trigger: Trigger) => void;
+    onRunTrigger: (trigger: Trigger) => void;
 	disabled?: boolean;
 	disabledReason?: string;
 }) {
@@ -56,6 +58,14 @@ export function TriggersCard({
 											<p className="text-text/60 text-xs">{trigger.cron}</p>
 										</div>
 										<div className="flex items-center gap-0.5 ml-2 flex-shrink-0">
+												<button
+													className="p-1 text-green-400 hover:bg-green-400/10 rounded transition-all duration-200 text-xs"
+													onClick={() => onRunTrigger?.(trigger)}
+													disabled={disabled}
+													aria-label={`Run trigger ${trigger.name}`}
+												>
+													▶️
+												</button>
 											<button
 												className="p-1 text-yellow-400 hover:bg-yellow-400/10 rounded transition-all duration-200 text-xs"
 												onClick={() => onEditTrigger(trigger)}
