@@ -3,6 +3,7 @@ import {
 	getFunctionExecInfo,
 	replaceApiBaseInContent,
 } from "../../lib/FileHelpers";
+import { getGitEditBlock } from "../../lib/GitEditGuards";
 import { checkAuthentication } from "../../lib/Authentication";
 import Docker from "dockerode";
 import path from "path";
@@ -128,6 +129,13 @@ export = new fileRouter.Path("/")
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						status: 400,
 						message: "Invalid function id",
+					});
+				}
+
+				const gitBlock = await getGitEditBlock(functionId, prisma);
+				if (gitBlock) {
+					return ctr.status(gitBlock.status).print({
+						...gitBlock
 					});
 				}
 
@@ -313,6 +321,13 @@ export = new fileRouter.Path("/")
 					});
 				}
 
+				const gitBlock = await getGitEditBlock(functionId, prisma);
+				if (gitBlock) {
+					return ctr.status(gitBlock.status).print({
+						...gitBlock
+					});
+				}
+
 				const totalFiles = await prisma.functionFile.count({
 					where: {
 						functionId: functionId,
@@ -449,6 +464,13 @@ export = new fileRouter.Path("/")
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						status: 400,
 						message: "Invalid function id or file id",
+					});
+				}
+
+				const gitBlock = await getGitEditBlock(functionId, prisma);
+				if (gitBlock) {
+					return ctr.status(gitBlock.status).print({
+						...gitBlock
 					});
 				}
 
@@ -611,6 +633,13 @@ export = new fileRouter.Path("/")
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						status: 400,
 						message: "Invalid function id or file id",
+					});
+				}
+
+				const gitBlock = await getGitEditBlock(functionId, prisma);
+				if (gitBlock) {
+					return ctr.status(gitBlock.status).print({
+						...gitBlock
 					});
 				}
 
