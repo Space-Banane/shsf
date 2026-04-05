@@ -23,20 +23,11 @@ export = new fileRouter.Path("/")
 					.penalty(400)
 			)
 			.onRequest(async (ctr) => {
-				const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
-				const functionId = ctr.params.get("functionId") || "";
-
-				if (isNaN(namespaceId)) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: "Invalid namespace",
-					});
-				}
+				const executionIdParam = ctr.params.get("functionId") || "";
 
 				const functionData = await prisma.function.findFirst({
 					where: {
-						executionId: functionId,
-						namespaceId: namespaceId,
+						executionId: executionIdParam,
 					},
 					include: {
 						namespace: { select: { name: true, id: true } },
@@ -59,6 +50,8 @@ export = new fileRouter.Path("/")
 				}
 
 				// --- streamlined permission check ---
+				const namespaceId = functionData.namespaceId;
+				const functionId = functionData.executionId;
 				const permissionToExecute = await checkHttpExecutionPermission(
 					ctr,
 					functionData,
@@ -124,20 +117,11 @@ export = new fileRouter.Path("/")
 					.penalty(400)
 			)
 			.onRequest(async (ctr) => {
-				const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
-				const functionId = ctr.params.get("functionId") || "";
-
-				if (isNaN(namespaceId)) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: "Invalid namespace",
-					});
-				}
+				const executionIdParam = ctr.params.get("functionId") || "";
 
 				const functionData = await prisma.function.findFirst({
 					where: {
-						executionId: functionId,
-						namespaceId: namespaceId,
+						executionId: executionIdParam,
 					},
 					include: {
 						namespace: { select: { name: true, id: true } },
@@ -160,6 +144,8 @@ export = new fileRouter.Path("/")
 				}
 
 				// --- streamlined permission check ---
+				const namespaceId = functionData.namespaceId;
+				const functionId = functionData.executionId;
 				const permissionToExecute = await checkHttpExecutionPermission(
 					ctr,
 					functionData,
@@ -422,20 +408,11 @@ export = new fileRouter.Path("/")
 					.penalty(400)
 			)
 			.onRequest(async (ctr) => {
-				const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
-				const functionId = ctr.params.get("functionId") || "";
-
-				if (isNaN(namespaceId)) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: "Invalid namespace",
-					});
-				}
+				const executionIdParam = ctr.params.get("functionId") || "";
 
 				const functionData = await prisma.function.findFirst({
 					where: {
-						executionId: functionId,
-						namespaceId: namespaceId,
+						executionId: executionIdParam,
 					},
 					include: {
 						namespace: { select: { name: true, id: true } },
@@ -461,8 +438,8 @@ export = new fileRouter.Path("/")
 				const permissionToExecute = await checkHttpExecutionPermission(
 					ctr,
 					functionData,
-					namespaceId,
-					functionId
+					functionData.namespaceId,
+					functionData.executionId
 				);
 
 				if (permissionToExecute.redirect) {
@@ -505,20 +482,11 @@ export = new fileRouter.Path("/")
 					.penalty(400)
 			)
 			.onRequest(async (ctr) => {
-				const namespaceId = parseInt(ctr.params.get("namespaceId") || "");
-				const functionId = ctr.params.get("functionId") || "";
-
-				if (isNaN(namespaceId)) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: "Invalid namespace",
-					});
-				}
+				const executionIdParam = ctr.params.get("functionId") || "";
 
 				const functionData = await prisma.function.findFirst({
 					where: {
-						executionId: functionId,
-						namespaceId: namespaceId,
+						executionId: executionIdParam,
 					},
 					include: {
 						namespace: { select: { name: true, id: true } },
@@ -544,8 +512,8 @@ export = new fileRouter.Path("/")
 				const permissionToExecute = await checkHttpExecutionPermission(
 					ctr,
 					functionData,
-					namespaceId,
-					functionId
+					functionData.namespaceId,
+					functionData.executionId
 				);
 
 				if (permissionToExecute.redirect) {
