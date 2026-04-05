@@ -23,3 +23,5 @@ Backend/dist
 .pnpm-store
 
 .data
+
+.codex

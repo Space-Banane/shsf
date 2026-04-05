@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import Modal from "../Modal";
 import { XFunction } from "../../../types/Prisma";
 import { Link } from "react-router-dom";
+import TriggerPayloadEditor from "./TriggerPayloadEditor";
 
 export const cronPresets: { label: string; value: string }[] = [
 	{ label: "Every minute", value: "* * * * *" },
@@ -48,6 +49,7 @@ function CreateTriggerModal({
 	const [data, setData] = useState("{}");
 	const [enabled, setEnabled] = useState(true);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [isPayloadValid, setIsPayloadValid] = useState(true);
 
 	const handleSubmit = async () => {
 		if (!selectedFunctionId) {
@@ -56,6 +58,10 @@ function CreateTriggerModal({
 		}
 		if (!name.trim() || !cron.trim()) {
 			toast.error("Name and cron expression are required");
+			return;
+		}
+		if (!isPayloadValid) {
+			toast.error("Fix the payload before creating the trigger");
 			return;
 		}
 
@@ -75,6 +81,7 @@ function CreateTriggerModal({
 				setCron("0 * * * *");
 				setData("{}");
 				setEnabled(true);
+				setIsPayloadValid(true);
 				setStep(initialFunctionId ? 2 : 1);
 				onClose();
 			}
@@ -274,17 +281,12 @@ function CreateTriggerModal({
 							</h3>
 
 							<div className="space-y-2">
-								<label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-									<span className="text-lg">📊</span>
-									Payload Data (JSON)
-								</label>
-								<textarea
-									placeholder='{"key": "value"}'
+								<TriggerPayloadEditor
 									value={data}
-									onChange={(e) => setData(e.target.value)}
-									className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 font-mono resize-none"
-									rows={4}
+									onChange={setData}
+									onValidityChange={setIsPayloadValid}
 									disabled={isSubmitting}
+									inputIdPrefix="create-trigger-payload"
 								/>
 							</div>
 
