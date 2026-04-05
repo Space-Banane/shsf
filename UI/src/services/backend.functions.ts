@@ -168,6 +168,7 @@ async function updateFunction(
 		docker_mount?: boolean;
 		ffmpeg_install?: boolean;
 		opencv_install?: boolean;
+		namespaceId?: number;
 		settings?: {
 			max_ram?: number;
 			timeout?: number;

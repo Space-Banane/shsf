@@ -7,11 +7,13 @@ import {
 	isFunctionImageDeprecated,
 	getDeprecatedImages,
 } from "../../../services/backend.functions";
+import { getNamespaces } from "../../../services/backend.namespaces";
 import {
 	Image,
 	ImagesAsArray,
 	TriggerLog,
 	XFunction,
+	Namespace,
 } from "../../../types/Prisma";
 import { InlineCode } from "../../InlineCode";
 
@@ -52,6 +54,8 @@ function UpdateFunctionModal({
 	const [isReinstallingOpencv, setIsReinstallingOpencv] = useState(false);
 	const [isDeprecated, setIsDeprecated] = useState<boolean>(false);
 	const [deprecatedImages, setDeprecatedImages] = useState<string[]>([]);
+	const [namespaces, setNamespaces] = useState<Namespace[]>([]);
+	const [selectedNamespaceId, setSelectedNamespaceId] = useState<number>();
 
 	useEffect(() => {
 		const checkDeprecation = async () => {
@@ -78,6 +82,25 @@ function UpdateFunctionModal({
 		fetchDeprecatedImages();
 	}, []);
 
+	useEffect(() => {
+		if (!isOpen) return;
+
+		const fetchNamespacesList = async () => {
+			try {
+				const data = await getNamespaces();
+				if (data.status === "OK") {
+					setNamespaces(data.data);
+				} else {
+					console.error("Failed to fetch namespaces:", data);
+				}
+			} catch (err) {
+				console.error("Failed to fetch namespaces:", err);
+			}
+		};
+
+		fetchNamespacesList();
+	}, [isOpen]);
+
 	// Initialize form with existing function data
 	useEffect(() => {
 		if (functionData && isOpen) {
@@ -96,6 +119,7 @@ function UpdateFunctionModal({
 			setExecutionAlias(functionData.executionAlias || "");
 			setCacheEnabled(functionData.cache_enabled ?? false);
 			setCacheTtl(functionData.cache_ttl ?? 60);
+			setSelectedNamespaceId(functionData.namespaceId);
 		}
 	}, [functionData, isOpen]);
 
@@ -109,6 +133,9 @@ function UpdateFunctionModal({
 		.split(",")
 		.map((o) => o.trim())
 		.filter((o) => o.length > 0);
+
+	const namespaceSelectValue =
+		namespaces.length > 0 ? (selectedNamespaceId ?? "") : "";
 
 	const addCorsOrigin = () => {
 		const val = corsOriginInput.trim();
@@ -153,6 +180,11 @@ function UpdateFunctionModal({
 				setIsLoading(false);
 				return;
 			}
+			const namespacePayload =
+				selectedNamespaceId != null &&
+				selectedNamespaceId !== functionData.namespaceId
+					? selectedNamespaceId
+					: undefined;
 			const response = await updateFunction(functionData.id, {
 				name: name.trim() || undefined,
 				description: description.trim() || undefined,
@@ -171,6 +203,7 @@ function UpdateFunctionModal({
 					cache_ttl: cacheTtl,
 				},
 				cors_origins: corsOrigins,
+				...(namespacePayload !== undefined && { namespaceId: namespacePayload }),
 			});
 
 			if (response.status === "OK") {
@@ -368,6 +401,29 @@ function UpdateFunctionModal({
 						/>
 					</div>
 
+					<div className="space-y-2">
+						<label className="text-sm font-medium text-gray-300">Namespace</label>
+						<select
+							value={namespaceSelectValue}
+							onChange={(e) => {
+								const val = e.target.value;
+								setSelectedNamespaceId(val ? Number(val) : undefined);
+							}}
+							className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+							disabled={isLoading || namespaces.length === 0}
+						>
+							{namespaces.length === 0 && (
+								<option value="">Loading namespaces...</option>
+							)}
+							{namespaces.length > 0 &&
+								namespaces.map((ns) => (
+									<option key={ns.id} value={ns.id}>
+										{ns.name}
+									</option>
+								))}
+						</select>
+					</div>
+
 					{/* Execution Alias input */}
 					<div className="space-y-2">
 						<label className="text-sm font-medium text-gray-300">
@@ -417,12 +473,18 @@ function UpdateFunctionModal({
 							{ImagesAsArray.map((img) => {
 								let isDisabled: { state?: boolean; message?: string } = {};
 								if (img.split(":")[0] !== image.split(":")[0]) {
-									isDisabled = {state: true, message: "Changing language/runtime is not allowed"}
+									isDisabled = {
+										state: true,
+										message: "Changing language/runtime is not allowed",
+									};
 								}
 								if (deprecatedImages.includes(img)) {
-									isDisabled = {state: true, message: "This image is deprecated and cannot be selected"}
+									isDisabled = {
+										state: true,
+										message: "This image is deprecated and cannot be selected",
+									};
 								}
-								
+
 								return (
 									<option key={img} value={img} disabled={isDisabled.state}>
 										{img} {isDisabled.message && `(${isDisabled.message})`}

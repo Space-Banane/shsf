@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import Modal from "../Modal";
 import { cloneFunction } from "../../../services/backend.functions";
-import { NamespaceResponseWithFunctions } from "../../../services/backend.namespaces";
+import { Namespace } from "../../../types/Prisma";
 
 interface CloneFunctionModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	onSuccess: () => void;
-	namespaces: NamespaceResponseWithFunctions["data"][];
+	namespaces: Namespace[];
 	functionId: number | null;
 }
 

@@ -4,15 +4,14 @@ import {
 	createFunction,
 	getDeprecatedImages,
 } from "../../../services/backend.functions";
-import { NamespaceResponseWithFunctions } from "../../../services/backend.namespaces";
-import { Image, ImagesAsArray } from "../../../types/Prisma";
+import { Image, ImagesAsArray, Namespace } from "../../../types/Prisma";
 import { InlineCode } from "../../InlineCode";
 
 interface CreateFunctionModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	onSuccess: () => void;
-	namespaces: NamespaceResponseWithFunctions["data"][];
+	namespaces: Namespace[];
 }
 
 function CreateFunctionModal({

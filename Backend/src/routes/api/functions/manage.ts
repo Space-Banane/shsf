@@ -780,6 +780,10 @@ export = new fileRouter.Path("/")
 										},
 									},
 									cors_origins: { type: "string" },
+									namespaceId: {
+										type: "number",
+										description: "Target namespace to move the function into",
+									},
 								},
 							},
 						},
@@ -852,15 +856,14 @@ export = new fileRouter.Path("/")
 							.optional(),
 						environment: z
 							.array(
-								z
-									.object({
-										name: z.string().min(1).max(128),
-										value: z.string().min(1).max(256),
-									})
-									.optional(),
+								z.object({
+									name: z.string().min(1).max(128),
+									value: z.string().min(1).max(256),
+								}),
 							)
 							.optional(),
 						cors_origins: z.string().max(2048).optional(),
+						namespaceId: z.number().optional(),
 					}),
 				);
 
@@ -914,6 +917,39 @@ export = new fileRouter.Path("/")
 					}
 				}
 
+				let namespaceChange: number | undefined;
+				if (data.namespaceId !== undefined) {
+					const namespaceRecord = await prisma.namespace.findFirst({
+						where: {
+							id: data.namespaceId,
+							userId: authCheck.user.id,
+						},
+					});
+					if (!namespaceRecord) {
+						return ctr.status(ctr.$status.NOT_FOUND).print({
+							status: 404,
+							message: "Namespace not found",
+						});
+					}
+					const targetName = data.name?.trim() || existingFunction.name;
+					const nameConflict = await prisma.function.findFirst({
+						where: {
+							namespaceId: namespaceRecord.id,
+							name: targetName,
+							userId: authCheck.user.id,
+							NOT: { id: functionId },
+						},
+					});
+					if (nameConflict) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message:
+								"Another function with this name already exists in the target namespace",
+						});
+					}
+					namespaceChange = namespaceRecord.id;
+				}
+
 				const updatedData: any = {
 					...(data.name && { name: data.name }),
 					...(data.description && { description: data.description }),
@@ -964,6 +1000,9 @@ export = new fileRouter.Path("/")
 					}),
 					...(data.executionAlias !== undefined && {
 						executionAlias: data.executionAlias,
+					}),
+					...(namespaceChange !== undefined && {
+						namespaceId: namespaceChange,
 					}),
 				};
 

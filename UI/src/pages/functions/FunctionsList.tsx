@@ -1,10 +1,8 @@
 import { useContext, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { UserContext } from "../../App";
-import {
-	getNamespaces,
-	NamespaceResponseWithFunctions,
-} from "../../services/backend.namespaces";
+import { getNamespaces } from "../../services/backend.namespaces";
+import { Namespace } from "../../types/Prisma";
 import CreateNamespaceModal from "../../components/modals/namespaces/CreateNamespaceModal";
 import CreateFunctionModal from "../../components/modals/functions/CreateFunctionModal";
 import CloneFunctionModal from "../../components/modals/functions/CloneFunctionModal";
@@ -17,9 +15,7 @@ import MassReplaceModal from "../../components/modals/functionFiles/MassReplaceM
 import AIGenerateModal from "../../components/modals/AIGenerateModal";
 
 function FunctionsList() {
-	const [namespaces, setNamespaces] = useState<
-		NamespaceResponseWithFunctions["data"][]
-	>([]);
+	const [namespaces, setNamespaces] = useState<Namespace[]>([]);
 	const [loading, setLoading] = useState(true);
 	const { user, refreshUser } = useContext(UserContext);
 	const [isNamespaceModalOpen, setNamespaceModalOpen] = useState(false);
@@ -52,8 +48,7 @@ function FunctionsList() {
 		setLoading(true);
 		getNamespaces(true).then((data) => {
 			if (data.status === "OK") {
-				const loadedNamespaces =
-					data.data as NamespaceResponseWithFunctions["data"][];
+				const loadedNamespaces = data.data as Namespace[];
 				setNamespaces(loadedNamespaces);
 				// Expand all namespaces by default
 				setExpandedNamespaces(loadedNamespaces.map((ns) => ns.id));
@@ -67,7 +62,7 @@ function FunctionsList() {
 	const refreshData = () => {
 		getNamespaces(true).then((data) => {
 			if (data.status === "OK") {
-				setNamespaces(data.data as NamespaceResponseWithFunctions["data"][]);
+				setNamespaces(data.data as Namespace[]);
 			}
 		});
 	};
@@ -106,7 +101,7 @@ function FunctionsList() {
 	};
 
 	const totalFunctions = namespaces.reduce(
-		(sum, ns) => sum + ns.functions.length,
+		(sum, ns) => sum + (ns.functions?.length ?? 0),
 		0,
 	);
 
@@ -351,7 +346,7 @@ function NamespaceCard({
 	onDeleteFunction,
 	onCloneFunction,
 }: {
-	namespace: NamespaceResponseWithFunctions["data"];
+	namespace: Namespace;
 	isExpanded: boolean;
 	onToggle: () => void;
 	onRename: (ns: { id: number; name: string }) => void;
@@ -359,6 +354,8 @@ function NamespaceCard({
 	onDeleteFunction: (func: { id: number; name: string }) => void;
 	onCloneFunction: (func: { id: number; name: string }) => void;
 }) {
+	const functions = namespace.functions ?? [];
+
 	return (
 		<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-xl overflow-hidden hover:border-primary/40 transition-all duration-300">
 			{/* Namespace Header */}
@@ -391,7 +388,7 @@ function NamespaceCard({
 						<div>
 							<h3 className="text-lg font-bold text-primary">{namespace.name}</h3>
 							<p className="text-text/60 text-xs">
-								{namespace.functions.length} functions
+								{functions.length} functions
 							</p>
 						</div>
 					</div>
@@ -424,7 +421,7 @@ function NamespaceCard({
 			{/* Functions List */}
 			{isExpanded && (
 				<div className="border-t border-primary/10">
-					{namespace.functions.length === 0 ? (
+					{functions.length === 0 ? (
 						<div className="p-6 text-center">
 							<div className="text-3xl mb-3">📦</div>
 							<p className="text-text/60 text-sm">
@@ -436,7 +433,7 @@ function NamespaceCard({
 						</div>
 					) : (
 						<div className="p-3 space-y-2">
-							{namespace.functions
+						{functions
 								.slice()
 								.sort((a, b) => a.name.localeCompare(b.name))
 								.map((func) => (

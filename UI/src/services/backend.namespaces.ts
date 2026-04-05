@@ -17,13 +17,7 @@ interface NamespaceListResponse {
 
 interface NamespaceResponseWithFunctions {
 	status: "OK";
-	data: {
-		id: number;
-		name: string;
-		functions: XFunction[];
-		createdAt: Date;
-		updatedAt: Date;
-	};
+	data: Array<Namespace & { functions: XFunction[] }>;
 }
 
 interface CreateNamespaceResponse {
