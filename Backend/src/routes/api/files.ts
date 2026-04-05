@@ -253,6 +253,14 @@ export = new fileRouter.Path("/")
 					});
 				}
 
+				const gitBlock = await getGitEditBlock(functionId, prisma);
+				if (gitBlock) {
+					return ctr.status(gitBlock.status).print({
+						...gitBlock
+					});
+				}
+
+
 				const files = await prisma.functionFile.findMany({
 					where: {
 						functionId: functionId,
