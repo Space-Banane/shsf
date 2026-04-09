@@ -91,8 +91,8 @@ export function Footer() {
 					{/* Brand column */}
 					<div className="flex flex-col gap-3 max-w-xs">
 						<a href="/" className="flex items-center gap-2">
-							<span className="text-primary font-extrabold text-2xl">{"{}"}</span>
-							<span className="text-primary font-bold text-xl">{brand.name}</span>
+							<span className="text-shsf font-extrabold text-2xl">{"{}"}</span>
+							<span className="text-shsf font-bold text-xl">{brand.name}</span>
 						</a>
 						<p className="text-grayed text-sm leading-relaxed">{brand.tagline}</p>
 						{/* Socials */}

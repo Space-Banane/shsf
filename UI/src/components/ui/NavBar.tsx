@@ -42,11 +42,11 @@ export function NavBar({
 					{/* Logo */}
 					<div className="flex items-center">
 						<a href="/" className="text-2xl font-bold">
-							<h2 className="space-x-2 text-primary inline font-extrabold text-3xl mr-2">
+							<h2 className="space-x-2 text-shsf inline font-extrabold text-3xl mr-2">
 								{"{}"}
 							</h2>{" "}
 							{/* Peak logo */}
-							<h3 className="inline text-primary">SHSF</h3>
+							<h3 className="inline text-shsf">SHSF</h3>
 						</a>
 					</div>
 					{/* Navigation Links */}

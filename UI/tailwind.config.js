@@ -13,6 +13,7 @@ module.exports = {
 				footer: "#121325",
 				navbar: "#131424",
 				grayed: "#6a7282",
+				shsf: "#7c83fd",
 			},
 			borderColor: {
 				primary: "#7c83fd",
