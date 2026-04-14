@@ -425,10 +425,10 @@ function NamespaceCard({
 						<div className="p-6 text-center">
 							<div className="text-3xl mb-3">📦</div>
 							<p className="text-text/60 text-sm">
-								No functions in this namespace yet
+								No functions in this Namespace yet
 							</p>
 							<p className="text-text/40 text-xs mt-1">
-								Create your first function to get started
+								Create your first function in this Namespace
 							</p>
 						</div>
 					) : (
