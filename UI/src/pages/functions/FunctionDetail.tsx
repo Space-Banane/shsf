@@ -1,6 +1,6 @@
 import CLICommandCard from "../../components/cards/CLICommandCard";
 import { toast } from "react-toastify";
-import { useParams } from "react-router-dom";
+import { useBeforeUnload, useBlocker, useParams } from "react-router-dom";
 import { SHSFExport } from "../../components/modals/functions/ImportFunctionModal";
 import { useEffect, useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
@@ -59,6 +59,7 @@ import { TimingCard } from "../../components/cards/TimingCard";
 import { TriggersCard } from "../../components/cards/TriggersCard";
 import { FileManagerCard } from "../../components/cards/FileManagerCard";
 import { ActionButton } from "../../components/buttons/ActionButton";
+import { useConfirm } from "../../components/modals/ConfirmModal";
 
 // Define the timing entry interface
 export interface TimingEntry {
@@ -69,6 +70,7 @@ export interface TimingEntry {
 
 function FunctionDetail() {
 	const { id } = useParams<{ id: string }>();
+	const confirm = useConfirm();
 	const [functionData, setFunctionData] = useState<XFunction | null>(null);
 	const [nameSpace, setNamespace] = useState<Namespace | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -151,10 +153,55 @@ function FunctionDetail() {
 	const [showAIModal, setShowAIModal] = useState(false);
 	const [showGitModal, setShowGitModal] = useState(false);
 	const [stopShowingResult, setStopShowingResult] = useState(false);
+	const navigationPromptOpenRef = useRef(false);
+
+	const savedActiveFile =
+		activeFile ? files.find((file) => file.id === activeFile.id) ?? activeFile : null;
+	const hasUnsavedChanges = Boolean(
+		activeFile && code !== (savedActiveFile?.content ?? ""),
+	);
+
+	useBeforeUnload(
+		(event) => {
+			if (!hasUnsavedChanges) return;
+			event.preventDefault();
+			event.returnValue = "";
+		},
+		{ capture: true },
+	);
+
+	const navigationBlocker = useBlocker(hasUnsavedChanges);
 
 	useEffect(() => {
 		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
 	}, [activeFile]);
+
+	useEffect(() => {
+		if (navigationBlocker.state !== "blocked" || navigationPromptOpenRef.current) {
+			return;
+		}
+
+		navigationPromptOpenRef.current = true;
+
+		void (async () => {
+			const shouldLeave = await confirm({
+				title: "Unsaved Changes",
+				message:
+					"You have unsaved changes in this file. Leave this page and discard them?",
+				confirmText: "Leave Page",
+				cancelText: "Stay Here",
+				variant: "delete",
+			});
+
+			if (shouldLeave) {
+				navigationBlocker.proceed();
+			} else {
+				navigationBlocker.reset();
+			}
+
+			navigationPromptOpenRef.current = false;
+		})();
+	}, [navigationBlocker, confirm]);
 
 	// Handle console auto-scrolling
 	useEffect(() => {
@@ -220,7 +267,22 @@ function FunctionDetail() {
 		return extension ? extensionMapping[extension] : "plaintext";
 	};
 
-	const handleFileSelect = (file: FunctionFile) => {
+	const handleFileSelect = async (file: FunctionFile) => {
+		if (file.id === activeFile?.id) return;
+
+		if (hasUnsavedChanges) {
+			const shouldSwitch = await confirm({
+				title: "Unsaved Changes",
+				message:
+					"You have unsaved changes in this file. Switch files and discard them?",
+				confirmText: "Switch File",
+				cancelText: "Stay Here",
+				variant: "delete",
+			});
+
+			if (!shouldSwitch) return;
+		}
+
 		setActiveFile(file);
 		setCode(file.content || "");
 	};
