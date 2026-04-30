@@ -66,7 +66,7 @@ export function NavBar({
 							.filter((route) => !["Login", "Register"].includes(route.name))
 							.filter((route) => route.show_nav)
 							.sort((a, b) => {
-								const order = ["Home", "Docs", "API Docs", "Functions", "Storage", "Cron Jobs", "Guest Users" ];
+								const order = ["Home", "Docs", "API Docs", "Functions", "Analytics", "Storage", "Cron Jobs", "Guest Users" ];
 								return order.indexOf(a.name) - order.indexOf(b.name);
 							})
 							.filter((route) => !route.adminOnly || isAdmin)

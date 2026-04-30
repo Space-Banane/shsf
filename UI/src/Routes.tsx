@@ -38,6 +38,7 @@ import { DocsVersionControl } from "./pages/docs/version-control";
 import { DocsCloneFunction } from "./pages/docs/clone-function";
 import { OpencvInstallPage } from "./pages/docs/opencv-install";
 import { AdminPage } from "./pages/Admin";
+import FunctionAnalyticsPage from "./pages/FunctionAnalytics";
 // Added back the routes array
 export interface AppRoute {
 	path: string;
@@ -261,6 +262,13 @@ export const routes: AppRoute[] = [
 		path: "/cron-jobs",
 		name: "Cron Jobs",
 		component: CronJobsPage,
+		requireAuth: true,
+		show_nav: true,
+	},
+	{
+		path: "/function-analytics",
+		name: "Analytics",
+		component: FunctionAnalyticsPage,
 		requireAuth: true,
 		show_nav: true,
 	},
