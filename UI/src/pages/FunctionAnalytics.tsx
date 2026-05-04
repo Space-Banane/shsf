@@ -54,6 +54,23 @@ function formatBucketLabel(bucketStart: string) {
 	});
 }
 
+function formatPercent(value: number | null) {
+	if (value === null || !Number.isFinite(value)) {
+		return "N/A";
+	}
+
+	return `${value.toFixed(1)}%`;
+}
+
+function getSuccessRateForPoint(point: AnalyticsPoint) {
+	const total = point.successCount + point.failureCount;
+	if (total === 0) {
+		return null;
+	}
+
+	return Number(((point.successCount / total) * 100).toFixed(1));
+}
+
 function buildLinePath(points: { x: number; y: number }[]) {
 	if (points.length === 0) {
 		return "";
@@ -62,6 +79,23 @@ function buildLinePath(points: { x: number; y: number }[]) {
 	return points
 		.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
 		.join(" ");
+}
+
+function ChartStat({
+	label,
+	value,
+	tone = "text-text/70",
+}: {
+	label: string;
+	value: string;
+	tone?: string;
+}) {
+	return (
+		<div className="rounded-lg border border-primary/10 bg-background/55 px-2.5 py-2">
+			<p className="text-[10px] uppercase tracking-[0.16em] text-text/40">{label}</p>
+			<p className={`mt-0.5 text-[13px] font-semibold leading-tight ${tone}`}>{value}</p>
+		</div>
+	);
 }
 
 function StatCard({
@@ -74,10 +108,10 @@ function StatCard({
 	highlight?: string;
 }) {
 	return (
-		<div className="bg-background/40 border border-primary/15 rounded-2xl p-5">
+		<div className="bg-background/40 border border-primary/15 rounded-2xl p-4">
 			<p className="text-text/55 text-xs uppercase tracking-[0.2em]">{label}</p>
-			<p className="text-3xl font-bold text-primary mt-3">{value}</p>
-			{highlight ? <p className="text-text/60 text-sm mt-2">{highlight}</p> : null}
+			<p className="text-2xl font-bold text-primary mt-2">{value}</p>
+			{highlight ? <p className="text-text/60 text-sm mt-1.5">{highlight}</p> : null}
 		</div>
 	);
 }
@@ -88,15 +122,19 @@ function LineChart({
 	valueSelector,
 	colorClass,
 	stroke,
+	valueFormatter = formatSeconds,
+	emptyLabel = "No timing data in this range",
 }: {
 	title: string;
 	points: AnalyticsPoint[];
 	valueSelector: (point: AnalyticsPoint) => number | null;
 	colorClass: string;
 	stroke: string;
+	valueFormatter?: (value: number | null) => string;
+	emptyLabel?: string;
 }) {
 	const width = 640;
-	const height = 220;
+	const height = 190;
 	const padding = 20;
 	const values = points
 		.map(valueSelector)
@@ -104,18 +142,24 @@ function LineChart({
 
 	if (values.length === 0) {
 		return (
-			<div className="bg-background/35 border border-primary/10 rounded-2xl p-5">
-				<div className="flex items-center justify-between mb-4">
-					<h3 className="text-lg font-semibold text-primary">{title}</h3>
+			<div className="bg-background/35 border border-primary/10 rounded-2xl p-4">
+				<div className="flex items-center justify-between mb-3">
+					<h3 className="text-base font-semibold text-primary">{title}</h3>
 				</div>
-				<div className="h-[220px] flex items-center justify-center text-text/45 text-sm">
-					No timing data in this range
+				<div className="h-[190px] flex items-center justify-center text-text/45 text-sm">
+					{emptyLabel}
 				</div>
 			</div>
 		);
 	}
 
 	const maxValue = Math.max(...values, 1);
+	const averageValue =
+		values.reduce((sum, value) => sum + value, 0) / Math.max(values.length, 1);
+	const latestValue = [...points]
+		.reverse()
+		.map(valueSelector)
+		.find((value): value is number => value !== null && Number.isFinite(value));
 	const chartPoints = points.map((point, index) => {
 		const value = valueSelector(point) ?? 0;
 		const x =
@@ -131,16 +175,31 @@ function LineChart({
 	} L ${chartPoints[0].x} ${height - padding} Z`;
 
 	return (
-		<div className="bg-background/35 border border-primary/10 rounded-2xl p-5">
-			<div className="flex items-center justify-between mb-4">
-				<h3 className="text-lg font-semibold text-primary">{title}</h3>
-				<span className={`text-sm font-medium ${colorClass}`}>
-					Peak {formatSeconds(maxValue)}
-				</span>
+		<div className="bg-background/35 border border-primary/10 rounded-2xl p-4">
+			<div className="flex flex-col gap-3 mb-3">
+				<div className="flex items-center justify-between gap-4">
+					<h3 className="text-base font-semibold text-primary">{title}</h3>
+					<span className={`text-sm font-medium ${colorClass}`}>
+						Peak {valueFormatter(maxValue)}
+					</span>
+				</div>
+				<div className="grid grid-cols-3 gap-2.5">
+					<ChartStat label="Peak" value={valueFormatter(maxValue)} tone={colorClass} />
+					<ChartStat
+						label="Average"
+						value={valueFormatter(averageValue)}
+						tone="text-text/85"
+					/>
+					<ChartStat
+						label="Latest"
+						value={valueFormatter(latestValue ?? null)}
+						tone="text-text/85"
+					/>
+				</div>
 			</div>
 			<svg
 				viewBox={`0 0 ${width} ${height}`}
-				className="w-full h-[220px] overflow-visible"
+				className="w-full h-[190px] overflow-visible"
 				role="img"
 				aria-label={title}
 			>
@@ -156,7 +215,7 @@ function LineChart({
 					/>
 				))}
 			</svg>
-			<div className="mt-3 flex justify-between text-[11px] text-text/40">
+			<div className="mt-2 flex justify-between text-[11px] text-text/40">
 				<span>{chartPoints[0]?.label}</span>
 				<span>{chartPoints[chartPoints.length - 1]?.label}</span>
 			</div>
@@ -172,20 +231,48 @@ function CountChart({
 	points: AnalyticsPoint[];
 }) {
 	const width = 640;
-	const height = 220;
+	const height = 190;
 	const padding = 20;
 	const maxValue = Math.max(...points.map((point) => point.count), 1);
 	const barWidth = (width - padding * 2) / Math.max(points.length, 1) - 8;
+	const totalRuns = points.reduce((sum, point) => sum + point.count, 0);
+	const averageRuns = totalRuns / Math.max(points.length, 1);
+	const busiestPoint = points.reduce(
+		(current, point) => (point.count > current.count ? point : current),
+		points[0] ?? {
+			bucketStart: new Date().toISOString(),
+			count: 0,
+			avgSeconds: null,
+			p95Seconds: null,
+			successCount: 0,
+			failureCount: 0,
+		},
+	);
 
 	return (
-		<div className="bg-background/35 border border-primary/10 rounded-2xl p-5">
-			<div className="flex items-center justify-between mb-4">
-				<h3 className="text-lg font-semibold text-primary">{title}</h3>
-				<span className="text-sm text-text/55">Runs per day</span>
+		<div className="bg-background/35 border border-primary/10 rounded-2xl p-4">
+			<div className="flex flex-col gap-3 mb-3">
+				<div className="flex items-center justify-between gap-4">
+					<h3 className="text-base font-semibold text-primary">{title}</h3>
+					<span className="text-sm text-text/55">Runs per day</span>
+				</div>
+				<div className="grid grid-cols-3 gap-2.5">
+					<ChartStat label="Total Runs" value={String(totalRuns)} tone="text-blue-300" />
+					<ChartStat
+						label="Daily Avg"
+						value={averageRuns.toFixed(1)}
+						tone="text-text/85"
+					/>
+					<ChartStat
+						label="Busiest"
+						value={`${busiestPoint.count} on ${formatBucketLabel(busiestPoint.bucketStart)}`}
+						tone="text-text/85"
+					/>
+				</div>
 			</div>
 			<svg
 				viewBox={`0 0 ${width} ${height}`}
-				className="w-full h-[220px]"
+				className="w-full h-[190px]"
 				role="img"
 				aria-label={title}
 			>
@@ -207,7 +294,7 @@ function CountChart({
 					);
 				})}
 			</svg>
-			<div className="mt-3 flex justify-between text-[11px] text-text/40">
+			<div className="mt-2 flex justify-between text-[11px] text-text/40">
 				<span>{formatBucketLabel(points[0]?.bucketStart || new Date().toISOString())}</span>
 				<span>
 					{formatBucketLabel(
@@ -221,32 +308,56 @@ function CountChart({
 
 function SuccessFailureChart({ points }: { points: AnalyticsPoint[] }) {
 	const width = 640;
-	const height = 220;
+	const height = 190;
 	const padding = 20;
 	const maxValue = Math.max(
 		...points.map((point) => point.successCount + point.failureCount),
 		1,
 	);
 	const barWidth = (width - padding * 2) / Math.max(points.length, 1) - 8;
+	const successCount = points.reduce((sum, point) => sum + point.successCount, 0);
+	const failureCount = points.reduce((sum, point) => sum + point.failureCount, 0);
+	const classifiedCount = successCount + failureCount;
+	const successRate =
+		classifiedCount > 0 ? (successCount / classifiedCount) * 100 : null;
 
 	return (
-		<div className="bg-background/35 border border-primary/10 rounded-2xl p-5">
-			<div className="flex items-center justify-between mb-4">
-				<h3 className="text-lg font-semibold text-primary">Success vs Failure</h3>
-				<div className="flex items-center gap-4 text-xs text-text/55">
-					<span className="flex items-center gap-2">
-						<span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-						Success
-					</span>
-					<span className="flex items-center gap-2">
-						<span className="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
-						Failure
-					</span>
+		<div className="bg-background/35 border border-primary/10 rounded-2xl p-4">
+			<div className="flex flex-col gap-3 mb-3">
+				<div className="flex items-center justify-between gap-4">
+					<h3 className="text-base font-semibold text-primary">Success vs Failure</h3>
+					<div className="flex items-center gap-4 text-xs text-text/55">
+						<span className="flex items-center gap-2">
+							<span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+							Success
+						</span>
+						<span className="flex items-center gap-2">
+							<span className="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
+							Failure
+						</span>
+					</div>
+				</div>
+				<div className="grid grid-cols-3 gap-2.5">
+					<ChartStat
+						label="Successes"
+						value={String(successCount)}
+						tone="text-emerald-300"
+					/>
+					<ChartStat
+						label="Failures"
+						value={String(failureCount)}
+						tone="text-rose-300"
+					/>
+					<ChartStat
+						label="Hit Rate"
+						value={formatPercent(successRate)}
+						tone="text-text/85"
+					/>
 				</div>
 			</div>
 			<svg
 				viewBox={`0 0 ${width} ${height}`}
-				className="w-full h-[220px]"
+				className="w-full h-[190px]"
 				role="img"
 				aria-label="Success vs Failure"
 			>
@@ -283,6 +394,14 @@ function SuccessFailureChart({ points }: { points: AnalyticsPoint[] }) {
 					);
 				})}
 			</svg>
+			<div className="mt-2 flex justify-between text-[11px] text-text/40">
+				<span>{formatBucketLabel(points[0]?.bucketStart || new Date().toISOString())}</span>
+				<span>
+					{formatBucketLabel(
+						points[points.length - 1]?.bucketStart || new Date().toISOString(),
+					)}
+				</span>
+			</div>
 		</div>
 	);
 }
@@ -290,16 +409,16 @@ function SuccessFailureChart({ points }: { points: AnalyticsPoint[] }) {
 function RecentExecutionRow({ execution }: { execution: ExecutionAnalyticsItem }) {
 	return (
 		<tr className="border-t border-primary/8">
-			<td className="py-3 pr-4 text-sm text-text/75">
+			<td className="py-2.5 pr-4 text-sm text-text/75">
 				{new Date(execution.createdAt).toLocaleString()}
 			</td>
-			<td className="py-3 pr-4 text-sm text-text/60">
+			<td className="py-2.5 pr-4 text-sm text-text/60">
 				{formatSourceLabel(execution.source)}
 			</td>
-			<td className="py-3 pr-4 text-sm text-text/75">
+			<td className="py-2.5 pr-4 text-sm text-text/75">
 				{formatSeconds(execution.totalSeconds)}
 			</td>
-			<td className="py-3 text-sm">
+			<td className="py-2.5 text-sm">
 				<span
 					className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold border ${
 						execution.exitCode === 0
@@ -331,12 +450,12 @@ function FunctionAnalyticsCard({
 		<div className="border border-primary/12 rounded-2xl overflow-hidden bg-background/30">
 			<button
 				onClick={onToggle}
-				className="w-full px-6 py-5 text-left hover:bg-primary/5 transition-colors"
+				className="w-full px-5 py-4 text-left hover:bg-primary/5 transition-colors"
 			>
 				<div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
 					<div>
 						<div className="flex items-center gap-3">
-							<h3 className="text-xl font-bold text-primary">{data.functionName}</h3>
+							<h3 className="text-lg font-bold text-primary">{data.functionName}</h3>
 							<Link
 								to={`/functions/${data.functionId}`}
 								className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-200 transition-colors hover:border-cyan-300/50 hover:bg-cyan-400/20 hover:text-cyan-100"
@@ -354,26 +473,26 @@ function FunctionAnalyticsCard({
 						</p>
 					</div>
 
-					<div className="grid grid-cols-2 md:grid-cols-4 gap-4 lg:min-w-[520px]">
+					<div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:min-w-[480px]">
 						<div>
 							<p className="text-text/45 text-xs uppercase tracking-[0.18em]">Runs</p>
-							<p className="text-lg font-semibold text-white mt-1">{data.totalRuns}</p>
+							<p className="text-base font-semibold text-white mt-1">{data.totalRuns}</p>
 						</div>
 						<div>
 							<p className="text-text/45 text-xs uppercase tracking-[0.18em]">Success</p>
-							<p className="text-lg font-semibold text-white mt-1">
+							<p className="text-base font-semibold text-white mt-1">
 								{data.successRate.toFixed(1)}%
 							</p>
 						</div>
 						<div>
 							<p className="text-text/45 text-xs uppercase tracking-[0.18em]">Avg</p>
-							<p className="text-lg font-semibold text-white mt-1">
+							<p className="text-base font-semibold text-white mt-1">
 								{formatSeconds(data.avgSeconds)}
 							</p>
 						</div>
 						<div>
 							<p className="text-text/45 text-xs uppercase tracking-[0.18em]">P95</p>
-							<p className="text-lg font-semibold text-white mt-1">
+							<p className="text-base font-semibold text-white mt-1">
 								{formatSeconds(data.p95Seconds)}
 							</p>
 						</div>
@@ -382,8 +501,8 @@ function FunctionAnalyticsCard({
 			</button>
 
 			{expanded ? (
-				<div className="border-t border-primary/10 px-6 py-6 space-y-6">
-					<div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+				<div className="border-t border-primary/10 px-5 py-5 space-y-5">
+					<div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
 						<LineChart
 							title="Average Runtime"
 							points={data.series}
@@ -392,17 +511,33 @@ function FunctionAnalyticsCard({
 							stroke="#f59e0b"
 						/>
 						<CountChart title="Execution Volume" points={data.series} />
+						<LineChart
+							title="P95 Runtime"
+							points={data.series}
+							valueSelector={(point) => point.p95Seconds}
+							colorClass="text-cyan-300"
+							stroke="#22d3ee"
+						/>
+						<LineChart
+							title="Success Rate Trend"
+							points={data.series}
+							valueSelector={getSuccessRateForPoint}
+							valueFormatter={formatPercent}
+							colorClass="text-emerald-300"
+							stroke="#34d399"
+							emptyLabel="No classified success or failure data in this range"
+						/>
 					</div>
 
-					<div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-						<div className="bg-background/35 border border-primary/10 rounded-2xl p-5">
-							<h4 className="text-lg font-semibold text-primary mb-4">
+					<div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+						<div className="bg-background/35 border border-primary/10 rounded-2xl p-4">
+							<h4 className="text-base font-semibold text-primary mb-3">
 								Average Phase Timing
 							</h4>
 							{data.phaseSummary.length === 0 ? (
 								<p className="text-text/45 text-sm">No phase timing data yet.</p>
 							) : (
-								<div className="space-y-3">
+								<div className="space-y-2.5">
 									{data.phaseSummary.slice(0, 8).map((phase) => (
 										<div key={phase.description}>
 											<div className="flex items-center justify-between text-sm mb-1">
@@ -430,8 +565,8 @@ function FunctionAnalyticsCard({
 							)}
 						</div>
 
-						<div className="bg-background/35 border border-primary/10 rounded-2xl p-5">
-							<h4 className="text-lg font-semibold text-primary mb-4">
+						<div className="bg-background/35 border border-primary/10 rounded-2xl p-4">
+							<h4 className="text-base font-semibold text-primary mb-3">
 								Recent Executions
 							</h4>
 							{data.recentExecutions.length === 0 ? (
@@ -542,13 +677,13 @@ function FunctionAnalyticsPage() {
 	return (
 		<div className="min-h-screen bg-background">
 			<div className="relative bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-b border-primary/20">
-				<div className="max-w-7xl mx-auto px-4 py-16">
-					<div className="text-center space-y-4">
-						<h1 className="text-5xl font-bold text-primary">
+				<div className="max-w-7xl mx-auto px-4 py-12">
+					<div className="text-center space-y-3">
+						<h1 className="text-4xl font-bold text-primary">
 							Function Execution Analytics
 						</h1>
 						<div className="h-1 w-28 bg-gradient-to-r from-blue-500 to-cyan-400 mx-auto rounded-full"></div>
-						<p className="text-xl text-text/70 max-w-3xl mx-auto">
+						<p className="text-lg text-text/70 max-w-3xl mx-auto">
 							Track runtime health for every function in your account, then drill into
 							each function from the same page.
 						</p>
@@ -556,20 +691,20 @@ function FunctionAnalyticsPage() {
 				</div>
 			</div>
 
-			<div className="max-w-7xl mx-auto px-4 py-10 space-y-8">
-				<div className="bg-gradient-to-br from-gray-900/55 to-gray-800/45 border border-primary/20 rounded-3xl p-6">
+			<div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+				<div className="bg-gradient-to-br from-gray-900/55 to-gray-800/45 border border-primary/20 rounded-3xl p-5">
 					<div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 						<div>
-							<h2 className="text-2xl font-bold text-primary">Account Overview</h2>
+							<h2 className="text-xl font-bold text-primary">Account Overview</h2>
 							<p className="text-text/60 mt-1">
 								Default range is {RANGE_OPTIONS.find((option) => option.value === range)?.label}.
 							</p>
 						</div>
-						<div className="flex items-center gap-3">
+						<div className="flex items-center gap-2.5">
 							<select
 								value={range}
 								onChange={(event) => setRange(event.target.value as AnalyticsRange)}
-								className="bg-background/70 border border-primary/20 rounded-xl px-4 py-2.5 text-text outline-none"
+								className="bg-background/70 border border-primary/20 rounded-xl px-3.5 py-2 text-text outline-none"
 							>
 								{RANGE_OPTIONS.map((option) => (
 									<option key={option.value} value={option.value}>
@@ -598,7 +733,7 @@ function FunctionAnalyticsPage() {
 					</div>
 				) : !data ? null : (
 					<>
-						<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+						<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
 							{accountHighlights.map((item) => (
 								<StatCard
 									key={item.label}
@@ -609,7 +744,7 @@ function FunctionAnalyticsPage() {
 							))}
 						</div>
 
-						<div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+						<div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
 							<CountChart title="Execution Volume" points={data.series} />
 							<SuccessFailureChart points={data.series} />
 							<LineChart
@@ -626,12 +761,21 @@ function FunctionAnalyticsPage() {
 								colorClass="text-cyan-300"
 								stroke="#22d3ee"
 							/>
+							<LineChart
+								title="Success Rate Trend"
+								points={data.series}
+								valueSelector={getSuccessRateForPoint}
+								valueFormatter={formatPercent}
+								colorClass="text-emerald-300"
+								stroke="#34d399"
+								emptyLabel="No classified success or failure data in this range"
+							/>
 						</div>
 
-						<div className="bg-gradient-to-br from-gray-900/55 to-gray-800/45 border border-primary/20 rounded-3xl p-6">
-							<div className="flex items-center justify-between gap-4 mb-6">
+						<div className="bg-gradient-to-br from-gray-900/55 to-gray-800/45 border border-primary/20 rounded-3xl p-5">
+							<div className="flex items-center justify-between gap-4 mb-5">
 								<div>
-									<h2 className="text-2xl font-bold text-primary">Slowest Recent Runs</h2>
+									<h2 className="text-xl font-bold text-primary">Slowest Recent Runs</h2>
 									<p className="text-text/55 mt-1">
 										Quick view of the heaviest executions in this range.
 									</p>
@@ -658,7 +802,7 @@ function FunctionAnalyticsPage() {
 													key={`slow-${execution.executionId}`}
 													className="border-t border-primary/8"
 												>
-													<td className="py-3 pr-4">
+													<td className="py-2.5 pr-4">
 														<Link
 															to={`/functions/${execution.functionId}`}
 															className="text-blue-300 hover:text-blue-200"
@@ -666,16 +810,16 @@ function FunctionAnalyticsPage() {
 															{execution.functionName}
 														</Link>
 													</td>
-													<td className="py-3 pr-4 text-text/75 text-sm">
+													<td className="py-2.5 pr-4 text-text/75 text-sm">
 														{new Date(execution.createdAt).toLocaleString()}
 													</td>
-													<td className="py-3 pr-4 text-text/60 text-sm uppercase">
+													<td className="py-2.5 pr-4 text-text/60 text-sm uppercase">
 														{execution.source}
 													</td>
-													<td className="py-3 pr-4 text-primary font-medium text-sm">
+													<td className="py-2.5 pr-4 text-primary font-medium text-sm">
 														{formatSeconds(execution.totalSeconds)}
 													</td>
-													<td className="py-3">
+													<td className="py-2.5">
 														<span
 															className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold border ${
 																execution.exitCode === 0
@@ -698,9 +842,9 @@ function FunctionAnalyticsPage() {
 							)}
 						</div>
 
-						<div className="bg-gradient-to-br from-gray-900/55 to-gray-800/45 border border-primary/20 rounded-3xl p-6">
-							<div className="mb-6">
-								<h2 className="text-2xl font-bold text-primary">Per-Function Analytics</h2>
+						<div className="bg-gradient-to-br from-gray-900/55 to-gray-800/45 border border-primary/20 rounded-3xl p-5">
+							<div className="mb-5">
+								<h2 className="text-xl font-bold text-primary">Per-Function Analytics</h2>
 								<p className="text-text/55 mt-1">
 									Each function has its own detail block in this list. Expand the ones
 									you want to inspect.
@@ -712,7 +856,7 @@ function FunctionAnalyticsPage() {
 									<p className="text-text/55 text-lg">No function executions found.</p>
 								</div>
 							) : (
-								<div className="space-y-4">
+								<div className="space-y-3.5">
 									{data.functions.map((entry) => (
 										<FunctionAnalyticsCard
 											key={entry.functionId}
