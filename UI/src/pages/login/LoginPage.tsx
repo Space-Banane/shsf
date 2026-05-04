@@ -3,6 +3,25 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { UserContext } from "../../App";
 import { BASE_URL } from "../..";
 
+type LoginLocationState = {
+	from?: {
+		pathname?: string;
+		search?: string;
+		hash?: string;
+	};
+	message?: string;
+};
+
+const getRedirectPath = (state: LoginLocationState | null | undefined) => {
+	const pathname = state?.from?.pathname;
+
+	if (!pathname || !pathname.startsWith("/") || pathname === "/login") {
+		return "/";
+	}
+
+	return `${pathname}${state.from?.search ?? ""}${state.from?.hash ?? ""}`;
+};
+
 function LoginPage() {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
@@ -11,13 +30,15 @@ function LoginPage() {
 	const navigate = useNavigate();
 	const location = useLocation();
 	const { user, refreshUser } = useContext(UserContext);
+	const locationState = location.state as LoginLocationState | null;
+	const redirectPath = getRedirectPath(locationState);
 
 	useEffect(() => {
 		// Redirect if user is already logged in
 		if (user) {
-			navigate("/", { replace: true });
+			navigate(redirectPath, { replace: true });
 		}
-	}, [user, navigate]);
+	}, [user, navigate, redirectPath]);
 
 	const handleLogin = async () => {
 		setError("");
@@ -35,7 +56,7 @@ function LoginPage() {
 
 			if (data.status === "OK") {
 				refreshUser();
-				navigate("/");
+				navigate(redirectPath, { replace: true });
 			} else {
 				setError(data.message || "Login failed");
 			}
@@ -48,7 +69,7 @@ function LoginPage() {
 	};
 
 	// Get success message from registration
-	const successMessage = location.state?.message;
+	const successMessage = locationState?.message;
 
 	return (
 		<div className="min-h-screen bg-background">
