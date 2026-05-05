@@ -1,4 +1,3 @@
-import CLICommandCard from "../../components/cards/CLICommandCard";
 import { toast } from "react-toastify";
 import { useBeforeUnload, useBlocker, useParams } from "react-router-dom";
 import { SHSFExport } from "../../components/modals/functions/ImportFunctionModal";
@@ -154,6 +153,8 @@ function FunctionDetail() {
 	const [showGitModal, setShowGitModal] = useState(false);
 	const [stopShowingResult, setStopShowingResult] = useState(false);
 	const navigationPromptOpenRef = useRef(false);
+	const editorViewStatesRef = useRef<Map<number, any>>(new Map());
+	const saveShortcutRef = useRef<() => void>(() => {});
 	const resultModalsEnabled = !stopShowingResult;
 
 	const savedActiveFile =
@@ -161,6 +162,20 @@ function FunctionDetail() {
 	const hasUnsavedChanges = Boolean(
 		activeFile && code !== (savedActiveFile?.content ?? ""),
 	);
+	const canSaveFile = Boolean(
+		activeFile &&
+			hasUnsavedChanges &&
+			!saving &&
+			!running &&
+			!functionData?.git_url,
+	);
+	const cliPullCommand = functionData
+		? `shsf remote pull --id ${functionData.id} --into ./${functionData.name
+				.trim()
+				.toLowerCase()
+				.replace(/[^a-z0-9]+/g, "-")
+				.replace(/^-+|-+$/g, "") || "my-func"} --force`
+		: "";
 
 	useBeforeUnload(
 		(event) => {
@@ -175,6 +190,20 @@ function FunctionDetail() {
 
 	useEffect(() => {
 		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
+	}, [activeFile]);
+
+	useEffect(() => {
+		if (!editorRef.current || !activeFile) {
+			return;
+		}
+
+		requestAnimationFrame(() => {
+			const savedViewState = editorViewStatesRef.current.get(activeFile.id);
+			if (savedViewState) {
+				editorRef.current.restoreViewState(savedViewState);
+			}
+			editorRef.current.focus();
+		});
 	}, [activeFile]);
 
 	useEffect(() => {
@@ -294,6 +323,13 @@ function FunctionDetail() {
 			if (!shouldSwitch) return;
 		}
 
+		if (activeFile && editorRef.current) {
+			editorViewStatesRef.current.set(
+				activeFile.id,
+				editorRef.current.saveViewState(),
+			);
+		}
+
 		setActiveFile(file);
 		setCode(file.content || "");
 	};
@@ -314,8 +350,11 @@ function FunctionDetail() {
 		setCode(value || "");
 	};
 
-	const handleEditorDidMount = (editor: any) => {
+	const handleEditorDidMount = (editor: any, monaco: any) => {
 		editorRef.current = editor;
+		editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+			saveShortcutRef.current();
+		});
 	};
 
 	const loadData = () => {
@@ -412,6 +451,12 @@ function FunctionDetail() {
 			toast.error("An error occurred while saving the file.");
 		} finally {
 			setSaving(false);
+		}
+	};
+
+	saveShortcutRef.current = () => {
+		if (canSaveFile) {
+			void handleSaveFile();
 		}
 	};
 
@@ -739,6 +784,7 @@ function FunctionDetail() {
 			if (data.status === "OK") {
 				setFiles((prev) => prev.filter((file) => file.id !== selectedFile.id));
 				if (activeFile?.id === selectedFile.id) {
+					editorViewStatesRef.current.delete(selectedFile.id);
 					setActiveFile(null);
 					setCode(null);
 				}
@@ -1170,17 +1216,6 @@ function FunctionDetail() {
 							</div>
 						</div>
 
-						{/* CLICommandCard for CLI Pull command */}
-						<CLICommandCard
-							command={`shsf remote pull --id ${functionData.id} --into ./${functionData.name
-								.trim()
-								.toLowerCase()
-								.replace(/[^a-z0-9]+/g, "-")
-								.replace(/^-+|-+$/g, "") || "my-func"} --force`}
-							label="CLI Pull"
-							description="Pull this function to your local project using the CLI."
-						/>
-
 						<div className="flex items-center gap-6 text-text/60 text-sm">
 							<div className="flex items-center gap-2">
 								<div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -1241,12 +1276,6 @@ function FunctionDetail() {
 									label="Version Control"
 									variant={functionData.git_url ? "primary" : "secondary"}
 									onClick={() => setShowGitModal(true)}
-								/>
-								<ActionButton
-									icon="📤"
-									label="Export"
-									variant="secondary"
-									onClick={() => { handleExportFunction(); }}
 								/>
 							</div>
 						</div>
@@ -1381,73 +1410,44 @@ function FunctionDetail() {
 					{/* Main Content - Use Full Remaining Space */}
 					<div className="flex-1 min-w-0 space-y-4">
 						{/* Editor Header - More Compact */}
-						<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4">
-							<div className="flex justify-between items-center gap-4">
-								<div className="flex items-center gap-3 min-w-0">
-									<div className="w-6 h-6 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-lg flex items-center justify-center text-sm flex-shrink-0">
+						<div className="bg-gradient-to-br from-gray-900/55 to-gray-800/45 border border-primary/20 rounded-lg p-4 space-y-4">
+							<div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+								<div className="min-w-0 flex items-start gap-3">
+									<div className="w-9 h-9 bg-gradient-to-br from-blue-500/15 to-cyan-500/10 border border-blue-400/20 rounded-xl flex items-center justify-center text-base flex-shrink-0">
 										📝
 									</div>
-									<h2 className="text-lg font-bold text-primary truncate">
-										{activeFile ? activeFile.name : "No file selected"}
-									</h2>
+									<div className="min-w-0 space-y-1">
+										<div className="flex flex-wrap items-center gap-2">
+											<h2 className="text-lg font-semibold text-primary truncate">
+												{activeFile ? activeFile.name : "No file selected"}
+											</h2>
+											{activeFile && (
+												<span
+													className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+														hasUnsavedChanges
+															? "border-amber-400/30 bg-amber-500/10 text-amber-300"
+															: "border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
+													}`}
+												>
+													{hasUnsavedChanges ? "Unsaved" : "Saved"}
+												</span>
+											)}
+										</div>
+										<p className="text-xs text-text/55">
+											{activeFile
+												? `${activeFileLanguage || "plaintext"} file`
+												: "Select a file from the sidebar to start editing"}
+										</p>
+									</div>
 								</div>
 
-								<div className="flex items-center gap-2 flex-shrink-0">
-									{/* Show Pip Install button if requirements.txt exists or if it's a git-based function (since we don't know the files) */}
-									{(files.find((file) => file.name === "requirements.txt") || Boolean(functionData.git_url)) && (
-										<button
-											className="bg-blue-600 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-											onClick={handlePipInstall}
-											disabled={pipRunning || running || saving}
-										>
-											{pipRunning ? "📦 Installing..." : "📦 Pip Install"}
-										</button>
-									)}
-									<button
-										className="bg-background/50 border border-primary/20 text-primary px-3 py-1.5 text-sm rounded-lg hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-										onClick={handleLoadDefault}
-										disabled={!activeFile || saving || running || Boolean(functionData.git_url)}
-									>
-										{saving ? "🚥Loading..." : "📂Load Default"}
-									</button>
-									<button
-										className="bg-background/50 border border-primary/20 text-primary px-3 py-1.5 text-sm rounded-lg hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-										onClick={handleSaveFile}
-										disabled={!activeFile || saving || running || Boolean(functionData.git_url)}
-									>
-										{saving ? "💾Saving..." : "💾Save"}
-									</button>
-									<button
-										className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-3 py-1.5 text-sm rounded-lg hover:shadow-[0_0_20px_rgba(124,131,253,0.3)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-										onClick={handleRunCode}
-										disabled={running || saving}
-									>
-										{running ? "🚀Running..." : "🚀Run Startup"}
-									</button>
-									<button
-										className={`px-3 py-1.5 text-sm rounded-lg transition-all duration-300 border ${
-											resultModalsEnabled
-												? "bg-green-500/20 border-green-500/40 text-green-400"
-												: "bg-red-500/20 border-red-500/40 text-red-400"
-										}`}
-										onClick={() => setStopShowingResult(!stopShowingResult)}
-										title={
-											resultModalsEnabled
-												? "Result modals are enabled"
-												: "Result modals are disabled"
-										}
-									>
-										{resultModalsEnabled ? "Hide Modals" : "Show Modals"}
-									</button>
+								<div className="flex flex-wrap items-center gap-2 xl:justify-end">
 									<select
-										className={`bg-background/50 border border-primary/20 text-primary px-2 py-1.5 text-sm rounded-lg transition-all duration-300
-                      hover:border-primary/40
-                      ${
-																							running || saving || serveHtmlOnly
-																								? "opacity-30 cursor-not-allowed bg-slate-800 text-gray-400"
-																								: ""
-																						}
-                    `}
+										className={`h-9 min-w-[110px] bg-background/45 border border-primary/20 text-primary px-3 text-sm rounded-lg transition-all duration-300 hover:border-primary/40 ${
+											running || saving || serveHtmlOnly
+												? "opacity-30 cursor-not-allowed bg-slate-800 text-gray-400"
+												: ""
+										}`}
 										value={runningMode}
 										onChange={(e) =>
 											setRunningMode(e.target.value as "classic" | "streaming")
@@ -1459,12 +1459,12 @@ function FunctionDetail() {
 									</select>
 									<button
 										className={[
-											"px-3 py-1.5 text-sm rounded-lg transition-all duration-300",
+											"h-9 px-3 text-sm rounded-lg transition-all duration-300 border",
 											showRunParams
-												? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-												: "bg-background/50 border border-primary/20 text-primary hover:border-primary/40",
+												? "bg-gradient-to-r from-blue-600 to-cyan-600 border-transparent text-white"
+												: "bg-background/45 border-primary/20 text-primary hover:border-primary/40",
 											running || saving || serveHtmlOnly
-												? "opacity-30 cursor-not-allowed bg-slate-800 text-gray-400 border border-primary/20 "
+												? "opacity-30 cursor-not-allowed bg-slate-800 text-gray-400 border-primary/20"
 												: "",
 										].join(" ")}
 										style={{
@@ -1473,9 +1473,94 @@ function FunctionDetail() {
 										onClick={() => setShowRunParams(!showRunParams)}
 										disabled={running || saving || serveHtmlOnly}
 									>
-										⚙️
+										Run Params
+									</button>
+									<button
+										className={`h-9 px-3 text-sm rounded-lg transition-all duration-300 border ${
+											resultModalsEnabled
+												? "bg-emerald-500/10 border-emerald-400/30 text-emerald-300 hover:border-emerald-300/40"
+												: "bg-red-500/10 border-red-400/30 text-red-300 hover:border-red-300/40"
+										}`}
+										onClick={() => setStopShowingResult(!stopShowingResult)}
+										title={
+											resultModalsEnabled
+												? "Result modals are enabled"
+												: "Result modals are disabled"
+										}
+									>
+										{resultModalsEnabled ? "Modals On" : "Modals Off"}
 									</button>
 								</div>
+							</div>
+
+							<div className="flex flex-col gap-2 rounded-xl border border-primary/10 bg-background/20 p-3 lg:flex-row lg:items-center">
+								<div className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.16em] text-text/45">
+									CLI Pull
+								</div>
+								<input
+									type="text"
+									value={cliPullCommand}
+									readOnly
+									disabled
+									className="h-9 min-w-0 flex-1 rounded-lg border border-primary/10 bg-background/35 px-3 text-xs text-text/70 outline-none disabled:cursor-text disabled:opacity-100"
+									onClick={(e) => e.currentTarget.select()}
+								/>
+								<button
+									className="h-9 shrink-0 rounded-lg border border-primary/20 bg-background/45 px-3 text-sm text-primary transition-all duration-300 hover:border-primary/40"
+									onClick={() => {
+										navigator.clipboard.writeText(cliPullCommand);
+										toast.success("CLI command copied");
+									}}
+								>
+									Copy
+								</button>
+							</div>
+
+							<div className="flex flex-wrap items-center justify-end gap-2 border-t border-primary/10 pt-4">
+								{/* Show Pip Install button if requirements.txt exists or if it's a git-based function (since we don't know the files) */}
+								{(files.find((file) => file.name === "requirements.txt") || Boolean(functionData.git_url)) && (
+									<button
+										className="h-9 px-3 text-sm rounded-lg bg-blue-600/90 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+										onClick={handlePipInstall}
+										disabled={pipRunning || running || saving}
+									>
+										{pipRunning ? "Installing..." : "Install requirements.txt"}
+									</button>
+								)}
+								<button
+									className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+									onClick={handleLoadDefault}
+									disabled={!activeFile || saving || running || Boolean(functionData.git_url)}
+								>
+									{saving ? "Loading..." : "Load Defaults"}
+								</button>
+								<button
+									className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+									onClick={handleSaveFile}
+									disabled={!canSaveFile}
+									title={
+										hasUnsavedChanges
+											? "Save file (Ctrl/Cmd+S)"
+											: "No unsaved changes"
+									}
+									>
+										{saving ? "Saving..." : "Save"}
+									</button>
+								<button
+									className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+									onClick={() => {
+										handleExportFunction();
+									}}
+								>
+									Export
+								</button>
+								<button
+									className="h-9 px-3 text-sm rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:shadow-[0_0_20px_rgba(34,211,238,0.2)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+									onClick={handleRunCode}
+									disabled={running || saving}
+								>
+									{running ? "Running..." : "Run Function"}
+								</button>
 							</div>
 
 							{/* Run Parameters */}
@@ -1537,7 +1622,7 @@ function FunctionDetail() {
 									<Editor
 										theme="vs-dark"
 										height="100%"
-										defaultLanguage={activeFileLanguage}
+										language={activeFileLanguage}
 										value={code || ""}
 										onChange={handleEditorChange}
 										onMount={handleEditorDidMount}
@@ -1550,7 +1635,6 @@ function FunctionDetail() {
 											"semanticHighlighting.enabled": true,
 											codeLens: true,
 											automaticLayout: true,
-											language: activeFileLanguage,
 											smoothScrolling: true,
 											overviewRulerBorder: false,
 										}}
