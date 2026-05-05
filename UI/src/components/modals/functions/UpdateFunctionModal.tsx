@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Modal from "../Modal";
+import { useConfirm } from "../ConfirmModal";
 import {
 	updateFunction,
 	reinstallFfmpeg,
@@ -32,6 +33,7 @@ function UpdateFunctionModal({
 	functionData,
 	lastLogs,
 }: UpdateFunctionModalProps) {
+	const confirm = useConfirm();
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
 	const [image, setImage] = useState<Image>("python:3.9");
@@ -301,6 +303,27 @@ function UpdateFunctionModal({
 		if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
 			e.preventDefault();
 			handleSubmit();
+		}
+	};
+
+	const handleDockerMountChange = async (checked: boolean) => {
+		if (!checked) {
+			setDockerMount(false);
+			return;
+		}
+
+		if (dockerMount) return;
+
+		const confirmed = await confirm({
+			title: "Enable Docker Mount?",
+			message:
+				"Mounting the Docker socket gives this function elevated access to the host. Only enable this if you trust the function code and explicitly need Docker control from inside the container.",
+			confirmText: "Enable Docker Mount",
+			cancelText: "Cancel",
+		});
+
+		if (confirmed) {
+			setDockerMount(true);
 		}
 	};
 
@@ -606,7 +629,9 @@ function UpdateFunctionModal({
 									<input
 										type="checkbox"
 										checked={dockerMount}
-										onChange={(e) => setDockerMount(e.target.checked)}
+										onChange={(e) => {
+											void handleDockerMountChange(e.target.checked);
+										}}
 										className="sr-only peer"
 										disabled={isLoading || isHtmlFunction}
 										id="docker-mount-update"
