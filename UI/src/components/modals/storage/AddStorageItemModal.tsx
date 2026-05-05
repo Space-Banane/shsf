@@ -1,12 +1,17 @@
 import React, { useState } from "react";
 import Modal from "../Modal";
-import { setStorageItem, Storage } from "../../../services/backend.storage";
+import {
+	setStorageItem,
+	Storage,
+	StorageItem,
+} from "../../../services/backend.storage";
 
 interface AddStorageItemModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	onSuccess: () => void;
 	selectedStorage: Storage | null;
+	initialItem?: StorageItem | null;
 }
 
 function AddStorageItemModal({
@@ -14,12 +19,36 @@ function AddStorageItemModal({
 	onClose,
 	onSuccess,
 	selectedStorage,
+	initialItem = null,
 }: AddStorageItemModalProps) {
-	const [key, setKey] = useState("");
-	const [value, setValue] = useState("");
-	const [expiresAt, setExpiresAt] = useState("");
+	const [key, setKey] = useState(initialItem?.key ?? "");
+	const [value, setValue] = useState(
+		initialItem ? JSON.stringify(initialItem.value, null, 2) : "",
+	);
+	const [expiresAt, setExpiresAt] = useState(
+		initialItem?.expiresAt ? initialItem.expiresAt.slice(0, 16) : "",
+	);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
+
+	React.useEffect(() => {
+		if (!isOpen) {
+			return;
+		}
+
+		setKey(initialItem?.key ?? "");
+		setValue(initialItem ? JSON.stringify(initialItem.value, null, 2) : "");
+		setExpiresAt(initialItem?.expiresAt ? initialItem.expiresAt.slice(0, 16) : "");
+		setError("");
+	}, [initialItem, isOpen]);
+
+	const handleClose = () => {
+		setKey(initialItem?.key ?? "");
+		setValue(initialItem ? JSON.stringify(initialItem.value, null, 2) : "");
+		setExpiresAt(initialItem?.expiresAt ? initialItem.expiresAt.slice(0, 16) : "");
+		setError("");
+		onClose();
+	};
 
 	const handleSubmit = async (parsedValue?: any) => {
 		if (!selectedStorage) return;
@@ -37,7 +66,7 @@ function AddStorageItemModal({
 				setValue("");
 				setExpiresAt("");
 				onSuccess();
-				onClose();
+				handleClose();
 			} else {
 				setError(res.message || "Failed to set item");
 			}
@@ -51,11 +80,15 @@ function AddStorageItemModal({
 	if (!isOpen || !selectedStorage) return null;
 
 	return (
-		<Modal isOpen={isOpen} onClose={onClose} title="Add Item">
+		<Modal
+			isOpen={isOpen}
+			onClose={handleClose}
+			title={initialItem ? "Edit Item" : "Add Item"}
+		>
 			<div className="text-center mb-6">
-				<div className="text-5xl mb-2">➕</div>
+				<div className="text-5xl mb-2">{initialItem ? "✏️" : "➕"}</div>
 				<p className="text-text/70">
-					Add or update an item in{" "}
+					{initialItem ? "Update" : "Add or update"} an item in{" "}
 					<span className="font-bold text-primary">{selectedStorage.name}</span>.
 				</p>
 			</div>
@@ -66,7 +99,7 @@ function AddStorageItemModal({
 					placeholder="Key"
 					value={key}
 					onChange={(e) => setKey(e.target.value)}
-					disabled={isLoading}
+					disabled={isLoading || Boolean(initialItem)}
 				/>
 				<textarea
 					className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none font-mono"
@@ -77,7 +110,17 @@ function AddStorageItemModal({
 					rows={3}
 				/>
 				<div className="space-y-1">
-					<label className="text-xs text-text/50 ml-1">Expires At (optional)</label>
+					<div className="flex items-center justify-between gap-3">
+						<label className="text-xs text-text/50 ml-1">Expires At (optional)</label>
+						<button
+							type="button"
+							className="text-xs text-primary hover:text-primary/80 disabled:text-text/30 transition-all duration-300"
+							onClick={() => setExpiresAt("")}
+							disabled={isLoading || !expiresAt}
+						>
+							Clear Expiry
+						</button>
+					</div>
 					<input
 						type="datetime-local"
 						className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none font-mono"
@@ -93,7 +136,7 @@ function AddStorageItemModal({
 				)}
 				<div className="flex gap-3 pt-2">
 					<button
-						onClick={onClose}
+						onClick={handleClose}
 						className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text hover:border-primary/40 transition-all duration-300"
 						disabled={isLoading}
 					>
@@ -113,7 +156,7 @@ function AddStorageItemModal({
 						disabled={isLoading || !key}
 						className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-all duration-300"
 					>
-						{isLoading ? "Saving..." : "Save"}
+						{isLoading ? "Saving..." : initialItem ? "Update" : "Save"}
 					</button>
 				</div>
 			</div>

@@ -29,6 +29,7 @@ function StoragePage() {
 	const [showDeleteItemModal, setShowDeleteItemModal] = useState(false);
 	const [deleteItemKey, setDeleteItemKey] = useState<string | null>(null);
 	const [showGetItemModal, setShowGetItemModal] = useState(false);
+	const [editingItem, setEditingItem] = useState<StorageItem | null>(null);
 
 	// Load storages
 	const loadStorages = async () => {
@@ -120,7 +121,10 @@ function StoragePage() {
 								<div className="flex gap-2">
 									<button
 										className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:shadow-[0_0_20px_rgba(124,131,253,0.2)] transition-all duration-300"
-										onClick={() => setShowAddItemModal(true)}
+										onClick={() => {
+											setEditingItem(null);
+											setShowAddItemModal(true);
+										}}
 									>
 										+ Add Item
 									</button>
@@ -152,7 +156,12 @@ function StoragePage() {
 									No items in this storage.
 								</div>
 							) : (
-								<div className="overflow-x-auto">
+								<div className="space-y-3">
+									<div className="text-xs text-text/50">
+										Use the edit button on any item to update its value or clear its
+										expiry.
+									</div>
+									<div className="overflow-x-auto">
 									<table className="min-w-full text-sm">
 										<thead>
 											<tr className="bg-background/30 border-b border-primary/10">
@@ -182,21 +191,34 @@ function StoragePage() {
 														)}
 													</td>
 													<td className="px-4 py-2">
-														<button
-															className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-lg transition-all duration-300 hover:scale-110"
-															title="Delete item"
-															onClick={() => {
-																setDeleteItemKey(item.key);
-																setShowDeleteItemModal(true);
-															}}
-														>
-															🗑️
-														</button>
+														<div className="flex items-center justify-end gap-1">
+															<button
+																className="p-1.5 text-blue-300 hover:bg-blue-400/10 rounded-lg transition-all duration-300 hover:scale-110"
+																title="Edit item"
+																onClick={() => {
+																	setEditingItem(item);
+																	setShowAddItemModal(true);
+																}}
+															>
+																✏️
+															</button>
+															<button
+																className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-lg transition-all duration-300 hover:scale-110"
+																title="Delete item"
+																onClick={() => {
+																	setDeleteItemKey(item.key);
+																	setShowDeleteItemModal(true);
+																}}
+															>
+																🗑️
+															</button>
+														</div>
 													</td>
 												</tr>
 											))}
 										</tbody>
 									</table>
+									</div>
 								</div>
 							)}
 						</div>
@@ -293,9 +315,13 @@ function StoragePage() {
 
 			<AddStorageItemModal
 				isOpen={showAddItemModal}
-				onClose={() => setShowAddItemModal(false)}
+				onClose={() => {
+					setShowAddItemModal(false);
+					setEditingItem(null);
+				}}
 				onSuccess={() => selectedStorage && loadItems(selectedStorage)}
 				selectedStorage={selectedStorage}
+				initialItem={editingItem}
 			/>
 
 			<DeleteStorageItemModal
@@ -314,29 +340,6 @@ function StoragePage() {
 				onClose={() => setShowGetItemModal(false)}
 				selectedStorage={selectedStorage}
 			/>
-		</div>
-	);
-}
-
-function Modal({
-	children,
-	onClose,
-}: {
-	children: React.ReactNode;
-	onClose: () => void;
-}) {
-	return (
-		<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-			<div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-primary/20 rounded-2xl p-8 max-w-md w-full relative">
-				<button
-					onClick={onClose}
-					className="absolute top-3 right-3 text-text/60 hover:text-primary text-2xl font-bold"
-					aria-label="Close"
-				>
-					×
-				</button>
-				{children}
-			</div>
 		</div>
 	);
 }
