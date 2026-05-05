@@ -1,16 +1,8 @@
-import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
+import { DocsContentShell } from "./DocsContentShell";
 
 export const DocsGettingStarted = () => {
 	return (
-		<div className="min-h-screen bg-background text-text p-8">
-			<div className="max-w-4xl mx-auto">
-				<div className="mb-6">
-					<a href="/docs" className="text-sm text-blue-500 hover:underline">
-						← Back to docs
-					</a>
-				</div>
-
-				<ScrollProgressbar />
+		<DocsContentShell>
 
 				<h1 className="text-3xl font-bold text-primary mb-2">Getting Started</h1>
 				<p className="mt-3 text-lg text-text/90 mb-8">
@@ -239,7 +231,6 @@ docker compose up -d`}
 						<span className="text-lg">→</span>
 					</a>
 				</div>
-			</div>
-		</div>
+		</DocsContentShell>
 	);
 };

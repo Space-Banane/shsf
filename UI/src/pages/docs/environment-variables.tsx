@@ -1,16 +1,8 @@
-import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
+import { DocsContentShell } from "./DocsContentShell";
 
 export const EnvironmentVariablesPage = () => {
 	return (
-		<div className="min-h-screen bg-background text-text p-8">
-			<div className="max-w-4xl mx-auto">
-				<div className="mb-6">
-					<a href="/docs" className="text-sm text-blue-500 hover:underline">
-						← Back to docs
-					</a>
-				</div>
-
-				<ScrollProgressbar />
+		<DocsContentShell>
 
 				<h1 className="text-3xl font-bold text-primary mb-2">
 					Environment Variables
@@ -120,7 +112,6 @@ def main(args):
 						<span className="text-lg">→</span>
 					</a>
 				</div>
-			</div>
-		</div>
+		</DocsContentShell>
 	);
 };

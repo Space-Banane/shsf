@@ -1,19 +1,11 @@
-import React from "react";
+import { DocsContentShell } from "./DocsContentShell";
 
 export const OpencvInstallPage = () => {
 	return (
-		<div className="min-h-screen bg-background p-8">
-			<div className="max-w-4xl mx-auto">
+		<DocsContentShell>
 				{/* Header */}
 				<div className="mb-12">
-					<div className="flex items-center gap-4 mb-4">
-						<a
-							href="/docs"
-							className="text-primary hover:text-blue-400 transition-colors"
-						>
-							← Back to Docs
-						</a>
-						<span className="text-primary/30">|</span>
+					<div className="mb-4 flex items-center gap-4">
 						<span className="text-teal-400 font-mono text-sm">#24</span>
 					</div>
 					<h1 className="text-4xl text-left font-bold text-primary mb-4 flex items-center gap-3">
@@ -93,7 +85,7 @@ export const OpencvInstallPage = () => {
 							</li>
 						</ul>
 					</div>
-                    <p className="text-text/90">
+					<p className="text-text/90">
 						When you trigger a re-installation, SHSF runs the install command natively inside the running container—without pausing or stopping it—so you don't lose any temporary states.
 					</p>
 				</div>
@@ -150,7 +142,6 @@ def main(args):
 						</a>
 					</div>
 				</div>
-			</div>
-		</div>
+		</DocsContentShell>
 	);
 };
