@@ -139,13 +139,21 @@ export default function AccessTokensPage() {
 				</div>
 				{isCli && (
 					<>
-						<div className="mb-1 font-semibold text-primary/80">
-							Set this token in your SHSF CLI:
-						</div>
-						<div className="mt-4 bg-background/40 border border-primary/20 rounded p-3 text-sm text-primary font-mono">
-							<div className="select-all">
-								{/* Dummy CLI command */}
-								shsf-cli --mode set-key --key {generatedToken}
+						<div className="mt-4 rounded-lg border border-primary/20 bg-background/30 p-4 shadow-sm">
+							<div className="mb-2 text-sm font-semibold text-primary">
+								Use this token with the SHSF CLI
+							</div>
+							<div className="mb-3 text-xs text-text/60">
+								Write a config file directly or run <code>shsf health</code> and paste
+								the token when prompted.
+							</div>
+							<div className="rounded-lg border border-primary/10 bg-muted p-3 text-sm text-primary font-mono">
+								<div className="select-all whitespace-pre-wrap break-all">
+								printf 'SHSF_INSTANCE=https://api.your-shsf-instance.com\nSHSF_TOKEN={generatedToken}\n' &gt; ~/.shsf_config
+								</div>
+							</div>
+							<div className="mt-3 text-xs text-text/60">
+								Recommended for most users: <code>shsf health</code>
 							</div>
 						</div>
 					</>

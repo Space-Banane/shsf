@@ -49,8 +49,8 @@ export const ExecutionAliasPage = () => {
 						when creating or updating a function.
 					</li>
 					<li>
-						In the CLI, set <code>executionAlias</code> in your{" "}
-						<code>.meta.json</code> and sync.
+						In the CLI, use <code>shsf update function</code> with the{" "}
+						<code>--execution-alias</code> flag.
 					</li>
 					<li>Aliases must be unique per function.</li>
 				</ul>
@@ -87,35 +87,42 @@ Content-Type: application/json
 				</ul>
 
 				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">CLI Support</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>
-						CLI metadata sync supports <code>executionAlias</code> for metadata
-						updates.
-					</li>
-					<li>
-						<b>Update Execution Alias:</b>
-						<br />
-						<code className="block bg-muted p-2 rounded mb-2">
-							shsf-cli --mode update-alias --project &lt;path&gt; --link
-							&lt;functionId&gt; --alias &lt;newAlias&gt;
-						</code>
-						Updates the execution alias for a function via the API.
-					</li>
-					<li>
-						<b>Run Function via Route:</b>
-						<br />
-						<code className="block bg-muted p-2 rounded mb-2">
-							shsf-cli --mode exec --project &lt;path&gt; --link &lt;functionId&gt;
-							--route &lt;route&gt; [--method &lt;GET|POST&gt;] [--body &lt;json&gt;]
-						</code>
-						Invokes a function using the{" "}
-						<code>
-							/api/exec/&#123;namespaceId&#125;/&#123;functionId&#125;/&#123;route&#125;
-						</code>{" "}
-						endpoint. Pulls <code>namespaceId</code> and <code>executionId</code> from{" "}
-						<code>.meta.json</code>.
-					</li>
-				</ul>
+				<div className="space-y-4 mb-6">
+					<p className="text-text/90">
+						The current CLI can create or update a function alias directly.
+					</p>
+					<div className="rounded-xl border border-primary/20 bg-background/30 p-4">
+						<div className="mb-2 text-sm font-semibold text-primary">
+							Create a function with an alias
+						</div>
+						<pre className="bg-muted p-3 rounded-lg border border-primary/10 overflow-x-auto text-sm mb-2">
+							<code>{`shsf create function --name hello-api --description "HTTP entrypoint" --image python:3.11 --startup-file main.py --namespace-id ns_12345678 --execution-alias hello-api`}</code>
+						</pre>
+						<p className="text-text/75 text-sm">Sets the alias at creation time.</p>
+					</div>
+					<div className="rounded-xl border border-primary/20 bg-background/30 p-4">
+						<div className="mb-2 text-sm font-semibold text-primary">
+							Update an existing alias
+						</div>
+						<pre className="bg-muted p-3 rounded-lg border border-primary/10 overflow-x-auto text-sm mb-2">
+							<code>{`shsf update function func_42a7c1 --execution-alias hello-api`}</code>
+						</pre>
+						<p className="text-text/75 text-sm">
+							Updates the alias without changing your local files.
+						</p>
+					</div>
+					<div className="rounded-xl border border-primary/20 bg-background/30 p-4">
+						<div className="mb-2 text-sm font-semibold text-primary">
+							Debug-run the function itself
+						</div>
+						<pre className="bg-muted p-3 rounded-lg border border-primary/10 overflow-x-auto text-sm mb-2">
+							<code>{`shsf function execute --id func_42a7c1 --payload {"ping":true}`}</code>
+						</pre>
+						<p className="text-text/75 text-sm">
+							The current CLI execution command still targets the function ID directly.
+						</p>
+					</div>
+				</div>
 
 				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
 					Notes & Warnings

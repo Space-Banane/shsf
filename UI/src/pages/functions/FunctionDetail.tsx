@@ -1172,7 +1172,11 @@ function FunctionDetail() {
 
 						{/* CLICommandCard for CLI Pull command */}
 						<CLICommandCard
-							command={`shsf-cli --mode pull --project ./my-func --link ${functionData.id}`}
+							command={`shsf remote pull --id ${functionData.id} --into ./${functionData.name
+								.trim()
+								.toLowerCase()
+								.replace(/[^a-z0-9]+/g, "-")
+								.replace(/^-+|-+$/g, "") || "my-func"} --force`}
 							label="CLI Pull"
 							description="Pull this function to your local project using the CLI."
 						/>
