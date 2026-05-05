@@ -154,6 +154,7 @@ function FunctionDetail() {
 	const [showGitModal, setShowGitModal] = useState(false);
 	const [stopShowingResult, setStopShowingResult] = useState(false);
 	const navigationPromptOpenRef = useRef(false);
+	const resultModalsEnabled = !stopShowingResult;
 
 	const savedActiveFile =
 		activeFile ? files.find((file) => file.id === activeFile.id) ?? activeFile : null;
@@ -175,6 +176,16 @@ function FunctionDetail() {
 	useEffect(() => {
 		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
 	}, [activeFile]);
+
+	useEffect(() => {
+		if (resultModalsEnabled) {
+			return;
+		}
+
+		setShowResultModal(false);
+		setShowPopup(false);
+		setShowImagePopup(false);
+	}, [resultModalsEnabled]);
 
 	useEffect(() => {
 		if (navigationBlocker.state !== "blocked" || navigationPromptOpenRef.current) {
@@ -428,6 +439,10 @@ function FunctionDetail() {
 		}
 
 		const checkPopup = (result: any) => {
+			if (!resultModalsEnabled) {
+				return false;
+			}
+
 			const normalizeMaybeJson = (value: any): any => {
 				if (typeof value !== "string") return value;
 				const trimmed = value.trim();
@@ -497,7 +512,7 @@ function FunctionDetail() {
 		};
 
 		const showResultIfNotPopup = (result: any) => {
-			if (!stopShowingResult && !checkPopup(result)) {
+			if (resultModalsEnabled && !checkPopup(result)) {
 				setResultModalContent({
 					title: "Function Result",
 					value: result,
@@ -1405,17 +1420,21 @@ function FunctionDetail() {
 									>
 										{running ? "🚀Running..." : "🚀Run Startup"}
 									</button>
-                                    <button
-                                        className={`px-3 py-1.5 text-sm rounded-lg transition-all duration-300 border ${
-                                            stopShowingResult
-                                                ? "bg-red-500/20 border-red-500/40 text-red-400"
-                                                : "bg-green-500/20 border-green-500/40 text-green-400"
-                                        }`}
-                                        onClick={() => setStopShowingResult(!stopShowingResult)}
-                                        title={stopShowingResult ? "Result Modal is disabled" : "Result Modal is enabled"}
-                                    >
-                                        {stopShowingResult ? "Hide Modal" : "Show Modal"}
-                                    </button>
+									<button
+										className={`px-3 py-1.5 text-sm rounded-lg transition-all duration-300 border ${
+											resultModalsEnabled
+												? "bg-green-500/20 border-green-500/40 text-green-400"
+												: "bg-red-500/20 border-red-500/40 text-red-400"
+										}`}
+										onClick={() => setStopShowingResult(!stopShowingResult)}
+										title={
+											resultModalsEnabled
+												? "Result modals are enabled"
+												: "Result modals are disabled"
+										}
+									>
+										{resultModalsEnabled ? "Hide Modals" : "Show Modals"}
+									</button>
 									<select
 										className={`bg-background/50 border border-primary/20 text-primary px-2 py-1.5 text-sm rounded-lg transition-all duration-300
                       hover:border-primary/40
