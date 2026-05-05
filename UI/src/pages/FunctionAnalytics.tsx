@@ -62,6 +62,78 @@ function formatPercent(value: number | null) {
 	return `${value.toFixed(1)}%`;
 }
 
+function formatRateLimitLabel(execution: ExecutionAnalyticsItem) {
+	if (!execution.ratelimit?.configured) {
+		return "Off";
+	}
+
+	const policyPart =
+		execution.ratelimit.policyName ?? execution.ratelimit.policyId ?? "Policy";
+	const modePart = execution.ratelimit.mode === "observe" ? "Observe" : "Enforce";
+	const limitPart =
+		typeof execution.ratelimit.limit === "number" &&
+		typeof execution.ratelimit.remaining === "number"
+			? `${execution.ratelimit.remaining}/${execution.ratelimit.limit} left`
+			: execution.ratelimit.identities.length > 0
+				? `Identity: ${execution.ratelimit.identities.join(" + ")}`
+				: "Configured";
+
+	if (execution.ratelimit.blocked) {
+		const retryPart =
+			typeof execution.ratelimit.retryAfterMs === "number"
+				? `Retry ${Math.max(1, Math.ceil(execution.ratelimit.retryAfterMs / 1000))}s`
+				: "Blocked";
+		const penaltyPart =
+			typeof execution.ratelimit.penaltyMs === "number" &&
+			execution.ratelimit.penaltyMs > 0
+				? `, +${execution.ratelimit.penaltyMs}ms`
+				: "";
+		return `${policyPart} • ${retryPart}${penaltyPart}`;
+	}
+
+	if (execution.ratelimit.mode === "observe" || execution.ratelimit.wouldBlock) {
+		return `${policyPart} • ${modePart} • ${limitPart}`;
+	}
+
+	return `${policyPart} • ${limitPart}`;
+}
+
+function getRateLimitTone(execution: ExecutionAnalyticsItem) {
+	if (!execution.ratelimit?.configured) {
+		return "border-primary/10 bg-background/40 text-text/55";
+	}
+
+	if (execution.ratelimit.blocked) {
+		return "border-amber-500/35 bg-amber-500/10 text-amber-100";
+	}
+
+	if (execution.ratelimit.wouldBlock) {
+		return "border-orange-500/35 bg-orange-500/10 text-orange-100";
+	}
+
+	return "border-cyan-500/30 bg-cyan-500/10 text-cyan-100";
+}
+
+function formatExecutionStatus(execution: ExecutionAnalyticsItem) {
+	if (execution.errorType === "rate_limit_blocked") {
+		return "Rate Limited";
+	}
+
+	if (execution.errorType === "cors_denied") {
+		return "CORS Denied";
+	}
+
+	if (execution.exitCode === 0) {
+		return "Success";
+	}
+
+	if (execution.exitCode === null) {
+		return "Unknown";
+	}
+
+	return `Exit ${execution.exitCode}`;
+}
+
 function getSuccessRateForPoint(point: AnalyticsPoint) {
 	const total = point.successCount + point.failureCount;
 	if (total === 0) {
@@ -112,6 +184,26 @@ function StatCard({
 			<p className="text-text/55 text-xs uppercase tracking-[0.2em]">{label}</p>
 			<p className="text-2xl font-bold text-primary mt-2">{value}</p>
 			{highlight ? <p className="text-text/60 text-sm mt-1.5">{highlight}</p> : null}
+		</div>
+	);
+}
+
+function RateLimitScopeCard({
+	label,
+	value,
+	tone,
+	help,
+}: {
+	label: string;
+	value: string;
+	tone: string;
+	help: string;
+}) {
+	return (
+		<div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
+			<p className="text-[11px] uppercase tracking-[0.18em] text-text/45">{label}</p>
+			<p className={`mt-2 text-2xl font-bold ${tone}`}>{value}</p>
+			<p className="mt-1 text-sm text-text/55">{help}</p>
 		</div>
 	);
 }
@@ -418,19 +510,24 @@ function RecentExecutionRow({ execution }: { execution: ExecutionAnalyticsItem }
 			<td className="py-2.5 pr-4 text-sm text-text/75">
 				{formatSeconds(execution.totalSeconds)}
 			</td>
+			<td className="py-2.5 pr-4 text-sm">
+				<span
+					className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold border ${getRateLimitTone(
+						execution,
+					)}`}
+				>
+					{formatRateLimitLabel(execution)}
+				</span>
+			</td>
 			<td className="py-2.5 text-sm">
 				<span
 					className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold border ${
-						execution.exitCode === 0
+						execution.exitCode === 0 && !execution.errorType
 							? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
 							: "border-rose-500/30 bg-rose-500/10 text-rose-300"
 					}`}
 				>
-					{execution.exitCode === 0
-						? "Success"
-						: execution.exitCode === null
-							? "Unknown"
-							: `Exit ${execution.exitCode}`}
+					{formatExecutionStatus(execution)}
 				</span>
 			</td>
 		</tr>
@@ -473,7 +570,7 @@ function FunctionAnalyticsCard({
 						</p>
 					</div>
 
-					<div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:min-w-[480px]">
+					<div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3 lg:min-w-[840px]">
 						<div>
 							<p className="text-text/45 text-xs uppercase tracking-[0.18em]">Runs</p>
 							<p className="text-base font-semibold text-white mt-1">{data.totalRuns}</p>
@@ -494,6 +591,24 @@ function FunctionAnalyticsCard({
 							<p className="text-text/45 text-xs uppercase tracking-[0.18em]">P95</p>
 							<p className="text-base font-semibold text-white mt-1">
 								{formatSeconds(data.p95Seconds)}
+							</p>
+						</div>
+						<div>
+							<p className="text-text/45 text-xs uppercase tracking-[0.18em]">RL Runs</p>
+							<p className="text-base font-semibold text-white mt-1">
+								{data.rateLimitedExecutions}
+							</p>
+						</div>
+						<div>
+							<p className="text-text/45 text-xs uppercase tracking-[0.18em]">RL Blocked</p>
+							<p className="text-base font-semibold text-white mt-1">
+								{data.rateLimitBlockedExecutions}
+							</p>
+						</div>
+						<div>
+							<p className="text-text/45 text-xs uppercase tracking-[0.18em]">Would Block</p>
+							<p className="text-base font-semibold text-white mt-1">
+								{data.rateLimitWouldBlockExecutions}
 							</p>
 						</div>
 					</div>
@@ -579,6 +694,7 @@ function FunctionAnalyticsCard({
 												<th className="pb-3 pr-4">Started</th>
 												<th className="pb-3 pr-4">Source</th>
 												<th className="pb-3 pr-4">Total</th>
+												<th className="pb-3 pr-4">Rate Limit</th>
 												<th className="pb-3">Status</th>
 											</tr>
 										</thead>
@@ -663,6 +779,16 @@ function FunctionAnalyticsPage() {
 				value: formatSeconds(data.summary.p95Seconds),
 				highlight: "Tail latency in the selected range",
 			},
+			{
+				label: "Rate Limited",
+				value: String(data.summary.rateLimitedExecutions),
+				highlight: "Executions with a configured policy",
+			},
+			{
+				label: "Would Block",
+				value: String(data.summary.rateLimitWouldBlockExecutions),
+				highlight: "Runs that would have been blocked",
+			},
 		];
 	}, [data]);
 
@@ -733,7 +859,7 @@ function FunctionAnalyticsPage() {
 					</div>
 				) : !data ? null : (
 					<>
-						<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+						<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
 							{accountHighlights.map((item) => (
 								<StatCard
 									key={item.label}
@@ -742,6 +868,97 @@ function FunctionAnalyticsPage() {
 									highlight={item.highlight}
 								/>
 							))}
+						</div>
+
+						<div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+							<RateLimitScopeCard
+								label="Blocked by scope"
+								value={`${data.summary.rateLimitBlockedByScope.global} global / ${data.summary.rateLimitBlockedByScope.identity} identity`}
+								tone="text-amber-200"
+								help="Actual rejected HTTP requests grouped by enforcement scope."
+							/>
+							<RateLimitScopeCard
+								label="Would block"
+								value={String(data.summary.rateLimitWouldBlockExecutions)}
+								tone="text-orange-200"
+								help="Observed requests that would have tripped a policy."
+							/>
+							<RateLimitScopeCard
+								label="Configured policies"
+								value={String(data.summary.rateLimitedExecutions)}
+								tone="text-cyan-200"
+								help="Executions carrying rate-limit metadata in the selected range."
+							/>
+						</div>
+
+						<div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+							<div className="rounded-3xl border border-primary/20 bg-gradient-to-br from-gray-900/55 to-gray-800/45 p-5">
+								<div className="mb-4">
+									<h2 className="text-xl font-bold text-primary">Hot Identity Values</h2>
+									<p className="mt-1 text-sm text-text/55">
+										Most frequent identity combinations that showed up in rate-limit logs.
+									</p>
+								</div>
+								{data.summary.topRateLimitIdentityValues.length === 0 ? (
+									<p className="text-sm text-text/45">No identity metadata recorded yet.</p>
+								) : (
+									<div className="overflow-x-auto">
+										<table className="min-w-full">
+											<thead>
+												<tr className="text-left text-[11px] uppercase tracking-[0.16em] text-text/45">
+													<th className="pb-3 pr-4">Identity</th>
+													<th className="pb-3 pr-4">Value</th>
+													<th className="pb-3 pr-4">Hits</th>
+													<th className="pb-3">Blocked</th>
+												</tr>
+											</thead>
+											<tbody>
+												{data.summary.topRateLimitIdentityValues.map((item) => (
+													<tr key={`${item.identity}:${item.value}`} className="border-t border-primary/8">
+														<td className="py-2.5 pr-4 text-sm text-text/75">{item.identity}</td>
+														<td className="py-2.5 pr-4 text-sm text-text/60">{item.value}</td>
+														<td className="py-2.5 pr-4 text-sm text-white">{item.count}</td>
+														<td className="py-2.5 text-sm text-amber-200">{item.blockedCount}</td>
+													</tr>
+												))}
+											</tbody>
+										</table>
+									</div>
+								)}
+							</div>
+
+							<div className="rounded-3xl border border-primary/20 bg-gradient-to-br from-gray-900/55 to-gray-800/45 p-5">
+								<div className="mb-4">
+									<h2 className="text-xl font-bold text-primary">Policy Breakdown</h2>
+									<p className="mt-1 text-sm text-text/55">
+										Useful when you want to see which policies are actually doing work.
+									</p>
+								</div>
+								<div className="space-y-3">
+									<div className="rounded-2xl border border-gray-700/50 bg-background/35 p-4">
+										<div className="flex items-center justify-between">
+											<div>
+												<p className="text-sm font-medium text-white">Blocked executions</p>
+												<p className="text-xs text-text/45">Rejected before runtime</p>
+											</div>
+											<p className="text-2xl font-bold text-amber-200">
+												{data.summary.rateLimitBlockedExecutions}
+											</p>
+										</div>
+									</div>
+									<div className="rounded-2xl border border-gray-700/50 bg-background/35 p-4">
+										<div className="flex items-center justify-between">
+											<div>
+												<p className="text-sm font-medium text-white">Would-block executions</p>
+												<p className="text-xs text-text/45">Observed with observe policies</p>
+											</div>
+											<p className="text-2xl font-bold text-orange-200">
+												{data.summary.rateLimitWouldBlockExecutions}
+											</p>
+										</div>
+									</div>
+								</div>
+							</div>
 						</div>
 
 						<div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
@@ -792,6 +1009,7 @@ function FunctionAnalyticsPage() {
 												<th className="pb-3 pr-4">Function</th>
 												<th className="pb-3 pr-4">Started</th>
 												<th className="pb-3 pr-4">Source</th>
+												<th className="pb-3 pr-4">Rate Limit</th>
 												<th className="pb-3 pr-4">Runtime</th>
 												<th className="pb-3">Status</th>
 											</tr>
@@ -814,7 +1032,16 @@ function FunctionAnalyticsPage() {
 														{new Date(execution.createdAt).toLocaleString()}
 													</td>
 													<td className="py-2.5 pr-4 text-text/60 text-sm uppercase">
-														{execution.source}
+														{formatSourceLabel(execution.source)}
+													</td>
+													<td className="py-2.5 pr-4 text-sm">
+														<span
+															className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold border ${getRateLimitTone(
+																execution,
+															)}`}
+														>
+															{formatRateLimitLabel(execution)}
+														</span>
 													</td>
 													<td className="py-2.5 pr-4 text-primary font-medium text-sm">
 														{formatSeconds(execution.totalSeconds)}
@@ -822,16 +1049,12 @@ function FunctionAnalyticsPage() {
 													<td className="py-2.5">
 														<span
 															className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold border ${
-																execution.exitCode === 0
+																execution.exitCode === 0 && !execution.errorType
 																	? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
 																	: "border-rose-500/30 bg-rose-500/10 text-rose-300"
 															}`}
 														>
-															{execution.exitCode === 0
-																? "Success"
-																: execution.exitCode === null
-																	? "Unknown"
-																	: `Exit ${execution.exitCode}`}
+															{formatExecutionStatus(execution)}
 														</span>
 													</td>
 												</tr>

@@ -54,6 +54,7 @@ import { BASE_URL } from "../..";
 import React from "react";
 import { ConsoleCard } from "../../components/cards/ConsoleCard";
 import { LogsCard } from "../../components/cards/LogCard";
+import { RateLimitCard } from "../../components/cards/RateLimitCard";
 import { TimingCard } from "../../components/cards/TimingCard";
 import { TriggersCard } from "../../components/cards/TriggersCard";
 import { FileManagerCard } from "../../components/cards/FileManagerCard";
@@ -1401,6 +1402,12 @@ function FunctionDetail() {
 							onToggleDetails={() => setShowLogsDetails(!showLogsDetails)}
 							onRefreshLogs={fetchLogs}
 							onViewLogs={() => setShowLogsModal(true)}
+							functionId={functionData?.id ?? 0}
+							disabled={serveHtmlOnly}
+							disabledReason="This function is set to only serve an .html file"
+						/>
+
+						<RateLimitCard
 							functionId={functionData?.id ?? 0}
 							disabled={serveHtmlOnly}
 							disabledReason="This function is set to only serve an .html file"

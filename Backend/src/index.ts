@@ -4,7 +4,7 @@ import { Runtime } from "@rjweb/runtime-node";
 import { network } from "@rjweb/utils";
 import { env } from "process";
 import { CronExpressionParser } from "cron-parser";
-import { executeFunction } from "./lib/Runner";
+import { executeFunction, persistFunctionExecutionLog } from "./lib/Runner";
 import { performGitPull } from "./lib/GitOps";
 import dotenv from "dotenv";
 import { getUUID, prevDirectory } from "./lib/DataManager";
@@ -149,12 +149,31 @@ export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
 						console.log(
 							`[CORS MIDDLEWARE] Logging denied origin for function #${func.id} (${func.name}) - ${origin}`,
 						);
-						await prisma.triggerLog.create({
-							data: {
-								functionId: func.id,
-								result: "CORS_DENIED",
-								logs: `Denied origin: ${origin}`,
-							},
+						await persistFunctionExecutionLog({
+							functionId: func.id,
+							functionData: func,
+							logs: `Denied origin: ${origin}`,
+							output: JSON.stringify({
+								status: "FAILED",
+								message: "SERVER CORS Policy: This origin is not allowed access",
+							}),
+							payload: JSON.stringify({
+								ran_by: "exec",
+								method: ctr.url.method,
+								route: "default",
+								source_ip: ctr.client.ip.usual(),
+								origin,
+							}),
+							exit_code: 403,
+							tooks: [
+								{
+									description: "HTTP execution blocked before runtime",
+									value: 0,
+									timestamp: Date.now(),
+								},
+							],
+							error_type: "cors_denied",
+							force: true,
 						});
 					} else {
 						console.log(

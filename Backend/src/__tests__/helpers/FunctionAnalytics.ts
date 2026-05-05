@@ -65,6 +65,65 @@ describe("FunctionAnalytics helpers", () => {
 				{ description: "Write user files (2)", seconds: 0.111 },
 				{ description: "Total", seconds: 1.234 },
 			],
+			errorType: null,
+			ratelimit: null,
+		});
+	});
+
+	it("parses ratelimit and http-only failure metadata from trigger logs", () => {
+		const log = {
+			id: 11,
+			functionId: 4,
+			result: JSON.stringify({
+				exit_code: 429,
+				tooks: [{ description: "HTTP execution blocked before runtime", value: 0, timestamp: 1 }],
+				payload: JSON.stringify({ ran_by: "exec" }),
+				error_type: "rate_limit_blocked",
+				ratelimit: {
+					configured: true,
+					blocked: true,
+					scope: "identity",
+					retry_after_ms: 1200,
+					penalty_ms: 400,
+					identities: ["ip", "route"],
+				},
+			}),
+			logs: "blocked",
+			createdAt: new Date("2026-04-29T10:05:00.000Z"),
+			updatedAt: new Date("2026-04-29T10:05:00.000Z"),
+			function: {
+				id: 4,
+				name: "http-fn",
+			},
+		};
+
+		expect(parseExecutionAnalyticsLog(log)).toEqual({
+			executionId: 11,
+			functionId: 4,
+			functionName: "http-fn",
+			createdAt: "2026-04-29T10:05:00.000Z",
+			exitCode: 429,
+			totalSeconds: 0,
+			source: "exec",
+			phaseTimings: [{ description: "HTTP execution blocked before runtime", seconds: 0 }],
+			errorType: "rate_limit_blocked",
+			ratelimit: {
+				configured: true,
+				blocked: true,
+				wouldBlock: true,
+				scope: "identity",
+				retryAfterMs: 1200,
+				penaltyMs: 400,
+				limit: null,
+				remaining: null,
+				resetAfterMs: null,
+				policyId: null,
+				policyName: null,
+				mode: null,
+				identities: ["ip", "route"],
+				identityValues: {},
+				applied: [],
+			},
 		});
 	});
 
@@ -101,6 +160,13 @@ describe("FunctionAnalytics helpers", () => {
 		);
 
 		expect(result.summary.totalExecutions).toBe(1);
+		expect(result.summary.rateLimitedExecutions).toBe(0);
+		expect(result.summary.rateLimitBlockedExecutions).toBe(0);
+		expect(result.summary.rateLimitWouldBlockExecutions).toBe(0);
+		expect(result.summary.rateLimitBlockedByScope).toEqual({
+			global: 0,
+			identity: 0,
+		});
 		expect(result.functions).toHaveLength(1);
 		expect(result.functions[0].functionName).toBe("alpha");
 		expect(result.functions[0].phaseSummary).toEqual([]);
@@ -119,6 +185,11 @@ describe("FunctionAnalytics helpers", () => {
 						{ description: "Total", value: 1.0, timestamp: 3 },
 					],
 					payload: JSON.stringify({ ran_by: "exec" }),
+					ratelimit: {
+						configured: true,
+						blocked: false,
+						identities: ["ip"],
+					},
 				}),
 				logs: "",
 				createdAt: new Date("2026-04-29T10:00:00.000Z"),
@@ -136,6 +207,14 @@ describe("FunctionAnalytics helpers", () => {
 						{ description: "Total", value: 1.5, timestamp: 3 },
 					],
 					payload: JSON.stringify({ ran_by: "cron" }),
+					error_type: "rate_limit_blocked",
+					ratelimit: {
+						configured: true,
+						blocked: true,
+						scope: "global",
+						retry_after_ms: 500,
+						penalty_ms: 400,
+					},
 				}),
 				logs: "",
 				createdAt: new Date("2026-04-30T08:00:00.000Z"),
@@ -158,6 +237,14 @@ describe("FunctionAnalytics helpers", () => {
 		expect(result.p95Seconds).toBe(1.5);
 		expect(result.lastRunAt).toBe("2026-04-30T08:00:00.000Z");
 		expect(result.recentExecutions[0].source).toBe("cron");
+		expect(result.recentExecutions[0].errorType).toBe("rate_limit_blocked");
+		expect(result.rateLimitedExecutions).toBe(2);
+		expect(result.rateLimitBlockedExecutions).toBe(1);
+		expect(result.rateLimitWouldBlockExecutions).toBe(1);
+		expect(result.rateLimitBlockedByScope).toEqual({
+			global: 1,
+			identity: 0,
+		});
 		expect(result.phaseSummary).toEqual([
 			{ description: "Run container", avgSeconds: 0.5, maxSeconds: 0.6 },
 			{ description: "Write user files (1)", avgSeconds: 0.25, maxSeconds: 0.3 },

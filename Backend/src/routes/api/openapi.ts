@@ -49,6 +49,44 @@ export = new fileRouter.Path("/").http("GET", "/api/openapi.json", (http) =>
 											type: "number",
 											description: "Time Left in Seconds",
 										},
+										retry_after_ms: {
+											type: "number",
+											description: "Retry delay in milliseconds",
+										},
+										penalty_ms: {
+											type: "number",
+											description:
+												"Penalty duration applied to the rate limited bucket in milliseconds",
+										},
+										limit: {
+											type: "number",
+											description: "Limit for the primary applied bucket",
+										},
+										remaining: {
+											type: "number",
+											description: "Remaining hits for the primary applied bucket",
+										},
+										reset_after_ms: {
+											type: "number",
+											description: "Milliseconds until the primary bucket resets",
+										},
+										policy_id: {
+											type: "string",
+											description: "Rate limit policy identifier",
+										},
+										policy_name: {
+											type: "string",
+											description: "Rate limit policy name",
+										},
+										mode: {
+											type: "string",
+											enum: ["enforce", "observe"],
+											description: "Policy mode for the matched bucket",
+										},
+										would_block: {
+											type: "boolean",
+											description: "Whether the request would have been blocked",
+										},
 									},
 								},
 							},

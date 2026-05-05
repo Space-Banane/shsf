@@ -11,6 +11,7 @@ import * as path from "path";
 import { randomBytes } from "crypto";
 import { getLoggingConfigFromData, stripHeadersFromPayload } from "./FunctionLogging";
 import { replaceApiBaseInContent } from "./FileHelpers";
+import type { LoggedExecutionRateLimitData } from "./FunctionRateLimit";
 
 interface TimingEntry {
 	timestamp: number;
@@ -18,10 +19,83 @@ interface TimingEntry {
 	description: string;
 }
 
+export interface PersistedFunctionExecutionLogInput {
+	functionId: number;
+	functionData: Pick<Function, "logging" | "startup_file">;
+	logs: string;
+	output?: string | null;
+	payload?: string | null;
+	exit_code: number | null;
+	tooks?: TimingEntry[];
+	ratelimit?: LoggedExecutionRateLimitData;
+	error_type?: string;
+	force?: boolean;
+}
+
 // Token expiry for execution tokens (in milliseconds)
 const FUNCTION_DB_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const ServeOnlyFileNotFoundHTML = `<html><head><title>File Not Found</title></head><body><h1>404 - File Not Found</h1><p>The requested HTML file was not found in the function's files.</p></body></html>`;
+const DB_FIELD_LIMIT = 10000;
+
+function truncateDbField(value: string): string {
+	return value.length > DB_FIELD_LIMIT
+		? value.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
+		: value;
+}
+
+export async function persistFunctionExecutionLog(
+	input: PersistedFunctionExecutionLogInput,
+) {
+	const loggingConfig = await getLoggingConfigFromData(input.functionData.logging);
+	if (!loggingConfig.enabled && !input.force) {
+		return;
+	}
+
+	let disableResult = false;
+	let disableResultReason = "";
+	let payloadForDb = input.payload ?? JSON.stringify(null);
+	const resultForDb =
+		typeof input.output === "string" && input.output !== ""
+			? input.output
+			: JSON.stringify(null);
+	const containsBase64TransportEnvelope =
+		/"__shsf_transport"\s*:\s*"base64-bytes-v1"/.test(resultForDb);
+
+	if (loggingConfig.enabled && loggingConfig.hide_payload_headers) {
+		payloadForDb = await stripHeadersFromPayload(payloadForDb);
+	}
+
+	if (input.functionData.startup_file.endsWith(".html")) {
+		disableResult = true;
+		disableResultReason = "HTML content detected in startup file";
+	}
+
+	if (resultForDb.includes("<!DOCTYPE html>") || resultForDb.includes("<html")) {
+		disableResult = true;
+		disableResultReason = "HTML content detected in result";
+	}
+
+	if (containsBase64TransportEnvelope) {
+		disableResult = true;
+		disableResultReason = "Base64 transport envelope detected in result";
+	}
+
+	await prisma.triggerLog.create({
+		data: {
+			functionId: input.functionId,
+			logs: truncateDbField(input.logs),
+			result: JSON.stringify({
+				exit_code: input.exit_code,
+				tooks: input.tooks ?? [],
+				output: disableResult ? disableResultReason : truncateDbField(resultForDb),
+				payload: truncateDbField(payloadForDb),
+				...(input.ratelimit ? { ratelimit: input.ratelimit } : {}),
+				...(input.error_type ? { error_type: input.error_type } : {}),
+			}),
+		},
+	});
+}
 
 const DbComScriptPY = `# Database Communication Script
 # GENERATED ON THE FLY - DO NOT EDIT - THIS WILL BE OVERWRITTEN ON THE NEXT RUN
@@ -531,7 +605,10 @@ export async function executeFunction(
 	stream:
 		| { enabled: true; onChunk: (data: string) => void }
 		| { enabled: false },
-	payload: string
+	payload: string,
+	metadata?: {
+		ratelimit?: LoggedExecutionRateLimitData;
+	},
 ) {
 	const starting_time = Date.now();
 	const tooks: TimingEntry[] = [];
@@ -1475,63 +1552,19 @@ echo "[SHSF INIT] Go setup complete."
 		}
 
 		try {
-			// Ensure func_result is a string for the DB, even if it's an error message or empty
-			let disableResult = false;
-			let disableResultReason = "";
-			const resultForDb =
-				typeof func_result === "string" && func_result !== ""
-					? func_result
-					: JSON.stringify(null);
-			const containsBase64TransportEnvelope =
-				/"__shsf_transport"\s*:\s*"base64-bytes-v1"/.test(resultForDb);
-			const DB_FIELD_LIMIT = 10000; // Reasonable DB field size limit
-			const loggingConfig = await getLoggingConfigFromData(functionData.logging);
-			if (loggingConfig.enabled) {
-				let newpayload = payload;
-				if (loggingConfig.hide_payload_headers) {
-					newpayload = await stripHeadersFromPayload(newpayload);
-				}
-
-				if (functionData.startup_file.endsWith(".html")) {
-					// Don't log HTML content to results
-					disableResult = true;
-					disableResultReason = "HTML content detected in startup file";
-				}
-
-				if (resultForDb.includes("<!DOCTYPE html>") || resultForDb.includes("<html")) {
-					// Don't log results containing HTML, wasted storage
-					disableResult = true;
-					disableResultReason = "HTML content detected in result";
-				}
-
-				if (containsBase64TransportEnvelope) {
-					// Binary payloads are base64-wrapped and can be very large.
-					disableResult = true;
-					disableResultReason = "Base64 transport envelope detected in result";
-				}
-
-				await prisma.triggerLog.create({
-					data: {
-						functionId: id,
-						logs:
-							logs.length > DB_FIELD_LIMIT
-								? logs.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
-								: logs,
-						result: JSON.stringify({
-							exit_code: exitCode,
-							tooks: tooks,
-							output:
-								disableResult ? disableResultReason : resultForDb.length > DB_FIELD_LIMIT
-									? resultForDb.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
-									: resultForDb,
-							payload:
-								newpayload.length > DB_FIELD_LIMIT
-									? newpayload.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
-									: newpayload,
-						}),
-					},
-				});
-			}
+			await persistFunctionExecutionLog({
+				functionId: id,
+				functionData,
+				logs,
+				output:
+					typeof func_result === "string" && func_result !== ""
+						? func_result
+						: JSON.stringify(null),
+				payload,
+				exit_code: exitCode,
+				tooks,
+				...(metadata?.ratelimit ? { ratelimit: metadata.ratelimit } : {}),
+			});
 		} catch (error) {
 			console.error("Error creating trigger log:", error);
 		}

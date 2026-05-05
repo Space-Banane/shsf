@@ -91,6 +91,7 @@ model Function {
   namespace   Namespace @relation(fields: [namespaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   logging String? @db.Text // Logging Configuration JSON Stringified
+  ratelimit String? @db.Text // Execution rate limit configuration JSON stringified
 
 
   // System Manged Data

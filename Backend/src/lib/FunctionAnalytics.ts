@@ -16,6 +16,49 @@ export interface ExecutionTimingPhase {
 	seconds: number;
 }
 
+export interface ExecutionRateLimitAnalytics {
+	configured: boolean;
+	blocked: boolean;
+	wouldBlock: boolean;
+	scope: "global" | "identity" | null;
+	retryAfterMs: number | null;
+	penaltyMs: number | null;
+	limit: number | null;
+	remaining: number | null;
+	resetAfterMs: number | null;
+	policyId: string | null;
+	policyName: string | null;
+	mode: "enforce" | "observe" | null;
+	identities: string[];
+	identityValues: Record<string, string>;
+	applied: ExecutionRateLimitAppliedAnalytics[];
+}
+
+export interface ExecutionRateLimitAppliedAnalytics {
+	scope: "global" | "identity";
+	policyId: string | null;
+	policyName: string | null;
+	mode: "enforce" | "observe" | null;
+	limit: number;
+	remaining: number;
+	resetAfterMs: number;
+	wouldBlock: boolean;
+	identities: string[];
+	identityValues: Record<string, string>;
+}
+
+export interface RateLimitScopeBreakdown {
+	global: number;
+	identity: number;
+}
+
+export interface RateLimitTopIdentityValue {
+	identity: string;
+	value: string;
+	count: number;
+	blockedCount: number;
+}
+
 export interface PhaseSummary {
 	description: string;
 	avgSeconds: number;
@@ -31,6 +74,8 @@ export interface ExecutionAnalyticsItem {
 	totalSeconds: number | null;
 	source: string;
 	phaseTimings: ExecutionTimingPhase[];
+	errorType: string | null;
+	ratelimit: ExecutionRateLimitAnalytics | null;
 }
 
 export interface FunctionAnalyticsSummary {
@@ -44,6 +89,11 @@ export interface FunctionAnalyticsSummary {
 	series: AnalyticsPoint[];
 	recentExecutions: ExecutionAnalyticsItem[];
 	phaseSummary: PhaseSummary[];
+	rateLimitedExecutions: number;
+	rateLimitBlockedExecutions: number;
+	rateLimitWouldBlockExecutions: number;
+	rateLimitBlockedByScope: RateLimitScopeBreakdown;
+	topRateLimitIdentityValues: RateLimitTopIdentityValue[];
 }
 
 export interface AccountAnalyticsSummary {
@@ -52,6 +102,11 @@ export interface AccountAnalyticsSummary {
 	avgSeconds: number | null;
 	p95Seconds: number | null;
 	functionCount: number;
+	rateLimitedExecutions: number;
+	rateLimitBlockedExecutions: number;
+	rateLimitWouldBlockExecutions: number;
+	rateLimitBlockedByScope: RateLimitScopeBreakdown;
+	topRateLimitIdentityValues: RateLimitTopIdentityValue[];
 }
 
 export interface AccountFunctionAnalyticsResponse {
@@ -198,11 +253,155 @@ function getSourceFromPayload(payload: any): string {
 	return source;
 }
 
+function normalizeRateLimitScope(value: unknown): "global" | "identity" | null {
+	return value === "global" || value === "identity" ? value : null;
+}
+
+function normalizeRateLimitMode(value: unknown): "enforce" | "observe" | null {
+	return value === "enforce" || value === "observe" ? value : null;
+}
+
+function parseIdentityValues(value: unknown): Record<string, string> {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return {};
+	}
+
+	return Object.fromEntries(
+		Object.entries(value).filter(
+			(entry): entry is [string, string] =>
+				typeof entry[0] === "string" && typeof entry[1] === "string",
+		),
+	);
+}
+
+function parseRateLimitAppliedData(
+	rawApplied: unknown,
+): ExecutionRateLimitAppliedAnalytics[] {
+	if (!Array.isArray(rawApplied)) {
+		return [];
+	}
+
+	return rawApplied
+		.map((entry) => {
+			if (!entry || typeof entry !== "object") {
+				return null;
+			}
+
+			const rawEntry = entry as Record<string, unknown>;
+			const scope = normalizeRateLimitScope(rawEntry.scope);
+			const limit = rawEntry.limit;
+			const remaining = rawEntry.remaining;
+			const resetAfterMs = rawEntry.reset_after_ms;
+
+			if (
+				!scope ||
+				typeof limit !== "number" ||
+				typeof remaining !== "number" ||
+				typeof resetAfterMs !== "number"
+			) {
+				return null;
+			}
+
+			return {
+				scope,
+				policyId:
+					typeof rawEntry.policy_id === "string" ? rawEntry.policy_id : null,
+				policyName:
+					typeof rawEntry.policy_name === "string"
+						? rawEntry.policy_name
+						: null,
+				mode: normalizeRateLimitMode(rawEntry.mode),
+				limit,
+				remaining,
+				resetAfterMs,
+				wouldBlock: rawEntry.would_block === true,
+				identities: Array.isArray(rawEntry.identities)
+					? rawEntry.identities.filter(
+							(identity: unknown): identity is string =>
+								typeof identity === "string",
+						)
+					: [],
+				identityValues: parseIdentityValues(rawEntry.identity_values),
+			};
+		})
+		.filter(
+			(entry): entry is ExecutionRateLimitAppliedAnalytics => Boolean(entry),
+		);
+}
+
+function parseRateLimitData(rawRateLimit: any): ExecutionRateLimitAnalytics | null {
+	if (!rawRateLimit || typeof rawRateLimit !== "object") {
+		return null;
+	}
+
+	const applied = parseRateLimitAppliedData(rawRateLimit.applied);
+
+	return {
+		configured: rawRateLimit.configured === true,
+		blocked: rawRateLimit.blocked === true,
+		wouldBlock:
+			rawRateLimit.would_block === true ||
+			rawRateLimit.blocked === true ||
+			applied.some((entry) => entry.wouldBlock),
+		scope: normalizeRateLimitScope(rawRateLimit.scope),
+		retryAfterMs:
+			typeof rawRateLimit.retry_after_ms === "number"
+				? rawRateLimit.retry_after_ms
+				: null,
+		penaltyMs:
+			typeof rawRateLimit.penalty_ms === "number"
+				? rawRateLimit.penalty_ms
+				: null,
+		limit:
+			typeof rawRateLimit.limit === "number" ? rawRateLimit.limit : null,
+		remaining:
+			typeof rawRateLimit.remaining === "number"
+				? rawRateLimit.remaining
+				: null,
+		resetAfterMs:
+			typeof rawRateLimit.reset_after_ms === "number"
+				? rawRateLimit.reset_after_ms
+				: null,
+		policyId:
+			typeof rawRateLimit.policy_id === "string"
+				? rawRateLimit.policy_id
+				: null,
+		policyName:
+			typeof rawRateLimit.policy_name === "string"
+				? rawRateLimit.policy_name
+				: null,
+		mode: normalizeRateLimitMode(rawRateLimit.mode),
+		identities: Array.isArray(rawRateLimit.identities)
+			? rawRateLimit.identities.filter(
+					(identity: unknown): identity is string =>
+						typeof identity === "string",
+				)
+			: [],
+		identityValues: parseIdentityValues(rawRateLimit.identity_values),
+		applied,
+	};
+}
+
 export function parseExecutionAnalyticsLog(
 	log: TriggerLogWithFunctionName,
 ): ExecutionAnalyticsItem | null {
-	if (!log.result || log.result === "CORS_DENIED") {
+	if (!log.result) {
 		return null;
+	}
+
+	if (log.result === "CORS_DENIED") {
+		return {
+			executionId: log.id,
+			functionId: log.functionId,
+			functionName: log.function?.name ?? `Function #${log.functionId}`,
+			createdAt: log.createdAt.toISOString(),
+			exitCode: 403,
+			totalSeconds: null,
+			source: "exec",
+			phaseTimings: [],
+			errorType: "cors_denied",
+			ratelimit: null,
+		};
 	}
 
 	const parsedResult = safeParseJson(log.result);
@@ -230,6 +429,9 @@ export function parseExecutionAnalyticsLog(
 		totalSeconds: getTotalSeconds(phases),
 		source: getSourceFromPayload(payloadValue),
 		phaseTimings: phases,
+		errorType:
+			typeof parsedResult.error_type === "string" ? parsedResult.error_type : null,
+		ratelimit: parseRateLimitData(parsedResult.ratelimit),
 	};
 }
 
@@ -329,6 +531,68 @@ function buildPhaseSummary(executions: ExecutionAnalyticsItem[]): PhaseSummary[]
 		.sort((a, b) => b.avgSeconds - a.avgSeconds);
 }
 
+function buildRateLimitBlockedByScope(
+	executions: ExecutionAnalyticsItem[],
+): RateLimitScopeBreakdown {
+	return executions.reduce<RateLimitScopeBreakdown>(
+		(summary, execution) => {
+			if (!execution.ratelimit?.blocked || !execution.ratelimit.scope) {
+				return summary;
+			}
+
+			summary[execution.ratelimit.scope] += 1;
+			return summary;
+		},
+		{ global: 0, identity: 0 },
+	);
+}
+
+function buildTopRateLimitIdentityValues(
+	executions: ExecutionAnalyticsItem[],
+): RateLimitTopIdentityValue[] {
+	const identityMap = new Map<
+		string,
+		{
+			identity: string;
+			value: string;
+			count: number;
+			blockedCount: number;
+		}
+	>();
+
+	for (const execution of executions) {
+		if (!execution.ratelimit?.configured) {
+			continue;
+		}
+
+		for (const [identity, value] of Object.entries(
+			execution.ratelimit.identityValues,
+		)) {
+			const key = `${identity}:${value}`;
+			const current = identityMap.get(key) ?? {
+				identity,
+				value,
+				count: 0,
+				blockedCount: 0,
+			};
+			current.count += 1;
+			if (execution.ratelimit.blocked) {
+				current.blockedCount += 1;
+			}
+			identityMap.set(key, current);
+		}
+	}
+
+	return [...identityMap.values()]
+		.sort((a, b) => {
+			if (b.blockedCount !== a.blockedCount) {
+				return b.blockedCount - a.blockedCount;
+			}
+			return b.count - a.count;
+		})
+		.slice(0, 6);
+}
+
 function buildFunctionSummary(
 	functionId: number,
 	functionName: string,
@@ -346,6 +610,15 @@ function buildFunctionSummary(
 				new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
 		)
 		.slice(0, 10);
+	const rateLimitedExecutions = executions.filter(
+		(execution) => execution.ratelimit?.configured,
+	).length;
+	const rateLimitBlockedExecutions = executions.filter(
+		(execution) => execution.ratelimit?.blocked,
+	).length;
+	const rateLimitWouldBlockExecutions = executions.filter(
+		(execution) => execution.ratelimit?.wouldBlock,
+	).length;
 
 	return {
 		functionId,
@@ -366,6 +639,11 @@ function buildFunctionSummary(
 		series: buildSeries(executions, range, now),
 		recentExecutions: sortedRecentExecutions,
 		phaseSummary: buildPhaseSummary(executions),
+		rateLimitedExecutions,
+		rateLimitBlockedExecutions,
+		rateLimitWouldBlockExecutions,
+		rateLimitBlockedByScope: buildRateLimitBlockedByScope(executions),
+		topRateLimitIdentityValues: buildTopRateLimitIdentityValues(executions),
 	};
 }
 
@@ -412,6 +690,15 @@ export function buildAccountFunctionAnalytics(
 	const successCount = parsedExecutions.filter(
 		(execution) => execution.exitCode === 0,
 	).length;
+	const rateLimitedExecutions = parsedExecutions.filter(
+		(execution) => execution.ratelimit?.configured,
+	).length;
+	const rateLimitBlockedExecutions = parsedExecutions.filter(
+		(execution) => execution.ratelimit?.blocked,
+	).length;
+	const rateLimitWouldBlockExecutions = parsedExecutions.filter(
+		(execution) => execution.ratelimit?.wouldBlock,
+	).length;
 
 	return {
 		range,
@@ -429,6 +716,12 @@ export function buildAccountFunctionAnalytics(
 					: null,
 			p95Seconds: roundNumber(computePercentile(durations, 95)),
 			functionCount: functions.length,
+			rateLimitedExecutions,
+			rateLimitBlockedExecutions,
+			rateLimitWouldBlockExecutions,
+			rateLimitBlockedByScope: buildRateLimitBlockedByScope(parsedExecutions),
+			topRateLimitIdentityValues:
+				buildTopRateLimitIdentityValues(parsedExecutions),
 		},
 		series: buildSeries(parsedExecutions, range, now),
 		functions,

@@ -14,6 +14,49 @@ export interface ExecutionTimingPhase {
 	seconds: number;
 }
 
+export interface ExecutionRateLimitAnalytics {
+	configured: boolean;
+	blocked: boolean;
+	wouldBlock: boolean;
+	scope: "global" | "identity" | null;
+	retryAfterMs: number | null;
+	penaltyMs: number | null;
+	limit: number | null;
+	remaining: number | null;
+	resetAfterMs: number | null;
+	policyId: string | null;
+	policyName: string | null;
+	mode: "enforce" | "observe" | null;
+	identities: string[];
+	identityValues: Record<string, string>;
+	applied: ExecutionRateLimitAppliedAnalytics[];
+}
+
+export interface ExecutionRateLimitAppliedAnalytics {
+	scope: "global" | "identity";
+	policyId: string | null;
+	policyName: string | null;
+	mode: "enforce" | "observe" | null;
+	limit: number;
+	remaining: number;
+	resetAfterMs: number;
+	wouldBlock: boolean;
+	identities: string[];
+	identityValues: Record<string, string>;
+}
+
+export interface RateLimitScopeBreakdown {
+	global: number;
+	identity: number;
+}
+
+export interface RateLimitTopIdentityValue {
+	identity: string;
+	value: string;
+	count: number;
+	blockedCount: number;
+}
+
 export interface PhaseSummary {
 	description: string;
 	avgSeconds: number;
@@ -29,6 +72,8 @@ export interface ExecutionAnalyticsItem {
 	totalSeconds: number | null;
 	source: string;
 	phaseTimings: ExecutionTimingPhase[];
+	errorType: string | null;
+	ratelimit: ExecutionRateLimitAnalytics | null;
 }
 
 export interface FunctionAnalyticsSummary {
@@ -42,6 +87,11 @@ export interface FunctionAnalyticsSummary {
 	series: AnalyticsPoint[];
 	recentExecutions: ExecutionAnalyticsItem[];
 	phaseSummary: PhaseSummary[];
+	rateLimitedExecutions: number;
+	rateLimitBlockedExecutions: number;
+	rateLimitWouldBlockExecutions: number;
+	rateLimitBlockedByScope: RateLimitScopeBreakdown;
+	topRateLimitIdentityValues: RateLimitTopIdentityValue[];
 }
 
 export interface AccountAnalyticsSummary {
@@ -50,6 +100,11 @@ export interface AccountAnalyticsSummary {
 	avgSeconds: number | null;
 	p95Seconds: number | null;
 	functionCount: number;
+	rateLimitedExecutions: number;
+	rateLimitBlockedExecutions: number;
+	rateLimitWouldBlockExecutions: number;
+	rateLimitBlockedByScope: RateLimitScopeBreakdown;
+	topRateLimitIdentityValues: RateLimitTopIdentityValue[];
 }
 
 export interface AccountFunctionAnalyticsResponse {
