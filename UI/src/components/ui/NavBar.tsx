@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { BASE_URL } from "../..";
 import { AppRoute, routes } from "../../Routes";
 
@@ -13,6 +13,10 @@ export function NavBar({
 }) {
 	const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 	const [isAdmin, setIsAdmin] = useState(user?.role === "Admin");
+	const documentationLinks = [
+		{ name: "SHSF", path: "/docs" },
+		{ name: "SHSF API", path: "https://api-docs.shsf.dev" },
+	];
 
 	useEffect(() => {
 		setIsAdmin(user?.role === "Admin");
@@ -36,7 +40,7 @@ export function NavBar({
 	};
 
 	return (
-		<header className="bg-navbar border-b border-blue-700/30">
+		<header className="relative z-40 bg-navbar border-b border-blue-700/30">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<div className="flex h-16 items-center justify-between">
 					{/* Logo */}
@@ -53,31 +57,52 @@ export function NavBar({
 					<nav className="hidden md:flex items-center space-x-2">
 						{(
 							[
-								{
-									name: "API Docs",
-									path: "https://api-docs.shsf.dev",
-									requireAuth: false,
-									show_nav: true,
-									adminOnly: false
-								},
 								...routes,
 							] as AppRoute[]
 						)
-							.filter((route) => !["Login", "Register"].includes(route.name))
+							.filter((route) => !["Home", "Login", "Register"].includes(route.name))
 							.filter((route) => route.show_nav)
+							.filter((route) => route.name !== "Docs")
 							.sort((a, b) => {
-								const order = ["Home", "Docs", "API Docs", "Functions", "Analytics", "Storage", "Cron Jobs", "Guest Users" ];
+								const order = ["Functions", "Analytics", "Storage", "Cron Jobs", "Guest Users"];
 								return order.indexOf(a.name) - order.indexOf(b.name);
 							})
 							.filter((route) => !route.adminOnly || isAdmin)
-							.map((route) => (
-								<a
-									key={route.path}
-									href={route.path}
-									className="px-4 py-1.5 rounded-md text-text hover:bg-[#383863] transition-all duration-200 text-lg font-medium border border-transparent hover:border-purple-500/20 flex items-center space-x-2"
-								>
-									<span>{route.name}</span>
-								</a>
+							.map((route, index) => (
+								<Fragment key={route.path}>
+									{index === 1 && (
+										<div className="relative z-50 group">
+											<button
+												type="button"
+												className="px-4 py-1.5 rounded-md text-text hover:bg-[#383863] transition-all duration-200 text-lg font-medium border border-transparent hover:border-purple-500/20 flex items-center space-x-2"
+											>
+												<span>Documentation</span>
+												<span className="text-sm transition-transform duration-200 group-hover:rotate-180">
+													▾
+												</span>
+											</button>
+											<div className="absolute left-0 top-full z-50 hidden pt-2 group-hover:block">
+												<div className="min-w-[12rem] rounded-md border border-purple-500/20 bg-[#282844] py-1 shadow-lg">
+													{documentationLinks.map((link) => (
+														<a
+															key={link.path}
+															href={link.path}
+															className="block px-4 py-2 text-sm text-text hover:bg-[#383863]"
+														>
+															{link.name}
+														</a>
+													))}
+												</div>
+											</div>
+										</div>
+									)}
+									<a
+										href={route.path}
+										className="px-4 py-1.5 rounded-md text-text hover:bg-[#383863] transition-all duration-200 text-lg font-medium border border-transparent hover:border-purple-500/20 flex items-center space-x-2"
+									>
+										<span>{route.name}</span>
+									</a>
+								</Fragment>
 							))}
 					</nav>
 
@@ -99,7 +124,7 @@ export function NavBar({
 									</span>
 								</button>
 								{isDropdownOpen && (
-									<div className="absolute right-0 mt-2 w-48 bg-[#282844] rounded-md shadow-lg py-1 z-10 border border-purple-500/20">
+									<div className="absolute right-0 z-50 mt-2 w-48 rounded-md border border-purple-500/20 bg-[#282844] py-1 shadow-lg">
 										<a
 											href="/account"
 											className="block w-full text-left px-4 py-2 text-sm text-text hover:bg-[#383863]"
