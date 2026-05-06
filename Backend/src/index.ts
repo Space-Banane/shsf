@@ -357,11 +357,15 @@ async function processCrons() {
 
 			// Adjusted logic to ensure the cron fires correctly
 			if (next.getTime() <= now.getTime() + 1000) {
+				const followingRun = interval.next().toDate();
+
 				await prisma.functionTrigger.update({
 					where: { id: cron.id },
 					data: {
 						lastRun: now,
-						nextRun: interval.next().toDate(), // Update nextRun to the following occurrence
+						nextRun: followingRun,
+						// Explicitly mark this run as in-progress/unknown until execution result is persisted.
+						lastRunSuccessful: null,
 					},
 				});
 
@@ -383,22 +387,54 @@ async function processCrons() {
 					}
 				}
 
-				await executeFunction(
-					cron.functionId,
-					cron.function,
-					files,
-					{
-						enabled: false,
-					},
-					JSON.stringify({
-						ran_by: "cron",
-						...cronExecutionData
-					}), // ran_by can be cron, user, or exec(api)
-				);
+				let executionExitCode: number | null = null;
+				try {
+					const executionResult = await executeFunction(
+						cron.functionId,
+						cron.function,
+						files,
+						{
+							enabled: false,
+						},
+						JSON.stringify({
+							ran_by: "cron",
+							triggerId: cron.id,
+							...cronExecutionData
+						}), // ran_by can be cron, user, or exec(api)
+					);
+					executionExitCode = executionResult?.exit_code ?? null;
+				} catch (executionError) {
+					console.error(
+						`[SHSF CRONS] Function execution failed for Cron #${cron.id}:`,
+						executionError,
+					);
+				}
 
-				console.log(
-					`[SHSF CRONS] Function for Cron #${cron.id} executed successfully.`,
-				);
+				let lastRunSuccessful: boolean | null = executionExitCode === 0;
+				if (executionExitCode === null) {
+					// If we couldn't determine the exit code, we should mark it as failed to be safe, but log a warning about the uncertainty.
+					lastRunSuccessful = null; // Use null to indicate unknown result
+					console.warn(
+						`[SHSF CRONS] Could not determine execution result for Cron #${cron.id}. Marking as failed due to unknown exit code.`,
+					);
+				}
+
+				await prisma.functionTrigger.update({
+					where: { id: cron.id },
+					data: {
+						lastRunSuccessful,
+					},
+				});
+
+				if (lastRunSuccessful) {
+					console.log(
+						`[SHSF CRONS] Function for Cron #${cron.id} executed successfully.`,
+					);
+				} else {
+					console.error(
+						`[SHSF CRONS] Function for Cron #${cron.id} failed with exit code ${executionExitCode ?? "unknown"}.`,
+					);
+				}
 			} else {
 				const secondsUntilNextRun = Math.round(
 					(next.getTime() - now.getTime()) / 1000,

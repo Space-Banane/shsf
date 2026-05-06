@@ -109,6 +109,7 @@ interface Trigger {
 	updatedAt: string;
 	nextRun: string | null;
 	lastRun: string | null;
+	lastRunSuccessful: boolean | null;
 }
 
 interface TriggerLog {

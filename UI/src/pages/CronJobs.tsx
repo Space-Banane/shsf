@@ -15,6 +15,17 @@ import CreateTriggerModal from "../components/modals/functionTriggers/CreateTrig
 import { ActionButton } from "../components/buttons/ActionButton";
 import { Link } from "react-router-dom";
 
+const formatDateTime = (dateValue: string | null) => {
+	if (!dateValue) return null;
+	const parsedDate = new Date(dateValue);
+	if (Number.isNaN(parsedDate.getTime())) return null;
+
+	return {
+		date: parsedDate.toLocaleDateString(),
+		time: parsedDate.toLocaleTimeString(),
+	};
+};
+
 function CronJobsPage() {
 	const [triggers, setTriggers] = useState<(Trigger & { function: { name: string } })[]>([]);
 	const [functions, setFunctions] = useState<XFunction[]>([]);
@@ -215,15 +226,21 @@ function CronJobsPage() {
 										<th className="px-6 py-4 text-left text-xs font-bold text-text/50 uppercase tracking-wider">Name / Function</th>
 										<th className="px-6 py-4 text-left text-xs font-bold text-text/50 uppercase tracking-wider">Schedule (Cron)</th>
 										<th className="px-6 py-4 text-left text-xs font-bold text-text/50 uppercase tracking-wider">Next Run</th>
+										<th className="px-6 py-4 text-left text-xs font-bold text-text/50 uppercase tracking-wider">Last Run</th>
+										<th className="px-6 py-4 text-left text-xs font-bold text-text/50 uppercase tracking-wider">Last Run Successful?</th>
 										<th className="px-6 py-4 text-right text-xs font-bold text-text/50 uppercase tracking-wider">Actions</th>
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-primary/5">
-									{triggers.map((trigger) => (
-										<tr
-											key={trigger.id}
-											className="hover:bg-primary/5 transition-all duration-200 group"
-										>
+									{triggers.map((trigger) => {
+										const nextRunDateTime = formatDateTime(trigger.nextRun);
+										const lastRunDateTime = formatDateTime(trigger.lastRun);
+
+										return (
+											<tr
+												key={trigger.id}
+												className="hover:bg-primary/5 transition-all duration-200 group"
+											>
 											<td className="px-6 py-4 whitespace-nowrap">
 												<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
 													trigger.enabled 
@@ -248,13 +265,42 @@ function CronJobsPage() {
 												</code>
 											</td>
 											<td className="px-6 py-4 whitespace-nowrap text-sm text-text/70">
-												{trigger.nextRun ? (
+												{nextRunDateTime ? (
 													<div className="flex flex-col">
-														<span>{new Date(trigger.nextRun).toLocaleDateString()}</span>
-														<span className="text-xs opacity-50">{new Date(trigger.nextRun).toLocaleTimeString()}</span>
+														<span>{nextRunDateTime.date}</span>
+														<span className="text-xs opacity-50">{nextRunDateTime.time}</span>
 													</div>
 												) : (
 													<span className="text-text/30 italic">Not scheduled</span>
+												)}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-text/70">
+												{lastRunDateTime ? (
+													<div className="flex flex-col">
+														<span>{lastRunDateTime.date}</span>
+														<span className="text-xs opacity-50">{lastRunDateTime.time}</span>
+													</div>
+												) : (
+													<span className="text-text/30 italic">Never</span>
+												)}
+											</td>
+											<td className="px-6 py-4 whitespace-nowrap text-sm text-text/70">
+												{trigger.lastRun ? (
+													trigger.lastRunSuccessful === true ? (
+														<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+															Yes
+														</span>
+													) : trigger.lastRunSuccessful === false ? (
+														<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+															No
+														</span>
+													) : (
+														<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+															Unknown
+														</span>
+													)
+												) : (
+													<span className="text-text/30 italic">—</span>
 												)}
 											</td>
 											<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -289,8 +335,9 @@ function CronJobsPage() {
 													</button>
 												</div>
 											</td>
-										</tr>
-									))}
+											</tr>
+										);
+									})}
 								</tbody>
 							</table>
 						</div>

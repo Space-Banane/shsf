@@ -34,6 +34,8 @@ export = new fileRouter.Path("/")
 													enabled: { type: "boolean" },
 													functionId: { type: "number" },
 													nextRun: { type: "string", format: "date-time" },
+													lastRun: { type: "string", format: "date-time" },
+													lastRunSuccessful: { type: "boolean", nullable: true },
 													function: {
 														type: "object",
 														properties: {
@@ -262,6 +264,8 @@ export = new fileRouter.Path("/")
 													enabled: { type: "boolean" },
 													functionId: { type: "number" },
 													nextRun: { type: "string", format: "date-time" },
+													lastRun: { type: "string", format: "date-time" },
+													lastRunSuccessful: { type: "boolean" },
 												},
 											},
 										},
@@ -350,6 +354,8 @@ export = new fileRouter.Path("/")
 												enabled: { type: "boolean" },
 												functionId: { type: "number" },
 												nextRun: { type: "string", format: "date-time" },
+												lastRun: { type: "string", format: "date-time" },
+												lastRunSuccessful: { type: "boolean" },
 											},
 										},
 									},
@@ -587,6 +593,8 @@ export = new fileRouter.Path("/")
 												enabled: { type: "boolean" },
 												functionId: { type: "number" },
 												nextRun: { type: "string", format: "date-time" },
+												lastRun: { type: "string", format: "date-time" },
+												lastRunSuccessful: { type: "boolean" },
 											},
 										},
 									},
@@ -808,23 +816,17 @@ export = new fileRouter.Path("/")
 					...triggerDataPayload,
 				});
 
+				const runStartedAt = new Date();
+				let result: Awaited<ReturnType<typeof executeFunction>> | null = null;
+
 				try {
-					const result = await executeFunction(
+					result = await executeFunction(
 						func.id,
 						func,
 						func.files,
 						{ enabled: false },
 						payload,
 					);
-
-					return ctr.print({
-						status: "OK",
-						data: {
-							result: result?.result,
-							exit_code: result?.exit_code,
-							logs: result?.logs,
-						},
-					});
 				} catch (error) {
 					console.error(`[runFunctionTriggerNow] executeFunction failed for function ${func.id}:`, error);
 					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
@@ -832,5 +834,31 @@ export = new fileRouter.Path("/")
 						message: "Failed to execute function",
 					});
 				}
+
+				try {
+					await prisma.functionTrigger.update({
+						where: {
+							id: trigger.id,
+						},
+						data: {
+							lastRun: runStartedAt,
+							lastRunSuccessful: result?.exit_code === 0,
+						},
+					});
+				} catch (updateError) {
+					console.error(
+						`[runFunctionTriggerNow] Failed to persist run metadata for trigger ${trigger.id}:`,
+						updateError,
+					);
+				}
+
+				return ctr.print({
+					status: "OK",
+					data: {
+						result: result?.result,
+						exit_code: result?.exit_code,
+						logs: result?.logs,
+					},
+				});
 			}),
 	);
