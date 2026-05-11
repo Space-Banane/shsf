@@ -1,4 +1,5 @@
-onlyBuiltDependencies:
- - "@tailwindcss/oxide"
- - core-js
- - core-js-pure
+allowBuilds:
+  '@parcel/watcher': true
+  '@tailwindcss/oxide': true
+  core-js: true
+  core-js-pure: true

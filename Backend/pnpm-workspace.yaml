@@ -1,11 +1,11 @@
-onlyBuiltDependencies:
-  - '@openrouter/sdk'
-  - '@prisma/client'
-  - '@prisma/engines'
-  - bcrypt
-  - bufferutil
-  - cpu-features
-  - esbuild
-  - prisma
-  - protobufjs
-  - ssh2
+allowBuilds:
+  '@openrouter/sdk': true
+  '@prisma/client': true
+  '@prisma/engines': true
+  bcrypt: true
+  bufferutil: true
+  cpu-features: true
+  esbuild: true
+  prisma: true
+  protobufjs: true
+  ssh2: true
