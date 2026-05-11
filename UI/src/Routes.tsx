@@ -32,6 +32,7 @@ import { GuestUsersDocPage } from "./pages/docs/guest-users";
 import GuestUsersPage from "./pages/GuestUsers";
 import GuestAccessPage from "./pages/Guest-Access";
 import { FfmpegInstallPage } from "./pages/docs/ffmpeg-install";
+import { DocsDotnetRuntime } from "./pages/docs/dotnet-runtime";
 import { DocsGoRuntime } from "./pages/docs/go-runtime";
 import { DOCSKICKOFF } from "./pages/docs/kickoff";
 import { DocsVersionControl } from "./pages/docs/version-control";
@@ -204,6 +205,12 @@ export const routes: AppRoute[] = [
 		path: "/docs/go-runtime",
 		component: DocsGoRuntime,
 		name: "Go Runtime",
+		requireAuth: false,
+	},
+	{
+		path: "/docs/dotnet-runtime",
+		component: DocsDotnetRuntime,
+		name: ".NET Runtime",
 		requireAuth: false,
 	},
 	{

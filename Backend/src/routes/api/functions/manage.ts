@@ -22,6 +22,9 @@ const Images: string[] = [
 	"golang:1.21",
 	"golang:1.22",
 	"golang:1.23",
+	"mcr.microsoft.com/dotnet/sdk:8.0",
+	"mcr.microsoft.com/dotnet/sdk:9.0",
+	"mcr.microsoft.com/dotnet/sdk:10.0",
 ];
 const deprecatedImages: string[] = [
 	"python:3.9",
@@ -29,6 +32,14 @@ const deprecatedImages: string[] = [
 	"golang:1.20",
 	"golang:1.21",
 ];
+
+function isDotnetImage(image: string): boolean {
+	return image.startsWith("mcr.microsoft.com/dotnet/sdk:");
+}
+
+function getImageFamily(image: string): string {
+	return isDotnetImage(image) ? "dotnet" : image.split(":")[0];
+}
 
 // Create Docker client instance for container management
 const docker = new Docker();
@@ -204,7 +215,7 @@ export = new fileRouter.Path("/")
 						name: z.string().min(1).max(128),
 						description: z.string().min(3).max(128),
 						image: z.enum(Images as any),
-						startup_file: z.string().min(1).max(256),
+						startup_file: z.string().max(256),
 						docker_mount: z.boolean().optional(),
 						ffmpeg_install: z.boolean().optional(),
 						opencv_install: z.boolean().optional(),
@@ -263,6 +274,17 @@ export = new fileRouter.Path("/")
 						message: `The selected runtime image (${data.image}) is deprecated and cannot be used for new functions. Please choose a different image.`,
 					});
 				}
+
+				if (!isDotnetImage(data.image) && !data.startup_file.trim()) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Startup file is required for this runtime",
+					});
+				}
+
+				const normalizedStartupFile = isDotnetImage(data.image)
+					? ""
+					: data.startup_file.trim();
 
 				const authCheck = await checkAuthentication(
 					ctr.cookies.get(COOKIE),
@@ -324,7 +346,7 @@ export = new fileRouter.Path("/")
 						namespaceId: data.namespaceId,
 						name: data.name,
 						image: data.image,
-						startup_file: data.startup_file,
+						startup_file: normalizedStartupFile,
 						tags: data.settings?.tags?.join(",") || "",
 						allow_http: data.settings?.allow_http,
 						max_ram: data.settings?.max_ram,
@@ -350,13 +372,17 @@ export = new fileRouter.Path("/")
 						opencv_install: data.opencv_install || false,
 						cors_origins: data.cors_origins,
 						executionAlias: data.executionAlias,
-						files: {
-							// create first file when function is created.
-							create: {
-								name: data.startup_file,
-								content: (await getFirstFileByLanguage(data.image.split(":")[0])) ?? "",
-							},
-						},
+						...(normalizedStartupFile
+							? {
+									files: {
+										create: {
+											name: normalizedStartupFile,
+											content:
+												(await getFirstFileByLanguage(getImageFamily(data.image))) ?? "",
+										},
+									},
+							  }
+							: {}),
 					},
 				});
 
@@ -831,7 +857,7 @@ export = new fileRouter.Path("/")
 						name: z.string().min(1).max(128).optional(),
 						description: z.string().min(3).max(128).optional(),
 						image: z.enum(Images as any).optional(),
-						startup_file: z.string().min(1).max(256).optional(),
+						startup_file: z.string().max(256).optional(),
 						executionAlias: z
 							.string()
 							.min(8)
@@ -900,6 +926,19 @@ export = new fileRouter.Path("/")
 					});
 				}
 
+				const nextImage = data.image ?? existingFunction.image;
+
+				if (
+					data.startup_file !== undefined &&
+					!isDotnetImage(nextImage) &&
+					!data.startup_file.trim()
+				) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Startup file is required for this runtime",
+					});
+				}
+
 				// Check for duplicate executionAlias before updating
 				if (data.executionAlias !== undefined) {
 					const aliasExists = await prisma.function.findFirst({
@@ -950,11 +989,20 @@ export = new fileRouter.Path("/")
 					namespaceChange = namespaceRecord.id;
 				}
 
+				const normalizedStartupFile =
+					data.startup_file !== undefined
+						? isDotnetImage(nextImage)
+							? ""
+							: data.startup_file.trim()
+						: undefined;
+
 				const updatedData: any = {
 					...(data.name && { name: data.name }),
 					...(data.description && { description: data.description }),
 					...(data.image && { image: data.image }),
-					...(data.startup_file && { startup_file: data.startup_file }),
+					...(normalizedStartupFile !== undefined && {
+						startup_file: normalizedStartupFile,
+					}),
 					...(data.settings?.tags && {
 						tags: data.settings.tags.join(","),
 					}),
@@ -1013,7 +1061,7 @@ export = new fileRouter.Path("/")
 				const changes: string[] = [];
 				if (data.image && data.image !== existingFunction.image) {
 					changes.push(`image: ${existingFunction.image} -> ${data.image}`);
-					if (data.image.split(":")[0] !== existingFunction.image.split(":")[0]) {
+					if (getImageFamily(data.image) !== getImageFamily(existingFunction.image)) {
 						// We prohibit language changes due to absolute nightmares of edge cases.
 						return ctr.status(ctr.$status.BAD_REQUEST).print({
 							status: 400,

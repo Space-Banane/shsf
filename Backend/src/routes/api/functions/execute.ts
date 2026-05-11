@@ -177,7 +177,8 @@ export = new fileRouter.Path("/")
 									JSON.stringify({
 										ran_by: "user",
 										...runPayload,
-									})
+									}),
+									{ mode: "dev_execute" },
 								)
 									.then(async (result) => {
 										await print(
@@ -215,7 +216,8 @@ export = new fileRouter.Path("/")
 							JSON.stringify({
 								ran_by: "user",
 								...runPayload,
-							})
+							}),
+							{ mode: "dev_execute" },
 						);
 
 						if (functionData.cache_enabled && result?.result) {

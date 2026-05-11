@@ -1,5 +1,10 @@
 import React, { useState, useRef } from "react";
-import { FunctionFile, Image, ImagesAsArray } from "../../types/Prisma";
+import {
+	FunctionFile,
+	getImageDisplayName,
+	Image,
+	ImagesAsArray,
+} from "../../types/Prisma";
 import { generateWithAI, generateConfigWithAI, type AIMode } from "../../services/backend.ai";
 import { createFunction } from "../../services/backend.functions";
 import Modal from "./Modal";
@@ -283,7 +288,7 @@ function AIGenerateModal({
 									>
 										{ImagesAsArray.map((img) => (
 											<option key={img} value={img} className="bg-[#0a0a0f]">
-												{img}
+												{getImageDisplayName(img)}
 											</option>
 										))}
 									</select>

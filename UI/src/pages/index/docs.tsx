@@ -275,8 +275,16 @@ const lessons: {
 		link: "/docs/go-runtime",
 	},
 	{
-		key: "kickoff",
+		key: "dotnet-runtime",
 		identifier: "#21",
+		title: ".NET Runtime",
+		description:
+			"Build C# functions with SHSF.Runtime payload helpers and SHSF.Database storage access.",
+		link: "/docs/dotnet-runtime",
+	},
+	{
+		key: "kickoff",
+		identifier: "#22",
 		title: "Kickoff",
 		description:
 			"KICKOFF your new functions with AI-powered code generation.",
@@ -284,7 +292,7 @@ const lessons: {
 	},
 	{
 		key: "version-control",
-		identifier: "#22",
+		identifier: "#23",
 		title: "VERSION // CONTROL",
 		description:
 			"Deploy functions directly from a Git repository. Clone, pull, and keep your code in sync — automatically or on demand.",

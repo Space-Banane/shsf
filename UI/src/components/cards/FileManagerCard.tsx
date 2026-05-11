@@ -1,3 +1,4 @@
+import { useState, type DragEvent } from "react";
 import { FunctionFile } from "../../types/Prisma";
 import { ActionButton } from "../buttons/ActionButton";
 
@@ -9,6 +10,7 @@ export function FileManagerCard({
 	onDownloadFile,
 	onRenameFile,
 	onDeleteFile,
+	onDropFiles,
 	onAIGenerate,
 	disabled = false,
 	disabledReason,
@@ -20,15 +22,60 @@ export function FileManagerCard({
 	onDownloadFile: (file: FunctionFile) => void;
 	onRenameFile: (file: FunctionFile) => void;
 	onDeleteFile: (file: FunctionFile) => void;
+	onDropFiles?: (files: File[]) => void | Promise<void>;
 	onAIGenerate?: () => void;
 	disabled?: boolean;
 	disabledReason?: string;
 }) {
+	const [isDragOver, setIsDragOver] = useState(false);
+
+	const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
+		if (!onDropFiles) return;
+		event.preventDefault();
+		setIsDragOver(true);
+	};
+
+	const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+		if (!onDropFiles) return;
+		event.preventDefault();
+		event.dataTransfer.dropEffect = "copy";
+		if (!isDragOver) {
+			setIsDragOver(true);
+		}
+	};
+
+	const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+		if (!onDropFiles) return;
+		if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+			return;
+		}
+		setIsDragOver(false);
+	};
+
+	const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+		if (!onDropFiles) return;
+		event.preventDefault();
+		setIsDragOver(false);
+		const droppedFiles = Array.from(event.dataTransfer.files || []);
+		if (droppedFiles.length === 0) {
+			return;
+		}
+		void onDropFiles(droppedFiles);
+	};
+
 	return (
 		<div
-			className={`bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4 relative ${
+			className={`bg-gradient-to-br from-gray-900/50 to-gray-800/50 border rounded-lg p-4 relative transition-all duration-200 ${
+				isDragOver
+					? "border-primary shadow-[0_0_0_1px_rgba(34,211,238,0.5),0_0_24px_rgba(34,211,238,0.18)] bg-primary/5"
+					: "border-primary/20"
+			} ${
 				disabled ? "opacity-50 pointer-events-none select-none grayscale" : ""
 			}`}
+			onDragEnter={handleDragEnter}
+			onDragOver={handleDragOver}
+			onDragLeave={handleDragLeave}
+			onDrop={handleDrop}
 		>
 			<h2 className="text-lg font-bold text-primary mb-3 flex items-center gap-2">
 				<span>📁</span>
@@ -93,6 +140,18 @@ export function FileManagerCard({
 					</div>
 				)}
 			</div>
+
+			{onDropFiles && (
+				<div
+					className={`mb-3 rounded-lg border border-dashed px-3 py-2 text-center text-xs transition-all duration-200 ${
+						isDragOver
+							? "border-primary/60 bg-primary/10 text-primary"
+							: "border-primary/20 bg-background/20 text-text/60"
+					}`}
+				>
+					{isDragOver ? "Drop files to create them here" : "Drag files here to add them"}
+				</div>
+			)}
 
 			<ActionButton
 				icon="➕"
