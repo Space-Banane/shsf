@@ -9,6 +9,7 @@ import Docker from "dockerode";
 import path from "path";
 import * as fs from "fs/promises";
 import { OpenAPITags } from "../../lib/openapi";
+import { getFunctionAppDir } from "../../lib/StoragePaths";
 
 // Add Docker integration
 const docker = new Docker();
@@ -170,11 +171,7 @@ export = new fileRouter.Path("/")
 				// that use a bind mount will see the changes. Replace {{API_BASE}} at write time.
 				try {
 					const funcInfo = await getFunctionExecInfo(functionId);
-					const funcAppDir = path.join(
-						"/opt/shsf_data/functions",
-						String(functionId),
-						"app",
-					);
+					const funcAppDir = getFunctionAppDir(functionId);
 					await fs.mkdir(funcAppDir, { recursive: true });
 					let contentToWrite: string | Buffer = data.code;
 					if (funcInfo && typeof contentToWrite === "string") {
@@ -366,11 +363,7 @@ export = new fileRouter.Path("/")
 					(fileToDelete.name === "requirements.txt" ||
 						fileToDelete.name === "package.json")
 				) {
-					const funcAppDir = path.join(
-						"/opt/shsf_data/functions",
-						String(functionId),
-						"app",
-					);
+					const funcAppDir = getFunctionAppDir(functionId);
 					try {
 						await fs.writeFile(
 							path.join(funcAppDir, fileToDelete.name),
@@ -503,11 +496,7 @@ export = new fileRouter.Path("/")
 						data.newFilename === "requirements.txt" ||
 						data.newFilename === "package.json")
 				) {
-					const funcAppDir = path.join(
-						"/opt/shsf_data/functions",
-						String(functionId),
-						"app",
-					);
+					const funcAppDir = getFunctionAppDir(functionId);
 					try {
 						// If renaming away from a dependency file, create an empty one
 						if (

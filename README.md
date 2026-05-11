@@ -43,6 +43,15 @@ SHSF has a web interface, supports Python and Go as main runtimes and allows you
 
    Open your browser and navigate to `http://localhost:3000` (or your configured port)
 
+### Runtime data directory
+
+SHSF stores function files and runtime caches in an OS-specific data directory:
+
+- Linux/Docker: `/opt/shsf_data`
+- Windows local development: `./shsf_data` inside the `Backend` folder
+
+This keeps Docker bind mounts valid on Windows while preserving the normal `/opt/shsf_data` layout on Linux servers.
+
 ## Usage
 
 1. **Open the web interface** and register (first user becomes admin).

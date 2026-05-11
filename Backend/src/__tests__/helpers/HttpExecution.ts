@@ -210,12 +210,13 @@ describe("executeLoadedHttpFunction", () => {
 				body: "{}",
 				route: "default",
 			}),
-			{
+			expect.objectContaining({
 				ratelimit: expect.objectContaining({
 					configured: false,
 					blocked: false,
 				}),
-			},
+				mode: "production_execute",
+			}),
 		);
 		expect(setFunctionCache).toHaveBeenCalledWith(
 			10,

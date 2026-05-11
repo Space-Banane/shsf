@@ -333,16 +333,16 @@ func main_user(args interface{}) (interface{}, error) {
 
 				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
 					<h2 className="text-xl font-bold text-primary mb-3">
-						🚀 Next Step - KICKOFF
+						🚀 Next Step - .NET Runtime
 					</h2>
 					<p className="text-text/90 mb-4">
-						Interested in starting a new project with SHSF? Learn how an AI might help you kick it off faster.
+						Want to build C# functions too? Learn how the SHSF .NET runtime handles payloads, responses, and storage helpers.
 					</p>
 					<a
-						href="/docs/kickoff"
+						href="/docs/dotnet-runtime"
 						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
 					>
-						#21 KICKOFF
+						#21 .NET Runtime
 						<span className="text-lg">→</span>
 					</a>
 				</div>

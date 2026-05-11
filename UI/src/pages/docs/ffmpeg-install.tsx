@@ -212,10 +212,10 @@ export const FfmpegInstallPage = () => {
 						and use the Go runtime in SHSF.
 					</p>
 					<a
-						href="/docs/go-runtime"
+						href="/docs/dotnet-runtime"
 						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
 					>
-						#20 Go Runtime
+						#21 .NET Runtime
 						<span className="text-lg">→</span>
 					</a>
 				</div>

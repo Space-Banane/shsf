@@ -10,8 +10,11 @@ import {
 } from "../../../services/backend.functions";
 import { getNamespaces } from "../../../services/backend.namespaces";
 import {
+	getImageDisplayName,
+	getImageFamily,
 	Image,
 	ImagesAsArray,
+	isDotnetImage,
 	TriggerLog,
 	XFunction,
 	Namespace,
@@ -138,6 +141,7 @@ function UpdateFunctionModal({
 
 	const namespaceSelectValue =
 		namespaces.length > 0 ? (selectedNamespaceId ?? "") : "";
+	const isDotnetRuntime = isDotnetImage(image);
 
 	const addCorsOrigin = () => {
 		const val = corsOriginInput.trim();
@@ -191,7 +195,7 @@ function UpdateFunctionModal({
 				name: name.trim() || undefined,
 				description: description.trim() || undefined,
 				image,
-				startup_file: startupFile?.trim() || undefined,
+				startup_file: isDotnetRuntime ? "" : startupFile?.trim() || undefined,
 				docker_mount: dockerMount,
 				ffmpeg_install: ffmpegInstall,
 				opencv_install: opencv_install,
@@ -403,12 +407,26 @@ function UpdateFunctionModal({
 							<label className="text-sm font-medium text-gray-300">Startup File</label>
 							<input
 								type="text"
-								placeholder="main.py, index.js, etc."
+								placeholder={
+									isDotnetRuntime
+										? ".NET functions auto-detect the runnable project"
+										: "main.py, index.js, etc."
+								}
 								value={startupFile || ""}
 								onChange={(e) => setStartupFile(e.target.value)}
-								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
-								disabled={isLoading}
+								className={`w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 ${
+									isLoading || isDotnetRuntime
+										? "opacity-50 cursor-not-allowed"
+										: ""
+								}`}
+								disabled={isLoading || isDotnetRuntime}
 							/>
+							{isDotnetRuntime && (
+								<p className="text-xs text-cyan-300">
+									.NET functions keep this empty and resolve the runnable
+									project from your `.csproj` and `.sln` files.
+								</p>
+							)}
 						</div>
 					</div>
 
@@ -495,7 +513,7 @@ function UpdateFunctionModal({
 						>
 							{ImagesAsArray.map((img) => {
 								let isDisabled: { state?: boolean; message?: string } = {};
-								if (img.split(":")[0] !== image.split(":")[0]) {
+								if (getImageFamily(img) !== getImageFamily(image)) {
 									isDisabled = {
 										state: true,
 										message: "Changing language/runtime is not allowed",
@@ -510,7 +528,8 @@ function UpdateFunctionModal({
 
 								return (
 									<option key={img} value={img} disabled={isDisabled.state}>
-										{img} {isDisabled.message && `(${isDisabled.message})`}
+										{getImageDisplayName(img)}{" "}
+										{isDisabled.message && `(${isDisabled.message})`}
 									</option>
 								);
 							})}

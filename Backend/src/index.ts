@@ -400,7 +400,8 @@ async function processCrons() {
 							ran_by: "cron",
 							triggerId: cron.id,
 							...cronExecutionData
-						}), // ran_by can be cron, user, or exec(api)
+						}),
+						{ mode: "cron_execute" }, // ran_by can be cron, user, or exec(api)
 					);
 					executionExitCode = executionResult?.exit_code ?? null;
 				} catch (executionError) {

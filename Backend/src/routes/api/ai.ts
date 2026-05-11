@@ -15,6 +15,9 @@ const Images: string[] = [
 	"golang:1.21",
 	"golang:1.22",
 	"golang:1.23",
+	"mcr.microsoft.com/dotnet/sdk:8.0",
+	"mcr.microsoft.com/dotnet/sdk:9.0",
+	"mcr.microsoft.com/dotnet/sdk:10.0",
 ];
 
 const DisallowedFiles = ["_runner.py", "_runner.js", "init.sh"];
@@ -47,6 +50,18 @@ func main_user(args interface{}) (interface{}, error) {
 • Go functions MUST use \`main_user\`, NOT \`main\`, as the user entry-point.
 • Dependencies go in a \`go.mod\` file (auto-downloaded by the runtime).
 • Supported Go versions: 1.20 / 1.21 / 1.22 / 1.23
+
+**.NET / C#** (project-based runtime)
+\`\`\`csharp
+using SHSF;
+
+var args = Runtime.LoadPayloadJson<Dictionary<string, JsonElement?>>();
+Runtime.Return(new { hello = "world" });
+\`\`\`
+• .NET functions are project-based: include a runnable \`.csproj\` and C# source files.
+• Do NOT use \`func.startup_file\` for .NET. The startup file should be an empty string.
+• Your code can use \`Runtime.LoadPayload()\`, \`Runtime.LoadPayloadJson<T>()\`, and \`Runtime.Return(object)\` from the auto-provisioned \`SHSF.Runtime.cs\` helper.
+• Supported .NET SDK images: 8.0 / 9.0 / 10.0
 
 ---
 
@@ -91,6 +106,20 @@ func main_user(args interface{}) (interface{}, error) {
     if name == "" { name = "stranger" }
     return map[string]string{"greeting": "Hello, " + name + "!"}, nil
 }
+\`\`\`
+
+C# example:
+\`\`\`csharp
+using System.Text.Json;
+using SHSF;
+
+var payload = Runtime.LoadPayloadJson<Dictionary<string, JsonElement?>>() ?? new();
+var body = payload.TryGetValue("body", out var rawBody) && rawBody is JsonElement value && value.ValueKind == JsonValueKind.String
+    ? JsonSerializer.Deserialize<Dictionary<string, string>>(value.GetString() ?? "{}") ?? new()
+    : new Dictionary<string, string>();
+
+var name = body.TryGetValue("name", out var providedName) ? providedName : "stranger";
+Runtime.Return(new { greeting = $"Hello {name}" });
 \`\`\`
 
 ---
@@ -178,6 +207,11 @@ Go:
 \`\`\`go
 import "os"
 apiKey := os.Getenv("MY_API_KEY")
+\`\`\`
+
+C#:
+\`\`\`csharp
+var apiKey = Environment.GetEnvironmentVariable("MY_API_KEY") ?? "";
 \`\`\`
 
 ---
@@ -360,6 +394,7 @@ def main(args):
 |---------|-----------------|-------------------------------------------|
 | Python  | requirements.txt | pip-installed before first run            |
 | Go      | go.mod + go.sum | module dependencies, auto-downloaded      |
+| .NET    | .csproj         | NuGet restore/build handled by dotnet CLI |
 
 Python requirements.txt example:
 \`\`\`
@@ -390,6 +425,7 @@ require (
 - Never write partial files or placeholder comments like "# ... rest of code"
 - Never hard-code secrets — always use environment variables (§5)
 - Go entry-point is main_user(), never main()
+- .NET functions must include a runnable .csproj and return results via Runtime.Return(...)
 - Never invent SHSF-specific APIs that are not documented in this reference
 - **Always \`import json\` and call \`json.loads(args.get("body", "{}"))\` in Python before accessing body fields**
 `;
@@ -501,7 +537,7 @@ export = new fileRouter.Path("/")
 Based on the user's description and chosen runtime, suggest:
 1. A concise, professional name for the function (alphanumeric, max 128 chars).
 2. A clear, helpful description.
-3. The most appropriate startup file name (e.g., "main.py" for Python, "main_user.go" for Go).
+3. The most appropriate startup file name (e.g., "main.py" for Python, "main_user.go" for Go, or an empty string for .NET project-based functions).
 
 Return ONLY a JSON object with the following structure:
 {
@@ -513,6 +549,7 @@ Return ONLY a JSON object with the following structure:
 Platform Rules:
 - Go functions MUST use "main_user.go" as the startup file.
 - Python functions should typically use "main.py".
+- .NET functions MUST return an empty startup_file string.
 - Available runtimes: ${Images.join(", ")}`,
 							},
 							{
@@ -531,12 +568,18 @@ Platform Rules:
 					const rawContent = typeof content === "string" ? content : JSON.stringify(content);
 					const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
 					const config = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent);
+					const fallbackStartupFile = body.image.startsWith("python")
+						? "main.py"
+						: body.image.startsWith("golang")
+							? "main_user.go"
+							: "";
+
 					return ctr.print({
 						status: "OK",
 						data: {
 							name: config.name || "My Function",
 							description: config.description || body.prompt,
-							startup_file: config.startup_file || (body.image.startsWith("python") ? "main.py" : "main_user.go"),
+							startup_file: config.startup_file ?? fallbackStartupFile,
 						},
 					});
 				} catch (e) {
@@ -685,10 +728,15 @@ Function context:
 Entry-point conventions:
   Python  → def main(args): ...  return result
   Go      → func main_user(args interface{}) (interface{}, error) { ... }
+  .NET    → use a runnable .csproj; read input via SHSF.Runtime.cs and finish with Runtime.Return(...)
 
 Rules you MUST follow:
 1. Use the write_file tool for EVERY file you produce. Do NOT just describe code.
-2. Always include the startup file "${func.startup_file}".
+2. ${
+		func.image.startsWith("mcr.microsoft.com/dotnet/sdk:")
+			? 'Do NOT rely on func.startup_file for .NET. Instead, always include a runnable .csproj and the C# source files it needs.'
+			: `Always include the startup file "${func.startup_file}".`
+	}
 3. You may write at most ${maxFiles} files total.
 4. These filenames are FORBIDDEN (never use them): ${DisallowedFiles.join(", ")}.
 5. Write the FULL content of each file — no TODOs, no placeholders, no "…existing code…" markers.

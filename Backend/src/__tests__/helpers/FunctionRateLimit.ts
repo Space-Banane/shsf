@@ -74,6 +74,35 @@ describe("FunctionRateLimit config parsing", () => {
 		);
 	});
 
+	it("repairs common JS-style object literal config values", async () => {
+		expect(
+			await getRateLimitConfigFromData(
+				"{enabled:true, global:{hits:3, window_ms:1000, penalty_ms:250,},}",
+			),
+		).toEqual({
+			enabled: true,
+			global: { hits: 3, window_ms: 1000, penalty_ms: 250 },
+		});
+
+		expect(
+			await getExecutionRateLimitConfigFromData(
+				"{enabled:true, policies:[{name:'Preview', scope:'global', rule:{hits:2, window_ms:500}}]}",
+			),
+		).toEqual({
+			enabled: true,
+			policies: [
+				{
+					id: "policy-1",
+					name: "Preview",
+					scope: "global",
+					rule: { hits: 2, window_ms: 500 },
+					mode: "enforce",
+					enabled: true,
+				},
+			],
+		});
+	});
+
 	it("preserves valid identities and thresholds", async () => {
 		const config = await getRateLimitConfigFromData(
 			JSON.stringify({

@@ -4,8 +4,13 @@ import {
 	createFunction,
 	getDeprecatedImages,
 } from "../../../services/backend.functions";
-import { Image, ImagesAsArray, Namespace } from "../../../types/Prisma";
-import { InlineCode } from "../../InlineCode";
+import {
+	getImageDisplayName,
+	Image,
+	ImagesAsArray,
+	isDotnetImage,
+	Namespace,
+} from "../../../types/Prisma";
 
 interface CreateFunctionModalProps {
 	isOpen: boolean;
@@ -37,6 +42,7 @@ function CreateFunctionModal({
 	const [corsOrigins, setCorsOrigins] = useState<string>("");
 	const [corsOriginInput, setCorsOriginInput] = useState<string>("");
 	const [deprecatedImages, setDeprecatedImages] = useState<string[]>([]);
+	const isDotnetRuntime = isDotnetImage(image);
 
 	useEffect(() => {
 		const fetchDeprecatedImages = async () => {
@@ -103,7 +109,7 @@ function CreateFunctionModal({
 				description,
 				image,
 				namespaceId,
-				startup_file: startupFile,
+				startup_file: isDotnetRuntime ? "" : startupFile,
 				docker_mount: dockerMount,
 				ffmpeg_install: ffmpegInstall,
 				opencv_install: opencvInstall,
@@ -279,16 +285,10 @@ function CreateFunctionModal({
 											message: "This image is deprecated and cannot be selected",
 										};
 									}
-									if (img.split(":")[0] !== image.split(":")[0]) {
-										isDisabled = {
-											state: true,
-											message: "Changing language/runtime is not allowed",
-										};
-									}
-
 									return (
 										<option key={img} value={img} disabled={isDisabled.state}>
-											{img} {isDisabled.message && `(${isDisabled.message})`}
+											{getImageDisplayName(img)}{" "}
+											{isDisabled.message && `(${isDisabled.message})`}
 										</option>
 									);
 								})}
@@ -303,12 +303,26 @@ function CreateFunctionModal({
 							<label className="text-sm font-medium text-gray-300">Startup File</label>
 							<input
 								type="text"
-								placeholder="main.py, index.js, etc."
+								placeholder={
+									isDotnetRuntime
+										? ".NET functions auto-detect the runnable project"
+										: "main.py, index.js, etc."
+								}
 								value={startupFile || ""}
 								onChange={(e) => setStartupFile(e.target.value)}
-								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
-								disabled={isLoading}
+								className={`w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 ${
+									isLoading || isDotnetRuntime
+										? "opacity-50 cursor-not-allowed"
+										: ""
+								}`}
+								disabled={isLoading || isDotnetRuntime}
 							/>
+							{isDotnetRuntime && (
+								<p className="text-xs text-cyan-300">
+									.NET functions resolve the runnable project from your
+									`.csproj` and `.sln` files. This field stays empty on purpose.
+								</p>
+							)}
 						</div>
 					</div>
 				</div>
