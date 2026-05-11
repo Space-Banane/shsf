@@ -42,7 +42,12 @@ function LoadDefaultModal({
 					const trimmedLanguage = functionLanguage.trim();
 					if (trimmedLanguage !== "") {
 						// Normalize language (e.g., "python:3.11" -> "python")
-						const normalizedLanguage = trimmedLanguage.split(":")[0].toLowerCase();
+						const lowerLanguage = trimmedLanguage.toLowerCase();
+						const normalizedLanguage = lowerLanguage.startsWith(
+							"mcr.microsoft.com/dotnet/sdk:",
+						)
+							? "dotnet"
+							: lowerLanguage.split(":")[0];
 						if (normalizedLanguage) {
 							filteredDefaults = response.defaults.filter(
 								(template) =>
@@ -109,6 +114,7 @@ function LoadDefaultModal({
 			javascript: "📜",
 			typescript: "📘",
 			go: "🐹",
+			dotnet: "🔷",
 			rust: "🦀",
 			lua: "🌙",
 			other: "📄",
@@ -117,6 +123,10 @@ function LoadDefaultModal({
 	};
 
 	const getLanguageDisplayName = (language: string): string => {
+		if (language === "dotnet") {
+			return ".NET";
+		}
+
 		return language.charAt(0).toUpperCase() + language.slice(1);
 	};
 
