@@ -4,6 +4,10 @@ import * as fsSync from "fs";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
+import {
+	getFunctionAppDir as getStorageFunctionAppDir,
+	getGitRepoDir as getStorageGitRepoDir,
+} from "./StoragePaths";
 
 const execFileAsync = promisify(execFile);
 
@@ -52,7 +56,7 @@ export function decryptSecret(ciphertext: string, secret: string): string | null
 }
 
 export function getFuncAppDir(functionId: number): string {
-	return path.join("/opt/shsf_data/functions", String(functionId), "app");
+	return getStorageFunctionAppDir(functionId);
 }
 
 /**
@@ -61,7 +65,7 @@ export function getFuncAppDir(functionId: number): string {
  * of the specified subdirectory.
  */
 export function getGitRepoDir(functionId: number): string {
-	return path.join("/opt/shsf_data/functions", String(functionId), "git_repo");
+	return getStorageGitRepoDir(functionId);
 }
 
 /**

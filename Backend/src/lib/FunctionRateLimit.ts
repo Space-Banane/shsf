@@ -166,6 +166,37 @@ const ratelimitBucketStore = new Map<string, ExecutionRateLimitBucketState>();
 const RatelimitCleanupIntervalMs = 60_000;
 let lastRatelimitCleanupAt = 0;
 
+function parseRateLimitConfigJson(ratelimit: string): unknown | null {
+	try {
+		return JSON.parse(ratelimit);
+	} catch {
+		// Be kind to configs that were pasted/stored as JS-ish object literals.
+		// This intentionally handles only simple JSON-compatible mistakes, not code.
+		const repaired = ratelimit
+			.trim()
+			.replace(/([{,]\s*)([A-Za-z_$][\w$-]*)(\s*:)/g, '$1"$2"$3')
+			.replace(/'/g, '"')
+			.replace(/,\s*([}\]])/g, "$1");
+
+		if (repaired === ratelimit) {
+			return null;
+		}
+
+		try {
+			return JSON.parse(repaired);
+		} catch {
+			return null;
+		}
+	}
+}
+
+function logInvalidRateLimitConfig(context: string, ratelimit: string) {
+	const preview = ratelimit.trim().slice(0, 120);
+	console.warn(
+		`Invalid ${context} rate limit config; using fallback. Stored value starts with: ${preview}`,
+	);
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -448,16 +479,17 @@ export function hasConfiguredRateLimitBuckets(
 export async function getRateLimitConfigFromData(
 	ratelimit: string | null,
 ): Promise<FunctionRateLimitConfig> {
-	try {
-		if (!ratelimit || ratelimit.trim() === "") {
-			return DEFAULT_FUNCTION_RATELIMIT_CONFIG;
-		}
-
-		return normalizeFunctionRateLimitConfig(JSON.parse(ratelimit));
-	} catch (error) {
-		console.error("Error parsing rate limit config:", error);
+	if (!ratelimit || ratelimit.trim() === "") {
 		return DEFAULT_FUNCTION_RATELIMIT_CONFIG;
 	}
+
+	const parsed = parseRateLimitConfigJson(ratelimit);
+	if (parsed === null) {
+		logInvalidRateLimitConfig("function", ratelimit);
+		return DEFAULT_FUNCTION_RATELIMIT_CONFIG;
+	}
+
+	return normalizeFunctionRateLimitConfig(parsed);
 }
 
 export async function getExecutionRateLimitConfigFromData(
@@ -467,21 +499,21 @@ export async function getExecutionRateLimitConfigFromData(
 		return FALLBACK_EXECUTION_RATELIMIT_CONFIG;
 	}
 
-	try {
-		const parsed = JSON.parse(ratelimit);
-		const normalized = normalizeFunctionRateLimitConfig(parsed);
-		if (
-			normalized.enabled === false &&
-			(!isPlainObject(parsed) || parsed.enabled !== false)
-		) {
-			return FALLBACK_EXECUTION_RATELIMIT_CONFIG;
-		}
-
-		return normalized;
-	} catch (error) {
-		console.error("Error parsing execution rate limit config:", error);
+	const parsed = parseRateLimitConfigJson(ratelimit);
+	if (parsed === null) {
+		logInvalidRateLimitConfig("execution", ratelimit);
 		return FALLBACK_EXECUTION_RATELIMIT_CONFIG;
 	}
+
+	const normalized = normalizeFunctionRateLimitConfig(parsed);
+	if (
+		normalized.enabled === false &&
+		(!isPlainObject(parsed) || parsed.enabled !== false)
+	) {
+		return FALLBACK_EXECUTION_RATELIMIT_CONFIG;
+	}
+
+	return normalized;
 }
 
 export async function setRateLimitConfig(

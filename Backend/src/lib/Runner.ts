@@ -12,6 +12,13 @@ import { randomBytes } from "crypto";
 import { getLoggingConfigFromData, stripHeadersFromPayload } from "./FunctionLogging";
 import { replaceApiBaseInContent } from "./FileHelpers";
 import type { LoggedExecutionRateLimitData } from "./FunctionRateLimit";
+import {
+	getCacheDir,
+	getFunctionAppDir,
+	getFunctionBaseDir,
+	getFunctionExecutionDir,
+	getFunctionExecutionsDir,
+} from "./StoragePaths";
 
 interface TimingEntry {
 	timestamp: number;
@@ -1062,7 +1069,7 @@ export async function executeFunction(
 	const docker = new Docker();
 	const functionIdStr = String(functionData.id);
 	const containerName = `shsf_func_${functionIdStr}`;
-	const funcAppDir = path.join("/opt/shsf_data/functions", functionIdStr, "app");
+	const funcAppDir = getFunctionAppDir(functionIdStr);
 	const runtimeType = getRuntimeType(functionData.image);
 	const executionMode = options?.mode ?? "dev_execute";
 	let exitCode = 0;
@@ -1073,12 +1080,7 @@ export async function executeFunction(
 		typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
 			? crypto.randomUUID()
 			: `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-	const executionDir = path.join(
-		"/opt/shsf_data/functions",
-		functionIdStr,
-		"executions",
-		executionId
-	);
+	const executionDir = getFunctionExecutionDir(functionIdStr, executionId);
 
 	// Define startupFile and initScript here as they are needed for script generation
 	const startupFile = functionData.startup_file;
@@ -1731,22 +1733,19 @@ echo "[SHSF INIT] .NET setup complete."
 			if (error.statusCode === 404) {
 				log("Container not found — creating");
 
-				const baseCacheDir = "/opt/shsf_data/cache";
-				const pipCacheHost = path.join(baseCacheDir, "pip");
-				const goCacheHost = path.join(baseCacheDir, "go");
-				const dotnetCacheHost = path.join(baseCacheDir, "dotnet");
+				const pipCacheHost = getCacheDir("pip");
+				const goCacheHost = getCacheDir("go");
+				const dotnetCacheHost = getCacheDir("dotnet");
 				await Promise.all([
 					fs.mkdir(pipCacheHost, { recursive: true }),
 					fs.mkdir(goCacheHost, { recursive: true }),
 					fs.mkdir(dotnetCacheHost, { recursive: true }),
 				]);
 
-				// Mount the base function directory which contains both app/ and executions/
-				const funcBaseDir = path.join("/opt/shsf_data/functions", functionIdStr);
 				// Mount /app and /executions separately instead of the old /function_data
 				let BINDS: string[] = [
-					`${funcBaseDir}/app:/app`,
-					`${funcBaseDir}/executions:/executions`,
+					`${getFunctionAppDir(functionIdStr)}:/app`,
+					`${getFunctionExecutionsDir(functionIdStr)}:/executions`,
 				];
 
 				if (functionData.docker_mount) {
@@ -2278,10 +2277,10 @@ export async function buildDotnetFunction(
 	const docker = new Docker();
 	const functionIdStr = String(functionId);
 	const containerName = `shsf_func_${functionIdStr}`;
-	const funcBaseDir = path.join("/opt/shsf_data/functions", functionIdStr);
-	const funcAppDir = path.join(funcBaseDir, "app");
-	const executionDir = path.join(funcBaseDir, "executions");
-	const dotnetCacheHost = "/opt/shsf_data/cache/dotnet";
+	const funcBaseDir = getFunctionBaseDir(functionIdStr);
+	const funcAppDir = getFunctionAppDir(functionIdStr);
+	const executionDir = getFunctionExecutionsDir(functionIdStr);
+	const dotnetCacheHost = getCacheDir("dotnet");
 
 	try {
 		await fs.mkdir(funcAppDir, { recursive: true });
@@ -2519,7 +2518,7 @@ export async function deleteContainerForFunction(functionId: number) {
 export async function cleanupFunctionContainer(functionId: number) {
 	const functionIdStr = String(functionId);
 	const containerName = `shsf_func_${functionIdStr}`;
-	const funcAppDir = path.join("/opt/shsf_data/functions", functionIdStr);
+	const funcAppDir = getFunctionBaseDir(functionIdStr);
 
 	try {
 		const docker = new Docker();
@@ -2562,13 +2561,13 @@ export async function cleanupFunctionContainer(functionId: number) {
 		// Clean up cache directories
 		try {
 			// Python venv
-			const pipCacheDir = `/opt/shsf_data/cache/pip/venv/function-${functionId}`;
+			const pipCacheDir = getCacheDir("pip", "venv", `function-${functionId}`);
 			if (fsSync.existsSync(pipCacheDir)) {
 				await fs.rm(pipCacheDir, { recursive: true, force: true });
 			}
 
 			// Pip hash
-			const pipHashDir = `/opt/shsf_data/cache/pip/hashes/function-${functionId}`;
+			const pipHashDir = getCacheDir("pip", "hashes", `function-${functionId}`);
 			if (fsSync.existsSync(pipHashDir)) {
 				await fs.rm(pipHashDir, { recursive: true, force: true });
 			}
