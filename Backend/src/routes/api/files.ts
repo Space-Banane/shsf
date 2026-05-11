@@ -136,7 +136,7 @@ export = new fileRouter.Path("/")
 				const gitBlock = await getGitEditBlock(functionId, prisma);
 				if (gitBlock) {
 					return ctr.status(gitBlock.status).print({
-						...gitBlock
+						...gitBlock,
 					});
 				}
 
@@ -175,14 +175,25 @@ export = new fileRouter.Path("/")
 					await fs.mkdir(funcAppDir, { recursive: true });
 					let contentToWrite: string | Buffer = data.code;
 					if (funcInfo && typeof contentToWrite === "string") {
-						contentToWrite = replaceApiBaseInContent(contentToWrite, funcInfo.namespaceId, funcInfo.executionId);
+						contentToWrite = replaceApiBaseInContent(
+							contentToWrite,
+							funcInfo.namespaceId,
+							funcInfo.executionId,
+						);
 					}
 					await fs.writeFile(path.join(funcAppDir, data.filename), contentToWrite, {
 						encoding: "utf-8",
 					});
 					// If this is a dependency file, ensure container dependencies are updated using the replaced content
-					if (data.filename === "requirements.txt" || data.filename === "package.json") {
-						await updateContainerDependencies(functionId, data.filename, contentToWrite as string);
+					if (
+						data.filename === "requirements.txt" ||
+						data.filename === "package.json"
+					) {
+						await updateContainerDependencies(
+							functionId,
+							data.filename,
+							contentToWrite as string,
+						);
 					}
 					console.log(
 						`[SHSF] Wrote updated file to host app dir: ${path.join(funcAppDir, data.filename)}`,
@@ -253,10 +264,9 @@ export = new fileRouter.Path("/")
 				const gitBlock = await getGitEditBlock(functionId, prisma);
 				if (gitBlock) {
 					return ctr.status(gitBlock.status).print({
-						...gitBlock
+						...gitBlock,
 					});
 				}
-
 
 				const files = await prisma.functionFile.findMany({
 					where: {
@@ -329,7 +339,7 @@ export = new fileRouter.Path("/")
 				const gitBlock = await getGitEditBlock(functionId, prisma);
 				if (gitBlock) {
 					return ctr.status(gitBlock.status).print({
-						...gitBlock
+						...gitBlock,
 					});
 				}
 
@@ -356,24 +366,37 @@ export = new fileRouter.Path("/")
 					},
 				});
 
-				// If deleting a dependencies file, we should create an empty one
-				// to prevent broken deployments
-				if (
-					fileToDelete &&
-					(fileToDelete.name === "requirements.txt" ||
-						fileToDelete.name === "package.json")
-				) {
+				const dependencyPlaceholder =
+					fileToDelete?.name === "package.json"
+						? '{\n  "dependencies": {}\n}\n'
+						: fileToDelete?.name === "requirements.txt"
+							? "requests" // always loved to be seen, usually needed by shsf db, so good default placeholder content for requirements.txt
+							: null;
+
+				// Delete file from disk
+				if (fileToDelete) {
 					const funcAppDir = getFunctionAppDir(functionId);
 					try {
-						await fs.writeFile(
-							path.join(funcAppDir, fileToDelete.name),
-							"# File was deleted\n",
-						);
-						console.log(
-							`[SHSF] Created empty ${fileToDelete.name} after deletion to prevent broken deployments`,
-						);
+						await fs.unlink(path.join(funcAppDir, fileToDelete.name));
 					} catch (err) {
-						console.error(`[SHSF] Error creating empty ${fileToDelete.name}:`, err);
+						console.error(`[SHSF] Failed to delete file from disk:`, err);
+					}
+
+					if (dependencyPlaceholder !== null) {
+						try {
+							await fs.writeFile(
+								path.join(funcAppDir, fileToDelete.name),
+								dependencyPlaceholder,
+							);
+							console.log(
+								`[SHSF] Created empty ${fileToDelete.name} after deletion to prevent broken deployments`,
+							);
+						} catch (err) {
+							console.error(
+								`[SHSF] Error creating empty ${fileToDelete.name}:`,
+								err,
+							);
+						}
 					}
 				}
 
@@ -471,7 +494,7 @@ export = new fileRouter.Path("/")
 				const gitBlock = await getGitEditBlock(functionId, prisma);
 				if (gitBlock) {
 					return ctr.status(gitBlock.status).print({
-						...gitBlock
+						...gitBlock,
 					});
 				}
 
@@ -521,7 +544,11 @@ export = new fileRouter.Path("/")
 								const funcInfo = await getFunctionExecInfo(functionId);
 								let contentToWrite: string | Buffer = updatedFile.content;
 								if (funcInfo && typeof contentToWrite === "string") {
-									contentToWrite = replaceApiBaseInContent(contentToWrite, funcInfo.namespaceId, funcInfo.executionId);
+									contentToWrite = replaceApiBaseInContent(
+										contentToWrite,
+										funcInfo.namespaceId,
+										funcInfo.executionId,
+									);
 								}
 								await fs.writeFile(
 									path.join(funcAppDir, data.newFilename),
@@ -562,8 +589,7 @@ export = new fileRouter.Path("/")
 								properties: {
 									defaultToLoad: {
 										type: "string",
-										description:
-											"Template identifier (e.g. python_default, go_routing)",
+										description: "Template identifier (e.g. python_default, go_routing)",
 									},
 								},
 							},
@@ -636,7 +662,7 @@ export = new fileRouter.Path("/")
 				const gitBlock = await getGitEditBlock(functionId, prisma);
 				if (gitBlock) {
 					return ctr.status(gitBlock.status).print({
-						...gitBlock
+						...gitBlock,
 					});
 				}
 
@@ -673,7 +699,8 @@ export = new fileRouter.Path("/")
 					python_persistent_data: "../fill_examples/persistent_data.py",
 					python_redirects: "../fill_examples/redirects.py",
 					python_secure_headers: "../fill_examples/secure_headers.py",
-					python_database_communication: "../fill_examples/database_communication.py",
+					python_database_communication:
+						"../fill_examples/database_communication.py",
 					python_routing: "../fill_examples/routing.py",
 					python_discord_webhook: "../fill_examples/discord_webhook.py",
 					python_api_client: "../fill_examples/api_client.py",
@@ -682,6 +709,14 @@ export = new fileRouter.Path("/")
 					go_custom_responses: "../fill_examples/custom_responses.go",
 					go_routing: "../fill_examples/routing.go",
 					go_redirects: "../fill_examples/redirects.go",
+					dotnet_project: "../fill_examples/project.csproj",
+					dotnet_default: "../fill_examples/default.cs",
+					dotnet_data_passing: "../fill_examples/data_passing.cs",
+					dotnet_custom_responses: "../fill_examples/custom_responses.cs",
+					dotnet_routing: "../fill_examples/routing.cs",
+					dotnet_redirects: "../fill_examples/redirects.cs",
+					dotnet_database_communication:
+						"../fill_examples/database_communication.cs",
 				};
 
 				const filePath = defaultFileMap[data.defaultToLoad];
@@ -695,12 +730,17 @@ export = new fileRouter.Path("/")
 				// Validate runtime matches the template
 				const templateLanguage = data.defaultToLoad.split("_")[0]; // Extract language prefix (e.g., "python" from "python_default")
 				const functionRuntime = func.image.toLowerCase(); // e.g., "python:3.11"
+				const functionRuntimeLanguage = functionRuntime.startsWith(
+					"mcr.microsoft.com/dotnet/sdk:",
+				)
+					? "dotnet"
+					: functionRuntime.split(":")[0];
 
 				// Check if the runtime matches the template language
-				if (!functionRuntime.startsWith(templateLanguage)) {
+				if (functionRuntimeLanguage !== templateLanguage) {
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						status: 400,
-						message: `Cannot load ${templateLanguage} template into a ${functionRuntime.split(":")[0]} function`,
+						message: `Cannot load ${templateLanguage} template into a ${functionRuntimeLanguage} function`,
 					});
 				}
 
@@ -791,7 +831,9 @@ export = new fileRouter.Path("/")
 								file.endsWith(".py") ||
 								file.endsWith(".js") ||
 								file.endsWith(".ts") ||
-								file.endsWith(".go"),
+								file.endsWith(".go") ||
+								file.endsWith(".cs") ||
+								file.endsWith(".csproj"),
 						)
 						.map((file) => {
 							const nameWithoutExt = file.replace(/\.[^.]+$/, "");
@@ -803,14 +845,17 @@ export = new fileRouter.Path("/")
 								data_passing:
 									"Receive and process JSON data from triggers or HTTP requests",
 								custom_responses: "Return custom HTTP status codes and responses",
-								environment_variables: "Securely use API keys via environment variables",
-								persistent_data: "Store data that persists between function invocations",
+								environment_variables:
+									"Securely use API keys via environment variables",
+								persistent_data:
+									"Store data that persists between function invocations",
 								redirects: "Implement HTTP redirects (301/302)",
 								secure_headers: "Validate x-secure-header for additional security",
 								database_communication: "Use SHSF's built-in database interface",
 								routing: "Handle multiple routes in a single function",
 								discord_webhook: "Send messages to Discord (great for scheduled tasks)",
 								api_client: "Make authenticated requests to external APIs",
+								project: "Minimal runnable .NET project file",
 							};
 
 							if (file.endsWith(".py")) {
@@ -825,6 +870,9 @@ export = new fileRouter.Path("/")
 							} else if (file.endsWith(".go")) {
 								language = "go";
 								id = `go_${nameWithoutExt}`;
+							} else if (file.endsWith(".cs") || file.endsWith(".csproj")) {
+								language = "dotnet";
+								id = `dotnet_${nameWithoutExt}`;
 							}
 
 							const name = nameWithoutExt

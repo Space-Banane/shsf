@@ -1096,7 +1096,7 @@ export async function executeFunction(
 
 		// Skip writing User files when git version control is active (git_url is set)
 		if (!functionData.git_url) {
-
+			// Write files to disk
 			await Promise.all(
 				files.map(async (file) => {
 					const filePath = path.join(funcAppDir, file.name);
