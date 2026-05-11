@@ -7,6 +7,7 @@ services:
    - .env
   volumes:
    - ./UI:/app
+   - ui_node_modules:/app/node_modules
   command: sh -c "npm install -g pnpm && pnpm install --no-frozen-lockfile && pnpm tailwind:build && pnpm build && pnpm serve"
   ports:
    - "$UI_PORT:5000"
@@ -20,6 +21,7 @@ services:
   working_dir: /app
   volumes:
    - ./Backend:/app
+   - backend_node_modules:/app/node_modules
    - /var/run/docker.sock:/var/run/docker.sock
    - /opt:/opt
    - ./.data:/.data
@@ -51,3 +53,7 @@ services:
  #     interval: 30s
  #     timeout: 10s
  #     retries: 3
+
+volumes:
+ ui_node_modules:
+ backend_node_modules:
