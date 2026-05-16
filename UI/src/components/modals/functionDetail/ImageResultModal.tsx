@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 interface ImageResultModalProps {
 	isOpen: boolean;
@@ -17,6 +17,19 @@ const ImageResultModal: React.FC<ImageResultModalProps> = ({
 	content,
 }) => {
 	const [showAllHeaders, setShowAllHeaders] = useState(false);
+
+	useEffect(() => {
+		if (!isOpen) return;
+
+		const handleEscape = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				onClose();
+			}
+		};
+
+		document.addEventListener("keydown", handleEscape);
+		return () => document.removeEventListener("keydown", handleEscape);
+	}, [isOpen, onClose]);
 
 	if (!isOpen) return null;
 

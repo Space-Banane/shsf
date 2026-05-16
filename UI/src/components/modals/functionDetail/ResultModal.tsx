@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { toast } from "react-toastify";
 
 interface ResultModalProps {
@@ -18,6 +18,19 @@ const ResultModal: React.FC<ResultModalProps> = ({
 	content,
 	cacheEnabled = false,
 }) => {
+	useEffect(() => {
+		if (!isOpen) return;
+
+		const handleEscape = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				onClose();
+			}
+		};
+
+		document.addEventListener("keydown", handleEscape);
+		return () => document.removeEventListener("keydown", handleEscape);
+	}, [isOpen, onClose]);
+
 	if (!isOpen) return null;
 
 	if (content.type === "object" && content.value === null) {
