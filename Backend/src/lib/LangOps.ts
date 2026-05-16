@@ -3,6 +3,7 @@
  */
 export async function getFirstFileByLanguage(
 	language: string,
+	filename?: string,
 ): Promise<string | null> {
 	const languageMap: Record<string, string> = {
 		python: ["def main(args):", "    return 'Hello, World!'"].join("\n"),
@@ -30,5 +31,20 @@ export async function getFirstFileByLanguage(
 		].join("\n"),
 	};
 
-	return languageMap[language] ?? null;
+	const extensionLanguageMap: Record<string, string> = {
+		py: "python",
+		go: "go",
+		html: "html",
+		htm: "html",
+	};
+
+	const trimmedFilename = filename?.trim() ?? "";
+	const hasExtension = trimmedFilename.includes(".");
+	const extension = hasExtension ? trimmedFilename.split(".").pop()?.toLowerCase() : undefined;
+	const languageFromExtension = extension ? extensionLanguageMap[extension] : undefined;
+
+	// If a file extension is provided and not recognized, avoid injecting a runtime template.
+	if (hasExtension && !languageFromExtension) return null;
+
+	return languageMap[languageFromExtension ?? language] ?? null;
 }

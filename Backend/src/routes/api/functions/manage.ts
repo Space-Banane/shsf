@@ -378,7 +378,10 @@ export = new fileRouter.Path("/")
 										create: {
 											name: normalizedStartupFile,
 											content:
-												(await getFirstFileByLanguage(getImageFamily(data.image))) ?? "",
+												(await getFirstFileByLanguage(
+													getImageFamily(data.image),
+													normalizedStartupFile,
+												)) ?? "",
 										},
 									},
 							  }
