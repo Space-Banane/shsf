@@ -11,6 +11,7 @@ import {
 	isDotnetImage,
 	Namespace,
 } from "../../../types/Prisma";
+import { useNavigate } from "react-router-dom";
 
 interface CreateFunctionModalProps {
 	isOpen: boolean;
@@ -25,6 +26,7 @@ function CreateFunctionModal({
 	onSuccess,
 	namespaces,
 }: CreateFunctionModalProps) {
+	const navigate = useNavigate();
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
 	const [namespaceId, setNamespaceId] = useState<number | null>(null);
@@ -123,9 +125,11 @@ function CreateFunctionModal({
 			});
 
 			if (response.status === "OK") {
+				const createdFunctionId = response.data.id;
 				onSuccess();
 				resetForm();
 				onClose();
+				navigate(`/functions/${createdFunctionId}`);
 			} else {
 				setError("Error creating function: " + response.message);
 			}
