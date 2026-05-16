@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Modal from "../Modal";
 import { toast } from "react-toastify";
 
@@ -7,6 +7,7 @@ interface RenameFileModalProps {
 	onClose: () => void;
 	onRename: (newFilename: string) => Promise<boolean>;
 	currentFilename: string;
+	allowedFileTypes?: string[];
 }
 
 function RenameFileModal({
@@ -14,9 +15,19 @@ function RenameFileModal({
 	onClose,
 	onRename,
 	currentFilename,
+	allowedFileTypes,
 }: RenameFileModalProps) {
 	const [newFilename, setNewFilename] = useState(currentFilename);
 	const [isLoading, setIsLoading] = useState(false);
+	const lowerCaseAllowedFileTypes = useMemo(
+		() => allowedFileTypes?.map((e) => e.toLowerCase()) ?? [],
+		[allowedFileTypes],
+	);
+
+	const getFilenameExtension = (name: string) => {
+		const idx = name.lastIndexOf(".");
+		return idx !== -1 ? name.slice(idx).toLowerCase() : "";
+	};
 
 	useEffect(() => {
 		if (isOpen) {
@@ -33,6 +44,16 @@ function RenameFileModal({
 		if (newFilename === currentFilename) {
 			onClose();
 			return;
+		}
+
+		if (allowedFileTypes && allowedFileTypes.length > 0) {
+			const ext = getFilenameExtension(newFilename);
+			if (!lowerCaseAllowedFileTypes.includes(ext)) {
+				toast.error(
+					`File type ${ext || "(none)"} is not allowed. Allowed: ${allowedFileTypes.join(", ")}`,
+				);
+				return;
+			}
 		}
 
 		setIsLoading(true);
@@ -85,6 +106,11 @@ function RenameFileModal({
 						className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 font-mono"
 						disabled={isLoading}
 					/>
+					{allowedFileTypes && allowedFileTypes.length > 0 && (
+						<div className="text-xs text-gray-400">
+							Allowed types: {allowedFileTypes.join(", ")}
+						</div>
+					)}
 				</div>
 
 				{/* Action Buttons */}

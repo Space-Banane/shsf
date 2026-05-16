@@ -48,6 +48,7 @@ export interface PersistedFunctionExecutionLogInput {
 const FUNCTION_DB_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const ServeOnlyFileNotFoundHTML = `<html><head><title>File Not Found</title></head><body><h1>404 - File Not Found</h1><p>The requested HTML file was not found in the function's files.</p></body></html>`;
+const HTML_FILE_EXTENSION = ".html";
 const DB_FIELD_LIMIT = 10000;
 const SHSF_FUNCTION_RESULT_START = "SHSF_FUNCTION_RESULT_START";
 const SHSF_FUNCTION_RESULT_END = "SHSF_FUNCTION_RESULT_END";
@@ -80,6 +81,71 @@ function getRuntimeType(image: string): "python" | "golang" | "dotnet" | string 
 	}
 
 	return image.split(":")[0];
+}
+
+function isHtmlStartupFile(startupFile: string | null | undefined): boolean {
+	return (startupFile || "").toLowerCase().endsWith(HTML_FILE_EXTENSION);
+}
+
+function parseExecutionPayloadRoute(payload: string): string | null {
+	try {
+		const parsedPayload = JSON.parse(payload) as { route?: unknown };
+		return typeof parsedPayload?.route === "string" ? parsedPayload.route : null;
+	} catch {
+		return null;
+	}
+}
+
+function resolveServeOnlyHtmlFileName(
+	startupFile: string,
+	payloadRoute: string | null,
+): string | null {
+	if (!payloadRoute) {
+		return startupFile;
+	}
+
+	let normalizedRoute = payloadRoute.trim();
+	if (
+		!normalizedRoute ||
+		normalizedRoute === "default" ||
+		normalizedRoute === "/"
+	) {
+		return startupFile;
+	}
+
+	normalizedRoute = normalizedRoute.split("?")[0] ?? normalizedRoute;
+	normalizedRoute = normalizedRoute.split("#")[0] ?? normalizedRoute;
+	try {
+		normalizedRoute = decodeURIComponent(normalizedRoute);
+	} catch {
+		// keep original route when decoding fails
+	}
+
+	normalizedRoute = normalizedRoute.replace(/^\/+/, "");
+	if (!normalizedRoute) {
+		return startupFile;
+	}
+
+	if (normalizedRoute.includes("..") || normalizedRoute.includes("\\")) {
+		return null;
+	}
+
+	if (!normalizedRoute.toLowerCase().endsWith(HTML_FILE_EXTENSION)) {
+		normalizedRoute = `${normalizedRoute}${HTML_FILE_EXTENSION}`;
+	}
+
+	return normalizedRoute;
+}
+
+function findFileByNameIgnoreCase(
+	files: FunctionFile[],
+	fileName: string,
+): FunctionFile | undefined {
+	const normalizedFileName = fileName.toLowerCase();
+	return (
+		files.find((file) => file.name === fileName) ??
+		files.find((file) => file.name.toLowerCase() === normalizedFileName)
+	);
 }
 
 async function findFilesByExtension(
@@ -299,7 +365,7 @@ export async function persistFunctionExecutionLog(
 		payloadForDb = await stripHeadersFromPayload(payloadForDb);
 	}
 
-	if (input.functionData.startup_file.endsWith(".html")) {
+	if (isHtmlStartupFile(input.functionData.startup_file)) {
 		disableResult = true;
 		disableResultReason = "HTML content detected in startup file";
 	}
@@ -1040,24 +1106,37 @@ export async function executeFunction(
 	const log = (msg: string) => console.log(`[SHSF] ${msg}`);
 
 	// Serve Only HTML (serve-only)
-	if (functionData.startup_file?.endsWith(".html")) {
-		const startupFileObj = files.find((f) => f.name === functionData.startup_file);
-		const rawHtml = startupFileObj?.content || ServeOnlyFileNotFoundHTML;
-		const replacedHtml = typeof rawHtml === "string"
-			? (replaceApiBaseInContent(rawHtml, functionData.namespaceId, functionData.executionId) as string)
+	if (isHtmlStartupFile(functionData.startup_file)) {
+		const requestedHtmlFileName = resolveServeOnlyHtmlFileName(
+			functionData.startup_file,
+			parseExecutionPayloadRoute(payload),
+		);
+		const requestedHtmlFile = requestedHtmlFileName
+			? findFileByNameIgnoreCase(files, requestedHtmlFileName)
+			: undefined;
+		const rawHtml = requestedHtmlFile?.content || ServeOnlyFileNotFoundHTML;
+		const replacedHtml =
+			typeof rawHtml === "string"
+				? (replaceApiBaseInContent(
+						rawHtml,
+						functionData.namespaceId,
+						functionData.executionId,
+					) as string)
 			: rawHtml;
+		const responseCode = requestedHtmlFile ? 200 : 404;
+		const servedFile = requestedHtmlFileName ?? "invalid-route";
 
 		return {
-			logs: "Serve Only HTML function executed.",
+			logs: `Serve Only HTML function executed (${servedFile}).`,
 			result: {
 				_shsf: "v2",
 				_headers: { "Content-Type": "text/html; charset=utf-8" },
-				_code: 200,
+				_code: responseCode,
 				_res: replacedHtml,
 			},
 			tooks: [
 				{
-					description: "Serve Only HTML function executed.",
+					description: `Serve Only HTML function executed (${servedFile}).`,
 					value: 0,
 					timestamp: starting_time,
 				},

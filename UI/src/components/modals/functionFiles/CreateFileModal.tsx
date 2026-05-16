@@ -24,9 +24,9 @@ function CreateFileModal({
 		[allowedFileTypes],
 	);
 
-	const getFileExtension = (name: string) => {
+	const getFilenameExtension = (name: string) => {
 		const idx = name.lastIndexOf(".");
-		return idx !== -1 ? name.slice(idx + 1).toLowerCase() : "";
+		return idx !== -1 ? name.slice(idx).toLowerCase() : "";
 	};
 
 	const handleCreate = async () => {
@@ -36,10 +36,10 @@ function CreateFileModal({
 			return;
 		}
 		if (allowedFileTypes && allowedFileTypes.length > 0) {
-			const ext = getFileExtension(filename);
+			const ext = getFilenameExtension(filename);
 			if (!lowerCaseAllowedFileTypes.includes(ext)) {
 				setError(
-					`File type .${ext || "(none)"} is not allowed. Allowed: ${allowedFileTypes.join(", ")}`,
+					`File type ${ext || "(none)"} is not allowed. Allowed: ${allowedFileTypes.join(", ")}`,
 				);
 				return;
 			}

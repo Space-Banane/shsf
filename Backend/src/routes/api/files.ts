@@ -13,6 +13,22 @@ import { getFunctionAppDir } from "../../lib/StoragePaths";
 
 // Add Docker integration
 const docker = new Docker();
+const HTML_FILE_EXTENSION = ".html";
+
+function isHtmlFilename(filename: string): boolean {
+	return filename.toLowerCase().endsWith(HTML_FILE_EXTENSION);
+}
+
+async function isHtmlOnlyFunction(functionId: number): Promise<boolean> {
+	const functionData = await prisma.function.findUnique({
+		where: { id: functionId },
+		select: { startup_file: true },
+	});
+
+	return (functionData?.startup_file || "")
+		.toLowerCase()
+		.endsWith(HTML_FILE_EXTENSION);
+}
 
 // Helper function to update container dependencies when key files change
 async function updateContainerDependencies(
@@ -130,6 +146,15 @@ export = new fileRouter.Path("/")
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						status: 400,
 						message: "Invalid function id",
+					});
+				}
+
+				const htmlOnlyFunction = await isHtmlOnlyFunction(functionId);
+				if (htmlOnlyFunction && !isHtmlFilename(data.filename)) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message:
+							"This function only allows .html files in the file manager.",
 					});
 				}
 
@@ -488,6 +513,15 @@ export = new fileRouter.Path("/")
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						status: 400,
 						message: "Invalid function id or file id",
+					});
+				}
+
+				const htmlOnlyFunction = await isHtmlOnlyFunction(functionId);
+				if (htmlOnlyFunction && !isHtmlFilename(data.newFilename)) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message:
+							"This function only allows .html files in the file manager.",
 					});
 				}
 

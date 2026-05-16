@@ -120,6 +120,32 @@ export = new fileRouter.Path("/")
 			}),
 		),
 	)
+	.http("GET", "/exec/{executionAlias}/{route}", (http) =>
+		http.onRequest(
+			createExecutionHandler({
+				method: "GET",
+				lookupMode: "executionAlias",
+				valueParam: "executionAlias",
+				useCache: false,
+				resolvePermissionFunctionId: (functionData) => String(functionData.id),
+				resolveExecutionAliasOrId: (value, functionData) =>
+					value || functionData.executionId,
+			}),
+		),
+	)
+	.http("POST", "/exec/{executionAlias}/{route}", (http) =>
+		http.onRequest(
+			createExecutionHandler({
+				method: "POST",
+				lookupMode: "executionAlias",
+				valueParam: "executionAlias",
+				useCache: false,
+				resolvePermissionFunctionId: (functionData) => String(functionData.id),
+				resolveExecutionAliasOrId: (value, functionData) =>
+					value || functionData.executionId,
+			}),
+		),
+	)
 	.http("GET", "/api/exec/{namespaceId}/{functionId}/{route}", (http) =>
 		http.onRequest(
 			createExecutionHandler({

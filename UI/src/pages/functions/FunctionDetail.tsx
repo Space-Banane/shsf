@@ -182,6 +182,8 @@ function FunctionDetail() {
 				.replace(/^-+|-+$/g, "") || "my-func"} --force`
 		: "";
 	const isDotnetRuntime = Boolean(functionData && isDotnetImage(functionData.image));
+	const isHtmlFilename = (filename: string) =>
+		filename.toLowerCase().endsWith(".html");
 
 	useBeforeUnload(
 		(event) => {
@@ -379,6 +381,11 @@ function FunctionDetail() {
 				.then(([functionData, filesData, triggersData]) => {
 					if (functionData.status === "OK") {
 						setFunctionData(functionData.data);
+						setServeHtmlOnly(
+							(functionData.data.startup_file || "")
+								.toLowerCase()
+								.endsWith(".html"),
+						);
 
 						getNamespace(functionData.data.namespaceId).then((namespaceData) => {
 							if (namespaceData.status === "OK") {
@@ -407,11 +414,6 @@ function FunctionDetail() {
 							const initialFile = startupFile || filesData.data[0];
 							// setActiveFile(initialFile);
 							setCode(initialFile.content || "");
-
-							// Check if the only file ends in .html to set ServeHtmlOnly
-							if (filesData.data.length === 1 && initialFile.name.endsWith(".html")) {
-								setServeHtmlOnly(true);
-							}
 						} else {
 							// Reset when no files exist
 							setActiveFile(null);
@@ -786,6 +788,11 @@ function FunctionDetail() {
 			return false;
 		}
 
+		if (serveHtmlOnly && !isHtmlFilename(filename)) {
+			toast.error("Only .html files are allowed for this function.");
+			return false;
+		}
+
 		try {
 			const data = await createOrUpdateFile(parseInt(id), {
 				filename,
@@ -813,11 +820,17 @@ function FunctionDetail() {
 
 		const existingNames = new Set(files.map((file) => file.name));
 		const createdNames: string[] = [];
-		const skippedNames: string[] = [];
+		const skippedExistingNames: string[] = [];
+		const skippedInvalidTypeNames: string[] = [];
 
 		for (const droppedFile of droppedFiles) {
+			if (serveHtmlOnly && !isHtmlFilename(droppedFile.name)) {
+				skippedInvalidTypeNames.push(droppedFile.name);
+				continue;
+			}
+
 			if (existingNames.has(droppedFile.name)) {
-				skippedNames.push(droppedFile.name);
+				skippedExistingNames.push(droppedFile.name);
 				continue;
 			}
 
@@ -842,17 +855,30 @@ function FunctionDetail() {
 			);
 		}
 
-		if (skippedNames.length > 0) {
+		if (skippedExistingNames.length > 0) {
 			toast.error(
-				skippedNames.length === 1
-					? `${skippedNames[0]} already exists.`
-					: `${skippedNames.length} files were skipped because they already exist.`,
+				skippedExistingNames.length === 1
+					? `${skippedExistingNames[0]} already exists.`
+					: `${skippedExistingNames.length} files were skipped because they already exist.`,
+			);
+		}
+
+		if (skippedInvalidTypeNames.length > 0) {
+			toast.error(
+				skippedInvalidTypeNames.length === 1
+					? `${skippedInvalidTypeNames[0]} was skipped because only .html files are allowed.`
+					: `${skippedInvalidTypeNames.length} files were skipped because only .html files are allowed.`,
 			);
 		}
 	};
 
 	const handleRenameFile = async (newFilename: string): Promise<boolean> => {
 		if (!id || !selectedFile) return false;
+
+		if (serveHtmlOnly && !isHtmlFilename(newFilename)) {
+			toast.error("Only .html files are allowed for this function.");
+			return false;
+		}
 
 		try {
 			const data = await renameFile(parseInt(id), selectedFile.id, newFilename);
@@ -1817,6 +1843,7 @@ function FunctionDetail() {
 					onClose={() => setShowRenameModal(false)}
 					onRename={handleRenameFile}
 					currentFilename={selectedFile?.name || ""}
+					allowedFileTypes={serveHtmlOnly ? [".html"] : undefined}
 				/>
 
 				<DeleteFileModal

@@ -303,31 +303,31 @@ function CreateFunctionModal({
 								</p>
 							)}
 						</div>
-						<div className="space-y-2">
-							<label className="text-sm font-medium text-gray-300">Startup File</label>
-							<input
-								type="text"
-								placeholder={
-									isDotnetRuntime
-										? ".NET functions auto-detect the runnable project"
-										: "main.py, index.js, etc."
-								}
-								value={startupFile || ""}
-								onChange={(e) => setStartupFile(e.target.value)}
-								className={`w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 ${
-									isLoading || isDotnetRuntime
-										? "opacity-50 cursor-not-allowed"
-										: ""
-								}`}
-								disabled={isLoading || isDotnetRuntime}
-							/>
-							{isDotnetRuntime && (
-								<p className="text-xs text-cyan-300">
-									.NET functions resolve the runnable project from your
-									`.csproj` and `.sln` files. This field stays empty on purpose.
-								</p>
-							)}
-						</div>
+					</div>
+					<div className="space-y-2">
+						<label className="text-sm font-medium text-gray-300">Startup File</label>
+						<input
+							type="text"
+							placeholder={
+								isDotnetRuntime
+									? ".NET functions auto-detect the runnable project"
+									: "main.py, index.js, etc."
+							}
+							value={startupFile || ""}
+							onChange={(e) => setStartupFile(e.target.value)}
+							className={`w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 ${
+								isLoading || isDotnetRuntime
+									? "opacity-50 cursor-not-allowed"
+									: ""
+							}`}
+							disabled={isLoading || isDotnetRuntime}
+						/>
+						{isDotnetRuntime && (
+							<p className="text-xs text-cyan-300">
+								.NET functions resolve the runnable project from your
+								`.csproj` and `.sln` files. This field stays empty on purpose.
+							</p>
+						)}
 					</div>
 				</div>
 
