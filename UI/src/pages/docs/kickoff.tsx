@@ -24,8 +24,9 @@ export const DOCSKICKOFF = () => {
 					code is ready to run without manual fixups.
 				</p>
 				<p className="mb-6 text-text/90">
-					KICKOFF supports generating functions in <strong>Python</strong> and{" "}
-					<strong>Go</strong>, matching the runtimes available in SHSF.
+					KICKOFF supports generating functions in <strong>Python</strong>,{" "}
+					<strong>Go</strong>, and <strong>.NET</strong>, matching the runtimes
+					available in SHSF.
 				</p>
 
 				{/* Setup */}
@@ -58,9 +59,10 @@ export const DOCSKICKOFF = () => {
 						<h3 className="text-lg font-bold text-indigo-300 mb-2">⚡ KICKOFF — Generate from scratch</h3>
 						<p className="text-text/80 text-sm mb-2">
 							Starts with a blank slate. Describe the function you want and the AI will
-							create <strong>up to 5 files</strong> — source code, dependencies
-							(<code>requirements.txt</code> / <code>go.mod</code>), and any helper
-							modules needed. Best used when starting a new function.
+							create <strong>up to 5 files</strong> — source code and only the
+							dependency files that match the selected runtime
+							(<code>requirements.txt</code>, <code>go.mod</code>, <code>go.sum</code>, or
+							a <code>.csproj</code>). Best used when starting a new function.
 						</p>
 						<p className="text-xs text-gray-500">Max files: 5 &nbsp;·&nbsp; Existing files: not sent to the model</p>
 					</div>
@@ -133,10 +135,11 @@ status code. Handle network errors gracefully.`}</code>
 
 				<h3 className="text-xl font-semibold text-primary mb-3">Tips</h3>
 				<ul className="list-disc list-inside mb-6 text-text/90 space-y-2">
-					<li>Specify the language (Python or Go) if you have a preference.</li>
+					<li>Specify the language (Python, Go, or .NET) if you have a preference.</li>
 					<li>
 						Mention any third-party libraries you want used — the AI will add them to
-						<code> requirements.txt</code> or <code>go.mod</code>.
+						<code> requirements.txt</code>, <code>go.mod</code>, <code>go.sum</code>, or
+						<code> .csproj</code>.
 					</li>
 					<li>
 						Describe the expected request/response shape (fields, status codes, headers)
@@ -155,7 +158,7 @@ status code. Handle network errors gracefully.`}</code>
 					system prompt. The AI is aware of:
 				</p>
 				<ul className="list-disc list-inside mb-6 text-text/90 space-y-1.5">
-					<li>Entry-point conventions for Python (<code>def main(args)</code>) and Go (<code>func main_user</code>)</li>
+					<li>Entry-point conventions for Python (<code>def main(args)</code>), Go (<code>func main_user</code>), and .NET project-based functions</li>
 					<li>The <code>args</code> object — <code>body</code>, <code>queries</code>, <code>route</code>, <code>headers</code>, <code>raw_body</code>, <code>method</code></li>
 					<li>The SHSF v2 response envelope (<code>_shsf</code>, <code>_code</code>, <code>_res</code>, <code>_headers</code>, <code>_location</code>)</li>
 					<li>Redirects (301 / 302 via <code>_location</code>)</li>
@@ -164,8 +167,9 @@ status code. Handle network errors gracefully.`}</code>
 					<li>SHSF database communication (<code>_db_com.py</code> / <code>myfunction/dbcom</code>)</li>
 					<li>Single-segment routing via <code>args["route"]</code></li>
 					<li>Serving HTML responses with <code>Content-Type: text/html</code></li>
-					<li>Dependency management (<code>requirements.txt</code>, <code>go.mod</code>)</li>
+					<li>Dependency management (<code>requirements.txt</code>, <code>go.mod</code>, <code>go.sum</code>, <code>.csproj</code>)</li>
 					<li>Reserved filenames it must never produce: <code>_runner.py</code>, <code>_runner.js</code>, <code>init.sh</code></li>
+					<li>Runtime-specific file limits: Python (<code>.py</code>, <code>requirements.txt</code>), Go (<code>.go</code>, <code>go.mod</code>, <code>go.sum</code>), .NET (<code>.cs</code>, <code>.csproj</code>, <code>.sln</code>), and HTML-only functions (one <code>.html</code> startup file)</li>
 				</ul>
 
 				{/* Limitations */}
@@ -180,6 +184,14 @@ status code. Handle network errors gracefully.`}</code>
 					<li>
 						Sub-directories in filenames are not supported; all files live at the root
 						of the function.
+					</li>
+					<li>
+						KICKOFF only generates files that match the selected runtime's file policy.
+						Python functions can only use <code>.py</code> and <code>requirements.txt</code>,
+						Go functions can only use <code>.go</code>, <code>go.mod</code>, and
+						<code> go.sum</code>, .NET functions can only use <code>.cs</code>,
+						<code>.csproj</code>, and <code>.sln</code>, and HTML-only functions are
+						limited to their single startup <code>.html</code> file.
 					</li>
 					<li>
 						KICKOFF is not aware of your function's execution logs or previous run

@@ -22,6 +22,98 @@ const Images: string[] = [
 
 const DisallowedFiles = ["_runner.py", "_runner.js", "init.sh"];
 
+type RuntimeFamily = "python" | "golang" | "dotnet" | "html";
+
+interface RuntimeFilePolicy {
+	runtime: RuntimeFamily;
+	startupFile: string;
+	maxFilesKickoff: number;
+	maxFilesRevision: number;
+	isAllowedFilename: (filename: string) => boolean;
+	systemInstruction: string;
+	docSection: string;
+}
+
+function isDotnetImage(image: string): boolean {
+	return image.startsWith("mcr.microsoft.com/dotnet/sdk:");
+}
+
+function getRuntimeFamily(image: string, startupFile: string): RuntimeFamily {
+	if (startupFile.toLowerCase().endsWith(".html")) {
+		return "html";
+	}
+
+	if (isDotnetImage(image)) {
+		return "dotnet";
+	}
+
+	if (image.startsWith("golang:")) {
+		return "golang";
+	}
+
+	return "python";
+}
+
+function createRuntimeFilePolicy(image: string, startupFile: string): RuntimeFilePolicy {
+	const runtime = getRuntimeFamily(image, startupFile);
+
+	if (runtime === "html") {
+		return {
+			runtime,
+			startupFile,
+			maxFilesKickoff: 5,
+			maxFilesRevision: 3,
+			isAllowedFilename: (filename) => filename.toLowerCase().endsWith(".html"),
+			systemInstruction: `Only write root-level HTML files for routed pages. The default page is "${startupFile}", and any additional pages must also be \`.html\` files.`,
+			docSection: `- Serve-only HTML functions may write root-level \`.html\` files only.
+- The default page is \`${startupFile}\`; routed pages may use additional HTML files such as \`about.html\` or \`docs.html\`.
+- Do not create CSS, JS, helper, or dependency files for HTML-only functions.`,
+		};
+	}
+
+	if (runtime === "dotnet") {
+		return {
+			runtime,
+			startupFile,
+			maxFilesKickoff: 5,
+			maxFilesRevision: 3,
+			isAllowedFilename: (filename) =>
+				filename.endsWith(".cs") || filename.endsWith(".csproj") || filename.endsWith(".sln"),
+			systemInstruction:
+				'Do NOT rely on func.startup_file for .NET. Instead, always include a runnable .csproj and the C# source files it needs.',
+			docSection: `- .NET functions may write \`.cs\`, \`.csproj\`, and \`.sln\` files only.
+- Keep all .NET files at the function root.
+- The startup file field must remain empty; the runnable project comes from the .csproj.`,
+		};
+	}
+
+	if (runtime === "golang") {
+		return {
+			runtime,
+			startupFile,
+			maxFilesKickoff: 5,
+			maxFilesRevision: 3,
+			isAllowedFilename: () => true,
+			systemInstruction: `Always include the startup file "${startupFile}" and keep every file at the function root. Non-code assets are allowed when the function reads them at runtime.`,
+			docSection: `- Go functions may write root-level files only.
+- Include the startup Go source file and optional \`go.mod\` / \`go.sum\` files.
+- Non-code assets such as templates, JSON fixtures, SQL, or prompt text are allowed when stored at the function root.`,
+		};
+	}
+
+	return {
+		runtime: "python",
+		startupFile,
+		maxFilesKickoff: 5,
+		maxFilesRevision: 3,
+		isAllowedFilename: () => true,
+		systemInstruction: `Always include the startup file "${startupFile}" and keep every file at the function root. Non-code assets are allowed when the function reads them at runtime.`,
+		docSection: `- Python functions may write root-level files only.
+- Include the startup Python source file and an optional \`requirements.txt\`.
+- Non-code assets such as templates, JSON fixtures, SQL, or prompt text are allowed when stored at the function root.`,
+	};
+}
+
 // ─── SHSF platform knowledge injected into every generation prompt ───────────
 const AIDOC = `
 ## SHSF Platform Reference — read this carefully before writing any code
@@ -419,7 +511,8 @@ require (
 ### 13. Absolute rules — violations will cause the function to fail
 
 - When the image is set to python, don't create go files, and vice versa
-- If no packages are needed, don't create a requirements.txt or go.mod file — these are optional and only needed if you have dependencies
+- Only create files allowed by the runtime file policy appended below.
+- If no packages are needed, don't create a requirements.txt or go.mod file — these are optional and only needed if you have dependencies; .NET functions still need a runnable .csproj.
 - FORBIDDEN filenames: _runner.py, _runner.js, init.sh  (reserved by the SHSF runtime)
 - Filenames must NEVER contain / or \\\\ (no subdirectories)
 - Never write partial files or placeholder comments like "# ... rest of code"
@@ -437,14 +530,14 @@ const writeFileTool = {
 	function: {
 		name: "write_file",
 		description:
-			"Write a file with the given filename and complete content. Use this to create or fully overwrite a file in the function's file system. Always provide the entire file content — never partial updates.",
+			"Write a file with the given filename and complete content. Use this only for runtime-allowed files in the function's file system. Always provide the entire file content — never partial updates.",
 		parameters: {
 			type: "object",
 			properties: {
 				filename: {
 					type: "string",
 					description:
-						"The filename to write including extension (e.g. main.py, utils.js). Must not include any path separators.",
+						"The filename to write including extension (e.g. main.py, main_user.go, Program.cs). Must not include any path separators and must match the runtime file policy.",
 				},
 				content: {
 					type: "string",
@@ -714,7 +807,9 @@ Platform Rules:
 					xTitle: "SHSF - Self-Hostable Serverless Functions",
 				});
 
-				const maxFiles = data.mode === "kickoff" ? 5 : 3;
+				const runtimePolicy = createRuntimeFilePolicy(func.image, func.startup_file);
+				const maxFiles =
+					data.mode === "kickoff" ? runtimePolicy.maxFilesKickoff : runtimePolicy.maxFilesRevision;
 
 				const systemPrompt = `You are an expert code-generation assistant integrated into SHSF (Self-Hostable Serverless Functions).
 Your sole job is to write complete, production-ready code files using the write_file tool.
@@ -733,22 +828,35 @@ Entry-point conventions:
 Rules you MUST follow:
 1. Use the write_file tool for EVERY file you produce. Do NOT just describe code.
 2. ${
-		func.image.startsWith("mcr.microsoft.com/dotnet/sdk:")
-			? 'Do NOT rely on func.startup_file for .NET. Instead, always include a runnable .csproj and the C# source files it needs.'
-			: `Always include the startup file "${func.startup_file}".`
+		runtimePolicy.systemInstruction
 	}
 3. You may write at most ${maxFiles} files total.
 4. These filenames are FORBIDDEN (never use them): ${DisallowedFiles.join(", ")}.
 5. Write the FULL content of each file — no TODOs, no placeholders, no "…existing code…" markers.
 6. Filenames must not contain path separators (/ or \\).
+7. Only create files allowed by the runtime file policy below.
 
-${AIDOC}`;
+${AIDOC}
+
+Runtime file policy:
+${runtimePolicy.docSection}`;
 
 				const messages: any[] = [{ role: "system", content: systemPrompt }];
 
 				if (data.mode === "revision") {
 					// Attach current file contents so the AI has full context
 					const filenames = data.files ?? [];
+					const disallowedSelectedFiles = filenames.filter(
+						(filename) => !runtimePolicy.isAllowedFilename(filename),
+					);
+
+					if (disallowedSelectedFiles.length > 0) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: `These files are not allowed for the ${runtimePolicy.runtime} runtime: ${disallowedSelectedFiles.join(", ")}`,
+						});
+					}
+
 					const existingFiles = func.files.filter((f) => filenames.includes(f.name));
 
 					if (existingFiles.length === 0 && filenames.length > 0) {
@@ -824,6 +932,8 @@ ${AIDOC}`;
 								toolResult = "Error: filename is required";
 							} else if (filename.includes("/") || filename.includes("\\")) {
 								toolResult = "Error: filename must not contain path separators";
+							} else if (!runtimePolicy.isAllowedFilename(filename)) {
+								toolResult = `Error: filename "${filename}" is not allowed for the ${runtimePolicy.runtime} runtime`;
 							} else if (DisallowedFiles.includes(filename)) {
 								toolResult = `Error: filename "${filename}" is reserved and cannot be used`;
 							} else if (
