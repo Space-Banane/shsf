@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { UserContext } from "../../App";
 import { getNamespaces } from "../../services/backend.namespaces";
-import { Namespace } from "../../types/Prisma";
+import { Namespace, XFunction } from "../../types/Prisma";
 import CreateNamespaceModal from "../../components/modals/namespaces/CreateNamespaceModal";
 import CreateFunctionModal from "../../components/modals/functions/CreateFunctionModal";
 import CloneFunctionModal from "../../components/modals/functions/CloneFunctionModal";
@@ -457,7 +457,7 @@ function FunctionCard({
 	onDelete,
 	onClone,
 }: {
-	func: { id: number; name: string; description?: string; imported?: boolean };
+	func: XFunction;
 	onDelete: () => void;
 	onClone?: () => void;
 }) {
@@ -479,6 +479,11 @@ function FunctionCard({
 							{func.imported && (
 								<span className="uppercase tracking-wide px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500/30 to-purple-500/30 text-blue-100 border border-blue-500/40 shadow-sm text-xs font-bold">
 									Imported
+								</span>
+							)}
+							{func.startup_file.endsWith(".html") && (
+								<span className="uppercase tracking-wide px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500/30 to-purple-500/30 text-blue-100 border border-blue-500/40 shadow-sm text-xs font-bold">
+									HTML Only
 								</span>
 							)}
 						</div>
