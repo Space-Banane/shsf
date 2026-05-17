@@ -68,6 +68,7 @@ async function createFunction(config: {
 	image: Image;
 	startup_file?: string;
 	docker_mount?: boolean;
+	network_restricted?: boolean;
 	ffmpeg_install?: boolean;
 	opencv_install?: boolean;
 	settings?: {
@@ -166,6 +167,7 @@ async function updateFunction(
 		image?: Image;
 		startup_file?: string;
 		docker_mount?: boolean;
+		network_restricted?: boolean;
 		ffmpeg_install?: boolean;
 		opencv_install?: boolean;
 		namespaceId?: number;

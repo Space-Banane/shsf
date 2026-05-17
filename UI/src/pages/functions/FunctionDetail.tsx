@@ -1151,6 +1151,7 @@ function FunctionDetail() {
 			image: functionData.image,
 			startup_file: functionData.startup_file!,
 			docker_mount: functionData.docker_mount,
+			network_restricted: functionData.network_restricted,
 			ffmpeg_install: functionData.ffmpeg_install,
 			settings: {
 				max_ram: functionData.max_ram,

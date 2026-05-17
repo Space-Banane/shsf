@@ -166,6 +166,7 @@ export = new fileRouter.Path("/")
 					userId: authCheck.user.id,
 					executionId: randomUUID(),
 					docker_mount: functionData.docker_mount,
+					network_restricted: functionData.network_restricted,
 					ffmpeg_install: functionData.ffmpeg_install,
 					cors_origins: functionData.cors_origins,
 					imported: false,

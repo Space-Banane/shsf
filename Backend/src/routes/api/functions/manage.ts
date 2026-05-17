@@ -117,6 +117,10 @@ export = new fileRouter.Path("/")
 										type: "boolean",
 										description: "Enable Docker mount",
 									},
+									network_restricted: {
+										type: "boolean",
+										description: "Disable outbound network access for the function container",
+									},
 									ffmpeg_install: {
 										type: "boolean",
 										description: "Install ffmpeg in container",
@@ -217,6 +221,7 @@ export = new fileRouter.Path("/")
 						image: z.enum(Images as any),
 						startup_file: z.string().max(256),
 						docker_mount: z.boolean().optional(),
+						network_restricted: z.boolean().optional(),
 						ffmpeg_install: z.boolean().optional(),
 						opencv_install: z.boolean().optional(),
 						executionAlias: z
@@ -368,6 +373,7 @@ export = new fileRouter.Path("/")
 						userId: authCheck.user.id,
 						executionId: randomUUID(),
 						docker_mount: data.docker_mount || false,
+						network_restricted: data.network_restricted || false,
 						ffmpeg_install: data.ffmpeg_install || false,
 						opencv_install: data.opencv_install || false,
 						cors_origins: data.cors_origins,
@@ -775,6 +781,10 @@ export = new fileRouter.Path("/")
 									image: { type: "string", description: "Docker image tag" },
 									startup_file: { type: "string", description: "Startup file name" },
 									docker_mount: { type: "boolean", description: "Enable Docker mount" },
+									network_restricted: {
+										type: "boolean",
+										description: "Disable outbound network access for the function container",
+									},
 									ffmpeg_install: { type: "boolean", description: "Install ffmpeg" },
 									opencv_install: { type: "boolean", description: "Install opencv" },
 									executionAlias: { type: "string" },
@@ -868,6 +878,7 @@ export = new fileRouter.Path("/")
 							.regex(/^[a-zA-Z0-9-_]+$/)
 							.optional(), // Only allow alphanumeric, hyphens, and underscores
 						docker_mount: z.boolean().optional(),
+						network_restricted: z.boolean().optional(),
 						ffmpeg_install: z.boolean().optional(),
 						opencv_install: z.boolean().optional(),
 						settings: z
@@ -1040,6 +1051,9 @@ export = new fileRouter.Path("/")
 					...(data.docker_mount !== undefined && {
 						docker_mount: data.docker_mount,
 					}),
+					...(data.network_restricted !== undefined && {
+						network_restricted: data.network_restricted,
+					}),
 					...(data.ffmpeg_install !== undefined && {
 						ffmpeg_install: data.ffmpeg_install,
 					}),
@@ -1085,6 +1099,14 @@ export = new fileRouter.Path("/")
 				) {
 					changes.push(
 						`docker_mount: ${existingFunction.docker_mount} -> ${data.docker_mount}`,
+					);
+				}
+				if (
+					data.network_restricted !== undefined &&
+					data.network_restricted !== existingFunction.network_restricted
+				) {
+					changes.push(
+						`network_restricted: ${existingFunction.network_restricted} -> ${data.network_restricted}`,
 					);
 				}
 				if (

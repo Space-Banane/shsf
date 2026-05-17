@@ -48,6 +48,7 @@ function UpdateFunctionModal({
 	const [error, setError] = useState("");
 	const [secureHeader, setSecureHeader] = useState<string | undefined>();
 	const [dockerMount, setDockerMount] = useState<boolean>(false);
+	const [networkRestricted, setNetworkRestricted] = useState<boolean>(false);
 	const [ffmpegInstall, setFfmpegInstall] = useState<boolean>(false);
 	const [opencv_install, setOpencvInstall] = useState<boolean>(false);
 	const [corsOrigins, setCorsOrigins] = useState<string>("");
@@ -118,6 +119,7 @@ function UpdateFunctionModal({
 			setStartupFile(functionData.startup_file || "");
 			setSecureHeader(functionData.secure_header || undefined);
 			setDockerMount(functionData.docker_mount ?? false);
+			setNetworkRestricted(functionData.network_restricted ?? false);
 			setFfmpegInstall(functionData.ffmpeg_install ?? false);
 			setOpencvInstall(functionData.opencv_install ?? false);
 			setCorsOrigins(functionData.cors_origins || "");
@@ -197,6 +199,7 @@ function UpdateFunctionModal({
 				image,
 				startup_file: isDotnetRuntime ? "" : startupFile?.trim() || undefined,
 				docker_mount: dockerMount,
+				network_restricted: networkRestricted,
 				ffmpeg_install: ffmpegInstall,
 				opencv_install: opencv_install,
 				executionAlias: executionAlias.trim() === "" ? undefined : executionAlias,
@@ -369,11 +372,17 @@ function UpdateFunctionModal({
 							<br />
 							Back up any important data before updating fields that trigger a redeploy
 							like{" "}
-							{["Image", "Docker Mount", "FFMPEG Install", "OpenCV Install"].map(
+							{[
+								"Image",
+								"Docker Mount",
+								"Network Restriction",
+								"FFMPEG Install",
+								"OpenCV Install",
+							].map(
 								(field, index) => (
 									<React.Fragment key={field}>
 										<InlineCode color="yellow">{field}</InlineCode>
-										{index < 3 && ", "}
+										{index < 4 && ", "}
 									</React.Fragment>
 								),
 							)}
@@ -670,6 +679,51 @@ function UpdateFunctionModal({
 							{isHtmlFunction && (
 								<p className="text-xs text-yellow-400 mt-1">
 									Docker mount is disabled for HTML startup files
+								</p>
+							)}
+						</div>
+
+						<div
+							className={`bg-gray-800/30 border border-cyan-600/50 rounded-lg p-4 ${
+								isHtmlFunction ? "opacity-50 pointer-events-none" : ""
+							}`}
+						>
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-3">
+									<span className="text-lg">🔒</span>
+									<div>
+										<p className="text-cyan-300 font-medium text-sm">
+											Restrict Network
+										</p>
+										<p className="text-cyan-400 text-xs">
+											Run the container with Docker network disabled
+										</p>
+									</div>
+								</div>
+								<div className="relative">
+									<input
+										type="checkbox"
+										checked={networkRestricted}
+										onChange={(e) => setNetworkRestricted(e.target.checked)}
+										className="sr-only peer"
+										disabled={isLoading || isHtmlFunction}
+										id="network-restricted-update"
+									/>
+									<label
+										htmlFor="network-restricted-update"
+										className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-cyan-500 peer-checked:to-blue-500 transition-all duration-300 cursor-pointer flex items-center relative"
+									>
+										<div
+											className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
+												networkRestricted ? "translate-x-6" : "translate-x-0.5"
+											}`}
+										></div>
+									</label>
+								</div>
+							</div>
+							{isHtmlFunction && (
+								<p className="text-xs text-cyan-400 mt-1">
+									Network restrictions are disabled for HTML startup files
 								</p>
 							)}
 						</div>
