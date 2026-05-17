@@ -48,6 +48,7 @@ function UpdateFunctionModal({
 	const [error, setError] = useState("");
 	const [secureHeader, setSecureHeader] = useState<string | undefined>();
 	const [dockerMount, setDockerMount] = useState<boolean>(false);
+	const [networkRestricted, setNetworkRestricted] = useState<boolean>(false);
 	const [ffmpegInstall, setFfmpegInstall] = useState<boolean>(false);
 	const [opencv_install, setOpencvInstall] = useState<boolean>(false);
 	const [corsOrigins, setCorsOrigins] = useState<string>("");
@@ -118,6 +119,7 @@ function UpdateFunctionModal({
 			setStartupFile(functionData.startup_file || "");
 			setSecureHeader(functionData.secure_header || undefined);
 			setDockerMount(functionData.docker_mount ?? false);
+			setNetworkRestricted(functionData.network_restricted ?? false);
 			setFfmpegInstall(functionData.ffmpeg_install ?? false);
 			setOpencvInstall(functionData.opencv_install ?? false);
 			setCorsOrigins(functionData.cors_origins || "");
@@ -197,6 +199,7 @@ function UpdateFunctionModal({
 				image,
 				startup_file: isDotnetRuntime ? "" : startupFile?.trim() || undefined,
 				docker_mount: dockerMount,
+				network_restricted: networkRestricted,
 				ffmpeg_install: ffmpegInstall,
 				opencv_install: opencv_install,
 				executionAlias: executionAlias.trim() === "" ? undefined : executionAlias,
@@ -369,11 +372,17 @@ function UpdateFunctionModal({
 							<br />
 							Back up any important data before updating fields that trigger a redeploy
 							like{" "}
-							{["Image", "Docker Mount", "FFMPEG Install", "OpenCV Install"].map(
+							{[
+								"Image",
+								"Docker Mount",
+								"Network Restriction",
+								"FFMPEG Install",
+								"OpenCV Install",
+							].map(
 								(field, index) => (
 									<React.Fragment key={field}>
 										<InlineCode color="yellow">{field}</InlineCode>
-										{index < 3 && ", "}
+										{index < 4 && ", "}
 									</React.Fragment>
 								),
 							)}

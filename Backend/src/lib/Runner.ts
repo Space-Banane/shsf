@@ -1876,6 +1876,9 @@ echo "[SHSF INIT] .NET setup complete."
 						Binds: BINDS,
 						AutoRemove: false,
 						Memory: (functionData.max_ram || 128) * 1024 * 1024,
+						...((functionData as any).network_restricted && {
+							NetworkMode: "none",
+						}),
 					},
 					Cmd: [
 						"/bin/sh",
@@ -2457,6 +2460,9 @@ echo "[SHSF INIT] .NET environment ready."
 					],
 					AutoRemove: false,
 					Memory: (functionData.max_ram || 128) * 1024 * 1024,
+					...((functionData as any).network_restricted && {
+						NetworkMode: "none",
+					}),
 				},
 				Cmd: [
 					"/bin/sh",

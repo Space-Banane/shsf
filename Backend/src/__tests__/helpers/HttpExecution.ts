@@ -20,6 +20,7 @@ const baseFunctionData = {
 	startup_file: "main.py",
 	cors_origins: null,
 	docker_mount: false,
+	network_restricted: false,
 	ffmpeg_install: false,
 	opencv_install: false,
 	git_url: null,

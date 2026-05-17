@@ -14,6 +14,7 @@ export interface SHSFExport {
 	image: string;
 	startup_file: string;
 	docker_mount: boolean;
+	network_restricted?: boolean;
 	ffmpeg_install: boolean;
 	settings: {
 		max_ram?: number;
@@ -156,6 +157,7 @@ function ImportFunctionModal({
 				image: parsed.image as any,
 				startup_file: parsed.startup_file,
 				docker_mount: parsed.docker_mount ?? false,
+				network_restricted: parsed.network_restricted ?? false,
 				ffmpeg_install: parsed.ffmpeg_install ?? false,
 				settings: parsed.settings,
 				namespaceId: selectedNamespaceId,
