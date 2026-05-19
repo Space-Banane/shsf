@@ -903,28 +903,87 @@ function FunctionDetail() {
 		}
 	};
 
-	const handleDeleteFile = async (): Promise<boolean> => {
-		if (!id || !selectedFile) return false;
+	const removeFileFromState = (fileId: number) => {
+		editorViewStatesRef.current.delete(fileId);
+		setFiles((prev) => prev.filter((file) => file.id !== fileId));
+		if (selectedFile?.id === fileId) {
+			setSelectedFile(null);
+		}
+		if (activeFile?.id === fileId) {
+			setActiveFile(null);
+			setCode(null);
+		}
+	};
 
-		try {
-			const data = await deleteFile(parseInt(id), selectedFile.id);
-			if (data.status === "OK") {
-				setFiles((prev) => prev.filter((file) => file.id !== selectedFile.id));
-				if (activeFile?.id === selectedFile.id) {
-					editorViewStatesRef.current.delete(selectedFile.id);
-					setActiveFile(null);
-					setCode(null);
+	const deleteFunctionFiles = async (filesToDelete: FunctionFile[]) => {
+		if (!id || filesToDelete.length === 0) return false;
+
+		let deletedCount = 0;
+		let hadError = false;
+
+		for (const file of filesToDelete) {
+			try {
+				const data = await deleteFile(parseInt(id), file.id);
+				if (data.status === "OK") {
+					removeFileFromState(file.id);
+					deletedCount++;
+				} else {
+					hadError = true;
+					toast.error(`Error deleting ${file.name}: ${data.message}`);
 				}
-				return true;
-			} else {
-				toast.error("Error deleting file: " + data.message);
-				return false;
+			} catch (error) {
+				hadError = true;
+				console.error("Error deleting file:", error);
+				toast.error(`An error occurred while deleting ${file.name}.`);
 			}
-		} catch (error) {
-			console.error("Error deleting file:", error);
-			toast.error("An error occurred while deleting the file.");
+		}
+
+		if (deletedCount > 0) {
+			toast.success(
+				deletedCount === 1
+					? `Deleted ${filesToDelete[0].name}.`
+					: `Deleted ${deletedCount} files.`,
+			);
+		}
+
+		return deletedCount > 0 && !hadError;
+	};
+
+	const handleDeleteFile = async (): Promise<boolean> => {
+		if (!selectedFile) return false;
+		return deleteFunctionFiles([selectedFile]);
+	};
+
+	const handleDeleteSelectedFiles = async (
+		filesToDelete: FunctionFile[],
+	): Promise<boolean> => {
+		if (!id || filesToDelete.length === 0) return false;
+
+		const previewNames = filesToDelete
+			.slice(0, 5)
+			.map((file) => file.name)
+			.join(", ");
+		const summary =
+			filesToDelete.length === 1
+				? `This will permanently delete "${filesToDelete[0].name}".`
+				: `This will permanently delete ${filesToDelete.length} files: ${previewNames}${
+						filesToDelete.length > 5
+							? `, and ${filesToDelete.length - 5} more`
+							: ""
+					}.`;
+		const shouldDelete = await confirm({
+			title: "Delete Files",
+			message: summary,
+			confirmText: "Delete Files",
+			cancelText: "Cancel",
+			variant: "delete",
+		});
+
+		if (!shouldDelete) {
 			return false;
 		}
+
+		return deleteFunctionFiles(filesToDelete);
 	};
 
 	const handleCreateTrigger = async (
@@ -1489,6 +1548,10 @@ function FunctionDetail() {
 								setSelectedFile(file);
 								setShowDeleteModal(true);
 							}}
+							onDeleteSelectedFiles={handleDeleteSelectedFiles}
+							nonSelectableOnSelectAllFileNames={
+								functionData.startup_file ? [functionData.startup_file] : []
+							}
 							onDropFiles={handleDropFiles}
 							onAIGenerate={() => setShowAIModal(true)}
 							aiDisabled={!aiEnabled}
