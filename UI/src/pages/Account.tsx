@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useState } from "react";
 import { UserContext } from "../App";
 import { deleteAccount, exportAccountData, updateAccountSettings } from "../services/backend.account";
 
@@ -9,37 +9,58 @@ export const AccountPage = ({}) => {
 	const [deleteLoading, setDeleteLoading] = useState(false);
 	const [deleteError, setDeleteError] = useState("");
 	const [exportLoading, setExportLoading] = useState(false);
+	const aiFeaturesEnabled = Boolean(user?.apiKeyConfigured);
 
 	// AI Settings state
 	const [openRouterKey, setOpenRouterKey] = useState<string>("");
-	const [openRouterKeyInitialized, setOpenRouterKeyInitialized] = useState(false);
 	const [aiSettingsSaving, setAiSettingsSaving] = useState(false);
 	const [aiSettingsMessage, setAiSettingsMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 	const [showKey, setShowKey] = useState(false);
 
-	// Sync key from user object when user is first loaded
-	useEffect(() => {
-		if (user && !openRouterKeyInitialized) {
-			setOpenRouterKey(user.openRouterKey ?? "");
-			setOpenRouterKeyInitialized(true);
-		}
-	}, [user, openRouterKeyInitialized]);
-
 	const handleSaveAiSettings = async () => {
+		const trimmedKey = openRouterKey.trim();
+		if (!trimmedKey) {
+			setAiSettingsMessage({
+				type: "err",
+				text: "Enter an OpenRouter API key before saving.",
+			});
+			return;
+		}
+
 		setAiSettingsSaving(true);
 		setAiSettingsMessage(null);
 		try {
 			const result = await updateAccountSettings({
-				openRouterKey: openRouterKey.trim() === "" ? null : openRouterKey.trim(),
+				openRouterKey: trimmedKey,
 			});
 			if (result.status === "OK") {
 				setAiSettingsMessage({ type: "ok", text: "API key saved successfully" });
+				setOpenRouterKey("");
 				refreshUser();
 			} else {
 				setAiSettingsMessage({ type: "err", text: result.message });
 			}
 		} catch {
 			setAiSettingsMessage({ type: "err", text: "An error occurred while saving" });
+		} finally {
+			setAiSettingsSaving(false);
+		}
+	};
+
+	const handleClearAiSettings = async () => {
+		setAiSettingsSaving(true);
+		setAiSettingsMessage(null);
+		try {
+			const result = await updateAccountSettings({ openRouterKey: null });
+			if (result.status === "OK") {
+				setAiSettingsMessage({ type: "ok", text: "Saved API key removed successfully" });
+				setOpenRouterKey("");
+				refreshUser();
+			} else {
+				setAiSettingsMessage({ type: "err", text: result.message });
+			}
+		} catch {
+			setAiSettingsMessage({ type: "err", text: "An error occurred while clearing the key" });
 		} finally {
 			setAiSettingsSaving(false);
 		}
@@ -182,6 +203,11 @@ export const AccountPage = ({}) => {
 									</div>
 									AI Settings
 								</h2>
+								<div className="mb-4 rounded-lg border border-primary/15 bg-background/40 px-4 py-3 text-sm text-text/75">
+									{aiFeaturesEnabled
+										? "AI features are currently enabled."
+										: "AI features are disabled until an OpenRouter API key is configured."}
+								</div>
 								<p className="text-text/50 text-sm mb-6">
 									Provide your own{" "}
 									<a
@@ -191,7 +217,7 @@ export const AccountPage = ({}) => {
 										className="text-primary/70 hover:text-primary underline underline-offset-2"
 									>
 										OpenRouter API key
-									</a>{" "}
+										</a>{" "}
 									to enable AI-powered code generation for your functions. Your key is
 									stored securely and used only for your requests.
 								</p>
@@ -206,7 +232,7 @@ export const AccountPage = ({}) => {
 												type={showKey ? "text" : "password"}
 												value={openRouterKey}
 												onChange={(e) => setOpenRouterKey(e.target.value)}
-												placeholder="sk-or-…"
+												placeholder={aiFeaturesEnabled ? "Enter a new key to replace the saved one" : "sk-or-…"}
 												className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text font-mono text-sm focus:border-primary/50 focus:outline-none placeholder:text-text/30"
 											/>
 											<button
@@ -218,7 +244,7 @@ export const AccountPage = ({}) => {
 											</button>
 										</div>
 										<p className="text-text/40 text-xs mt-1">
-											Leave blank to remove the key. With no key set, AI features are disabled.
+											Enter a new key to save it. The saved key is never shown back to the browser.
 										</p>
 									</div>
 
@@ -239,8 +265,17 @@ export const AccountPage = ({}) => {
 										disabled={aiSettingsSaving}
 										className="px-6 py-2.5 bg-primary/20 border border-primary/30 rounded-lg text-primary font-semibold hover:bg-primary/30 hover:border-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 									>
-										{aiSettingsSaving ? "Saving…" : "Save AI Settings"}
+										{aiSettingsSaving ? "Saving…" : "Save Key"}
 									</button>
+									{aiFeaturesEnabled && (
+										<button
+											onClick={handleClearAiSettings}
+											disabled={aiSettingsSaving}
+											className="px-6 py-2.5 bg-background/50 border border-primary/20 rounded-lg text-text/70 font-semibold hover:border-primary/40 hover:text-text disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+										>
+											{aiSettingsSaving ? "Clearing…" : "Remove Saved Key"}
+										</button>
+									)}
 								</div>
 							</div>
 						</div>

@@ -76,7 +76,7 @@ interface User {
 	role: UserRole;
 
 	password?: string;
-	openRouterKey?: string | null;
+	apiKeyConfigured?: boolean;
 
 	createdAt?: Date;
 	updatedAt?: Date;

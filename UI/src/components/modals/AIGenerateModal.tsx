@@ -16,6 +16,8 @@ interface AIGenerateModalProps {
 	namespaceId?: number; // Required for creation flow
 	existingFiles?: FunctionFile[];
 	onSuccess?: () => void; // called after files are written — triggers a file list refresh
+	disabled?: boolean;
+	disabledReason?: string;
 }
 
 function AIGenerateModal({
@@ -25,6 +27,8 @@ function AIGenerateModal({
 	namespaceId,
 	existingFiles = [],
 	onSuccess,
+	disabled = false,
+	disabledReason,
 }: AIGenerateModalProps) {
 	const [mode, setMode] = useState<AIMode>(functionId ? "revision" : "kickoff");
 	const [stage, setStage] = useState<"intake" | "review" | "generating">(
@@ -210,6 +214,27 @@ function AIGenerateModal({
 	};
 
 	if (!isOpen) return null;
+
+	if (disabled) {
+		return (
+			<Modal
+				isOpen={isOpen}
+				onClose={handleClose}
+				title={functionId ? "AI ASSISTANT" : "AI KICKOFF"}
+				maxWidth="lg"
+			>
+				<div className="space-y-4">
+					<div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-100">
+						{disabledReason ??
+							"AI features are disabled until an OpenRouter API key is configured."}
+					</div>
+					<p className="text-sm text-gray-300">
+						Open Account Settings to add a key, then reopen this dialog.
+					</p>
+				</div>
+			</Modal>
+		);
+	}
 
 	return (
 		<Modal

@@ -9,7 +9,7 @@ export = new fileRouter.Path("/").http(
 		http
 			.document({
 				description:
-					"Get information about the authenticated user (session or API key).",
+					"Get information about the authenticated user and AI availability.",
 				tags: ["User"] as OpenAPITags[],
 				operationId: "getUserInfo",
 				responses: {
@@ -21,9 +21,13 @@ export = new fileRouter.Path("/").http(
 									type: "object",
 									properties: {
 										status: { type: "string" },
-										user: { type: "object" },
+										user: {
+											type: "object",
+											properties: {
+												apiKeyConfigured: { type: "boolean" },
+											},
+										},
 										session: { type: ["object", "null"] },
-										apiKey: { type: ["object", "null"] },
 									},
 								},
 							},
@@ -50,9 +54,11 @@ export = new fileRouter.Path("/").http(
 						...authCheck.user,
 						password: undefined,
 						openRouterKey: undefined,
+						apiKeyConfigured: Boolean(
+							authCheck.user.openRouterKey || process.env.OPENROUTER_API_KEY,
+						),
 					},
 					session: authCheck.method === "session" ? authCheck.session : null,
-					apiKey: authCheck.method === "apiKey" ? authCheck.apiKey : null,
 				});
 			}),
 );

@@ -12,6 +12,8 @@ export function FileManagerCard({
 	onDeleteFile,
 	onDropFiles,
 	onAIGenerate,
+	aiDisabled = false,
+	aiDisabledReason,
 	disabled = false,
 	disabledReason,
 }: {
@@ -24,6 +26,8 @@ export function FileManagerCard({
 	onDeleteFile: (file: FunctionFile) => void;
 	onDropFiles?: (files: File[]) => void | Promise<void>;
 	onAIGenerate?: () => void;
+	aiDisabled?: boolean;
+	aiDisabledReason?: string;
 	disabled?: boolean;
 	disabledReason?: string;
 }) {
@@ -161,8 +165,11 @@ export function FileManagerCard({
 			/>
 			{onAIGenerate && (
 				<button
+					disabled={aiDisabled}
 					onClick={onAIGenerate}
-					className="w-full mt-2 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-widest transition-all duration-200"
+					className={`w-full mt-2 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-widest transition-all duration-200 ${
+						aiDisabled ? "opacity-50 cursor-not-allowed" : ""
+					}`}
 					style={{
 						background:
 							"linear-gradient(135deg,rgba(99,102,241,0.18),rgba(139,92,246,0.12))",
@@ -180,12 +187,15 @@ export function FileManagerCard({
 						(e.currentTarget as HTMLButtonElement).style.borderColor =
 							"rgba(99,102,241,0.3)";
 					}}
-				>
-					<svg className="w-3.5 h-3.5 text-orange-400 fill-orange-400" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-						<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-					</svg>
-					KICKOFF
-				</button>
+					>
+						<svg className="w-3.5 h-3.5 text-orange-400 fill-orange-400" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+							<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+						</svg>
+						KICKOFF
+					</button>
+				)}
+			{aiDisabled && aiDisabledReason && (
+				<p className="mt-2 text-xs text-yellow-300/80">{aiDisabledReason}</p>
 			)}
 		</div>
 	);

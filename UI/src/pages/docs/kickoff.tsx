@@ -41,9 +41,9 @@ export const DOCSKICKOFF = () => {
 				</p>
 				<div className="mb-6 p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
 					<p className="text-sm text-yellow-300">
-						<strong>Note:</strong> If no key is configured, the AI generate button will
-						return a <code>503 Service Unavailable</code> error. Add your key in
-						Account Settings to enable KICKOFF.
+						<strong>Note:</strong> If no key is configured, the AI generate button is
+						disabled in the dashboard. Add your key in Account Settings to enable
+						KICKOFF.
 					</p>
 				</div>
 

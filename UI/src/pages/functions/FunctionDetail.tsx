@@ -1,7 +1,7 @@
 import { toast } from "react-toastify";
 import { useBeforeUnload, useBlocker, useParams } from "react-router-dom";
 import { SHSFExport } from "../../components/modals/functions/ImportFunctionModal";
-import { useEffect, useState, useRef } from "react";
+import { useContext, useEffect, useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import CreateFileModal from "../../components/modals/functionFiles/CreateFileModal";
 import RenameFileModal from "../../components/modals/functionFiles/RenameFileModal";
@@ -29,6 +29,7 @@ import {
 	Namespace,
 	TriggerLog,
 } from "../../types/Prisma";
+import { UserContext } from "../../App";
 import {
 	getFunctionById,
 	executeFunction,
@@ -73,6 +74,7 @@ export interface TimingEntry {
 
 function FunctionDetail() {
 	const { id } = useParams<{ id: string }>();
+	const { user } = useContext(UserContext);
 	const confirm = useConfirm();
 	const [functionData, setFunctionData] = useState<XFunction | null>(null);
 	const [nameSpace, setNamespace] = useState<Namespace | null>(null);
@@ -161,6 +163,7 @@ function FunctionDetail() {
 	const editorViewStatesRef = useRef<Map<number, any>>(new Map());
 	const saveShortcutRef = useRef<() => void>(() => {});
 	const resultModalsEnabled = !stopShowingResult;
+	const aiEnabled = Boolean(user?.apiKeyConfigured);
 
 	const savedActiveFile =
 		activeFile ? files.find((file) => file.id === activeFile.id) ?? activeFile : null;
@@ -1488,6 +1491,8 @@ function FunctionDetail() {
 							}}
 							onDropFiles={handleDropFiles}
 							onAIGenerate={() => setShowAIModal(true)}
+							aiDisabled={!aiEnabled}
+							aiDisabledReason="Enable AI in Account Settings to use AI KICKOFF."
 							disabled={Boolean(functionData.git_url)}
 							disabledReason="Git source active — file manager disabled. Use Version Control to manage files."
 						/>
@@ -1929,6 +1934,8 @@ function FunctionDetail() {
 					onClose={() => setShowAIModal(false)}
 					functionId={functionData?.id ?? 0}
 					existingFiles={files}
+					disabled={!aiEnabled}
+					disabledReason="Enable AI in Account Settings to use AI KICKOFF."
 					onSuccess={() => {
 						if (id) {
 							getFiles(parseInt(id)).then((filesData) => {

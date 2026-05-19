@@ -750,7 +750,8 @@ Platform Rules:
 					return ctr.print({ status: 401, message: authCheck.message });
 				}
 
-				const openRouterKey = authCheck.user.openRouterKey;
+				const openRouterKey =
+					authCheck.user.openRouterKey || process.env.OPENROUTER_API_KEY;
 
 				if (!openRouterKey) {
 					return ctr.status(ctr.$status.SERVICE_UNAVAILABLE).print({

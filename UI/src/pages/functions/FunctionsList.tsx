@@ -17,7 +17,8 @@ import AIGenerateModal from "../../components/modals/AIGenerateModal";
 function FunctionsList() {
 	const [namespaces, setNamespaces] = useState<Namespace[]>([]);
 	const [loading, setLoading] = useState(true);
-	const { user, refreshUser } = useContext(UserContext);
+	const { user } = useContext(UserContext);
+	const aiEnabled = Boolean(user?.apiKeyConfigured);
 	const [isNamespaceModalOpen, setNamespaceModalOpen] = useState(false);
 	const [isRenameNamespaceModalOpen, setRenameNamespaceModalOpen] =
 		useState(false);
@@ -163,6 +164,7 @@ function FunctionsList() {
 							icon="✨"
 							label="AI KICKOFF"
 							variant="primary"
+							disabled={!aiEnabled}
 							onClick={() => setAIModalOpen(true)}
 						/>
 						<ActionButton
@@ -194,10 +196,16 @@ function FunctionsList() {
 								} else {
 									expandAllNamespaces();
 								}
-							}}
-						/>
+								}}
+							/>
 					</div>
 				</div>
+
+				{!aiEnabled && (
+					<p className="mb-6 text-sm text-yellow-300/80">
+						Enable AI in Account Settings to use AI KICKOFF.
+					</p>
+				)}
 
 				{/* Functions Grid */}
 				{namespaces.length === 0 ? (
@@ -255,6 +263,8 @@ function FunctionsList() {
 				onClose={() => setAIModalOpen(false)}
 				onSuccess={refreshData}
 				namespaceId={namespaces.length > 0 ? (selectedNamespace?.id || namespaces[0].id) : undefined}
+				disabled={!aiEnabled}
+				disabledReason="Enable AI in Account Settings to use AI KICKOFF."
 			/>
 			<CloneFunctionModal
 				isOpen={isCloneFunctionModalOpen}
@@ -311,14 +321,16 @@ function ActionButton({
 	label,
 	variant = "primary",
 	onClick,
+	disabled = false,
 }: {
 	icon: string;
 	label: string;
 	variant?: "primary" | "secondary";
 	onClick: () => void;
+	disabled?: boolean;
 }) {
 	const baseClasses =
-		"px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 hover:scale-105";
+		"px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100";
 	const variantClasses = {
 		primary:
 			"bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-[0_0_30px_rgba(124,131,253,0.3)] border border-transparent",
@@ -329,6 +341,7 @@ function ActionButton({
 	return (
 		<button
 			onClick={onClick}
+			disabled={disabled}
 			className={`${baseClasses} ${variantClasses[variant]}`}
 		>
 			<span className="text-lg">{icon}</span>
