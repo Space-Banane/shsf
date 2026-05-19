@@ -3,6 +3,7 @@ import { useBeforeUnload, useBlocker, useParams } from "react-router-dom";
 import { SHSFExport } from "../../components/modals/functions/ImportFunctionModal";
 import { useContext, useEffect, useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
+import JSZip from "jszip";
 import CreateFileModal from "../../components/modals/functionFiles/CreateFileModal";
 import RenameFileModal from "../../components/modals/functionFiles/RenameFileModal";
 import DeleteFileModal from "../../components/modals/functionFiles/DeleteFileModal";
@@ -158,12 +159,14 @@ function FunctionDetail() {
 	const [showLoadDefaultModal, setShowLoadDefaultModal] = useState(false);
 	const [showAIModal, setShowAIModal] = useState(false);
 	const [showGitModal, setShowGitModal] = useState(false);
+	const [autoUnzipFiles, setAutoUnzipFiles] = useState(true);
 	const [stopShowingResult, setStopShowingResult] = useState(false);
 	const navigationPromptOpenRef = useRef(false);
 	const editorViewStatesRef = useRef<Map<number, any>>(new Map());
 	const saveShortcutRef = useRef<() => void>(() => {});
 	const resultModalsEnabled = !stopShowingResult;
 	const aiEnabled = Boolean(user?.apiKeyConfigured);
+	const isZipFilename = (filename: string) => filename.toLowerCase().endsWith(".zip");
 
 	const savedActiveFile =
 		activeFile ? files.find((file) => file.id === activeFile.id) ?? activeFile : null;
@@ -364,6 +367,87 @@ function FunctionDetail() {
 
 	const handleEditorChange = (value: string | undefined) => {
 		setCode(value || "");
+	};
+
+	const normalizeZipEntryName = (entryName: string) => {
+		const normalized = entryName.replace(/\\/g, "/").trim().replace(/^\/+/, "");
+		if (!normalized || normalized.startsWith("/") || /^[a-zA-Z]:/.test(normalized)) {
+			return null;
+		}
+
+		const segments = normalized
+			.split("/")
+			.filter((segment) => segment.length > 0 && segment !== ".");
+		if (segments.length === 0 || segments.some((segment) => segment === "..")) {
+			return null;
+		}
+
+		return segments.join("/");
+	};
+
+	const extractZipFiles = async (zipFile: File) => {
+		const zip = await JSZip.loadAsync(await zipFile.arrayBuffer());
+		const extracted: Array<{ name: string; content: string }> = [];
+		const skippedEntries: string[] = [];
+
+		const entryReads: Array<Promise<void>> = [];
+		zip.forEach((relativePath, entry) => {
+			if (entry.dir) {
+				return;
+			}
+
+			entryReads.push(
+				(async () => {
+					const normalizedName = normalizeZipEntryName(relativePath);
+					if (!normalizedName) {
+						skippedEntries.push(relativePath);
+						return;
+					}
+
+					const content = await entry.async("string");
+					extracted.push({ name: normalizedName, content });
+				})(),
+			);
+		});
+
+		await Promise.all(entryReads);
+		return { extracted, skippedEntries };
+	};
+
+	const persistFile = async (
+		filename: string,
+		content: string,
+	): Promise<
+		| { success: true; name: string }
+		| { success: false; message: string }
+	> => {
+		if (!id) {
+			return { success: false, message: "Function ID is missing." };
+		}
+
+		if (serveHtmlOnly && !isHtmlFilename(filename)) {
+			return {
+				success: false,
+				message: "Only .html files are allowed for this function.",
+			};
+		}
+
+		try {
+			const data = await createOrUpdateFile(parseInt(id), {
+				filename,
+				code: content,
+			});
+
+			if (data.status === "OK") {
+				setFiles((prev) => [...prev, { ...data.data, content }]);
+				return { success: true, name: filename };
+			}
+
+			return { success: false, message: data.message };
+		} catch (error) {
+			console.error("Error creating file:", error);
+			return { success: false, message: "An error occurred while creating the file." };
+		}
 	};
 
 	const handleEditorDidMount = (editor: any, monaco: any) => {
@@ -786,67 +870,75 @@ function FunctionDetail() {
 		filename: string,
 		content: string,
 	): Promise<boolean> => {
-		if (!id) {
-			toast.error("Function ID is missing.");
+		const result = await persistFile(filename, content);
+		if (!result.success) {
+			toast.error(`Error creating file: ${result.message}`);
 			return false;
 		}
-
-		if (serveHtmlOnly && !isHtmlFilename(filename)) {
-			toast.error("Only .html files are allowed for this function.");
-			return false;
-		}
-
-		try {
-			const data = await createOrUpdateFile(parseInt(id), {
-				filename,
-				code: content,
-			});
-			if (data.status === "OK") {
-				setFiles((prev) => [...prev, { ...data.data, content }]); // Ensure the new file has the correct content
-				return true;
-			} else {
-				toast.error("Error creating file: " + data.message);
-				return false;
-			}
-		} catch (error) {
-			console.error("Error creating file:", error);
-			toast.error("An error occurred while creating the file.");
-			return false;
-		}
+		return true;
 	};
 
-	const handleDropFiles = async (droppedFiles: File[]) => {
+	const handleDropFiles = async (
+		droppedFiles: File[],
+		options?: { unzipArchives?: boolean },
+	) => {
 		if (!id) {
 			toast.error("Function ID is missing.");
 			return;
 		}
 
+		const shouldUnzipArchives = options?.unzipArchives ?? autoUnzipFiles;
 		const existingNames = new Set(files.map((file) => file.name));
 		const createdNames: string[] = [];
 		const skippedExistingNames: string[] = [];
 		const skippedInvalidTypeNames: string[] = [];
+		const skippedZipEntries: string[] = [];
+		const skippedZipFiles: string[] = [];
 
 		for (const droppedFile of droppedFiles) {
-			if (serveHtmlOnly && !isHtmlFilename(droppedFile.name)) {
-				skippedInvalidTypeNames.push(droppedFile.name);
-				continue;
-			}
-
-			if (existingNames.has(droppedFile.name)) {
-				skippedExistingNames.push(droppedFile.name);
-				continue;
-			}
-
 			try {
-				const content = await droppedFile.text();
-				const created = await handleCreateFile(droppedFile.name, content);
-				if (created) {
-					existingNames.add(droppedFile.name);
-					createdNames.push(droppedFile.name);
+				let uploadedEntries: Array<{ name: string; content: string }>;
+				if (isZipFilename(droppedFile.name) && shouldUnzipArchives) {
+					const { extracted, skippedEntries } = await extractZipFiles(droppedFile);
+					uploadedEntries = extracted;
+					skippedZipEntries.push(...skippedEntries);
+					if (uploadedEntries.length === 0) {
+						toast.error(`${droppedFile.name} did not contain any files to upload.`);
+						continue;
+					}
+				} else if (isZipFilename(droppedFile.name)) {
+					skippedZipFiles.push(droppedFile.name);
+					continue;
+				} else {
+					uploadedEntries = [{ name: droppedFile.name, content: await droppedFile.text() }];
+				}
+
+				for (const uploadedFile of uploadedEntries) {
+					if (serveHtmlOnly && !isHtmlFilename(uploadedFile.name)) {
+						skippedInvalidTypeNames.push(uploadedFile.name);
+						continue;
+					}
+
+					if (existingNames.has(uploadedFile.name)) {
+						skippedExistingNames.push(uploadedFile.name);
+						continue;
+					}
+
+					const result = await persistFile(uploadedFile.name, uploadedFile.content);
+					if (result.success) {
+						existingNames.add(uploadedFile.name);
+						createdNames.push(uploadedFile.name);
+					} else {
+						toast.error(`Failed to create ${uploadedFile.name}: ${result.message}`);
+					}
 				}
 			} catch (error) {
 				console.error("Error reading dropped file:", error);
-				toast.error(`Failed to read ${droppedFile.name}.`);
+				toast.error(
+					isZipFilename(droppedFile.name)
+						? `Failed to unpack ${droppedFile.name}. Make sure it is a valid zip archive.`
+						: `Failed to read ${droppedFile.name}.`,
+				);
 			}
 		}
 
@@ -871,6 +963,22 @@ function FunctionDetail() {
 				skippedInvalidTypeNames.length === 1
 					? `${skippedInvalidTypeNames[0]} was skipped because only .html files are allowed.`
 					: `${skippedInvalidTypeNames.length} files were skipped because only .html files are allowed.`,
+			);
+		}
+
+		if (skippedZipEntries.length > 0) {
+			toast.error(
+				skippedZipEntries.length === 1
+					? `${skippedZipEntries[0]} was skipped because it is not a valid zip path.`
+					: `${skippedZipEntries.length} zip entries were skipped because they are not valid paths.`,
+			);
+		}
+
+		if (skippedZipFiles.length > 0) {
+			toast.error(
+				skippedZipFiles.length === 1
+					? `${skippedZipFiles[0]} was skipped because Auto Unzip Files is off.`
+					: `${skippedZipFiles.length} zip files were skipped because Auto Unzip Files is off.`,
 			);
 		}
 	};
@@ -1553,6 +1661,8 @@ function FunctionDetail() {
 								functionData.startup_file ? [functionData.startup_file] : []
 							}
 							onDropFiles={handleDropFiles}
+							autoUnzipFiles={autoUnzipFiles}
+							onAutoUnzipFilesChange={setAutoUnzipFiles}
 							onAIGenerate={() => setShowAIModal(true)}
 							aiDisabled={!aiEnabled}
 							aiDisabledReason="Enable AI in Account Settings to use AI KICKOFF."

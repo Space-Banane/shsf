@@ -71,6 +71,8 @@ export function FileManagerCard({
 	aiDisabledReason,
 	disabled = false,
 	disabledReason,
+	autoUnzipFiles,
+	onAutoUnzipFilesChange,
 }: {
 	files: FunctionFile[];
 	activeFile: FunctionFile | null;
@@ -81,16 +83,22 @@ export function FileManagerCard({
 	onDeleteFile: (file: FunctionFile) => void;
 	onDeleteSelectedFiles?: (files: FunctionFile[]) => boolean | Promise<boolean>;
 	nonSelectableOnSelectAllFileNames?: string[];
-	onDropFiles?: (files: File[]) => void | Promise<void>;
+	onDropFiles?: (
+		files: File[],
+		options?: { unzipArchives?: boolean },
+	) => void | Promise<void>;
 	onAIGenerate?: () => void;
 	aiDisabled?: boolean;
 	aiDisabledReason?: string;
 	disabled?: boolean;
 	disabledReason?: string;
+	autoUnzipFiles: boolean;
+	onAutoUnzipFilesChange: (enabled: boolean) => void;
 }) {
 	const [isDragOver, setIsDragOver] = useState(false);
 	const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(new Set());
 	const uploadInputRef = useRef<HTMLInputElement>(null);
+	const zipUploadInputRef = useRef<HTMLInputElement>(null);
 	const selectAllExcludedFileNames = useMemo(
 		() => new Set(nonSelectableOnSelectAllFileNames),
 		[nonSelectableOnSelectAllFileNames],
@@ -164,6 +172,10 @@ export function FileManagerCard({
 		uploadInputRef.current?.click();
 	};
 
+	const handleZipUploadClick = () => {
+		zipUploadInputRef.current?.click();
+	};
+
 	const handleUploadChange = (event: ChangeEvent<HTMLInputElement>) => {
 		if (!onDropFiles) return;
 		const uploadedFiles = Array.from(event.target.files || []);
@@ -171,7 +183,17 @@ export function FileManagerCard({
 		if (uploadedFiles.length === 0) {
 			return;
 		}
-		void onDropFiles(uploadedFiles);
+		void onDropFiles(uploadedFiles, { unzipArchives: autoUnzipFiles });
+	};
+
+	const handleZipUploadChange = (event: ChangeEvent<HTMLInputElement>) => {
+		if (!onDropFiles) return;
+		const uploadedFiles = Array.from(event.target.files || []);
+		event.target.value = "";
+		if (uploadedFiles.length === 0) {
+			return;
+		}
+		void onDropFiles(uploadedFiles, { unzipArchives: true });
 	};
 
 	const handleDeleteSelected = async () => {
@@ -213,7 +235,7 @@ export function FileManagerCard({
 		if (droppedFiles.length === 0) {
 			return;
 		}
-		void onDropFiles(droppedFiles);
+		void onDropFiles(droppedFiles, { unzipArchives: autoUnzipFiles });
 	};
 
 	return (
@@ -378,7 +400,46 @@ export function FileManagerCard({
 					>
 						📤 Upload Files
 					</button>
+					<input
+						ref={zipUploadInputRef}
+						type="file"
+						accept=".zip,application/zip"
+						className="hidden"
+						onChange={handleZipUploadChange}
+					/>
+					<button
+						type="button"
+						onClick={handleZipUploadClick}
+						className="w-full mt-2 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-widest transition-all duration-200 bg-background/50 border border-primary/20 text-primary hover:border-primary/40 hover:bg-primary/5"
+					>
+						🗜️ Upload From Zip
+					</button>
 				</>
+			)}
+			{onDropFiles && (
+				<div className="mt-2 rounded-lg border border-primary/20 bg-background/30 px-3 py-2">
+					<button
+						type="button"
+						aria-pressed={autoUnzipFiles}
+						onClick={() => onAutoUnzipFilesChange(!autoUnzipFiles)}
+						className="flex w-full items-center justify-between gap-3 text-left"
+					>
+						<span className="text-xs font-bold uppercase tracking-widest text-text/75">
+							Auto Unzip Files
+						</span>
+						<span
+							className={`flex h-5 w-9 items-center rounded-full p-0.5 transition-colors ${
+								autoUnzipFiles ? "bg-primary" : "bg-white/10"
+							}`}
+						>
+							<span
+								className={`h-4 w-4 rounded-full bg-white transition-transform ${
+									autoUnzipFiles ? "translate-x-4" : "translate-x-0"
+								}`}
+							/>
+						</span>
+					</button>
+				</div>
 			)}
 			{onDeleteSelectedFiles && hasSelectedFiles && (
 				<button
