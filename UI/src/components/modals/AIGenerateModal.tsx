@@ -227,7 +227,7 @@ function AIGenerateModal({
 			<Modal
 				isOpen={isOpen}
 				onClose={handleClose}
-				title={functionId ? "AI ASSISTANT" : "AI KICKOFF"}
+				title={functionId ? "Code Generation" : "AI KICKOFF"}
 				maxWidth="lg"
 			>
 				<div className="space-y-4">
@@ -247,14 +247,14 @@ function AIGenerateModal({
 		<Modal
 			isOpen={isOpen}
 			onClose={handleClose}
-			title={functionId ? "AI ASSISTANT" : "AI KICKOFF"}
+			title={functionId ? "Code Generation" : "AI KICKOFF"}
 			maxWidth="lg"
 			isLoading={isLoading}
 		>
 			{/* Scrollable body */}
 			<div className="space-y-5">
 				<p className="text-xs text-gray-500 tracking-wider mt-0.5 uppercase">
-					{stage === "intake" ? "Configure your function" : stage === "review" ? "Review configuration" : "Generating files..."}
+					{stage === "intake" ? "Configure your function" : "Review configuration"}
 				</p>
 				
 				{stage === "intake" && !functionId && (
@@ -660,7 +660,7 @@ function AIGenerateModal({
 								{isLoading
 									? "Processing..."
 									: functionId
-									? "Run Generation"
+									? "✨ Generate"
 									: stage === "intake"
 									? "Next Step"
 									: "Confirm & Kickoff"}
