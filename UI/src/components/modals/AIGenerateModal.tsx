@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
 	FunctionFile,
 	getImageDisplayName,
@@ -30,6 +31,7 @@ function AIGenerateModal({
 	disabled = false,
 	disabledReason,
 }: AIGenerateModalProps) {
+	const navigate = useNavigate();
 	const [mode, setMode] = useState<AIMode>(functionId ? "revision" : "kickoff");
 	const [stage, setStage] = useState<"intake" | "review" | "generating">(
 		functionId ? "generating" : "intake",
@@ -131,6 +133,10 @@ function AIGenerateModal({
 			if (genRes.status === "OK" && "data" in genRes) {
 				setResult(genRes.data);
 				if (onSuccess) onSuccess();
+				if (!functionId) {
+					onClose();
+					navigate(`/functions/${newFunctionId}`);
+				}
 			} else {
 				setError((genRes as any).message || "Generation failed (function created)");
 			}
