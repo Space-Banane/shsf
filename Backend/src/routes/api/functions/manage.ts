@@ -137,6 +137,10 @@ export = new fileRouter.Path("/")
 										type: "boolean",
 										description: "Marks the function as imported",
 									},
+									ai_kicked_off: {
+										type: "boolean",
+										description: "Marks the function as created via AI kickoff",
+									},
 									settings: {
 										type: "object",
 										properties: {
@@ -231,6 +235,7 @@ export = new fileRouter.Path("/")
 							.regex(/^[a-zA-Z0-9-_]+$/)
 							.optional(), // Only allow alphanumeric, hyphens, and underscores
 						imported: z.boolean().optional(),
+						ai_kicked_off: z.boolean().optional(),
 						settings: z
 							.object({
 								max_ram: z.number().min(128).max(1024).optional(),
@@ -362,6 +367,7 @@ export = new fileRouter.Path("/")
 						cache_enabled: data.settings?.cache_enabled ?? false,
 						cache_ttl: data.settings?.cache_ttl ?? 60,
 						imported: data.imported ?? false,
+						ai_kicked_off: data.ai_kicked_off ?? false,
 						env: data.environment
 							? JSON.stringify(
 									data.environment.map((env) => ({
@@ -1059,6 +1065,9 @@ export = new fileRouter.Path("/")
 					}),
 					...(data.opencv_install !== undefined && {
 						opencv_install: data.opencv_install,
+					}),
+					...(data.ai_kicked_off !== undefined && {
+						ai_kicked_off: data.ai_kicked_off,
 					}),
 					...(data.cors_origins !== undefined && {
 						cors_origins: data.cors_origins,

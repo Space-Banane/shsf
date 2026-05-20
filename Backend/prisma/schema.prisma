@@ -98,6 +98,7 @@ model Function {
   // System Manged Data
   guest_access Boolean @default(false) // Whether guest users can access this function, will be kept in sync with GuestUser permissions, when changed
   imported     Boolean @default(false) // Marks whether the function was created via import
+  ai_kicked_off Boolean @default(false) // Marks whether the function was created via AI kickoff
 
   // Caching
   cache_enabled Boolean @default(false)

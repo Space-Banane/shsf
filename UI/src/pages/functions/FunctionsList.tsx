@@ -494,6 +494,11 @@ function FunctionCard({
 									Imported
 								</span>
 							)}
+							{func.ai_kicked_off && (
+								<span className="uppercase tracking-wide px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 text-emerald-100 border border-emerald-500/40 shadow-sm text-xs font-bold">
+									AI Kicked-Off
+								</span>
+							)}
 							{func.startup_file.endsWith(".html") && (
 								<span className="uppercase tracking-wide px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500/30 to-purple-500/30 text-blue-100 border border-blue-500/40 shadow-sm text-xs font-bold">
 									HTML Only

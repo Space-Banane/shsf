@@ -107,6 +107,7 @@ function AIGenerateModal({
 				namespaceId: namespaceId,
 				startup_file: suggestedConfig.startup_file,
 				docker_mount: dockerMount,
+				ai_kicked_off: true,
 				settings: {
 					allow_http: allowHttp,
 				},

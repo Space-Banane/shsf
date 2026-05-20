@@ -36,6 +36,7 @@ interface XFunction {
 	network_restricted: boolean;
 	ffmpeg_install: boolean;
 	imported: boolean;
+	ai_kicked_off: boolean;
 
 	// Caching
 	cache_enabled: boolean;
