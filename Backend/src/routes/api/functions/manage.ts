@@ -887,6 +887,7 @@ export = new fileRouter.Path("/")
 						network_restricted: z.boolean().optional(),
 						ffmpeg_install: z.boolean().optional(),
 						opencv_install: z.boolean().optional(),
+						ai_kicked_off: z.boolean().optional(),
 						settings: z
 							.object({
 								max_ram: z.number().min(128).max(1024).optional(),
