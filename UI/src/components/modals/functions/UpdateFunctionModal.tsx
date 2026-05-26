@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Modal from "../Modal";
 import { useConfirm } from "../ConfirmModal";
 import {
@@ -58,10 +58,19 @@ function UpdateFunctionModal({
 	const [cacheTtl, setCacheTtl] = useState<number>(60);
 	const [isReinstallingFfmpeg, setIsReinstallingFfmpeg] = useState(false);
 	const [isReinstallingOpencv, setIsReinstallingOpencv] = useState(false);
+	const [isClearingSourceFlags, setIsClearingSourceFlags] = useState(false);
 	const [isDeprecated, setIsDeprecated] = useState<boolean>(false);
 	const [deprecatedImages, setDeprecatedImages] = useState<string[]>([]);
 	const [namespaces, setNamespaces] = useState<Namespace[]>([]);
 	const [selectedNamespaceId, setSelectedNamespaceId] = useState<number>();
+	const [sourceFlags, setSourceFlags] = useState<{
+		imported: boolean;
+		ai_kicked_off: boolean;
+	}>({
+		imported: false,
+		ai_kicked_off: false,
+	});
+	const initializedFunctionIdRef = useRef<number | null>(null);
 
 	useEffect(() => {
 		const checkDeprecation = async () => {
@@ -109,7 +118,12 @@ function UpdateFunctionModal({
 
 	// Initialize form with existing function data
 	useEffect(() => {
-		if (functionData && isOpen) {
+		if (!isOpen) {
+			initializedFunctionIdRef.current = null;
+			return;
+		}
+
+		if (functionData && initializedFunctionIdRef.current !== functionData.id) {
 			setName(functionData.name);
 			setDescription(functionData.description || "");
 			setImage(functionData.image as Image);
@@ -127,6 +141,11 @@ function UpdateFunctionModal({
 			setCacheEnabled(functionData.cache_enabled ?? false);
 			setCacheTtl(functionData.cache_ttl ?? 60);
 			setSelectedNamespaceId(functionData.namespaceId);
+			setSourceFlags({
+				imported: functionData.imported ?? false,
+				ai_kicked_off: functionData.ai_kicked_off ?? false,
+			});
+			initializedFunctionIdRef.current = functionData.id;
 		}
 	}, [functionData, isOpen]);
 
@@ -144,6 +163,7 @@ function UpdateFunctionModal({
 	const namespaceSelectValue =
 		namespaces.length > 0 ? (selectedNamespaceId ?? "") : "";
 	const isDotnetRuntime = isDotnetImage(image);
+	const hasSourceFlags = sourceFlags.imported || sourceFlags.ai_kicked_off;
 
 	const addCorsOrigin = () => {
 		const val = corsOriginInput.trim();
@@ -274,6 +294,11 @@ function UpdateFunctionModal({
 			return;
 		}
 
+		const currentCorsOriginsArray = corsOrigins
+			.split(",")
+			.map((o) => o.trim())
+			.filter((o) => o.length > 0);
+
 		const urls = lastLogs
 			.flatMap((log) => {
 				try {
@@ -298,8 +323,8 @@ function UpdateFunctionModal({
 		const filteredUrls = urls
 			.filter(
 				(url) =>
-					!corsOriginsArray.includes(`https://${url}`) &&
-					!corsOriginsArray.includes(`http://${url}`),
+					!currentCorsOriginsArray.includes(`https://${url}`) &&
+					!currentCorsOriginsArray.includes(`http://${url}`),
 			)
 			.slice(0, 5); // limit to 5 URLs
 
@@ -334,6 +359,46 @@ function UpdateFunctionModal({
 		}
 	};
 
+	const handleClearSourceFlags = async () => {
+		if (!functionData || !hasSourceFlags) return;
+
+		const confirmed = await confirm({
+			title: "Clear Source Flags?",
+			message:
+				"This will remove the Imported and AI Kicked-Off labels from this function. It will not change the code, files, or runtime settings.",
+			confirmText: "Clear Flags",
+			cancelText: "Cancel",
+			variant: "delete",
+		});
+
+		if (!confirmed) return;
+
+		setIsClearingSourceFlags(true);
+		setError("");
+
+		try {
+			const response = await updateFunction(functionData.id, {
+				imported: false,
+				ai_kicked_off: false,
+			});
+
+			if (response.status === "OK") {
+				setSourceFlags({
+					imported: false,
+					ai_kicked_off: false,
+				});
+				onSuccess();
+			} else {
+				setError("Error clearing source flags: " + response.message);
+			}
+		} catch (err) {
+			console.error("Failed to clear source flags:", err);
+			setError("An unexpected error occurred while clearing source flags");
+		} finally {
+			setIsClearingSourceFlags(false);
+		}
+	};
+
 	// console.log("Last logs passed to UpdateFunctionModal:", lastLogs); // Debug log
 	// console.log("Logged URLs for CORS suggestions:", loggedUrls); // Debug log
 
@@ -352,6 +417,48 @@ function UpdateFunctionModal({
 						<div className="flex items-center gap-3">
 							<span className="text-red-400 text-lg">⚠️</span>
 							<p className="text-red-300 text-sm font-medium">{error}</p>
+						</div>
+					</div>
+				)}
+				{hasSourceFlags && (
+					<div className="rounded-lg border border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-indigo-500/10 p-4">
+						<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+							<div className="flex items-start gap-3">
+								<div className="mt-0.5 text-2xl">🏷️</div>
+								<div className="space-y-2">
+									<div>
+										<h3 className="text-cyan-200 text-sm font-semibold">
+											Source flags enabled
+										</h3>
+										<p className="text-cyan-100/80 text-xs leading-relaxed">
+											This function is marked as imported or AI generated. You can
+											clear those labels without changing the function itself.
+										</p>
+									</div>
+									<div className="flex flex-wrap gap-2">
+										{sourceFlags.imported && (
+											<span className="rounded-full border border-blue-400/40 bg-blue-500/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-100">
+												Imported
+											</span>
+										)}
+										{sourceFlags.ai_kicked_off && (
+											<span className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-100">
+												AI Kicked-Off
+											</span>
+										)}
+									</div>
+								</div>
+							</div>
+							<button
+								type="button"
+								onClick={() => {
+									void handleClearSourceFlags();
+								}}
+								disabled={isLoading || isClearingSourceFlags}
+								className="shrink-0 rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-4 py-2 text-xs font-semibold text-cyan-100 transition-all duration-300 hover:bg-cyan-500/25 hover:border-cyan-300/50 disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								{isClearingSourceFlags ? "Clearing..." : "Clear Flags"}
+							</button>
 						</div>
 					</div>
 				)}
@@ -1019,9 +1126,9 @@ function UpdateFunctionModal({
 						disabled={isLoading}
 					>
 						<span className="text-sm">💾</span>
-						Update Function
-					</button>
-				</div>
+							Update Function
+						</button>
+					</div>
 			</div>
 		</Modal>
 	);

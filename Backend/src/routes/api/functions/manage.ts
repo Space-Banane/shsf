@@ -793,6 +793,11 @@ export = new fileRouter.Path("/")
 									},
 									ffmpeg_install: { type: "boolean", description: "Install ffmpeg" },
 									opencv_install: { type: "boolean", description: "Install opencv" },
+									imported: { type: "boolean", description: "Marks the function as imported" },
+									ai_kicked_off: {
+										type: "boolean",
+										description: "Marks the function as created via AI kickoff",
+									},
 									executionAlias: { type: "string" },
 									settings: {
 										type: "object",
@@ -887,6 +892,7 @@ export = new fileRouter.Path("/")
 						network_restricted: z.boolean().optional(),
 						ffmpeg_install: z.boolean().optional(),
 						opencv_install: z.boolean().optional(),
+						imported: z.boolean().optional(),
 						ai_kicked_off: z.boolean().optional(),
 						settings: z
 							.object({
@@ -1066,6 +1072,9 @@ export = new fileRouter.Path("/")
 					}),
 					...(data.opencv_install !== undefined && {
 						opencv_install: data.opencv_install,
+					}),
+					...(data.imported !== undefined && {
+						imported: data.imported,
 					}),
 					...(data.ai_kicked_off !== undefined && {
 						ai_kicked_off: data.ai_kicked_off,

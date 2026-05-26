@@ -171,6 +171,8 @@ async function updateFunction(
 		network_restricted?: boolean;
 		ffmpeg_install?: boolean;
 		opencv_install?: boolean;
+		imported?: boolean;
+		ai_kicked_off?: boolean;
 		namespaceId?: number;
 		settings?: {
 			max_ram?: number;
