@@ -238,7 +238,7 @@ export async function processGitPulls({ prisma, performGitPull }: SystemCronDepe
 			git_periodic_pull: true,
 			git_url: { not: null },
 		},
-		select: { id: true, name: true, git_pull_interval: true },
+		select: { id: true, name: true, git_pull_interval: true, git_source_dir: true },
 	});
 
 	for (const fn of functions) {
@@ -248,7 +248,7 @@ export async function processGitPulls({ prisma, performGitPull }: SystemCronDepe
 
 		lastGitPullAt.set(fn.id, now);
 		try {
-			const result = await performGitPull(fn.id);
+			const result = await performGitPull(fn.id, fn.git_source_dir);
 			if (result.success) {
 				gitLog.info({ funcId: fn.id, funcName: fn.name }, "Git pull successful");
 			} else {

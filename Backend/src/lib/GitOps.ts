@@ -109,6 +109,53 @@ export async function clearAppDirectory(appDir: string): Promise<void> {
 	);
 }
 
+export async function removeGitMetadata(appDir: string): Promise<void> {
+	const gitDir = path.join(appDir, ".git");
+	if (fsSync.existsSync(gitDir)) {
+		await fs.rm(gitDir, { recursive: true, force: true });
+	}
+}
+
+export async function listGitAppFiles(
+	functionId: number,
+): Promise<Array<{ id: number; name: string; content: string; functionId: number }>> {
+	const appDir = getFuncAppDir(functionId);
+	const files: Array<{ id: number; name: string; content: string; functionId: number }> = [];
+	let virtualId = -1;
+
+	async function walk(currentDir: string): Promise<void> {
+		const entries = await fs.readdir(currentDir, { withFileTypes: true });
+		for (const entry of entries) {
+			if (entry.name === ".git") {
+				continue;
+			}
+
+			const fullPath = path.join(currentDir, entry.name);
+			if (entry.isDirectory()) {
+				await walk(fullPath);
+				continue;
+			}
+			if (!entry.isFile()) {
+				continue;
+			}
+
+			files.push({
+				id: virtualId--,
+				name: path.relative(appDir, fullPath).split(path.sep).join("/"),
+				content: await fs.readFile(fullPath, "utf8"),
+				functionId,
+			});
+		}
+	}
+
+	if (!fsSync.existsSync(appDir)) {
+		return files;
+	}
+
+	await walk(appDir);
+	return files;
+}
+
 /**
  * Embeds username & password into a git URL.
  * e.g. https://github.com/user/repo.git → https://myuser:mytoken@github.com/user/repo.git

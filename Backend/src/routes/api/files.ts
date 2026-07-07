@@ -11,6 +11,7 @@ import * as fs from "fs/promises";
 import { OpenAPITags } from "../../lib/openapi";
 import { getFunctionAppDir } from "../../lib/StoragePaths";
 import { createLogger } from "../../lib/logger";
+import { listGitAppFiles } from "../../lib/GitOps";
 
 const log = createLogger("files");
 
@@ -285,10 +286,26 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				const gitBlock = await getGitEditBlock(functionId, prisma);
-				if (gitBlock) {
-					return ctr.status(gitBlock.status).print({
-						...gitBlock,
+				const functionData = await prisma.function.findFirst({
+					where: {
+						id: functionId,
+						userId: authCheck.user.id,
+					},
+					select: { git_url: true },
+				});
+
+				if (!functionData) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "Function not found",
+					});
+				}
+
+				if (functionData.git_url?.trim()) {
+					const files = await listGitAppFiles(functionId);
+					return ctr.print({
+						status: "OK",
+						data: files,
 					});
 				}
 

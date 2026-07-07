@@ -7,6 +7,7 @@ import {
 } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import * as path from "path";
+import * as os from "os";
 import * as fs from "fs/promises";
 import * as fsSync from "fs";
 import {
@@ -21,6 +22,7 @@ import {
 	runGitCommand,
 	stripCredentialsFromUrl,
 	updateGitRemoteUrl,
+	removeGitMetadata,
 } from "../../../lib/GitOps";
 import { OpenAPITags } from "../../../lib/openapi";
 
@@ -514,6 +516,22 @@ export = new fileRouter.Path("/")
 					updateData.git_branch = body.git_branch?.trim() || null;
 				}
 
+				const storageModeChanging =
+					body.git_source_dir !== undefined &&
+					(body.git_source_dir?.trim() || null) !==
+						(functionData.git_source_dir?.trim() || null);
+				const branchChanging =
+					body.git_branch !== undefined &&
+					(body.git_branch?.trim() || null) !==
+						(functionData.git_branch?.trim() || null);
+				if (storageModeChanging || branchChanging) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message:
+							"Changing git branch or source directory requires re-initializing the repository.",
+					});
+				}
+
 				const credentialsChanging =
 					body.git_username !== undefined || body.git_password !== undefined;
 
@@ -656,6 +674,7 @@ export = new fileRouter.Path("/")
 				if (fsSync.existsSync(gitRepoDir)) {
 					await fs.rm(gitRepoDir, { recursive: true, force: true });
 				}
+				await removeGitMetadata(getFuncAppDir(functionId));
 
 				return ctr.print({
 					status: "OK",
@@ -929,7 +948,9 @@ export = new fileRouter.Path("/")
 				// However, if we want to be efficient, we can't easily get the tree without cloning.
 				// For the sake of this feature, we'll use a temporary directory to clone the repo partially.
 
-				const tmpDir = await fs.mkdtemp(path.join("/tmp", `shsf-git-tree-${functionId}-`));
+				const tempRoot = path.join(os.tmpdir(), "shsf-git-tree");
+				await fs.mkdir(tempRoot, { recursive: true });
+				const tmpDir = await fs.mkdtemp(path.join(tempRoot, `${functionId}-`));
 				try {
 					await fs.mkdir(tmpDir, { recursive: true });
 					const cloneArgs = ["clone", "--depth", "1", "--no-checkout", "--filter=blob:none"];

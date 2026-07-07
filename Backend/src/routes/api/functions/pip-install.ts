@@ -7,6 +7,9 @@ import {
 import { checkAuthentication } from "../../../lib/Authentication";
 import { OpenAPITags } from "../../../lib/openapi";
 import { installDependencies } from "../../../lib/Runner";
+import { getFunctionAppDir } from "../../../lib/StoragePaths";
+import * as fsSync from "fs";
+import * as path from "path";
 
 export = new fileRouter.Path("/").http(
 	"POST",
@@ -83,24 +86,27 @@ export = new fileRouter.Path("/").http(
 					});
 				}
 
-				const files = await prisma.functionFile.findMany({
-					where: {
-						functionId: functionData.id,
-					},
-				});
-				if (!files || files.length === 0) {
+				const files = functionData.git_url
+					? []
+					: await prisma.functionFile.findMany({
+							where: {
+								functionId: functionData.id,
+							},
+						});
+				if (!functionData.git_url && (!files || files.length === 0)) {
 					return ctr.status(ctr.$status.NOT_FOUND).print({
 						status: 404,
 						message: "Function has no files",
 					});
 				}
 
-				// Does the function have a requirements.txt file?
-				const hasRequirements = files.find(
-					(file) =>
-						file.name.toLowerCase() === "requirements.txt" ||
-						file.name.toLowerCase().endsWith("/requirements.txt"),
-				);
+				const hasRequirements = functionData.git_url
+					? fsSync.existsSync(path.join(getFunctionAppDir(functionId), "requirements.txt"))
+					: files.some(
+							(file) =>
+								file.name.toLowerCase() === "requirements.txt" ||
+								file.name.toLowerCase().endsWith("/requirements.txt"),
+						);
 				if (!hasRequirements) {
 					return ctr.status(ctr.$status.NOT_FOUND).print({
 						status: 404,
