@@ -12,7 +12,7 @@ services:
    - TZ=Europe/Berlin
   volumes:
    - /var/run/docker.sock:/var/run/docker.sock
-   - ./shsf_data:/opt/shsf_data
+   - /opt/shsf_data:/opt/shsf_data
 
  # To use a local MariaDB database, uncomment the following service and update your .env DATABASE_URL to use 'db' as the host:
  # database:
