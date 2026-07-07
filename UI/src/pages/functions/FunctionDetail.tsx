@@ -55,7 +55,7 @@ import {
 	runTrigger,
 } from "../../services/backend.triggers";
 import { getNamespace } from "../../services/backend.namespaces";
-import { BASE_URL } from "../..";
+import { BASE_URL, PUBLIC_BASE_URL } from "../..";
 import React from "react";
 import { ConsoleCard } from "../../components/cards/ConsoleCard";
 import { LogsCard } from "../../components/cards/LogCard";
@@ -488,7 +488,7 @@ function FunctionDetail() {
 						setFiles(filesData.data);
 						if (functionData.data.allow_http) {
 							setFunctionURL(
-								`${BASE_URL}/api/exec/${functionData.data.namespaceId}/${functionData.data.executionId}`,
+								`${PUBLIC_BASE_URL}/api/exec/${functionData.data.namespaceId}/${functionData.data.executionId}`,
 							);
 						} else {
 							setFunctionURL(`No HTTP Access 🚫`);
