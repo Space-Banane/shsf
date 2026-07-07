@@ -31,7 +31,7 @@ jobs:
               run: pnpm full-install
 
             - name: Generate Prisma client
-              run: cd Backend && pnpm db:generate
+              run: cd Backend && pnpm generate
               env:
                   DATABASE_URL: mysql://x:x@localhost/x
 
@@ -63,7 +63,7 @@ jobs:
               run: cp example.env Backend/.env
 
             - name: Generate Prisma client
-              run: cd Backend && pnpm db:generate
+              run: cd Backend && pnpm generate
 
             - name: Backend unit tests
               run: cd Backend && pnpm test
@@ -97,7 +97,7 @@ jobs:
               run: cp example.env Backend/.env
 
             - name: Generate Prisma client
-              run: cd Backend && pnpm db:generate
+              run: cd Backend && pnpm generate
 
             - name: Start backend
               run: |
