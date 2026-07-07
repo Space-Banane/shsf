@@ -6,7 +6,7 @@
 - [x] Migrate env checking to a seperate module using zod
 - [x] Rewrite Runner.ts & split
 - [x] Docker image & Propper compose
-- [ ] Seperate pip cache for each function - enchances security and prevents functions from accessing each others pip cache
+- [ ] Remove the entire pip DOWNLOAD cache for shared functions as its a security risk
 - [x] Shift Enter Submits on modals (any modal) (add as a agent rule for the future)
 
 ## P1 - Priority 1 (High)
