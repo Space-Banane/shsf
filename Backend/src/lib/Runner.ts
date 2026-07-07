@@ -74,6 +74,25 @@ import {
 	generateDotnetInitBody,
 	generateDotnetBuildInitScript,
 } from "./RunnerRuntimeScripts";
+import {
+	mergeEnvironmentVariables,
+	parseStoredEnvironmentVariables,
+	toDockerEnvironment,
+} from "./EnvironmentVariables";
+
+async function getRuntimeEnvironment(functionData: Pick<Function, "env" | "userId">) {
+	const accountData = await prisma.user.findUnique({
+		where: { id: functionData.userId },
+		select: { account_env: true },
+	});
+
+	return toDockerEnvironment(
+		mergeEnvironmentVariables(
+			parseStoredEnvironmentVariables(accountData?.account_env),
+			parseStoredEnvironmentVariables(functionData.env),
+		),
+	);
+}
 
 export async function persistFunctionExecutionLog(
 	input: PersistedFunctionExecutionLogInput,
@@ -434,16 +453,12 @@ export async function executeFunction(
 					throw imgError;
 				}
 
-				const initialEnv = functionData.env
-					? JSON.parse(functionData.env).map(
-							(env: { name: string; value: any }) => `${env.name}=${env.value}`
-					)
-					: [];
+				const runtimeEnv = await getRuntimeEnvironment(functionData);
 
 				container = await docker.createContainer({
 					Image: functionData.image,
 					name: containerName,
-					Env: initialEnv,
+					Env: runtimeEnv,
 					HostConfig: {
 						Binds: BINDS,
 						AutoRemove: false,
@@ -478,21 +493,7 @@ export async function executeFunction(
 			await fs.writeFile(dotnetPayloadPath, payload);
 		}
 
-		const execEnv: string[] = [];
-		// Add function-specific env vars to exec as well, in case they are needed by the runner script directly
-		// and not just by the init.sh environment.
-		if (functionData.env) {
-			try {
-				const parsedEnv = JSON.parse(functionData.env);
-				if (Array.isArray(parsedEnv)) {
-					parsedEnv.forEach((envVar: { name: string; value: any }) =>
-						execEnv.push(`${envVar.name}=${envVar.value}`)
-					);
-				}
-			} catch (e) {
-				log.error({ err: e }, "Failed to parse functionData.env for exec");
-			}
-		}
+		const execEnv = await getRuntimeEnvironment(functionData);
 
 		// Pass the unique payload file path as an argument to the runner script
 		const containerPayloadPath = `/executions/${executionId}/payload.json`;
@@ -820,11 +821,7 @@ export async function installDependencies(
 			}
 		}
 
-		const execEnv: string[] = functionData.env
-			? JSON.parse(functionData.env).map(
-					(env: { name: string; value: any }) => `${env.name}=${env.value}`
-			)
-			: [];
+		const execEnv = await getRuntimeEnvironment(functionData);
 
 		log.info({ functionId }, "Starting dependency installation");
 
@@ -961,11 +958,7 @@ export async function buildDotnetFunction(
 			container = await docker.createContainer({
 				Image: functionData.image,
 				name: containerName,
-				Env: functionData.env
-					? JSON.parse(functionData.env).map(
-							(env: { name: string; value: any }) => `${env.name}=${env.value}`,
-					)
-					: [],
+				Env: await getRuntimeEnvironment(functionData),
 				HostConfig: {
 					Binds: [
 						`${funcAppDir}:/app`,
@@ -997,11 +990,7 @@ export async function buildDotnetFunction(
 				"-c",
 				`cd /app && . /app/.shsf_env && rm -f /app/.shsf_dotnet_entry && dotnet build "${dotnetProjectPath}" && PROJECT_DIR="$(dirname "${dotnetProjectPath}")" && ASSEMBLY_NAME="$(basename "${dotnetProjectPath}" .csproj)" && TARGET_PATH="$(find "/app/$PROJECT_DIR/bin" -type f -name "$ASSEMBLY_NAME.dll" ! -path "*/ref/*" ! -path "*/obj/*" | sort | tail -n 1)" && if [ -z "$TARGET_PATH" ] || [ ! -f "$TARGET_PATH" ]; then echo "Failed to resolve built .NET assembly for ${dotnetProjectPath}" >&2; exit 1; fi && printf '%s' "$TARGET_PATH" > /app/.shsf_dotnet_entry`,
 			],
-			Env: functionData.env
-				? JSON.parse(functionData.env).map(
-						(env: { name: string; value: any }) => `${env.name}=${env.value}`,
-				)
-				: [],
+			Env: await getRuntimeEnvironment(functionData),
 			AttachStdout: true,
 			AttachStderr: true,
 			Tty: false,

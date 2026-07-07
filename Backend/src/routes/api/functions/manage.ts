@@ -3,6 +3,7 @@ import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import { createLogger } from "../../../lib/logger";
 import { getDisabledImages } from "../../../lib/DataManager";
+import { serializeEnvironmentVariables } from "../../../lib/EnvironmentVariables";
 
 const log = createLogger("functions/manage");
 import {
@@ -257,7 +258,7 @@ export = new fileRouter.Path("/")
 								z
 									.object({
 										name: z.string().min(1).max(128),
-										value: z.string().min(1).max(256),
+										value: z.string().max(256),
 									})
 									.optional(),
 							)
@@ -386,14 +387,7 @@ export = new fileRouter.Path("/")
 						cache_ttl: data.settings?.cache_ttl ?? 60,
 						imported: data.imported ?? false,
 						ai_kicked_off: data.ai_kicked_off ?? false,
-						env: data.environment
-							? JSON.stringify(
-									data.environment.map((env) => ({
-										name: env!.name,
-										value: env!.value,
-									})),
-								)
-							: undefined,
+						env: serializeEnvironmentVariables(data.environment),
 						userId: authCheck.user.id,
 						executionId: randomUUID(),
 						docker_mount: data.docker_mount || false,
@@ -929,7 +923,7 @@ export = new fileRouter.Path("/")
 							.array(
 								z.object({
 									name: z.string().min(1).max(128),
-									value: z.string().min(1).max(256),
+									value: z.string().max(256),
 								}),
 							)
 							.optional(),
@@ -1089,12 +1083,7 @@ export = new fileRouter.Path("/")
 						cache_ttl: data.settings.cache_ttl,
 					}),
 					...(data.environment && {
-						env: JSON.stringify(
-							data.environment.map((env) => ({
-								name: env!.name,
-								value: env!.value,
-							})),
-						),
+						env: serializeEnvironmentVariables(data.environment),
 					}),
 					...(data.docker_mount !== undefined && {
 						docker_mount: data.docker_mount,

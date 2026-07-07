@@ -20,6 +20,7 @@ model User {
   password String? @db.VarChar(256)
 
   openRouterKey String? @db.VarChar(512) // User-supplied OpenRouter API key for AI features
+  account_env   String? @db.Text // Account-wide environment variables in JSON format
 
   allow_docker_mount Boolean @default(false) // Admin-controlled: whether this user may create functions with docker socket mount
 

@@ -35,6 +35,11 @@ export const EnvironmentVariablesPage = () => {
 					the dashboard. These variables will be accessible within your function
 					code.
 				</p>
+				<p className="mb-4 text-text/90">
+					You can also define <strong>account-wide</strong> environment variables from
+					the Account page. Those are injected into every function you own. If the
+					same key exists at both levels, the function-level value takes priority.
+				</p>
 
 				<h3 className="text-xl font-semibold text-primary mb-2">
 					Setting Environment Variables
@@ -43,6 +48,7 @@ export const EnvironmentVariablesPage = () => {
 					To set environment variables for a function, follow these steps:
 				</p>
 				<ol className="list-decimal list-inside mb-4 text-text/90">
+					<li>Optionally add shared variables in Account for values reused everywhere.</li>
 					<li>Navigate to the Functions section in the SHSF dashboard.</li>
 					<li>Select the function you want to configure.</li>
 					<li>Go to the "Environment Variables" tab.</li>

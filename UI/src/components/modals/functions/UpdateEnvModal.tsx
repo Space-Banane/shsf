@@ -73,6 +73,9 @@ function UpdateEnvModal({ isOpen, onClose, onUpdate, envString }: UpdateEnvModal
 					Configure environment variables accessible during function runtime — useful for API keys,
 					database URLs, and other configuration values.
 				</p>
+				<p className="text-xs text-muted/70">
+					Account-wide variables from the Account page are also available automatically. If the same key exists in both places, this function's value overrides the account-wide one.
+				</p>
 
 				<div className="space-y-3">
 					<div className="flex items-center justify-between">

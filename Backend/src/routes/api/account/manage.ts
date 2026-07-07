@@ -1,46 +1,90 @@
 import * as bcrypt from "bcrypt";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
+import {
+	parseStoredEnvironmentVariables,
+	serializeEnvironmentVariables,
+} from "../../../lib/EnvironmentVariables";
 import { cleanupFunctionContainer } from "../../../lib/Runner";
 import { OpenAPITags } from "../../../lib/openapi";
 
 export = new fileRouter.Path("/")
-	.http("PATCH", "/api/account/settings", (http) =>
+	.http("GET", "/api/account/settings", (http) =>
 		http
 			.document({
-				description: "Update account settings (OpenRouter API key)",
+				description: "Get account-level settings",
 				tags: ["User"] as OpenAPITags[],
-				operationId: "updateOpenRouterKey",
-				requestBody: {
-					content: {
-						"application/json": {
-							schema: {
-								type: "object",
-								properties: {
-									openRouterKey: {
-										type: "string",
-										maxLength: 512,
-										description: "OpenRouter API key (null or empty string to clear)",
-									},
-								},
-							},
-						},
-					},
-				},
+				operationId: "getAccountSettings",
 				responses: {
 					200: {
-						description: "Settings updated successfully",
+						description: "Settings retrieved successfully",
 						content: {
 							"application/json": {
 								schema: {
 									type: "object",
 									properties: {
 										status: { type: "string" },
-										message: { type: "string" },
+										data: {
+											type: "object",
+											properties: {
+												accountEnvironment: {
+													type: "array",
+													items: {
+														type: "object",
+														properties: {
+															name: { type: "string" },
+															value: { type: "string" },
+														},
+													},
+												},
+											},
+										},
 									},
 								},
 							},
 						},
+					},
+				},
+			})
+			.onRequest(async (ctr) => {
+				const authCheck = await checkAuthentication(
+					ctr.cookies.get(COOKIE),
+					ctr.headers.get(API_KEY_HEADER),
+				);
+
+				if (!authCheck.success) {
+					return ctr.status(ctr.$status.UNAUTHORIZED).print({
+						status: "FAILED",
+						message: authCheck.message,
+					});
+				}
+
+				return ctr.print({
+					status: "OK",
+					data: {
+						accountEnvironment: parseStoredEnvironmentVariables(
+							authCheck.user.account_env,
+						),
+					},
+				});
+			}),
+	)
+	.http("PATCH", "/api/account/settings", (http) =>
+		http
+			.document({
+				description: "Update account settings (OpenRouter API key, account env vars)",
+				tags: ["User"] as OpenAPITags[],
+				operationId: "updateOpenRouterKey",
+				requestBody: {
+					content: {
+						"application/json": {
+							schema: { type: "object" },
+						},
+					},
+				},
+				responses: {
+					200: {
+						description: "Settings updated successfully",
 					},
 				},
 			})
@@ -61,6 +105,14 @@ export = new fileRouter.Path("/")
 				const [data, error] = await ctr.bindBody((z) =>
 					z.object({
 						openRouterKey: z.string().max(512).nullable().optional(),
+						accountEnvironment: z
+							.array(
+								z.object({
+									name: z.string().min(1).max(128),
+									value: z.string().max(256),
+								}),
+							)
+							.optional(),
 					}),
 				);
 
@@ -77,6 +129,11 @@ export = new fileRouter.Path("/")
 					updatePayload.openRouterKey =
 						data.openRouterKey === "" ? null : data.openRouterKey;
 				}
+				if (data.accountEnvironment !== undefined) {
+					updatePayload.account_env = serializeEnvironmentVariables(
+						data.accountEnvironment,
+					);
+				}
 
 				if (Object.keys(updatePayload).length === 0) {
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
@@ -85,14 +142,22 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				await prisma.user.update({
+				const updatedUser = await prisma.user.update({
 					where: { id: authCheck.user.id },
 					data: updatePayload,
+					select: {
+						account_env: true,
+					},
 				});
 
 				return ctr.print({
 					status: "OK",
 					message: "Settings updated successfully",
+					data: {
+						accountEnvironment: parseStoredEnvironmentVariables(
+							updatedUser.account_env,
+						),
+					},
 				});
 			}),
 	)
@@ -181,6 +246,7 @@ export = new fileRouter.Path("/")
 						id: userData.id,
 						email: userData.email,
 						displayName: userData.displayName,
+						account_env: userData.account_env,
 						createdAt: userData.createdAt,
 						updatedAt: userData.updatedAt,
 					},

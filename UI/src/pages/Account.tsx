@@ -1,9 +1,20 @@
-import { useContext, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { UserContext } from "../App";
-import { deleteAccount, exportAccountData, updateAccountSettings } from "../services/backend.account";
+import {
+	deleteAccount,
+	exportAccountData,
+	getAccountSettings,
+	updateAccountSettings,
+} from "../services/backend.account";
 import { HelpTooltip } from "../components/ui/Tooltip";
 import { Icon } from "../components/ui/Icon";
 import { Link } from "react-router-dom";
+import { useShiftEnterSubmit } from "../hooks/useShiftEnterSubmit";
+
+interface EnvironmentVariable {
+	name: string;
+	value: string;
+}
 
 export const AccountPage = () => {
 	const { user, refreshUser, loading } = useContext(UserContext);
@@ -18,6 +29,44 @@ export const AccountPage = () => {
 	const [aiSettingsSaving, setAiSettingsSaving] = useState(false);
 	const [aiSettingsMessage, setAiSettingsMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 	const [showKey, setShowKey] = useState(false);
+	const [accountEnvironment, setAccountEnvironment] = useState<EnvironmentVariable[]>([]);
+	const [accountEnvironmentLoading, setAccountEnvironmentLoading] = useState(true);
+	const [accountEnvironmentSaving, setAccountEnvironmentSaving] = useState(false);
+	const [accountEnvironmentMessage, setAccountEnvironmentMessage] = useState<{
+		type: "ok" | "err";
+		text: string;
+	} | null>(null);
+
+	useShiftEnterSubmit(
+		() => handleDeleteAccount(),
+		showDeleteModal && !deleteLoading && deleteConfirmation === "DELETE_MY_ACCOUNT",
+	);
+
+	const loadAccountSettings = useCallback(async () => {
+		setAccountEnvironmentLoading(true);
+		setAccountEnvironmentMessage(null);
+		try {
+			const result = await getAccountSettings();
+			if (result.status === "OK") {
+				setAccountEnvironment(result.data.accountEnvironment);
+			} else {
+				setAccountEnvironmentMessage({ type: "err", text: result.message });
+			}
+		} catch {
+			setAccountEnvironmentMessage({
+				type: "err",
+				text: "An error occurred while loading account environment variables.",
+			});
+		} finally {
+			setAccountEnvironmentLoading(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		if (user) {
+			loadAccountSettings();
+		}
+	}, [loadAccountSettings, user]);
 
 	const handleSaveAiSettings = async () => {
 		const trimmedKey = openRouterKey.trim();
@@ -59,6 +108,53 @@ export const AccountPage = () => {
 			setAiSettingsMessage({ type: "err", text: "An error occurred while clearing the key" });
 		} finally {
 			setAiSettingsSaving(false);
+		}
+	};
+
+	const handleAddAccountEnvironmentVariable = () =>
+		setAccountEnvironment((prev) => [...prev, { name: "", value: "" }]);
+
+	const handleRemoveAccountEnvironmentVariable = (index: number) =>
+		setAccountEnvironment((prev) => prev.filter((_, i) => i !== index));
+
+	const handleChangeAccountEnvironmentVariable = (
+		index: number,
+		field: "name" | "value",
+		value: string,
+	) => {
+		setAccountEnvironment((prev) =>
+			prev.map((variable, i) =>
+				i === index ? { ...variable, [field]: value } : variable,
+			),
+		);
+	};
+
+	const handleSaveAccountEnvironment = async () => {
+		setAccountEnvironmentSaving(true);
+		setAccountEnvironmentMessage(null);
+		try {
+			const result = await updateAccountSettings({
+				accountEnvironment: accountEnvironment.filter(
+					(variable) => variable.name.trim() !== "",
+				),
+			});
+			if (result.status === "OK") {
+				const savedVariables = result.data?.accountEnvironment ?? [];
+				setAccountEnvironment(savedVariables);
+				setAccountEnvironmentMessage({
+					type: "ok",
+					text: "Account environment variables saved successfully",
+				});
+			} else {
+				setAccountEnvironmentMessage({ type: "err", text: result.message });
+			}
+		} catch {
+			setAccountEnvironmentMessage({
+				type: "err",
+				text: "An error occurred while saving account environment variables.",
+			});
+		} finally {
+			setAccountEnvironmentSaving(false);
 		}
 	};
 
@@ -114,6 +210,7 @@ export const AccountPage = () => {
 	const inputClass = "w-full px-3 py-2 bg-background border border-white/[0.07] rounded-lg text-text text-sm focus:border-primary/50 focus:outline-none placeholder:text-muted/60";
 	const btnPrimary = "px-4 py-2 bg-primary text-background text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50";
 	const btnSecondary = "px-4 py-2 border border-white/[0.07] text-text/70 text-sm font-medium rounded-lg hover:bg-surface-raised hover:text-text hover:border-primary/20 transition-colors disabled:opacity-50";
+	const envInputClass = `${inputClass} font-mono`;
 
 	return (
 		<div>
@@ -229,7 +326,101 @@ export const AccountPage = () => {
 								</div>
 							</div>
 						</div>
-					</div>
+
+							<div className="bg-surface border border-white/[0.07] rounded-xl">
+								<div className="px-5 py-4 border-b border-white/[0.07] flex items-center justify-between gap-3">
+									<div>
+										<h2 className="text-sm font-semibold text-text flex items-center gap-2">
+											Account Environment Variables
+											<HelpTooltip
+												content="These variables are injected into every function you own. If a function defines the same key, the function-level value wins."
+												placement="right"
+											/>
+										</h2>
+										<p className="text-xs text-muted mt-1">
+											Share API keys, service URLs, and other repeated config across all of your functions.
+										</p>
+									</div>
+									<button
+										onClick={handleAddAccountEnvironmentVariable}
+										className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary text-xs font-medium rounded-lg hover:bg-primary/20 transition-colors"
+									>
+										<Icon name="plus" className="w-3 h-3" />
+										Add Variable
+									</button>
+								</div>
+								<div className="px-5 py-4 space-y-4">
+									{accountEnvironmentLoading ? (
+										<div className="flex items-center justify-center py-8">
+											<div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+										</div>
+									) : accountEnvironment.length === 0 ? (
+										<div className="text-center py-8 border border-dashed border-white/[0.07] rounded-lg bg-background/40">
+											<p className="text-sm text-muted">No account-wide environment variables yet.</p>
+											<p className="text-xs text-muted/60 mt-1">Add one once, then use it from any function you own.</p>
+										</div>
+									) : (
+										<div className="space-y-2 max-h-96 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+											{accountEnvironment.map((variable, index) => (
+												<div
+													key={index}
+													className="flex items-center gap-2 bg-background/40 border border-white/[0.07] rounded-lg p-2.5"
+												>
+													<input
+														type="text"
+														placeholder="KEY"
+														className={envInputClass}
+														value={variable.name}
+														onChange={(e) =>
+															handleChangeAccountEnvironmentVariable(index, "name", e.target.value)
+														}
+													/>
+													<span className="text-muted text-sm shrink-0">=</span>
+													<input
+														type="text"
+														placeholder="value"
+														className={envInputClass}
+														value={variable.value}
+														onChange={(e) =>
+															handleChangeAccountEnvironmentVariable(index, "value", e.target.value)
+														}
+													/>
+													<button
+														onClick={() => handleRemoveAccountEnvironmentVariable(index)}
+														className="p-1.5 text-muted hover:text-red-400 hover:bg-red-400/10 rounded transition-colors shrink-0"
+													>
+														<Icon name="trash" className="w-3.5 h-3.5" />
+													</button>
+												</div>
+											))}
+										</div>
+									)}
+
+									{accountEnvironmentMessage && (
+										<div className={`px-3 py-2 rounded-lg border text-sm ${accountEnvironmentMessage.type === "ok" ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"}`}>
+											{accountEnvironmentMessage.text}
+										</div>
+									)}
+
+									<div className="flex gap-2">
+										<button
+											onClick={handleSaveAccountEnvironment}
+											disabled={accountEnvironmentSaving || accountEnvironmentLoading}
+											className={btnPrimary}
+										>
+											{accountEnvironmentSaving ? "Saving…" : "Save Variables"}
+										</button>
+										<button
+											onClick={loadAccountSettings}
+											disabled={accountEnvironmentSaving || accountEnvironmentLoading}
+											className={btnSecondary}
+										>
+											Reload
+										</button>
+									</div>
+								</div>
+							</div>
+						</div>
 
 					{/* Sidebar */}
 					<div className="space-y-6">

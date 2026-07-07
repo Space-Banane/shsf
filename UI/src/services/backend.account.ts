@@ -1,6 +1,11 @@
 import { BASE_URL } from "..";
 import { Session, User } from "../types/Prisma";
 
+interface EnvironmentVariable {
+	name: string;
+	value: string;
+}
+
 async function getUserInfo() {
 	const response = await fetch(`${BASE_URL}/api/account/getUserInfo`, {
 		credentials: "include",
@@ -53,8 +58,24 @@ async function exportAccountData() {
 	return response;
 }
 
+async function getAccountSettings() {
+	const response = await fetch(`${BASE_URL}/api/account/settings`, {
+		credentials: "include",
+	});
+	const data = (await response.json()) as
+		| {
+				status: "OK";
+				data: {
+					accountEnvironment: EnvironmentVariable[];
+				};
+		  }
+		| { status: "FAILED"; message: string };
+	return data;
+}
+
 async function updateAccountSettings(settings: {
 	openRouterKey?: string | null;
+	accountEnvironment?: EnvironmentVariable[];
 }) {
 	const response = await fetch(`${BASE_URL}/api/account/settings`, {
 		method: "PATCH",
@@ -65,9 +86,21 @@ async function updateAccountSettings(settings: {
 		body: JSON.stringify(settings),
 	});
 	const data = (await response.json()) as
-		| { status: "OK"; message: string }
+		| {
+				status: "OK";
+				message: string;
+				data?: {
+					accountEnvironment: EnvironmentVariable[];
+				};
+		  }
 		| { status: "FAILED"; message: string };
 	return data;
 }
 
-export { getUserInfo, deleteAccount, exportAccountData, updateAccountSettings };
+export {
+	getUserInfo,
+	deleteAccount,
+	exportAccountData,
+	getAccountSettings,
+	updateAccountSettings,
+};
