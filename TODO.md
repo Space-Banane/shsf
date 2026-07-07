@@ -8,11 +8,13 @@
 - [x] Docker image & Propper compose
 - [x] Remove the entire pip DOWNLOAD cache for shared functions as its a security risk
 - [x] Shift Enter Submits on modals (any modal) (add as a agent rule for the future)
+- [ ] Fix SHSF Global & Redo it
 
 ## P1 - Priority 1 (High)
 - [x] Replace data transport layer between backend and functions with a more robust and safe solution.
 - [ ] Find a way to speed up function execution more (completly diffrent approach to the current one?)
 - [x] Move system crons to a diffrent approach, move into src/lib(?)
+- [ ] Auto "docker compose pull && docker compose up -d" updates if user enables OR presses manual update. find possible new image with docker image registry api or something idk
 
 ## P2 - Priority 2 (Medium)
 - [x] Resolve most of the 83 warnings (no-explicit-any) in backend
