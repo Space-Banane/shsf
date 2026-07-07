@@ -69,8 +69,7 @@ Edit `.env` and set the required variables:
 | Variable | Description |
 |---|---|
 | `DATABASE_URL` | MySQL/MariaDB connection string |
-| `PORT` | Backend API port |
-| `UI_PORT` | Frontend port |
+| `PORT` | Public application port |
 | `DOMAIN` | Cookie domain (e.g. `localhost`) |
 | `UI_URL` | Full URL to the UI (used for CORS) |
 | `REACT_APP_API_URL` | Full URL to the backend API |
@@ -87,7 +86,7 @@ docker compose up -d
 
 ### 4 — Access the web UI
 
-Open `http://localhost:<UI_PORT>` in your browser. The first registered account is automatically promoted to admin.
+Open `http://localhost:<PORT>` in your browser. The first registered account is automatically promoted to admin.
 
 ---
 

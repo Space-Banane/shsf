@@ -105,6 +105,7 @@ jobs:
                   set -a && source .env && set +a
                   nohup pnpm dev >/tmp/backend.log 2>&1 &
                   echo $! >/tmp/backend.pid
+                  echo "PORT=${PORT}" >> $GITHUB_ENV
 
             - name: Fetch OpenAPI spec
               run: |

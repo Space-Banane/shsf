@@ -48,18 +48,18 @@ Always branch from `dev`. PRs target `dev`. Only `dev` merges into `main`.
 
 1. **Lint the UI:**
    ```bash
-   cd UI && npx eslint src --ext .ts,.tsx
+   cd UI && pnpm lint
    ```
    Do not commit if ESLint reports errors.
 
 2. **Run backend tests:**
    ```bash
-   cd Backend && npx vitest run
+   cd Backend && pnpm test
    ```
 
 3. **Run UI tests:**
    ```bash
-   cd UI && npx react-scripts test --watchAll=false
+   cd UI && pnpm test -- --watchAll=false
    ```
 
 Never commit code that fails lint or any test.
@@ -74,8 +74,8 @@ After **every** edit to `Backend/prisma/schema.prisma`:
 
 ```bash
 cd Backend
-npx prisma migrate dev --name <descriptive_slug>
-# e.g. "add_user_oauth_provider" or "drop_function_cache_ttl"
+pnpm migrate
+# Give a short descriptive slug when prompted, e.g. "add_user_oauth_provider"
 ```
 
 Commit the generated `migration.sql` in the same commit as the schema change.
@@ -85,9 +85,9 @@ Commit the generated `migration.sql` in the same commit as the schema change.
 `prisma db push` mutates the database without recording a migration. **Do not use it under any circumstances.** Use `--create-only` if you need to inspect the SQL before applying:
 
 ```bash
-npx prisma migrate dev --name <slug> --create-only
+pnpm exec prisma migrate dev --name <slug> --create-only
 # review the generated SQL, then:
-npx prisma migrate dev
+pnpm migrate
 ```
 
 ### Rule 3 – Never mutate applied migration files
@@ -97,13 +97,13 @@ Once committed, a `migration.sql` is immutable. Fix mistakes with a new migratio
 ### Rule 4 – Production deploys use `migrate deploy`
 
 ```bash
-npx prisma migrate deploy   # non-interactive, CI-safe
+pnpm migrate:deploy   # non-interactive, CI-safe
 ```
 
 ### Rule 5 – Regenerate the client after schema changes
 
 ```bash
-cd Backend && npx prisma generate
+cd Backend && pnpm generate
 ```
 
 ---
@@ -163,7 +163,7 @@ Rules:
 ## General coding rules
 
 - TypeScript strict mode is on. No `any` without a comment explaining why.
-- No `console.log` outside the test-guard block at the top of `Backend/src/index.ts`.
+- Do not use `console.log`, `console.warn`, or `console.error` in the Backend. Use `createLogger(component)` from `src/lib/logger.ts` (pino-based) instead.
 - UI uses React built-ins for state — do not introduce Zustand, Redux, or similar.
 - Add new route handlers under `src/routes/`, shared logic under `src/lib/`.
 - Follow existing naming and file-structure conventions; don't invent new top-level folders.
@@ -174,23 +174,26 @@ Rules:
 
 ```bash
 # Dev: create + apply a migration
-cd Backend && npx prisma migrate dev --name add_my_column
+cd Backend && pnpm migrate
 
 # Generate TS types only (no migration)
-cd Backend && npx prisma generate
+cd Backend && pnpm generate
 
 # Apply pending migrations in prod/CI
-cd Backend && npx prisma migrate deploy
+cd Backend && pnpm migrate:deploy
 
 # Check migration status
-cd Backend && npx prisma migrate status
+cd Backend && pnpm exec prisma migrate status
 
 # Run backend tests
-cd Backend && npx vitest run
+cd Backend && pnpm test
 
 # Lint UI
-cd UI && npx eslint src --ext .ts,.tsx
+cd UI && pnpm lint
+
+# Lint Backend
+cd Backend && pnpm lint
 
 # Run UI tests
-cd UI && npx react-scripts test --watchAll=false
+cd UI && pnpm test -- --watchAll=false
 ```

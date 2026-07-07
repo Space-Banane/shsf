@@ -5,7 +5,7 @@
 - [ ] Add Backend unit testing / Improve it (eg. rename files, move into seperate testing folder etc etc /src/tests)
 - [x] Migrate env checking to a seperate module using zod
 - [x] Rewrite Runner.ts & split
-- [ ] Docker image & Propper compose
+- [x] Docker image & Propper compose
 - [ ] Seperate pip cache for each function - enchances security and prevents functions from accessing each others pip cache
 - [x] Shift Enter Submits on modals (any modal) (add as a agent rule for the future)
 

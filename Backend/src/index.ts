@@ -4,6 +4,7 @@ import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { Server } from "rjweb-server";
 import { Runtime } from "@rjweb/runtime-node";
 import { network } from "@rjweb/utils";
+import { existsSync } from "node:fs";
 import { executeFunction } from "./lib/Runner";
 import { performGitPull } from "./lib/GitOps";
 import { getUUID, prevDirectory } from "./lib/DataManager";
@@ -61,6 +62,10 @@ if (env.NODE_ENV !== "test") {
 }
 
 const dataPath = join(prevDirectory, ".data");
+const uiBuildPath = join(__dirname, "../../UI/build");
+const uiIndexPath = join(uiBuildPath, "index.html");
+const hasUiBuild = existsSync(uiBuildPath);
+const hasUiIndex = existsSync(uiIndexPath);
 if (env.NODE_ENV !== "test") {
 	logger.debug(`DataManager: Using data directory at ${dataPath}`);
 }
@@ -98,7 +103,16 @@ if (env.NODE_ENV !== "test") {
 }
 export const fileRouter = loader.export();
 
+if (hasUiBuild) {
+	server.path("/", (path) => path.static(uiBuildPath));
+}
+
 server.notFound(async (ctr) => {
+	const STATIC_EXT = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|map|json|txt|xml|webp|avif|mp4|webm)(\?.*)?$/i;
+	if (!ctr.url.path.startsWith("/api") && !STATIC_EXT.test(ctr.url.path) && hasUiIndex) {
+		return ctr.status(200, "OK").printFile(uiIndexPath, { addTypes: true });
+	}
+
 	return makeResponse({ ctr, content: { code: ERROR_MESSAGES.NOT_FOUND.code, message: ERROR_MESSAGES.NOT_FOUND.message } });
 });
 
