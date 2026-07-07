@@ -12,7 +12,7 @@
 ## P1 - Priority 1 (High)
 - [ ] Replace data transport layer between backend and functions with a more robust and safe solution.
 - [ ] Find a way to speed up function execution more (completly diffrent approach to the current one?)
-- [ ] Move system crons to a diffrent approach, move into src/lib?
+- [x] Move system crons to a diffrent approach, move into src/lib(?)
 
 ## P2 - Priority 2 (Medium)
 - [x] Resolve most of the 83 warnings (no-explicit-any) in backend
