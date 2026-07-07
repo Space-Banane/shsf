@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { toast } from "react-toastify";
 import Modal from "../Modal";
+import { cancelBtnClass, primaryBtnClass, inputClass, textareaClass, labelClass, ModalSection, ModalFooter, ToggleRow } from "../Modal";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 import { XFunction } from "../../../types/Prisma";
 import { Link } from "react-router-dom";
 import TriggerPayloadEditor from "./TriggerPayloadEditor";
@@ -28,8 +30,8 @@ interface CreateTriggerModalProps {
 		data: string,
 		enabled: boolean,
 	) => Promise<boolean>;
-	functions?: XFunction[]; // Optional: if provided, stage 1 will be function selection
-	initialFunctionId?: number; // Optional: if provided, skips stage 1
+	functions?: XFunction[];
+	initialFunctionId?: number;
 }
 
 function CreateTriggerModal({
@@ -51,57 +53,33 @@ function CreateTriggerModal({
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isPayloadValid, setIsPayloadValid] = useState(true);
 
+	useShiftEnterSubmit(() => {
+		if (step === 1) handleNext();
+		else handleSubmit();
+	}, isOpen && !isSubmitting);
+
 	const handleSubmit = async () => {
-		if (!selectedFunctionId) {
-			toast.error("Please select a function first");
-			return;
-		}
-		if (!name.trim() || !cron.trim()) {
-			toast.error("Name and cron expression are required");
-			return;
-		}
-		if (!isPayloadValid) {
-			toast.error("Fix the payload before creating the trigger");
-			return;
-		}
+		if (!selectedFunctionId) { toast.error("Please select a function first"); return; }
+		if (!name.trim() || !cron.trim()) { toast.error("Name and cron expression are required"); return; }
+		if (!isPayloadValid) { toast.error("Fix the payload before creating the trigger"); return; }
 
 		setIsSubmitting(true);
 		try {
-			const success = await onCreate(
-				selectedFunctionId,
-				name,
-				description,
-				cron,
-				data,
-				enabled,
-			);
+			const success = await onCreate(selectedFunctionId, name, description, cron, data, enabled);
 			if (success) {
-				setName("");
-				setDescription("");
-				setCron("0 * * * *");
-				setData("{}");
-				setEnabled(true);
-				setIsPayloadValid(true);
+				setName(""); setDescription(""); setCron("0 * * * *"); setData("{}");
+				setEnabled(true); setIsPayloadValid(true);
 				setStep(initialFunctionId ? 2 : 1);
 				onClose();
 			}
-		} catch (error) {
-			console.error("Error creating trigger:", error);
 		} finally {
 			setIsSubmitting(false);
 		}
 	};
 
 	const handleNext = () => {
-		if (!selectedFunctionId) {
-			toast.error("Please select a function");
-			return;
-		}
+		if (!selectedFunctionId) { toast.error("Please select a function"); return; }
 		setStep(2);
-	};
-
-	const handleBack = () => {
-		setStep(1);
 	};
 
 	return (
@@ -112,239 +90,151 @@ function CreateTriggerModal({
 			maxWidth="lg"
 			isLoading={isSubmitting}
 		>
-			<div className="space-y-6">
-				{step === 1 ? (
-					<div className="space-y-4">
-						<div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl text-blue-300 text-sm mb-4">
-							Select the function you want to create a trigger for.
-						</div>
-						<div className="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-							{functions.length === 0 ? (
-								<div className="text-center py-12 bg-background/30 rounded-2xl border border-dashed border-primary/20 flex flex-col items-center gap-4">
-									<div className="text-5xl opacity-40">🌙</div>
-									<div className="space-y-1">
-										<p className="text-text/60 font-medium">No functions found.</p>
-										<p className="text-text/40 text-xs px-6">
-											You need to create a serverless function before you can schedule a cron trigger.
-										</p>
-									</div>
-									<Link
-										to="/functions"
-										className="mt-2 px-6 py-2 bg-primary/20 text-primary border border-primary/30 rounded-xl text-sm font-bold hover:bg-primary/30 transition-all duration-300 flex items-center gap-2 group"
-										onClick={onClose}
-									>
-										<span>✨</span>
-										Go create one
-									</Link>
-								</div>
-							) : (
-								functions.map((f) => (
-									<button
-										key={f.id}
-										onClick={() => setSelectedFunctionId(f.id)}
-										className={`w-full flex items-center gap-3 p-4 rounded-xl border transition-all duration-200 ${
-											selectedFunctionId === f.id
-												? "bg-primary/20 border-primary text-primary shadow-[0_0_15px_rgba(124,131,253,0.1)]"
-												: "bg-background/40 border-primary/10 hover:border-primary/30 text-text/70"
-										}`}
-									>
-										<span className="text-2xl opacity-80">ƒ</span>
-										<div className="flex-1 text-left">
-											<div className="font-bold">{f.name}</div>
-											<div className="text-xs opacity-60 line-clamp-1">
-												{f.description || "No description"}
-											</div>
-										</div>
-										{selectedFunctionId === f.id && (
-											<span className="text-xl">✅</span>
-										)}
-									</button>
-								))
-							)}
-						</div>
-
-						<div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-700/50">
-							<button
-								onClick={onClose}
-								className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500"
-							>
-								Cancel
-							</button>
-							<button
-								onClick={handleNext}
-								disabled={!selectedFunctionId}
-								className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-							>
-								Next Step ➔
-							</button>
-						</div>
-					</div>
-				) : (
-					<div className="space-y-6 animate-fadeIn">
-						{/* Basic Information */}
-						<div className="space-y-4">
-							<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-								<span>⏰</span> Basic Information
-							</h3>
-
-							<div className="grid grid-cols-1 gap-4">
-								<div className="space-y-2">
-									<label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-										<span className="text-lg">🏷️</span>
-										Trigger Name
-									</label>
-									<input
-										type="text"
-										placeholder="Enter trigger name"
-										value={name}
-										onChange={(e) => setName(e.target.value)}
-										className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
-										disabled={isSubmitting}
-									/>
-								</div>
-
-								<div className="space-y-2">
-									<label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-										<span className="text-lg">📝</span>
-										Description
-									</label>
-									<textarea
-										placeholder="Brief description of what this trigger does..."
-										value={description}
-										onChange={(e) => setDescription(e.target.value)}
-										className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 resize-none"
-										rows={2}
-										disabled={isSubmitting}
-									/>
-								</div>
-							</div>
-						</div>
-
-						{/* Schedule Configuration */}
-						<div className="space-y-4">
-							<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-								<span>⏱️</span> Schedule Configuration
-							</h3>
-
-							<div className="space-y-2">
-								<label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-									<span className="text-lg">🔄</span>
-									Cron Expression
-								</label>
-								<input
-									type="text"
-									placeholder="*/5 * * * *"
-									value={cron}
-									onChange={(e) => setCron(e.target.value)}
-									className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 font-mono"
-									disabled={isSubmitting}
-								/>
-								<p className="text-xs text-gray-400">
-									Need help? Check out{" "}
-									<a
-										href="https://crontab.guru/"
-										target="_blank"
-										rel="noopener noreferrer"
-										className="text-primary hover:underline"
-									>
-										crontab.guru
-									</a>
+			{step === 1 ? (
+				<div className="space-y-4">
+					<p className="text-xs text-muted">
+						Select the function you want to create a trigger for.
+					</p>
+					<div className="space-y-1.5 max-h-80 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+						{functions.length === 0 ? (
+							<div className="text-center py-10 border border-white/[0.07] rounded-lg border-dashed">
+								<p className="text-sm text-text/60 font-medium">No functions found.</p>
+								<p className="text-xs text-muted mt-1 mb-4">
+									Create a serverless function before scheduling a trigger.
 								</p>
+								<Link
+									to="/functions"
+									className="px-4 py-2 bg-primary/10 border border-primary/20 text-primary text-sm rounded-lg hover:bg-primary/20 transition-colors"
+									onClick={onClose}
+								>
+									Go create one
+								</Link>
 							</div>
-
-							{/* Preset Buttons */}
-							<div className="space-y-2">
-								<label className="text-sm font-medium text-gray-300">Quick Presets</label>
-								<div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-									{cronPresets.map((preset) => (
-										<button
-											key={`${preset.value}-${preset.label}`}
-											type="button"
-											className="p-2 text-xs bg-gray-700/50 hover:bg-gray-700 border border-gray-600/50 hover:border-primary/30 text-gray-300 hover:text-white rounded-lg transition-all duration-300"
-											onClick={() => {
-												setCron(preset.value);
-												setName(preset.label);
-											}}
-											disabled={isSubmitting}
-										>
-											{preset.label}
-										</button>
-									))}
-								</div>
-							</div>
-						</div>
-
-						{/* Data & Settings */}
-						<div className="space-y-4">
-							<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-								<span>⚙️</span> Data & Settings
-							</h3>
-
-							<div className="space-y-2">
-								<TriggerPayloadEditor
-									value={data}
-									onChange={setData}
-									onValidityChange={setIsPayloadValid}
-									disabled={isSubmitting}
-									inputIdPrefix="create-trigger-payload"
-								/>
-							</div>
-
-							{/* Enable Toggle */}
-							<div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4">
-								<div className="flex items-center justify-between">
-									<div className="flex items-center gap-3">
-										<span className="text-lg">🔛</span>
-										<div>
-											<p className="text-white font-medium text-sm">Enable Trigger</p>
-											<p className="text-gray-400 text-xs">
-												Trigger will run automatically when enabled
-											</p>
+						) : (
+							functions.map((f) => (
+								<button
+									key={f.id}
+									onClick={() => setSelectedFunctionId(f.id)}
+									className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors text-left ${
+										selectedFunctionId === f.id
+											? "bg-primary/10 border-primary/30 text-primary"
+											: "bg-background/40 border-white/[0.07] hover:border-white/[0.14] text-text/70 hover:text-text"
+									}`}
+								>
+									<span className="text-text/40 font-mono text-lg shrink-0">ƒ</span>
+									<div className="flex-1 min-w-0">
+										<div className="text-sm font-medium">{f.name}</div>
+										<div className="text-xs text-muted truncate">
+											{f.description || "No description"}
 										</div>
 									</div>
-									<div className="relative">
-										<input
-											type="checkbox"
-											checked={enabled}
-											onChange={(e) => setEnabled(e.target.checked)}
-											className="sr-only peer"
-											disabled={isSubmitting}
-											id="enabled-trigger"
-										/>
-										<label
-											htmlFor="enabled-trigger"
-											className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-green-500 peer-checked:to-blue-500 transition-all duration-300 cursor-pointer flex items-center relative"
-										>
-											<div
-												className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${enabled ? "translate-x-6" : "translate-x-0.5"}`}
-											></div>
-										</label>
-									</div>
-								</div>
-							</div>
-						</div>
-
-						{/* Action Buttons */}
-						<div className="flex items-center justify-between pt-6 border-t border-gray-700/50">
-							<button
-								onClick={initialFunctionId ? onClose : handleBack}
-								className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500 flex items-center gap-2"
-								disabled={isSubmitting}
-							>
-								{initialFunctionId ? "Cancel" : "← Back"}
-							</button>
-							<button
-								onClick={handleSubmit}
-								className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-								disabled={isSubmitting}
-							>
-								<span className="text-sm">⏰</span>
-								Create Trigger
-							</button>
-						</div>
+								</button>
+							))
+						)}
 					</div>
-				)}
-			</div>
+					<ModalFooter>
+						<button onClick={onClose} className={cancelBtnClass}>Cancel</button>
+						<button
+							onClick={handleNext}
+							disabled={!selectedFunctionId}
+							className={primaryBtnClass}
+						>
+							Next
+						</button>
+					</ModalFooter>
+				</div>
+			) : (
+				<div className="space-y-6">
+					<ModalSection title="Basic Information">
+						<div>
+							<label className={labelClass}>Trigger name</label>
+							<input
+								type="text"
+								placeholder="e.g., nightly-sync"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+								className={inputClass}
+								disabled={isSubmitting}
+							/>
+						</div>
+						<div>
+							<label className={labelClass}>Description</label>
+							<textarea
+								placeholder="Brief description of what this trigger does…"
+								value={description}
+								onChange={(e) => setDescription(e.target.value)}
+								className={textareaClass}
+								rows={2}
+								disabled={isSubmitting}
+							/>
+						</div>
+					</ModalSection>
+
+					<ModalSection title="Schedule">
+						<div>
+							<label className={labelClass}>Cron expression</label>
+							<input
+								type="text"
+								placeholder="0 * * * *"
+								value={cron}
+								onChange={(e) => setCron(e.target.value)}
+								className={`${inputClass} font-mono`}
+								disabled={isSubmitting}
+							/>
+							<p className="mt-1.5 text-xs text-muted">
+								Need help?{" "}
+								<a href="https://crontab.guru/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+									crontab.guru
+								</a>
+							</p>
+						</div>
+						<div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+							{cronPresets.map((preset) => (
+								<button
+									key={`${preset.value}-${preset.label}`}
+									type="button"
+									className="px-2 py-1.5 text-xs border border-white/[0.07] text-muted hover:text-text hover:bg-white/[0.04] rounded-lg transition-colors text-left"
+									onClick={() => { setCron(preset.value); setName(preset.label); }}
+									disabled={isSubmitting}
+								>
+									{preset.label}
+								</button>
+							))}
+						</div>
+					</ModalSection>
+
+					<ModalSection title="Data & Settings">
+						<TriggerPayloadEditor
+							value={data}
+							onChange={setData}
+							onValidityChange={setIsPayloadValid}
+							disabled={isSubmitting}
+							inputIdPrefix="create-trigger-payload"
+						/>
+						<ToggleRow
+							id="enabled-trigger"
+							checked={enabled}
+							onChange={setEnabled}
+							disabled={isSubmitting}
+							label="Enable Trigger"
+							description="Trigger will run automatically when enabled"
+						/>
+					</ModalSection>
+
+					<ModalFooter>
+						<button
+							onClick={initialFunctionId ? onClose : () => setStep(1)}
+							className={cancelBtnClass}
+							disabled={isSubmitting}
+						>
+							{initialFunctionId ? "Cancel" : "Back"}
+						</button>
+						<button onClick={handleSubmit} className={primaryBtnClass} disabled={isSubmitting}>
+							Create Trigger
+						</button>
+					</ModalFooter>
+				</div>
+			)}
 		</Modal>
 	);
 }

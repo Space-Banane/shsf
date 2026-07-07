@@ -1,6 +1,7 @@
 import { API_KEY_HEADER, COOKIE, fileRouter } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import { OpenAPITags } from "../../../lib/openapi";
+import { env } from "../../../lib/env";
 
 export = new fileRouter.Path("/").http(
 	"GET",
@@ -55,7 +56,7 @@ export = new fileRouter.Path("/").http(
 						password: undefined,
 						openRouterKey: undefined,
 						apiKeyConfigured: Boolean(
-							authCheck.user.openRouterKey || process.env.OPENROUTER_API_KEY,
+							authCheck.user.openRouterKey || env.OPENROUTER_API_KEY,
 						),
 					},
 					session: authCheck.method === "session" ? authCheck.session : null,

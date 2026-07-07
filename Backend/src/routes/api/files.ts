@@ -1,4 +1,4 @@
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma, API_URL } from "../..";
+import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import {
 	getFunctionExecInfo,
 	replaceApiBaseInContent,
@@ -10,6 +10,9 @@ import path from "path";
 import * as fs from "fs/promises";
 import { OpenAPITags } from "../../lib/openapi";
 import { getFunctionAppDir } from "../../lib/StoragePaths";
+import { createLogger } from "../../lib/logger";
+
+const log = createLogger("files");
 
 // Add Docker integration
 const docker = new Docker();
@@ -34,7 +37,7 @@ async function isHtmlOnlyFunction(functionId: number): Promise<boolean> {
 async function updateContainerDependencies(
 	functionId: number,
 	filename: string,
-	content: string,
+	_content: string,
 ) {
 	// Only process dependency files
 	if (filename !== "requirements.txt" && filename !== "package.json") {
@@ -45,12 +48,10 @@ async function updateContainerDependencies(
 	try {
 		const container = docker.getContainer(containerName);
 		await container.restart();
-		console.log(
-			`[SHSF] Restarted container ${containerName} due to changes in ${filename}`,
-		);
+		log.info({ containerName, filename }, "Container restarted due to file change");
 		return true;
 	} catch (err) {
-		console.error(`[SHSF] Failed to restart container ${containerName}:`, err);
+		log.error({ err, containerName }, "Failed to restart container");
 		return false;
 	}
 }
@@ -220,11 +221,9 @@ export = new fileRouter.Path("/")
 							contentToWrite as string,
 						);
 					}
-					console.log(
-						`[SHSF] Wrote updated file to host app dir: ${path.join(funcAppDir, data.filename)}`,
-					);
+					log.info({ filePath: path.join(funcAppDir, data.filename) }, "Wrote updated file to host app dir");
 				} catch (err) {
-					console.error(`[SHSF] Failed to write updated file to host:`, err);
+					log.error({ err }, "Failed to write updated file to host");
 				}
 
 				// host write logged above inside try
@@ -404,7 +403,7 @@ export = new fileRouter.Path("/")
 					try {
 						await fs.unlink(path.join(funcAppDir, fileToDelete.name));
 					} catch (err) {
-						console.error(`[SHSF] Failed to delete file from disk:`, err);
+						log.error({ err, fileName: fileToDelete.name }, "Failed to delete file from disk");
 					}
 
 					if (dependencyPlaceholder !== null) {
@@ -413,14 +412,9 @@ export = new fileRouter.Path("/")
 								path.join(funcAppDir, fileToDelete.name),
 								dependencyPlaceholder,
 							);
-							console.log(
-								`[SHSF] Created empty ${fileToDelete.name} after deletion to prevent broken deployments`,
-							);
+							log.info({ fileName: fileToDelete.name }, "Created empty file after deletion to prevent broken deployments");
 						} catch (err) {
-							console.error(
-								`[SHSF] Error creating empty ${fileToDelete.name}:`,
-								err,
-							);
+							log.error({ err, fileName: fileToDelete.name }, "Error creating empty file after deletion");
 						}
 					}
 				}
@@ -564,9 +558,7 @@ export = new fileRouter.Path("/")
 								path.join(funcAppDir, oldFile.name),
 								"# File was renamed\n",
 							);
-							console.log(
-								`[SHSF] Created empty ${oldFile.name} after rename to prevent broken deployments`,
-							);
+							log.info({ fileName: oldFile.name }, "Created empty file after rename to prevent broken deployments");
 						}
 
 						// If renaming to a dependency file, write the content and update dependencies
@@ -594,11 +586,11 @@ export = new fileRouter.Path("/")
 									contentToWrite as string,
 								);
 							} catch (err) {
-								console.error(`[SHSF] Error writing renamed dependency file:`, err);
+								log.error({ err, fileName: data.newFilename }, "Error writing renamed dependency file");
 							}
 						}
 					} catch (err) {
-						console.error(`[SHSF] Error handling rename of dependency file:`, err);
+						log.error({ err }, "Error handling rename of dependency file");
 					}
 				}
 
@@ -783,7 +775,7 @@ export = new fileRouter.Path("/")
 				try {
 					loadedContent = await fs.readFile(filePath, { encoding: "utf-8" });
 				} catch (err) {
-					console.error(`[SHSF] Error reading default file ${filePath}:`, err);
+					log.error({ err, filePath }, "Error reading default file");
 					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
 						status: 500,
 						message: "Failed to load default template",
@@ -927,7 +919,7 @@ export = new fileRouter.Path("/")
 						defaults,
 					});
 				} catch (err) {
-					console.error("[SHSF] Error reading fill_examples directory:", err);
+					log.error({ err }, "Error reading fill_examples directory");
 					return ctr.print({
 						status: "OK",
 						defaults: [

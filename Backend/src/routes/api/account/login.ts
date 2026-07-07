@@ -57,7 +57,7 @@ export = new fileRouter.Path("/").http("POST", "/api/account/login", (http) =>
 				.update(`${Date.now()}+${user.email}`)
 				.digest("hex");
 
-			const session = await prisma.session.create({
+			await prisma.session.create({
 				data: {
 					userId: user.id,
 					hash,

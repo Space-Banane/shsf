@@ -1,0 +1,11 @@
+{
+    "name": "shsf",
+    "private": true,
+    "scripts": {
+        "build": "pnpm -C Backend build && pnpm -C UI build",
+        "full-install": "pnpm -C Backend install && pnpm -C UI install"
+    },
+    "devDependencies": {
+        "prettier": "^3.9.4"
+    }
+}

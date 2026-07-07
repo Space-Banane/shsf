@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Modal from "../Modal";
+import { cancelBtnClass } from "../Modal";
 import {
 	assignFunctionToGuest,
 	GuestUser,
@@ -7,7 +8,6 @@ import {
 	listGuestUsers,
 	unassignFunctionFromGuest,
 } from "../../../services/backend.guest";
-import { ActionButton } from "../../buttons/ActionButton";
 
 interface GuestManagementProps {
 	isOpen: boolean;
@@ -16,12 +16,7 @@ interface GuestManagementProps {
 	functionId: number | null;
 }
 
-function GuestManagement({
-	isOpen,
-	onClose,
-	onSuccess,
-	functionId,
-}: GuestManagementProps) {
+function GuestManagement({ isOpen, onClose, onSuccess, functionId }: GuestManagementProps) {
 	const [allUsers, setAllUsers] = useState<GuestUser[]>([]);
 	const [guestUserIds, setGuestUserIds] = useState<number[]>([]);
 	const [guestsLoading, setGuestsLoading] = useState(false);
@@ -31,32 +26,22 @@ function GuestManagement({
 		if (isOpen && functionId) {
 			setGuestsLoading(true);
 			setGuestsError(null);
-
 			const fetchUsers = async () => {
 				try {
 					const [usersRes, guestsRes] = await Promise.all([
 						listGuestUsers(),
 						listFunctionGuests(functionId),
 					]);
-
-					if ("error" in usersRes) {
-						setGuestsError("Failed to load users");
-					} else {
-						setAllUsers(usersRes.guests);
-					}
-					if ("error" in guestsRes) {
-						setGuestsError("Failed to load guest users");
-					} else {
-						const guestIds = guestsRes.guests.map((guest) => guest.id);
-						setGuestUserIds(guestIds);
-					}
+					if ("error" in usersRes) setGuestsError("Failed to load users");
+					else setAllUsers(usersRes.guests);
+					if ("error" in guestsRes) setGuestsError("Failed to load guest users");
+					else setGuestUserIds(guestsRes.guests.map((g) => g.id));
 				} catch {
 					setGuestsError("Failed to load guest users");
 				} finally {
 					setGuestsLoading(false);
 				}
 			};
-
 			fetchUsers();
 		}
 	}, [isOpen, functionId]);
@@ -72,8 +57,7 @@ function GuestManagement({
 				else setGuestsError("Failed to add guest");
 			} else {
 				const res = await unassignFunctionFromGuest(userId, functionId);
-				if (res.status === "OK")
-					setGuestUserIds((ids) => ids.filter((id) => id !== userId));
+				if (res.status === "OK") setGuestUserIds((ids) => ids.filter((id) => id !== userId));
 				else setGuestsError("Failed to remove guest");
 			}
 		} catch {
@@ -83,12 +67,7 @@ function GuestManagement({
 		}
 	};
 
-	const handleClose = () => {
-		if (!guestsLoading) {
-			onClose();
-			setGuestsError(null);
-		}
-	};
+	const handleClose = () => { if (!guestsLoading) { onClose(); setGuestsError(null); } };
 
 	return (
 		<Modal
@@ -99,53 +78,48 @@ function GuestManagement({
 			isLoading={guestsLoading}
 		>
 			<div className="space-y-4">
-				{guestsError && <p className="text-xs text-red-400 mb-2">{guestsError}</p>}
-				{guestsLoading ? (
-					<p className="text-xs text-gray-400">Loading users...</p>
-				) : (
-					<div className="space-y-2 max-h-48 overflow-y-auto">
-						{allUsers.length === 0 ? (
-							<p className="text-xs text-gray-400">No users found.</p>
-						) : (
-							allUsers.map((user) => (
-								<label
-									key={user.id}
-									className="flex items-center gap-2 text-sm text-gray-200"
-								>
-									<input
-										type="checkbox"
-										checked={guestUserIds.includes(user.id)}
-										onChange={(e) => handleToggleGuest(user.id, e.target.checked)}
-										disabled={guestsLoading}
-										className="accent-blue-500"
-									/>
-									<span>{user.email || user.displayName || `User #${user.id}`}</span>
-								</label>
-							))
-						)}
-					</div>
+				{guestsError && (
+					<p className="text-xs text-red-400">{guestsError}</p>
 				)}
-				<div className="border-t space-y-1 pt-2">
-					<p className="text-xs text-gray-400 mt-2">
+				<div className="space-y-1.5 max-h-52 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+					{allUsers.length === 0 ? (
+						<p className="text-sm text-muted">No guest users found.</p>
+					) : (
+						allUsers.map((user) => (
+							<label
+								key={user.id}
+								className="flex items-center gap-3 px-3 py-2.5 bg-background/40 border border-white/[0.07] rounded-lg cursor-pointer hover:bg-background/60 transition-colors"
+							>
+								<input
+									type="checkbox"
+									checked={guestUserIds.includes(user.id)}
+									onChange={(e) => handleToggleGuest(user.id, e.target.checked)}
+									disabled={guestsLoading}
+									className="accent-primary w-4 h-4"
+								/>
+								<span className="text-sm text-text">
+									{user.email || user.displayName || `User #${user.id}`}
+								</span>
+							</label>
+						))
+					)}
+				</div>
+				<div className="border-t border-white/[0.07] pt-3 space-y-1">
+					<p className="text-xs text-muted">
 						Assign users as guests to allow them to invoke this function.
 					</p>
-					<p className="text-xs text-gray-400 mt-2">
-						As soon as a guest user is assigned to a function, every execution via the
-						web will need to be authenticated with a valid Auth method.
+					<p className="text-xs text-muted">
+						Once assigned, every web execution will require authentication.
 					</p>
-					<ActionButton
-						icon="⚙️"
-						label="Configure Guest Access"
-						onClick={() => (window.location.href = "/guest-users")}
-						variant="secondary"
-					/>
-				</div>
-				<div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-700/50">
 					<button
-						onClick={handleClose}
-						className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500"
-						disabled={guestsLoading}
+						onClick={() => (window.location.href = "/guest-users")}
+						className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors"
 					>
+						Configure Guest Access →
+					</button>
+				</div>
+				<div className="flex justify-end pt-2">
+					<button onClick={handleClose} className={cancelBtnClass} disabled={guestsLoading}>
 						Close
 					</button>
 				</div>

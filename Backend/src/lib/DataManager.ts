@@ -1,6 +1,8 @@
 // Manages the .data directory, which contains config and info files for cross platform communication
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { env } from "node:process";
+import { createLogger } from "./logger";
+
+const log = createLogger("DataManager");
 
 /* Files and what they contain:
 
@@ -18,7 +20,7 @@ async function ensureDataDirectory() {
             mkdirSync(prevDirectory + ".data");
         }
     } catch (err) {
-        console.error("Error ensuring .data directory exists:", err);
+        log.error({ err }, "Error ensuring .data directory exists");
 		throw new Error("Failed to ensure .data directory exists");
     }
 }
@@ -36,7 +38,7 @@ async function setupUUID() {
 		writeFileSync(prevDirectory + ".data/.uuid", newUUID, "utf-8");
 		return { uuid: newUUID };
 	} catch (err) {
-		console.error("Error writing .uuid file:", err);
+		log.error({ err }, "Error writing .uuid file");
 		return { error: "Failed to create UUID" };
 	}
 }
@@ -48,13 +50,13 @@ export async function getUUID() {
 		const uuid = readFileSync(prevDirectory + ".data/.uuid", "utf-8");
 		return uuid;
 	} catch (err) {
-		console.error("Could not read .uuid file, attempting to create one");
+		log.warn({ err }, "Could not read .uuid file, attempting to create one");
 		const setupResult = await setupUUID();
 		if (setupResult.error) {
-			console.error("Error setting up UUID:", setupResult.error);
+			log.error({ error: setupResult.error }, "Error setting up UUID");
 			return null;
 		}
-		console.info("Successfully created new UUID:", setupResult.uuid);
+		log.info({ uuid: setupResult.uuid }, "Successfully created new UUID");
 		return setupResult.uuid;
 	}
 }
@@ -81,7 +83,7 @@ export async function setLinkStatus(status: LinkStatus): Promise<void> {
 	try {
 		writeFileSync(prevDirectory + ".data/.linked", JSON.stringify(status), "utf-8");
 	} catch (err) {
-		console.error("Error writing .linked file:", err);
+		log.error({ err }, "Error writing .linked file");
 		throw new Error("Failed to write link status");
 	}
 }
@@ -115,7 +117,7 @@ export async function setLinkLock(locked: boolean): Promise<void> {
 	try {
 		writeFileSync(prevDirectory + ".data/.linkLock", JSON.stringify(locked), "utf-8");
 	} catch (err) {
-		console.error("Error writing .linkLock file:", err);
+		log.error({ err }, "Error writing .linkLock file");
 		throw new Error("Failed to write link lock status");
 	}
 }
@@ -137,7 +139,68 @@ export async function setRegistrationDisabled(disabled: boolean): Promise<void> 
 	try {
 		writeFileSync(prevDirectory + ".data/.registrationDisabled", JSON.stringify(disabled), "utf-8");
 	} catch (err) {
-		console.error("Error writing .registrationDisabled file:", err);
+		log.error({ err }, "Error writing .registrationDisabled file");
 		throw new Error("Failed to write registration disabled status");
+	}
+}
+
+export async function getGuestAccessDisabled(): Promise<boolean> {
+	await ensureDataDirectory();
+	try {
+		const raw = readFileSync(prevDirectory + ".data/.guestAccessDisabled", "utf-8");
+		return JSON.parse(raw) === true;
+	} catch {
+		return false;
+	}
+}
+
+export async function setGuestAccessDisabled(disabled: boolean): Promise<void> {
+	await ensureDataDirectory();
+	try {
+		writeFileSync(prevDirectory + ".data/.guestAccessDisabled", JSON.stringify(disabled), "utf-8");
+	} catch (err) {
+		log.error({ err }, "Error writing .guestAccessDisabled file");
+		throw new Error("Failed to write guest access disabled status");
+	}
+}
+
+export async function getExternalAccessDisabled(): Promise<boolean> {
+	await ensureDataDirectory();
+	try {
+		const raw = readFileSync(prevDirectory + ".data/.externalAccessDisabled", "utf-8");
+		return JSON.parse(raw) === true;
+	} catch {
+		return false;
+	}
+}
+
+export async function setExternalAccessDisabled(disabled: boolean): Promise<void> {
+	await ensureDataDirectory();
+	try {
+		writeFileSync(prevDirectory + ".data/.externalAccessDisabled", JSON.stringify(disabled), "utf-8");
+	} catch (err) {
+		log.error({ err }, "Error writing .externalAccessDisabled file");
+		throw new Error("Failed to write external access disabled status");
+	}
+}
+
+export async function getDisabledImages(): Promise<string[]> {
+	await ensureDataDirectory();
+	try {
+		const raw = readFileSync(prevDirectory + ".data/.disabledImages", "utf-8");
+		const parsed = JSON.parse(raw);
+		return Array.isArray(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
+}
+
+export async function setDisabledImages(images: string[]): Promise<void> {
+	await ensureDataDirectory();
+	try {
+		writeFileSync(prevDirectory + ".data/.disabledImages", JSON.stringify(images), "utf-8");
+	} catch (err) {
+		log.error({ err }, "Error writing .disabledImages file");
+		throw new Error("Failed to write disabled images list");
 	}
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Modal from "../Modal";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 
 interface DeleteTriggerModalProps {
 	isOpen: boolean;
@@ -15,6 +16,8 @@ function DeleteTriggerModal({
 	triggerName,
 }: DeleteTriggerModalProps) {
 	const [isDeleting, setIsDeleting] = useState(false);
+
+	useShiftEnterSubmit(() => handleDelete(), isOpen && !isDeleting);
 
 	const handleDelete = async () => {
 		setIsDeleting(true);

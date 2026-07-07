@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Modal from "../Modal";
+import { cancelBtnClass } from "../Modal";
 import { TriggerLog } from "../../../types/Prisma";
 import TriggerLogCard from "./TriggerLogCard";
 import { deleteSpecificLog } from "../../../services/backend.function.logs";
@@ -23,13 +24,11 @@ function TriggerLogsModal({
 }: TriggerLogsModalProps) {
 	const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
 
-	// Sort logs by date (newest first) and expand only the latest log
 	useEffect(() => {
 		if (logs.length > 0) {
 			const sortedLogs = [...logs].sort(
 				(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
 			);
-			// Expand only the latest log if not already expanded
 			setExpandedLogs((prev) => {
 				if (Object.keys(prev).length === 0 && sortedLogs.length > 0) {
 					return { [sortedLogs[0].id]: true };
@@ -39,22 +38,15 @@ function TriggerLogsModal({
 		}
 	}, [logs]);
 
-	// Toggle expanded state for a log
 	const toggleExpand = (logId: number) => {
-		setExpandedLogs((prev) => ({
-			...prev,
-			[logId]: !prev[logId],
-		}));
+		setExpandedLogs((prev) => ({ ...prev, [logId]: !prev[logId] }));
 	};
 
 	const handleDeleteLog = async (logId: number) => {
 		const res = await deleteSpecificLog(functionId, logId);
-		if (res.status === "OK") {
-			onRefresh();
-		}
+		if (res.status === "OK") onRefresh();
 	};
 
-	// Sort logs by date (newest first)
 	const sortedLogs = [...logs].sort(
 		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
 	);
@@ -68,13 +60,8 @@ function TriggerLogsModal({
 			isLoading={isLoading}
 		>
 			<div className="space-y-4">
-				{isLoading ? (
-					<div className="text-center py-8">
-						<div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4"></div>
-						<p className="text-gray-400">Loading execution logs...</p>
-					</div>
-				) : sortedLogs.length > 0 ? (
-					<div className="space-y-3">
+				{sortedLogs.length > 0 ? (
+					<div className="space-y-2">
 						{sortedLogs.map((log) => (
 							<TriggerLogCard
 								key={log.id}
@@ -86,23 +73,16 @@ function TriggerLogsModal({
 						))}
 					</div>
 				) : (
-					<div className="text-center py-12">
-						<div className="text-4xl mb-4">📋</div>
-						<h3 className="text-lg font-semibold text-gray-300 mb-2">
-							No Execution Logs
-						</h3>
-						<p className="text-gray-500 text-sm">
+					<div className="text-center py-10">
+						<p className="text-sm font-medium text-text/60">No execution logs</p>
+						<p className="text-xs text-muted mt-1">
 							This trigger hasn't been executed yet or logs are not available.
 						</p>
 					</div>
 				)}
 
-				{/* Close Button */}
-				<div className="flex justify-end pt-4 border-t border-gray-700/50">
-					<button
-						onClick={onClose}
-						className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500"
-					>
+				<div className="flex justify-end pt-4 border-t border-white/[0.07]">
+					<button onClick={onClose} className={cancelBtnClass}>
 						Close
 					</button>
 				</div>

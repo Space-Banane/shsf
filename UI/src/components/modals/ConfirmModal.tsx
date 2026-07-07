@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
 import Modal from "./Modal";
+import { cancelBtnClass, deleteBtnClass, primaryBtnClass } from "./Modal";
+import { useShiftEnterSubmit } from "../../hooks/useShiftEnterSubmit";
 
 interface ConfirmOptions {
 	title: string;
@@ -49,33 +51,21 @@ export const ConfirmProvider: React.FC<{ children: React.ReactNode }> = ({ child
 		if (resolveRef) resolveRef(true);
 	}, [resolveRef]);
 
+	useShiftEnterSubmit(() => isOpen && handleConfirm(), isOpen);
+
 	return (
 		<ConfirmContext.Provider value={{ confirm }}>
 			{children}
-			<Modal
-				isOpen={isOpen}
-				onClose={handleClose}
-				title={options.title}
-				maxWidth="sm"
-			>
-				<div className="space-y-6">
-					<p className="text-gray-300 text-sm leading-relaxed">
-						{options.message}
-					</p>
-					<div className="flex justify-end gap-3 mt-8">
-						<button
-							onClick={handleClose}
-							className="px-4 py-2 rounded-xl text-sm font-medium text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all duration-200"
-						>
+			<Modal isOpen={isOpen} onClose={handleClose} title={options.title} maxWidth="sm">
+				<div className="space-y-5">
+					<p className="text-sm text-text/80 leading-relaxed">{options.message}</p>
+					<div className="flex justify-end gap-3">
+						<button onClick={handleClose} className={cancelBtnClass}>
 							{options.cancelText || "Cancel"}
 						</button>
 						<button
 							onClick={handleConfirm}
-							className={`px-6 py-2 rounded-xl text-sm font-bold transition-all duration-200 shadow-lg ${
-								options.variant === "delete"
-									? "bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 shadow-red-500/10"
-									: "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-blue-500/20"
-							}`}
+							className={options.variant === "delete" ? deleteBtnClass : primaryBtnClass}
 						>
 							{options.confirmText || "Confirm"}
 						</button>

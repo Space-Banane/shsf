@@ -12,18 +12,14 @@ import { Trigger, XFunction } from "../types/Prisma";
 import EditTriggerModal from "../components/modals/functionTriggers/EditTriggerModal";
 import DeleteTriggerModal from "../components/modals/functionTriggers/DeleteTriggerModal";
 import CreateTriggerModal from "../components/modals/functionTriggers/CreateTriggerModal";
-import { ActionButton } from "../components/buttons/ActionButton";
 import { Link } from "react-router-dom";
+import { Icon } from "../components/ui/Icon";
 
 const formatDateTime = (dateValue: string | null) => {
 	if (!dateValue) return null;
-	const parsedDate = new Date(dateValue);
-	if (Number.isNaN(parsedDate.getTime())) return null;
-
-	return {
-		date: parsedDate.toLocaleDateString(),
-		time: parsedDate.toLocaleTimeString(),
-	};
+	const d = new Date(dateValue);
+	if (Number.isNaN(d.getTime())) return null;
+	return { date: d.toLocaleDateString(), time: d.toLocaleTimeString() };
 };
 
 function CronJobsPage() {
@@ -40,341 +36,187 @@ function CronJobsPage() {
 		setLoading(true);
 		setError("");
 		try {
-			const [triggerRes, functionRes] = await Promise.all([
-				listAllTriggers(),
-				getFunctions(true)
-			]);
-
-			if (triggerRes.status === "OK") {
-				setTriggers(triggerRes.data);
-			} else {
-				setError(triggerRes.message || "Failed to load triggers");
-			}
-
-			if (functionRes.status === "OK") {
-				setFunctions(functionRes.data as unknown as XFunction[]);
-			}
-		} catch (e) {
-			setError("Failed to load data");
-		} finally {
-			setLoading(false);
-		}
+			const [triggerRes, functionRes] = await Promise.all([listAllTriggers(), getFunctions(true)]);
+			if (triggerRes.status === "OK") setTriggers(triggerRes.data);
+			else setError(triggerRes.message || "Failed to load triggers");
+			if (functionRes.status === "OK") setFunctions(functionRes.data as unknown as XFunction[]);
+		} catch { setError("Failed to load data"); }
+		finally { setLoading(false); }
 	};
 
-	useEffect(() => {
-		loadData();
-	}, []);
+	useEffect(() => { loadData(); }, []);
 
-	const handleCreateTrigger = async (
-		functionId: number,
-		name: string,
-		description: string,
-		cron: string,
-		data: string,
-		enabled: boolean,
-	) => {
+	const handleCreateTrigger = async (functionId: number, name: string, description: string, cron: string, data: string, enabled: boolean) => {
 		try {
-			const res = await createTrigger(functionId, {
-				name,
-				description,
-				cron,
-				data,
-				enabled,
-			});
-			if (res.status === "OK") {
-				loadData();
-				setShowCreateModal(false);
-				return true;
-			} else {
-				toast.error(res.message);
-				return false;
-			}
-		} catch (e) {
-			toast.error("Failed to create trigger");
+			const res = await createTrigger(functionId, { name, description, cron, data, enabled });
+			if (res.status === "OK") { loadData(); setShowCreateModal(false); return true; }
+			toast.error(res.message);
 			return false;
-		}
+		} catch { toast.error("Failed to create trigger"); return false; }
 	};
 
-	const handleUpdateTrigger = async (
-		name: string,
-		description: string,
-		cron: string,
-		data: string,
-		enabled: boolean,
-	) => {
+	const handleUpdateTrigger = async (name: string, description: string, cron: string, data: string, enabled: boolean) => {
 		if (!selectedTrigger) return false;
 		try {
-			const res = await updateTrigger(selectedTrigger.functionId, selectedTrigger.id, {
-				name,
-				description,
-				cron,
-				data,
-				enabled,
-			});
-			if (res.status === "OK") {
-				loadData();
-				return true;
-			} else {
-				toast.error(res.message);
-				return false;
-			}
-		} catch (e) {
-			toast.error("Failed to update trigger");
+			const res = await updateTrigger(selectedTrigger.functionId, selectedTrigger.id, { name, description, cron, data, enabled });
+			if (res.status === "OK") { loadData(); return true; }
+			toast.error(res.message);
 			return false;
-		}
+		} catch { toast.error("Failed to update trigger"); return false; }
 	};
 
 	const handleDeleteTrigger = async () => {
 		if (!selectedTrigger) return false;
 		try {
 			const res = await deleteTrigger(selectedTrigger.functionId, selectedTrigger.id);
-			if (res.status === "OK") {
-				loadData();
-				return true;
-			} else {
-				toast.error(res.message);
-				return false;
-			}
-		} catch (e) {
-			toast.error("Failed to delete trigger");
+			if (res.status === "OK") { loadData(); return true; }
+			toast.error(res.message);
 			return false;
-		}
+		} catch { toast.error("Failed to delete trigger"); return false; }
 	};
 
-	const handleRunTrigger = async (
-		trigger: (Trigger & { function: { name: string } }) | null,
-	) => {
+	const handleRunTrigger = async (trigger: (Trigger & { function: { name: string } }) | null) => {
 		if (!trigger) return false;
-
 		try {
 			const res = await runTrigger(trigger.functionId, trigger.id);
-			if ((res as any).status === "OK") {
-				toast.success("Trigger executed");
-				loadData();
-				return true;
-			} else {
-				toast.error((res as any).message || "Failed to run trigger");
-				return false;
-			}
-		} catch (e) {
-			toast.error("Failed to run trigger");
+			if ((res as any).status === "OK") { toast.success("Trigger executed"); loadData(); return true; }
+			toast.error((res as any).message || "Failed to run trigger");
 			return false;
-		}
+		} catch { toast.error("Failed to run trigger"); return false; }
 	};
 
 	return (
-		<div className="min-h-screen bg-background">
-			{/* Hero Header */}
-			<div className="relative bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-b border-primary/20">
-				<div className="max-w-6xl mx-auto px-4 py-16">
-					<div className="text-center space-y-4">
-						<h1 className="text-5xl font-bold text-primary mb-4">Cron Job Manager</h1>
-						<div className="h-1 w-24 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
-						<p className="text-xl text-text/70 max-w-2xl mx-auto">
-							Monitor and manage all your scheduled function triggers in one place.
-						</p>
-					</div>
+		<div>
+			{/* Page header */}
+			<div className="flex items-center justify-between mb-6">
+				<div>
+					<h1 className="text-2xl font-semibold text-text">Cron Jobs</h1>
+					<p className="text-sm text-muted mt-0.5">Scheduled triggers that run your functions automatically</p>
+				</div>
+				<div className="flex items-center gap-2">
+					<button
+						className="p-2 text-muted hover:text-text hover:bg-surface rounded-lg transition-colors"
+						onClick={loadData}
+						title="Refresh"
+					>
+						<Icon name="arrow-path" className="w-4 h-4" />
+					</button>
+					<button
+						className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-background text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
+						onClick={() => setShowCreateModal(true)}
+					>
+						<Icon name="plus" className="w-4 h-4" />
+						New Trigger
+					</button>
 				</div>
 			</div>
 
-			<div className="max-w-6xl mx-auto px-4 py-12">
-				<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-2xl p-8">
-					<div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-						<h2 className="text-2xl font-bold text-primary flex items-center gap-2">
-							<span className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
-								⏰
-							</span>
-							Your Cron Jobs
-						</h2>
-						<div className="flex items-center gap-3">
-							<button
-								className="px-4 py-2 bg-primary text-background rounded-xl text-sm font-bold hover:scale-105 transition-all duration-300 flex items-center gap-2"
-								onClick={() => setShowCreateModal(true)}
-							>
-								<span>➕</span> Create Trigger
-							</button>
-							<ActionButton
-								icon="🔄"
-								label="Refresh"
-								variant="secondary"
-								onClick={loadData}
-							/>
-						</div>
+			{/* Content */}
+			{loading ? (
+				<div className="flex items-center justify-center py-24">
+					<div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+				</div>
+			) : error ? (
+				<div className="bg-surface border border-red-500/20 rounded-xl px-5 py-4 text-sm text-red-400">{error}</div>
+			) : triggers.length === 0 ? (
+				<div className="flex flex-col items-center justify-center py-24 text-center">
+					<div className="w-12 h-12 rounded-xl bg-surface border border-white/[0.07] flex items-center justify-center mb-4">
+						<Icon name="clock" className="w-6 h-6 text-primary/40" />
 					</div>
-
-					{loading ? (
-						<div className="text-center py-12">
-							<div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4"></div>
-							<p className="text-text/70 text-lg">Loading your cron jobs...</p>
-						</div>
-					) : error ? (
-						<div className="p-4 bg-red-500/20 border border-red-500/30 rounded-xl text-red-300 text-center">
-							{error}
-						</div>
-					) : triggers.length === 0 ? (
-						<div className="text-center py-16 bg-background/30 rounded-xl border border-dashed border-primary/20">
-							<div className="text-5xl mb-4">🌙</div>
-							<p className="text-text/60 text-lg">No cron jobs found.</p>
-							<p className="text-text/40 text-sm mt-2">Click "Create Trigger" to get started.</p>
-						</div>
-					) : (
-						<div className="overflow-x-auto">
-							<table className="min-w-full">
-								<thead>
-									<tr className="bg-background/40 border-b border-primary/10">
-										<th className="px-6 py-4 text-left text-xs font-bold text-text/50 uppercase tracking-wider">Status</th>
-										<th className="px-6 py-4 text-left text-xs font-bold text-text/50 uppercase tracking-wider">Name / Function</th>
-										<th className="px-6 py-4 text-left text-xs font-bold text-text/50 uppercase tracking-wider">Schedule (Cron)</th>
-										<th className="px-6 py-4 text-left text-xs font-bold text-text/50 uppercase tracking-wider">Next Run</th>
-										<th className="px-6 py-4 text-left text-xs font-bold text-text/50 uppercase tracking-wider">Last Run</th>
-										<th className="px-6 py-4 text-left text-xs font-bold text-text/50 uppercase tracking-wider">Last Run Successful?</th>
-										<th className="px-6 py-4 text-right text-xs font-bold text-text/50 uppercase tracking-wider">Actions</th>
-									</tr>
-								</thead>
-								<tbody className="divide-y divide-primary/5">
-									{triggers.map((trigger) => {
-										const nextRunDateTime = formatDateTime(trigger.nextRun);
-										const lastRunDateTime = formatDateTime(trigger.lastRun);
-
-										return (
-											<tr
-												key={trigger.id}
-												className="hover:bg-primary/5 transition-all duration-200 group"
-											>
-											<td className="px-6 py-4 whitespace-nowrap">
-												<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-													trigger.enabled 
-														? "bg-green-500/20 text-green-400 border border-green-500/30" 
-														: "bg-red-500/20 text-red-400 border border-red-500/30"
-												}`}>
+					<h2 className="text-lg font-semibold text-text mb-1">No cron jobs</h2>
+					<p className="text-sm text-muted mb-5">Schedule a function to run automatically on a cron expression.</p>
+					<button
+						className="flex items-center gap-1.5 px-4 py-2 bg-primary text-background text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
+						onClick={() => setShowCreateModal(true)}
+					>
+						<Icon name="plus" className="w-4 h-4" /> Create Trigger
+					</button>
+				</div>
+			) : (
+				<div className="bg-surface border border-white/[0.07] rounded-xl overflow-hidden">
+					<div className="overflow-x-auto">
+						<table className="min-w-full text-sm">
+							<thead>
+								<tr className="border-b border-white/[0.07]">
+									<th className="px-5 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">Status</th>
+									<th className="px-5 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">Name / Function</th>
+									<th className="px-5 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">Schedule</th>
+									<th className="px-5 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">Next Run</th>
+									<th className="px-5 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">Last Run</th>
+									<th className="px-5 py-3 text-left text-xs font-medium text-muted uppercase tracking-wider">Last Result</th>
+									<th className="px-5 py-3 w-28" />
+								</tr>
+							</thead>
+							<tbody className="divide-y divide-white/[0.04]">
+								{triggers.map((trigger) => {
+									const nextRun = formatDateTime(trigger.nextRun);
+									const lastRun = formatDateTime(trigger.lastRun);
+									return (
+										<tr key={trigger.id} className="hover:bg-white/[0.02] transition-colors group">
+											<td className="px-5 py-3 whitespace-nowrap">
+												<span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${trigger.enabled ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-white/[0.05] text-muted border-white/[0.07]"}`}>
 													{trigger.enabled ? "Active" : "Disabled"}
 												</span>
 											</td>
-											<td className="px-6 py-4">
-												<div className="text-sm font-semibold text-primary">{trigger.name}</div>
-												<Link 
-													to={`/functions/${trigger.functionId}`}
-													className="text-xs text-text/50 flex items-center gap-1 mt-0.5 hover:text-primary transition-colors"
-												>
-													<span className="opacity-70">ƒ</span> {trigger.function.name}
+											<td className="px-5 py-3">
+												<p className="text-sm font-medium text-text">{trigger.name}</p>
+												<Link to={`/functions/${trigger.functionId}`} className="text-xs text-muted hover:text-primary transition-colors">
+													{trigger.function.name}
 												</Link>
 											</td>
-											<td className="px-6 py-4 whitespace-nowrap">
-												<code className="px-2 py-1 bg-background/50 rounded border border-primary/10 text-xs text-blue-300 font-mono">
+											<td className="px-5 py-3 whitespace-nowrap">
+												<code className="px-2 py-0.5 bg-background rounded border border-white/[0.07] text-xs text-primary/80 font-mono">
 													{trigger.cron}
 												</code>
 											</td>
-											<td className="px-6 py-4 whitespace-nowrap text-sm text-text/70">
-												{nextRunDateTime ? (
-													<div className="flex flex-col">
-														<span>{nextRunDateTime.date}</span>
-														<span className="text-xs opacity-50">{nextRunDateTime.time}</span>
-													</div>
-												) : (
-													<span className="text-text/30 italic">Not scheduled</span>
-												)}
+											<td className="px-5 py-3 whitespace-nowrap text-xs text-muted">
+												{nextRun ? <><p>{nextRun.date}</p><p className="text-muted/50">{nextRun.time}</p></> : <span className="italic">—</span>}
 											</td>
-											<td className="px-6 py-4 whitespace-nowrap text-sm text-text/70">
-												{lastRunDateTime ? (
-													<div className="flex flex-col">
-														<span>{lastRunDateTime.date}</span>
-														<span className="text-xs opacity-50">{lastRunDateTime.time}</span>
-													</div>
-												) : (
-													<span className="text-text/30 italic">Never</span>
-												)}
+											<td className="px-5 py-3 whitespace-nowrap text-xs text-muted">
+												{lastRun ? <><p>{lastRun.date}</p><p className="text-muted/50">{lastRun.time}</p></> : <span className="italic">Never</span>}
 											</td>
-											<td className="px-6 py-4 whitespace-nowrap text-sm text-text/70">
+											<td className="px-5 py-3 whitespace-nowrap">
 												{trigger.lastRun ? (
 													trigger.lastRunSuccessful === true ? (
-														<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
-															Yes
-														</span>
+														<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">OK</span>
 													) : trigger.lastRunSuccessful === false ? (
-														<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
-															No
-														</span>
+														<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">Failed</span>
 													) : (
-														<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
-															Unknown
-														</span>
+														<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">Unknown</span>
 													)
 												) : (
-													<span className="text-text/30 italic">—</span>
+													<span className="text-muted/40 text-xs italic">—</span>
 												)}
 											</td>
-											<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-												<div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-													<button
-														className="p-2 text-green-400 hover:bg-green-400/10 rounded-lg transition-all duration-300"
-														title="Run Trigger Now"
-														onClick={() => handleRunTrigger(trigger)}
-														aria-label={`Run trigger ${trigger.name}`}
-													>
-														▶️
+											<td className="px-5 py-3 whitespace-nowrap">
+												<div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+													<button className="p-1.5 text-muted hover:text-green-400 hover:bg-green-500/10 rounded transition-colors" title="Run now" onClick={() => handleRunTrigger(trigger)}>
+														<Icon name="play" className="w-3.5 h-3.5" />
 													</button>
-													<button
-														className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all duration-300"
-														title="Edit Trigger"
-														onClick={() => {
-															setSelectedTrigger(trigger);
-															setShowEditModal(true);
-														}}
-													>
-														✏️
+													<button className="p-1.5 text-muted hover:text-text hover:bg-white/[0.06] rounded transition-colors" title="Edit" onClick={() => { setSelectedTrigger(trigger); setShowEditModal(true); }}>
+														<Icon name="pencil" className="w-3.5 h-3.5" />
 													</button>
-													<button
-														className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition-all duration-300"
-														title="Delete Trigger"
-														onClick={() => {
-															setSelectedTrigger(trigger);
-															setShowDeleteModal(true);
-														}}
-													>
-														🗑️
+													<button className="p-1.5 text-muted hover:text-red-400 hover:bg-red-500/10 rounded transition-colors" title="Delete" onClick={() => { setSelectedTrigger(trigger); setShowDeleteModal(true); }}>
+														<Icon name="trash" className="w-3.5 h-3.5" />
 													</button>
 												</div>
 											</td>
-											</tr>
-										);
-									})}
-								</tbody>
-							</table>
-						</div>
-					)}
+										</tr>
+									);
+								})}
+							</tbody>
+						</table>
+					</div>
 				</div>
-			</div>
-
-			{showCreateModal && (
-				<CreateTriggerModal
-					isOpen={showCreateModal}
-					onClose={() => setShowCreateModal(false)}
-					onCreate={handleCreateTrigger}
-					functions={functions}
-				/>
 			)}
 
+			{showCreateModal && (
+				<CreateTriggerModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateTrigger} functions={functions} />
+			)}
 			{selectedTrigger && (
 				<>
-					<EditTriggerModal
-						isOpen={showEditModal}
-						onClose={() => {
-							setShowEditModal(false);
-							setSelectedTrigger(null);
-						}}
-						onUpdate={handleUpdateTrigger}
-						onRun={() => handleRunTrigger(selectedTrigger)}
-						trigger={selectedTrigger}
-					/>
-					<DeleteTriggerModal
-						isOpen={showDeleteModal}
-						onClose={() => {
-							setShowDeleteModal(false);
-							setSelectedTrigger(null);
-						}}
-						onDelete={handleDeleteTrigger}
-						triggerName={selectedTrigger.name}
-					/>
+					<EditTriggerModal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedTrigger(null); }} onUpdate={handleUpdateTrigger} onRun={() => handleRunTrigger(selectedTrigger)} trigger={selectedTrigger} />
+					<DeleteTriggerModal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setSelectedTrigger(null); }} onDelete={handleDeleteTrigger} triggerName={selectedTrigger.name} />
 				</>
 			)}
 		</div>

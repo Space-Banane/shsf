@@ -6,6 +6,9 @@ import {
 } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import Docker from "dockerode";
+import { createLogger } from "../../../lib/logger";
+
+const log = createLogger("functions/reinstall");
 
 const docker = new Docker();
 
@@ -133,11 +136,7 @@ export = new fileRouter.Path("/")
 					});
 				} catch (e) {
 					// Log the underlying error for debugging purposes
-					console.error(
-						"Failed to trigger FFmpeg reinstall for function",
-						functionId,
-						e,
-					);
+					log.error({ err: e, functionId }, "Failed to trigger FFmpeg reinstall");
 
 					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
 						status: 500,
@@ -225,11 +224,7 @@ export = new fileRouter.Path("/")
 					});
 				} catch (e) {
 					// Log the underlying error for debugging purposes
-					console.error(
-						"Failed to trigger OpenCV reinstall for function",
-						functionId,
-						e,
-					);
+					log.error({ err: e, functionId }, "Failed to trigger OpenCV reinstall");
 
 					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
 						status: 500,

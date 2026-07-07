@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Token } from "../../types/Prisma";
 import { updateAccessToken } from "../../services/backend.accesstokens";
 import { EditTokenModal } from "../modals/RenameAccessToken";
+import { Icon } from "../ui/Icon";
 
-// --- Main TokenCard ---
 export function TokenCard({
 	token,
 	onRevoke,
@@ -35,7 +35,7 @@ export function TokenCard({
 			} else {
 				setEditError(res.message || "Failed to update token");
 			}
-		} catch (e) {
+		} catch {
 			setEditError("Failed to update token");
 		}
 		setEditLoading(false);
@@ -43,85 +43,49 @@ export function TokenCard({
 
 	return (
 		<>
-			<div
-				className={[
-					"relative flex flex-col md:flex-row md:items-center gap-4 md:gap-6 mb-4",
-					"bg-gradient-to-br from-gray-900/50 to-gray-800/50",
-					"border border-primary/20 rounded-lg p-4",
-					"text-white",
-					token.expired ? "opacity-60 grayscale" : "",
-				].join(" ")}
-			>
-				{/* Decorative solid bar removed */}
-				<div className="flex-1">
-					{/* Title section */}
-					<div className="mb-2">
-						<div className="flex items-center gap-2">
-							<h3 className="text-xl font-bold text-primary">{token.name}</h3>
+			<div className={`bg-surface border border-white/[0.07] rounded-xl p-4 ${token.expired ? "opacity-60" : ""}`}>
+				<div className="flex items-start justify-between gap-4">
+					<div className="flex-1 min-w-0 space-y-1.5">
+						<div className="flex items-center gap-2 flex-wrap">
+							<span className="text-sm font-semibold text-text">{token.name}</span>
 							{token.expired && (
-								<span className="ml-2 px-2 py-0.5 bg-red-900 text-red-300 rounded text-xs border border-red-500/20">
-									Expired
-								</span>
+								<span className="px-1.5 py-0.5 bg-red-500/10 text-red-400 border border-red-500/20 rounded text-xs">Expired</span>
 							)}
 						</div>
-						{token.purpose && (
-							<div className="mt-1 text-sm text-gray-300">{token.purpose}</div>
-						)}
-						<div className="mt-2">
-							<span className="font-mono text-base px-3 py-1 rounded bg-gray-900 border border-gray-700 shadow-inner select-all">
-								{token.tokenMasked}
-							</span>
+						{token.purpose && <p className="text-xs text-muted">{token.purpose}</p>}
+						<code className="inline-block px-2 py-1 bg-background border border-white/[0.07] rounded text-xs font-mono text-primary/80 select-all">
+							{token.tokenMasked}
+						</code>
+						<div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted">
+							<span>Created {new Date(token.createdAt).toLocaleDateString()}</span>
+							{token.expiresAt && (
+								<span>Expires {new Date(token.expiresAt).toLocaleDateString()}</span>
+							)}
 						</div>
 					</div>
-					{/* Professional metadata row */}
-					<div className="flex flex-wrap gap-x-8 gap-y-1 mt-2 text-sm text-gray-300 font-normal">
-						<div>
-							<span className="text-gray-400">Created:</span>{" "}
-							<span className="font-mono text-gray-200">
-								{new Date(token.createdAt).toLocaleString()}
-							</span>
-						</div>
-						{token.expiresAt && (
-							<div>
-								<span className="text-gray-400">Expires:</span>{" "}
-								<span className="font-mono text-gray-200">
-									{new Date(token.expiresAt).toLocaleDateString()}
-								</span>
-							</div>
-						)}
+					<div className="flex gap-1.5 shrink-0">
+						<button
+							className="p-1.5 text-muted hover:text-text hover:bg-white/[0.06] rounded transition-colors disabled:opacity-40"
+							onClick={() => setEditOpen(true)}
+							disabled={revokeLoading || disableEdit}
+							title="Edit"
+						>
+							<Icon name="pencil" className="w-3.5 h-3.5" />
+						</button>
+						<button
+							className="p-1.5 text-muted hover:text-red-400 hover:bg-red-500/10 rounded transition-colors disabled:opacity-40"
+							onClick={() => onRevoke(token.id)}
+							disabled={revokeLoading}
+							title={revokeLoading ? "Revoking…" : "Revoke"}
+						>
+							<Icon name="trash" className="w-3.5 h-3.5" />
+						</button>
 					</div>
-				</div>
-				<div className="flex items-center mt-2 md:mt-0 gap-2">
-					<button
-						className={[
-							"px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100",
-							"bg-background/50 border border-primary/20 text-primary hover:border-primary/40 hover:bg-primary/5",
-						].join(" ")}
-						onClick={() => setEditOpen(true)}
-						disabled={revokeLoading || disableEdit}
-					>
-						Edit
-					</button>
-					<button
-						className={[
-							"px-4 py-2 rounded-lg font-semibold transition shadow border",
-							"bg-red-800/80 text-white border-red-500/30",
-							"hover:bg-red-700/80",
-							"disabled:opacity-50",
-						].join(" ")}
-						onClick={() => onRevoke(token.id)}
-						disabled={revokeLoading}
-					>
-						{revokeLoading ? "Revoking..." : "Revoke"}
-					</button>
 				</div>
 			</div>
 			<EditTokenModal
 				isOpen={editOpen}
-				onClose={() => {
-					setEditOpen(false);
-					setEditError(null);
-				}}
+				onClose={() => { setEditOpen(false); setEditError(null); }}
 				onSave={handleEdit}
 				initialName={token.name}
 				initialPurpose={token.purpose ?? ""}

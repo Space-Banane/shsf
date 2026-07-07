@@ -1,9 +1,11 @@
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
-import { CronExpressionParser } from "cron-parser";
 import { OpenAPITags } from "../../lib/openapi";
 import { validateCronExpression } from "../../lib/Cron";
 import { executeFunction } from "../../lib/Runner";
+import { createLogger } from "../../lib/logger";
+
+const log = createLogger("triggers");
 
 export = new fileRouter.Path("/")
 	.http("GET", "/api/triggers", (http) =>
@@ -805,7 +807,7 @@ export = new fileRouter.Path("/")
 				if (trigger.data) {
 					try {
 						triggerDataPayload = JSON.parse(trigger.data as string); // usually always a string, if not, gulp
-					} catch (e) {
+					} catch {
 						triggerDataPayload = { data: trigger.data };
 					}
 				}
@@ -829,7 +831,7 @@ export = new fileRouter.Path("/")
 						{ mode: "production_execute" },
 					);
 				} catch (error) {
-					console.error(`[runFunctionTriggerNow] executeFunction failed for function ${func.id}:`, error);
+					log.error({ err: error, funcId: func.id }, "executeFunction failed for trigger");
 					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
 						status: 500,
 						message: "Failed to execute function",
@@ -847,10 +849,7 @@ export = new fileRouter.Path("/")
 						},
 					});
 				} catch (updateError) {
-					console.error(
-						`[runFunctionTriggerNow] Failed to persist run metadata for trigger ${trigger.id}:`,
-						updateError,
-					);
+					log.error({ err: updateError, triggerId: trigger.id }, "Failed to persist run metadata for trigger");
 				}
 
 				return ctr.print({

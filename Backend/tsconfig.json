@@ -1,24 +1,23 @@
 {
-	"compilerOptions": {
-		"strict": true,
-		"baseUrl": "./dist",
-		"module": "CommonJS",
-		"moduleResolution": "node",
-		"lib": ["ES2022"],
-		"pretty": true,
-		"alwaysStrict": true,
-		"resolveJsonModule": true,
-		"skipLibCheck": true,
-		"declaration": false,
-		"esModuleInterop": true,
-		"target": "ES2022",
-		"outDir": "dist",
-		"rootDir": "src",
-		"sourceMap": true,
-		"removeComments": true,
-		"allowUnusedLabels": false,
-		"allowUnreachableCode": false,
-		"noFallthroughCasesInSwitch": true
-	},
-	"include": ["src/**/*.ts"]
+    "compilerOptions": {
+        "strict": true,
+        "module": "Node16",
+        "moduleResolution": "node16",
+        "lib": ["ES2022"],
+        "pretty": true,
+        "alwaysStrict": true,
+        "resolveJsonModule": true,
+        "skipLibCheck": true,
+        "declaration": false,
+        "esModuleInterop": true,
+        "target": "ES2022",
+        "outDir": "dist",
+        "rootDir": "src",
+        "sourceMap": true,
+        "removeComments": true,
+        "allowUnusedLabels": false,
+        "allowUnreachableCode": false,
+        "noFallthroughCasesInSwitch": true
+    },
+    "include": ["src/**/*.ts"]
 }

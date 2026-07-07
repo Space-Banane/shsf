@@ -1,6 +1,5 @@
 import { env } from "process";
-import { fileRouter, VERSION } from "../../..";
-import { GlobalAuthCheck } from "../../../lib/Authentication";
+import { fileRouter } from "../../..";
 import { OpenAPITags } from "../../../lib/openapi";
 
 export = new fileRouter.Path("/").http("GET", "/api/global/uiUrl", (http) =>

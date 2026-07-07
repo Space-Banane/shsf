@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
-import { ActionButton } from "../components/buttons/ActionButton";
 import { getAccountFunctionAnalytics } from "../services/backend.analytics";
+import { Icon } from "../components/ui/Icon";
 import {
 	AccountFunctionAnalyticsResponse,
 	AnalyticsPoint,
@@ -180,10 +180,10 @@ function StatCard({
 	highlight?: string;
 }) {
 	return (
-		<div className="bg-background/40 border border-primary/15 rounded-2xl p-4">
-			<p className="text-text/55 text-xs uppercase tracking-[0.2em]">{label}</p>
+		<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
+			<p className="text-muted text-xs uppercase tracking-wider">{label}</p>
 			<p className="text-2xl font-bold text-primary mt-2">{value}</p>
-			{highlight ? <p className="text-text/60 text-sm mt-1.5">{highlight}</p> : null}
+			{highlight ? <p className="text-muted text-sm mt-1.5">{highlight}</p> : null}
 		</div>
 	);
 }
@@ -200,10 +200,10 @@ function RateLimitScopeCard({
 	help: string;
 }) {
 	return (
-		<div className="rounded-2xl border border-primary/10 bg-background/35 p-4">
-			<p className="text-[11px] uppercase tracking-[0.18em] text-text/45">{label}</p>
+		<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
+			<p className="text-xs font-medium text-muted uppercase tracking-wider">{label}</p>
 			<p className={`mt-2 text-2xl font-bold ${tone}`}>{value}</p>
-			<p className="mt-1 text-sm text-text/55">{help}</p>
+			<p className="mt-1 text-sm text-muted">{help}</p>
 		</div>
 	);
 }
@@ -234,7 +234,7 @@ function LineChart({
 
 	if (values.length === 0) {
 		return (
-			<div className="bg-background/35 border border-primary/10 rounded-2xl p-4">
+			<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
 				<div className="flex items-center justify-between mb-3">
 					<h3 className="text-base font-semibold text-primary">{title}</h3>
 				</div>
@@ -267,7 +267,7 @@ function LineChart({
 	} L ${chartPoints[0].x} ${height - padding} Z`;
 
 	return (
-		<div className="bg-background/35 border border-primary/10 rounded-2xl p-4">
+		<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
 			<div className="flex flex-col gap-3 mb-3">
 				<div className="flex items-center justify-between gap-4">
 					<h3 className="text-base font-semibold text-primary">{title}</h3>
@@ -342,7 +342,7 @@ function CountChart({
 	);
 
 	return (
-		<div className="bg-background/35 border border-primary/10 rounded-2xl p-4">
+		<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
 			<div className="flex flex-col gap-3 mb-3">
 				<div className="flex items-center justify-between gap-4">
 					<h3 className="text-base font-semibold text-primary">{title}</h3>
@@ -414,7 +414,7 @@ function SuccessFailureChart({ points }: { points: AnalyticsPoint[] }) {
 		classifiedCount > 0 ? (successCount / classifiedCount) * 100 : null;
 
 	return (
-		<div className="bg-background/35 border border-primary/10 rounded-2xl p-4">
+		<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
 			<div className="flex flex-col gap-3 mb-3">
 				<div className="flex items-center justify-between gap-4">
 					<h3 className="text-base font-semibold text-primary">Success vs Failure</h3>
@@ -544,7 +544,7 @@ function FunctionAnalyticsCard({
 	onToggle: () => void;
 }) {
 	return (
-		<div className="border border-primary/12 rounded-2xl overflow-hidden bg-background/30">
+		<div className="border border-white/[0.07] rounded-xl overflow-hidden bg-surface">
 			<button
 				onClick={onToggle}
 				className="w-full px-5 py-4 text-left hover:bg-primary/5 transition-colors"
@@ -645,7 +645,7 @@ function FunctionAnalyticsCard({
 					</div>
 
 					<div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-						<div className="bg-background/35 border border-primary/10 rounded-2xl p-4">
+						<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
 							<h4 className="text-base font-semibold text-primary mb-3">
 								Average Phase Timing
 							</h4>
@@ -680,7 +680,7 @@ function FunctionAnalyticsCard({
 							)}
 						</div>
 
-						<div className="bg-background/35 border border-primary/10 rounded-2xl p-4">
+						<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
 							<h4 className="text-base font-semibold text-primary mb-3">
 								Recent Executions
 							</h4>
@@ -801,52 +801,33 @@ function FunctionAnalyticsPage() {
 	};
 
 	return (
-		<div className="min-h-screen bg-background">
-			<div className="relative bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-b border-primary/20">
-				<div className="max-w-7xl mx-auto px-4 py-12">
-					<div className="text-center space-y-3">
-						<h1 className="text-4xl font-bold text-primary">
-							Function Execution Analytics
-						</h1>
-						<div className="h-1 w-28 bg-gradient-to-r from-blue-500 to-cyan-400 mx-auto rounded-full"></div>
-						<p className="text-lg text-text/70 max-w-3xl mx-auto">
-							Track runtime health for every function in your account, then drill into
-							each function from the same page.
-						</p>
-					</div>
+		<div>
+			<div className="flex items-center justify-between mb-6">
+				<div>
+					<h1 className="text-2xl font-semibold text-text">Analytics</h1>
+					<p className="text-sm text-muted mt-0.5">Track runtime health and execution history across all your functions</p>
+				</div>
+				<div className="flex items-center gap-2">
+					<select
+						value={range}
+						onChange={(event) => setRange(event.target.value as AnalyticsRange)}
+						className="px-3 py-1.5 bg-surface border border-white/[0.07] rounded-lg text-text text-sm outline-none focus:border-primary/30"
+					>
+						{RANGE_OPTIONS.map((option) => (
+							<option key={option.value} value={option.value}>{option.label}</option>
+						))}
+					</select>
+					<button
+						onClick={() => loadData(range)}
+						className="p-2 text-muted hover:text-text hover:bg-surface rounded-lg transition-colors"
+						title="Refresh"
+					>
+						<Icon name="arrow-path" className="w-4 h-4" />
+					</button>
 				</div>
 			</div>
 
-			<div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
-				<div className="bg-gradient-to-br from-gray-900/55 to-gray-800/45 border border-primary/20 rounded-3xl p-5">
-					<div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-						<div>
-							<h2 className="text-xl font-bold text-primary">Account Overview</h2>
-							<p className="text-text/60 mt-1">
-								Default range is {RANGE_OPTIONS.find((option) => option.value === range)?.label}.
-							</p>
-						</div>
-						<div className="flex items-center gap-2.5">
-							<select
-								value={range}
-								onChange={(event) => setRange(event.target.value as AnalyticsRange)}
-								className="bg-background/70 border border-primary/20 rounded-xl px-3.5 py-2 text-text outline-none"
-							>
-								{RANGE_OPTIONS.map((option) => (
-									<option key={option.value} value={option.value}>
-										{option.label}
-									</option>
-								))}
-							</select>
-							<ActionButton
-								icon="🔄"
-								label="Refresh"
-								variant="secondary"
-								onClick={() => loadData(range)}
-							/>
-						</div>
-					</div>
-				</div>
+			<div className="space-y-6">
 
 				{loading ? (
 					<div className="text-center py-20">
@@ -892,7 +873,7 @@ function FunctionAnalyticsPage() {
 						</div>
 
 						<div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-							<div className="rounded-3xl border border-primary/20 bg-gradient-to-br from-gray-900/55 to-gray-800/45 p-5">
+							<div className="bg-surface border border-white/[0.07] rounded-xl p-5">
 								<div className="mb-4">
 									<h2 className="text-xl font-bold text-primary">Hot Identity Values</h2>
 									<p className="mt-1 text-sm text-text/55">
@@ -927,7 +908,7 @@ function FunctionAnalyticsPage() {
 								)}
 							</div>
 
-							<div className="rounded-3xl border border-primary/20 bg-gradient-to-br from-gray-900/55 to-gray-800/45 p-5">
+							<div className="bg-surface border border-white/[0.07] rounded-xl p-5">
 								<div className="mb-4">
 									<h2 className="text-xl font-bold text-primary">Policy Breakdown</h2>
 									<p className="mt-1 text-sm text-text/55">
@@ -935,7 +916,7 @@ function FunctionAnalyticsPage() {
 									</p>
 								</div>
 								<div className="space-y-3">
-									<div className="rounded-2xl border border-gray-700/50 bg-background/35 p-4">
+									<div className="rounded-lg border border-white/[0.07] bg-background/40 p-4">
 										<div className="flex items-center justify-between">
 											<div>
 												<p className="text-sm font-medium text-white">Blocked executions</p>
@@ -946,7 +927,7 @@ function FunctionAnalyticsPage() {
 											</p>
 										</div>
 									</div>
-									<div className="rounded-2xl border border-gray-700/50 bg-background/35 p-4">
+									<div className="rounded-lg border border-white/[0.07] bg-background/40 p-4">
 										<div className="flex items-center justify-between">
 											<div>
 												<p className="text-sm font-medium text-white">Would-block executions</p>
@@ -989,7 +970,7 @@ function FunctionAnalyticsPage() {
 							/>
 						</div>
 
-						<div className="bg-gradient-to-br from-gray-900/55 to-gray-800/45 border border-primary/20 rounded-3xl p-5">
+						<div className="bg-surface border border-white/[0.07] rounded-xl p-5">
 							<div className="flex items-center justify-between gap-4 mb-5">
 								<div>
 									<h2 className="text-xl font-bold text-primary">Slowest Recent Runs</h2>
@@ -1065,7 +1046,7 @@ function FunctionAnalyticsPage() {
 							)}
 						</div>
 
-						<div className="bg-gradient-to-br from-gray-900/55 to-gray-800/45 border border-primary/20 rounded-3xl p-5">
+						<div className="bg-surface border border-white/[0.07] rounded-xl p-5">
 							<div className="mb-5">
 								<h2 className="text-xl font-bold text-primary">Per-Function Analytics</h2>
 								<p className="text-text/55 mt-1">
@@ -1075,7 +1056,7 @@ function FunctionAnalyticsPage() {
 							</div>
 
 							{data.functions.length === 0 ? (
-								<div className="text-center py-16 bg-background/30 rounded-2xl border border-dashed border-primary/15">
+								<div className="text-center py-16 bg-background/20 rounded-xl border border-dashed border-white/[0.07]">
 									<p className="text-text/55 text-lg">No function executions found.</p>
 								</div>
 							) : (

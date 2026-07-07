@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useRef } from "react";
 import Modal from "../Modal";
+import {
+	cancelBtnClass,
+	primaryBtnClass,
+	inputClass,
+	selectClass,
+	textareaClass,
+	labelClass,
+	ModalSection,
+	ModalFooter,
+	ModalError,
+	ToggleRow,
+} from "../Modal";
 import { useConfirm } from "../ConfirmModal";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 import {
 	updateFunction,
 	reinstallFfmpeg,
@@ -26,7 +39,7 @@ interface UpdateFunctionModalProps {
 	onClose: () => void;
 	onSuccess: () => void;
 	functionData: XFunction | null;
-	lastLogs: TriggerLog[]; // Pass recent logs for context in the update modal
+	lastLogs: TriggerLog[];
 }
 
 function UpdateFunctionModal({
@@ -63,66 +76,30 @@ function UpdateFunctionModal({
 	const [deprecatedImages, setDeprecatedImages] = useState<string[]>([]);
 	const [namespaces, setNamespaces] = useState<Namespace[]>([]);
 	const [selectedNamespaceId, setSelectedNamespaceId] = useState<number>();
-	const [sourceFlags, setSourceFlags] = useState<{
-		imported: boolean;
-		ai_kicked_off: boolean;
-	}>({
-		imported: false,
-		ai_kicked_off: false,
+	const [sourceFlags, setSourceFlags] = useState<{ imported: boolean; ai_kicked_off: boolean }>({
+		imported: false, ai_kicked_off: false,
 	});
 	const initializedFunctionIdRef = useRef<number | null>(null);
 
 	useEffect(() => {
-		const checkDeprecation = async () => {
-			if (functionData) {
-				try {
-					setIsDeprecated(await isFunctionImageDeprecated(functionData.id));
-				} catch (err) {
-					console.error("Failed to check image deprecation:", err);
-				}
-			}
-		};
-		checkDeprecation();
+		if (functionData) {
+			isFunctionImageDeprecated(functionData.id).then(setIsDeprecated).catch(() => {});
+		}
 	}, [functionData]);
 
 	useEffect(() => {
-		const fetchDeprecatedImages = async () => {
-			try {
-				const deprecated = await getDeprecatedImages();
-				setDeprecatedImages(deprecated);
-			} catch (err) {
-				console.error("Failed to fetch deprecated images:", err);
-			}
-		};
-		fetchDeprecatedImages();
+		getDeprecatedImages().then(setDeprecatedImages).catch(() => {});
 	}, []);
 
 	useEffect(() => {
 		if (!isOpen) return;
-
-		const fetchNamespacesList = async () => {
-			try {
-				const data = await getNamespaces();
-				if (data.status === "OK") {
-					setNamespaces(data.data);
-				} else {
-					console.error("Failed to fetch namespaces:", data);
-				}
-			} catch (err) {
-				console.error("Failed to fetch namespaces:", err);
-			}
-		};
-
-		fetchNamespacesList();
+		getNamespaces().then((data) => {
+			if (data.status === "OK") setNamespaces(data.data);
+		}).catch(() => {});
 	}, [isOpen]);
 
-	// Initialize form with existing function data
 	useEffect(() => {
-		if (!isOpen) {
-			initializedFunctionIdRef.current = null;
-			return;
-		}
-
+		if (!isOpen) { initializedFunctionIdRef.current = null; return; }
 		if (functionData && initializedFunctionIdRef.current !== functionData.id) {
 			setName(functionData.name);
 			setDescription(functionData.description || "");
@@ -149,19 +126,12 @@ function UpdateFunctionModal({
 		}
 	}, [functionData, isOpen]);
 
-	// Add computed variable to check if startup_file ends with .html
 	const isHtmlFunction =
 		!!functionData?.startup_file &&
 		functionData.startup_file.trim().toLowerCase().endsWith(".html");
 
-	// Helper: get array from comma-separated string
-	const corsOriginsArray = corsOrigins
-		.split(",")
-		.map((o) => o.trim())
-		.filter((o) => o.length > 0);
-
-	const namespaceSelectValue =
-		namespaces.length > 0 ? (selectedNamespaceId ?? "") : "";
+	const corsOriginsArray = corsOrigins.split(",").map((o) => o.trim()).filter((o) => o.length > 0);
+	const namespaceSelectValue = namespaces.length > 0 ? (selectedNamespaceId ?? "") : "";
 	const isDotnetRuntime = isDotnetImage(image);
 	const hasSourceFlags = sourceFlags.imported || sourceFlags.ai_kicked_off;
 
@@ -178,41 +148,23 @@ function UpdateFunctionModal({
 	};
 
 	const handleSubmit = async () => {
-		if (!functionData) {
-			setError("No function data available");
-			setIsLoading(false);
+		if (!functionData) { setError("No function data available"); return; }
+		if (!name.trim()) { setError("Please enter a function name"); return; }
+
+		const executionAliasValid = /^[a-zA-Z0-9-_]+$/.test(executionAlias);
+		if (executionAlias && (!executionAliasValid || executionAlias.length < 8 || executionAlias.length > 128)) {
+			setError("Execution alias must be 8-128 characters and can only contain alphanumeric characters, hyphens, and underscores.");
 			return;
 		}
 
-		if (!name.trim()) {
-			setError("Please enter a function name");
-			setIsLoading(false);
-			return;
-		}
-
-		setError("");
-		setIsLoading(true);
+		setError(""); setIsLoading(true);
 
 		try {
-			// Ensure Regex and length
-			const executionAliasValid = /^[a-zA-Z0-9-_]+$/.test(executionAlias);
-			if (
-				executionAlias &&
-				(!executionAliasValid ||
-					executionAlias.length < 8 ||
-					executionAlias.length > 128)
-			) {
-				setError(
-					"Execution alias must be 8-128 characters and can only contain alphanumeric characters, hyphens, and underscores.",
-				);
-				setIsLoading(false);
-				return;
-			}
 			const namespacePayload =
-				selectedNamespaceId != null &&
-				selectedNamespaceId !== functionData.namespaceId
+				selectedNamespaceId != null && selectedNamespaceId !== functionData.namespaceId
 					? selectedNamespaceId
 					: undefined;
+
 			const response = await updateFunction(functionData.id, {
 				name: name.trim() || undefined,
 				description: description.trim() || undefined,
@@ -235,15 +187,10 @@ function UpdateFunctionModal({
 				...(namespacePayload !== undefined && { namespaceId: namespacePayload }),
 			});
 
-			if (response.status === "OK") {
-				onSuccess();
-				onClose();
-			} else {
-				setError("Error updating function: " + response.message);
-			}
-		} catch (err) {
+			if (response.status === "OK") { onSuccess(); onClose(); }
+			else setError("Error updating function: " + response.message);
+		} catch {
 			setError("An unexpected error occurred");
-			console.error(err);
 		} finally {
 			setIsLoading(false);
 		}
@@ -254,10 +201,8 @@ function UpdateFunctionModal({
 		setIsReinstallingFfmpeg(true);
 		try {
 			const res = await reinstallFfmpeg(functionData.id);
-			if (typeof res === "string") {
-				setError(res);
-			}
-		} catch (err) {
+			if (typeof res === "string") setError(res);
+		} catch {
 			setError("Failed to trigger FFmpeg reinstall");
 		} finally {
 			setIsReinstallingFfmpeg(false);
@@ -269,10 +214,8 @@ function UpdateFunctionModal({
 		setIsReinstallingOpencv(true);
 		try {
 			const res = await reinstallOpencv(functionData.id);
-			if (typeof res === "string") {
-				setError(res);
-			}
-		} catch (err) {
+			if (typeof res === "string") setError(res);
+		} catch {
 			setError("Failed to trigger OpenCV reinstall");
 		} finally {
 			setIsReinstallingOpencv(false);
@@ -280,343 +223,206 @@ function UpdateFunctionModal({
 	};
 
 	const handleClose = () => {
-		if (!isLoading) {
-			onClose();
-			setError("");
-		}
-	};
-
-	// extract urls from logs
-	const [loggedUrls, setLoggedUrls] = useState<string[]>([]);
-	useEffect(() => {
-		if (!lastLogs || lastLogs.length === 0) {
-			setLoggedUrls([]);
-			return;
-		}
-
-		const currentCorsOriginsArray = corsOrigins
-			.split(",")
-			.map((o) => o.trim())
-			.filter((o) => o.length > 0);
-
-		const urls = lastLogs
-			.flatMap((log) => {
-				try {
-					const payload = JSON.parse(JSON.parse(log.result!).payload);
-					if (payload) {
-						const url = payload.headers?.host;
-						if (url) {
-							return url;
-						} else {
-							return [];
-						}
-					} else {
-						return [];
-					}
-				} catch {
-					return [];
-				}
-			})
-			.filter((url, index, self) => self.indexOf(url) === index); // unique
-
-		// Make sure we don't have the same urls in loggedUrls and corsOriginsArray
-		const filteredUrls = urls
-			.filter(
-				(url) =>
-					!currentCorsOriginsArray.includes(`https://${url}`) &&
-					!currentCorsOriginsArray.includes(`http://${url}`),
-			)
-			.slice(0, 5); // limit to 5 URLs
-
-		setLoggedUrls(filteredUrls);
-	}, [lastLogs, corsOrigins]);
-
-	const handleKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-			e.preventDefault();
-			handleSubmit();
-		}
+		if (!isLoading) { onClose(); setError(""); }
 	};
 
 	const handleDockerMountChange = async (checked: boolean) => {
-		if (!checked) {
-			setDockerMount(false);
-			return;
-		}
-
+		if (!checked) { setDockerMount(false); return; }
 		if (dockerMount) return;
-
 		const confirmed = await confirm({
 			title: "Enable Docker Mount?",
-			message:
-				"Mounting the Docker socket gives this function elevated access to the host. Only enable this if you trust the function code and explicitly need Docker control from inside the container.",
+			message: "Mounting the Docker socket gives this function elevated access to the host. Only enable this if you trust the function code and explicitly need Docker control from inside the container.",
 			confirmText: "Enable Docker Mount",
 			cancelText: "Cancel",
 		});
-
-		if (confirmed) {
-			setDockerMount(true);
-		}
+		if (confirmed) setDockerMount(true);
 	};
 
 	const handleClearSourceFlags = async () => {
 		if (!functionData || !hasSourceFlags) return;
-
 		const confirmed = await confirm({
 			title: "Clear Source Flags?",
-			message:
-				"This will remove the Imported and AI Kicked-Off labels from this function. It will not change the code, files, or runtime settings.",
+			message: "This will remove the Imported and AI Kicked-Off labels from this function. It will not change the code, files, or runtime settings.",
 			confirmText: "Clear Flags",
 			cancelText: "Cancel",
 			variant: "delete",
 		});
-
 		if (!confirmed) return;
 
-		setIsClearingSourceFlags(true);
-		setError("");
-
+		setIsClearingSourceFlags(true); setError("");
 		try {
-			const response = await updateFunction(functionData.id, {
-				imported: false,
-				ai_kicked_off: false,
-			});
-
+			const response = await updateFunction(functionData.id, { imported: false, ai_kicked_off: false });
 			if (response.status === "OK") {
-				setSourceFlags({
-					imported: false,
-					ai_kicked_off: false,
-				});
+				setSourceFlags({ imported: false, ai_kicked_off: false });
 				onSuccess();
 			} else {
 				setError("Error clearing source flags: " + response.message);
 			}
-		} catch (err) {
-			console.error("Failed to clear source flags:", err);
+		} catch {
 			setError("An unexpected error occurred while clearing source flags");
 		} finally {
 			setIsClearingSourceFlags(false);
 		}
 	};
 
-	// console.log("Last logs passed to UpdateFunctionModal:", lastLogs); // Debug log
-	// console.log("Logged URLs for CORS suggestions:", loggedUrls); // Debug log
+	const [loggedUrls, setLoggedUrls] = useState<string[]>([]);
+	useEffect(() => {
+		if (!lastLogs || lastLogs.length === 0) { setLoggedUrls([]); return; }
+		const currentCorsOriginsArray = corsOrigins.split(",").map((o) => o.trim()).filter((o) => o.length > 0);
+		const urls = lastLogs
+			.flatMap((log) => {
+				try {
+					const payload = JSON.parse(JSON.parse(log.result!).payload);
+					return payload?.headers?.host ? [payload.headers.host] : [];
+				} catch { return []; }
+			})
+			.filter((url, index, self) => self.indexOf(url) === index)
+			.filter((url) => !currentCorsOriginsArray.includes(`https://${url}`) && !currentCorsOriginsArray.includes(`http://${url}`))
+			.slice(0, 5);
+		setLoggedUrls(urls);
+	}, [lastLogs, corsOrigins]);
+
+	useShiftEnterSubmit(() => handleSubmit(), isOpen && !isLoading);
+
+	const reinstallBtnClass = "text-xs px-3 py-1.5 border border-white/[0.07] text-muted hover:text-text hover:bg-white/[0.04] rounded-lg transition-colors disabled:opacity-50";
 
 	return (
-		<Modal
-			isOpen={isOpen}
-			onClose={handleClose}
-			title="Update Function"
-			maxWidth="lg"
-			isLoading={isLoading}
-		>
-			<div className="space-y-6" onKeyDown={handleKeyDown}>
-				{/* Error Message */}
-				{error && (
-					<div className="bg-red-500/10 border border-red-500/30 p-4 rounded-lg">
-						<div className="flex items-center gap-3">
-							<span className="text-red-400 text-lg">⚠️</span>
-							<p className="text-red-300 text-sm font-medium">{error}</p>
-						</div>
-					</div>
-				)}
+		<Modal isOpen={isOpen} onClose={handleClose} title="Update Function" maxWidth="lg" isLoading={isLoading}>
+			<div className="space-y-6">
+				<ModalError message={error} />
+
 				{hasSourceFlags && (
-					<div className="rounded-lg border border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-indigo-500/10 p-4">
+					<div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4">
 						<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-							<div className="flex items-start gap-3">
-								<div className="mt-0.5 text-2xl">🏷️</div>
-								<div className="space-y-2">
-									<div>
-										<h3 className="text-cyan-200 text-sm font-semibold">
-											Source flags enabled
-										</h3>
-										<p className="text-cyan-100/80 text-xs leading-relaxed">
-											This function is marked as imported or AI generated. You can
-											clear those labels without changing the function itself.
-										</p>
-									</div>
-									<div className="flex flex-wrap gap-2">
-										{sourceFlags.imported && (
-											<span className="rounded-full border border-blue-400/40 bg-blue-500/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-100">
-												Imported
-											</span>
-										)}
-										{sourceFlags.ai_kicked_off && (
-											<span className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-100">
-												AI Kicked-Off
-											</span>
-										)}
-									</div>
+							<div className="space-y-2">
+								<h3 className="text-cyan-200 text-sm font-semibold">Source flags enabled</h3>
+								<p className="text-cyan-100/80 text-xs leading-relaxed">
+									This function is marked as imported or AI generated. You can clear those labels without changing the function itself.
+								</p>
+								<div className="flex flex-wrap gap-2">
+									{sourceFlags.imported && (
+										<span className="rounded-full border border-blue-400/40 bg-blue-500/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-100">
+											Imported
+										</span>
+									)}
+									{sourceFlags.ai_kicked_off && (
+										<span className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-100">
+											AI Kicked-Off
+										</span>
+									)}
 								</div>
 							</div>
 							<button
 								type="button"
-								onClick={() => {
-									void handleClearSourceFlags();
-								}}
+								onClick={() => { void handleClearSourceFlags(); }}
 								disabled={isLoading || isClearingSourceFlags}
-								className="shrink-0 rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-4 py-2 text-xs font-semibold text-cyan-100 transition-all duration-300 hover:bg-cyan-500/25 hover:border-cyan-300/50 disabled:cursor-not-allowed disabled:opacity-50"
+								className="shrink-0 rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-4 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/25 hover:border-cyan-300/50 transition-colors disabled:opacity-50"
 							>
 								{isClearingSourceFlags ? "Clearing..." : "Clear Flags"}
 							</button>
 						</div>
 					</div>
 				)}
-				<div className="bg-yellow-900/30 border-l-4 border-yellow-500 p-4 rounded-lg flex items-start gap-4 mb-2">
-					<span className="text-yellow-400 text-2xl mt-0.5">⚠️</span>
+
+				<div className="bg-yellow-900/20 border-l-4 border-yellow-500 p-4 rounded-r-lg flex items-start gap-4">
 					<div>
-						<h3 className="text-yellow-300 text-base font-semibold mb-1">
-							Data Deletion Warning
-						</h3>
-						<p className="text-yellow-200 text-xs leading-relaxed">
-							<strong>
-								Updating this function may cause temporary downtime and could{" "}
-								<span className="underline decoration-yellow-400">
-									delete all files in
-								</span>{" "}
-								<InlineCode color="yellow">/app</InlineCode>.
-							</strong>
+						<h3 className="text-yellow-300 text-sm font-semibold mb-1">Data Deletion Warning</h3>
+						<p className="text-yellow-200/80 text-xs leading-relaxed">
+							<strong>Updating this function may cause temporary downtime and could{" "}
+							<span className="underline decoration-yellow-400">delete all files in</span>{" "}
+							<InlineCode color="yellow">/app</InlineCode>.</strong>
 							<br />
-							Back up any important data before updating fields that trigger a redeploy
-							like{" "}
-							{[
-								"Image",
-								"Docker Mount",
-								"Network Restriction",
-								"FFMPEG Install",
-								"OpenCV Install",
-							].map(
+							Back up any important data before updating fields that trigger a redeploy like{" "}
+							{["Image", "Docker Mount", "Network Restriction", "FFMPEG Install", "OpenCV Install"].map(
 								(field, index) => (
 									<React.Fragment key={field}>
 										<InlineCode color="yellow">{field}</InlineCode>
 										{index < 4 && ", "}
 									</React.Fragment>
 								),
-							)}
-							.
+							)}.
 						</p>
 					</div>
 				</div>
 
-				{/* Basic Information */}
-				<div className="space-y-4">
-					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-						<span>✏️</span> Basic Information
-					</h3>
-
+				<ModalSection title="Basic Information">
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div className="space-y-2">
-							<label className="text-sm font-medium text-gray-300">
-								Function Name
-							</label>
+						<div>
+							<label className={labelClass}>Function Name</label>
 							<input
 								type="text"
 								placeholder="my-awesome-function"
 								value={name}
 								onChange={(e) => setName(e.target.value)}
-								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+								className={inputClass}
 								disabled={isLoading}
 							/>
 						</div>
-
-						<div className="space-y-2">
-							<label className="text-sm font-medium text-gray-300">Startup File</label>
+						<div>
+							<label className={labelClass}>Startup File</label>
 							<input
 								type="text"
-								placeholder={
-									isDotnetRuntime
-										? ".NET functions auto-detect the runnable project"
-										: "main.py, index.js, etc."
-								}
+								placeholder={isDotnetRuntime ? ".NET functions auto-detect the runnable project" : "main.py, index.js, etc."}
 								value={startupFile || ""}
 								onChange={(e) => setStartupFile(e.target.value)}
-								className={`w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 ${
-									isLoading || isDotnetRuntime
-										? "opacity-50 cursor-not-allowed"
-										: ""
-								}`}
+								className={`${inputClass} ${isLoading || isDotnetRuntime ? "opacity-50 cursor-not-allowed" : ""}`}
 								disabled={isLoading || isDotnetRuntime}
 							/>
 							{isDotnetRuntime && (
-								<p className="text-xs text-cyan-300">
-									.NET functions keep this empty and resolve the runnable
-									project from your `.csproj` and `.sln` files.
+								<p className="text-xs text-cyan-300 mt-1">
+									.NET functions keep this empty and resolve the runnable project from your <code>.csproj</code> and <code>.sln</code> files.
 								</p>
 							)}
 						</div>
 					</div>
-
-					<div className="space-y-2">
-						<label className="text-sm font-medium text-gray-300">Description</label>
+					<div>
+						<label className={labelClass}>Description</label>
 						<textarea
 							placeholder="Brief description of what this function does..."
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
-							className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 resize-none"
+							className={textareaClass}
 							rows={3}
 							disabled={isLoading}
 						/>
 					</div>
-
-					<div className="space-y-2">
-						<label className="text-sm font-medium text-gray-300">Namespace</label>
+					<div>
+						<label className={labelClass}>Namespace</label>
 						<select
 							value={namespaceSelectValue}
-							onChange={(e) => {
-								const val = e.target.value;
-								setSelectedNamespaceId(val ? Number(val) : undefined);
-							}}
-							className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+							onChange={(e) => setSelectedNamespaceId(e.target.value ? Number(e.target.value) : undefined)}
+							className={selectClass}
 							disabled={isLoading || namespaces.length === 0}
 						>
-							{namespaces.length === 0 && (
-								<option value="">Loading namespaces...</option>
-							)}
-							{namespaces.length > 0 &&
-								namespaces.map((ns) => (
-									<option key={ns.id} value={ns.id}>
-										{ns.name}
-									</option>
-								))}
+							{namespaces.length === 0 && <option value="">Loading namespaces...</option>}
+							{namespaces.map((ns) => (
+								<option key={ns.id} value={ns.id}>{ns.name}</option>
+							))}
 						</select>
 					</div>
-
-					{/* Execution Alias input */}
-					<div className="space-y-2">
-						<label className="text-sm font-medium text-gray-300">
-							Execution Alias
-						</label>
+					<div>
+						<label className={labelClass}>Execution Alias</label>
 						<input
 							type="text"
 							placeholder="Optional: alias for execution (e.g. big-test-1)"
 							pattern="^[a-zA-Z0-9-_]+$"
 							value={executionAlias}
 							onChange={(e) => setExecutionAlias(e.target.value)}
-							className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+							className={inputClass}
 							disabled={isLoading}
 						/>
 					</div>
-				</div>
+				</ModalSection>
 
-				{/* Runtime Configuration */}
-				<div className="space-y-4">
-					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-						<span>⚙️</span> Runtime Configuration
-					</h3>
+				<ModalSection title="Runtime Configuration">
 					<div className={isHtmlFunction ? "opacity-50 pointer-events-none" : ""}>
-						<label className="text-sm font-medium text-gray-300">Runtime Image</label>
+						<label className={labelClass}>Runtime Image</label>
 						{isDeprecated && functionData && (
-							<div className="bg-red-500/10 border-l-4 border-red-500 p-4 rounded-r-lg mb-4 flex items-start gap-3">
-								<span className="text-red-400 text-xl mt-0.5">🚫</span>
+							<div className="bg-red-500/10 border-l-4 border-red-500 p-3 rounded-r-lg mb-3 flex items-start gap-3">
 								<div>
-									<h3 className="text-sm font-bold text-red-400 mb-1">
-										Deprecated Runtime Image
-									</h3>
+									<h3 className="text-sm font-bold text-red-400 mb-1">Deprecated Runtime Image</h3>
 									<p className="text-xs text-red-300/80 leading-relaxed">
-										The current image{" "}
-										<InlineCode color="red">{functionData.image}</InlineCode> is no longer
-										maintained. Please switch to a newer version to ensure security and
-										performance.
+										The current image <InlineCode color="red">{functionData.image}</InlineCode> is no longer maintained. Please switch to a newer version.
 									</p>
 								</div>
 							</div>
@@ -624,412 +430,189 @@ function UpdateFunctionModal({
 						<select
 							value={image}
 							onChange={(e) => setImage(e.target.value as Image)}
-							className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+							className={selectClass}
 							disabled={isLoading || isHtmlFunction}
 						>
 							{ImagesAsArray.map((img) => {
-								let isDisabled: { state?: boolean; message?: string } = {};
-								if (getImageFamily(img) !== getImageFamily(image)) {
-									isDisabled = {
-										state: true,
-										message: "Changing language/runtime is not allowed",
-									};
-								}
-								if (deprecatedImages.includes(img)) {
-									isDisabled = {
-										state: true,
-										message: "This image is deprecated and cannot be selected",
-									};
-								}
-
+								const isCrossFamily = getImageFamily(img) !== getImageFamily(image);
+								const isDeprecatedImg = deprecatedImages.includes(img);
 								return (
-									<option key={img} value={img} disabled={isDisabled.state}>
-										{getImageDisplayName(img)}{" "}
-										{isDisabled.message && `(${isDisabled.message})`}
+									<option key={img} value={img} disabled={isCrossFamily || isDeprecatedImg}>
+										{getImageDisplayName(img)}
+										{isCrossFamily ? " (changing language/runtime is not allowed)" : ""}
+										{isDeprecatedImg ? " (deprecated)" : ""}
 									</option>
 								);
 							})}
 						</select>
 						{isHtmlFunction && (
-							<p className="text-xs text-yellow-400 mt-1">
-								Disabled for HTML startup files
-							</p>
+							<p className="text-xs text-yellow-400 mt-1">Disabled for HTML startup files</p>
 						)}
 					</div>
-				</div>
+				</ModalSection>
 
-				{/* Resource Settings */}
-				<div className="space-y-4">
-					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-						<span>📊</span> Resource Settings
-					</h3>
+				<ModalSection title="Resource Settings">
 					<div className={isHtmlFunction ? "opacity-50 pointer-events-none" : ""}>
-						<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-							<div className="space-y-2">
-								<label className="text-sm font-medium text-gray-300">
-									Max RAM (MB)
-								</label>
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div>
+								<label className={labelClass}>Max RAM (MB)</label>
 								<input
 									type="number"
 									placeholder="512"
 									value={maxRam || ""}
 									onChange={(e) => setMaxRam(Number(e.target.value))}
-									className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+									className={inputClass}
 									disabled={isLoading || isHtmlFunction}
 								/>
 							</div>
-							<div className="space-y-2">
-								<label className="text-sm font-medium text-gray-300">
-									Timeout (sec)
-								</label>
+							<div>
+								<label className={labelClass}>Timeout (sec)</label>
 								<input
 									type="number"
 									placeholder="30"
 									value={timeout || ""}
 									max={300}
 									onChange={(e) => setTimeout(Number(e.target.value))}
-									className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
+									className={inputClass}
 									disabled={isLoading || isHtmlFunction}
 								/>
 							</div>
 						</div>
 						{isHtmlFunction && (
-							<p className="text-xs text-yellow-400 mt-1">
-								Resource settings are disabled for HTML startup files
-							</p>
+							<p className="text-xs text-yellow-400 mt-1">Resource settings are disabled for HTML startup files</p>
 						)}
 					</div>
-				</div>
+				</ModalSection>
 
-				{/* Security & Advanced Settings */}
-				<div className="space-y-4">
-					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-						<span>🔧</span> Security & Advanced
-					</h3>
-					<div className="space-y-4">
-						{/* HTTP Toggle */}
-						<div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4">
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-3">
-									<span className="text-lg">🌐</span>
-									<div>
-										<p className="text-white font-medium text-sm">Allow HTTP</p>
-										<p className="text-gray-400 text-xs">
-											Enable inbound HTTP/HTTPS requests
-										</p>
-									</div>
-								</div>
-								<div className="relative">
-									<input
-										type="checkbox"
-										checked={allowHttp}
-										onChange={(e) => setAllowHttp(e.target.checked)}
-										className="sr-only peer"
-										disabled={isLoading}
-										id="allow-http-update"
-									/>
-									<label
-										htmlFor="allow-http-update"
-										className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-purple-500 transition-all duration-300 cursor-pointer flex items-center relative"
-									>
-										<div
-											className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
-												allowHttp ? "translate-x-6" : "translate-x-0.5"
-											}`}
-										></div>
-									</label>
-								</div>
+				<ModalSection title="Security & Advanced">
+					<ToggleRow
+						id="allow-http-update"
+						checked={allowHttp}
+						onChange={setAllowHttp}
+						disabled={isLoading}
+						label="Allow HTTP"
+						description="Enable inbound HTTP/HTTPS requests"
+					/>
+
+					<div className={isHtmlFunction ? "opacity-50 pointer-events-none" : ""}>
+						<ToggleRow
+							id="docker-mount-update"
+							checked={dockerMount}
+							onChange={(checked) => { void handleDockerMountChange(checked); }}
+							disabled={isLoading || isHtmlFunction}
+							label="Mount Docker Socket"
+							description="Mounts /var/run/docker.sock (Security risk!)"
+						/>
+						{isHtmlFunction && (
+							<p className="text-xs text-muted mt-1">Docker mount is disabled for HTML startup files</p>
+						)}
+					</div>
+
+					<div className={isHtmlFunction ? "opacity-50 pointer-events-none" : ""}>
+						<ToggleRow
+							id="network-restricted-update"
+							checked={networkRestricted}
+							onChange={setNetworkRestricted}
+							disabled={isLoading || isHtmlFunction}
+							label="Restrict Network"
+							description="Run the container with Docker network disabled"
+						/>
+						{isHtmlFunction && (
+							<p className="text-xs text-muted mt-1">Network restrictions are disabled for HTML startup files</p>
+						)}
+					</div>
+
+					<div className={isHtmlFunction ? "opacity-50 pointer-events-none" : ""}>
+						<ToggleRow
+							id="ffmpeg-install-update"
+							checked={ffmpegInstall}
+							onChange={setFfmpegInstall}
+							disabled={isLoading || isHtmlFunction}
+							label="Install FFmpeg"
+							description="Installs ffmpeg for media processing"
+						/>
+						{ffmpegInstall && (
+							<div className="mt-2 flex justify-end">
+								<button type="button" onClick={handleReinstallFfmpeg} disabled={isReinstallingFfmpeg || isLoading} className={reinstallBtnClass}>
+									{isReinstallingFfmpeg ? "Reinstalling..." : "Trigger Reinstall"}
+								</button>
 							</div>
-						</div>
+						)}
+						{isHtmlFunction && (
+							<p className="text-xs text-muted mt-1">FFmpeg install is disabled for HTML startup files</p>
+						)}
+					</div>
 
-						{/* Docker Mount Toggle */}
-						<div
-							className={`bg-gray-800/30 border border-yellow-600/50 rounded-lg p-4 ${
-								isHtmlFunction ? "opacity-50 pointer-events-none" : ""
-							}`}
-						>
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-3">
-									<span className="text-lg">🐳</span>
-									<div>
-										<p className="text-yellow-300 font-medium text-sm">
-											Mount Docker Socket
-										</p>
-										<p className="text-yellow-400 text-xs">
-											Mounts /var/run/docker.sock (Security risk!)
-										</p>
-									</div>
-								</div>
-								<div className="relative">
-									<input
-										type="checkbox"
-										checked={dockerMount}
-										onChange={(e) => {
-											void handleDockerMountChange(e.target.checked);
-										}}
-										className="sr-only peer"
-										disabled={isLoading || isHtmlFunction}
-										id="docker-mount-update"
-									/>
-									<label
-										htmlFor="docker-mount-update"
-										className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-yellow-500 peer-checked:to-red-500 transition-all duration-300 cursor-pointer flex items-center relative"
-									>
-										<div
-											className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
-												dockerMount ? "translate-x-6" : "translate-x-0.5"
-											}`}
-										></div>
-									</label>
-								</div>
+					<div className={isHtmlFunction ? "opacity-50 pointer-events-none" : ""}>
+						<ToggleRow
+							id="opencv-install-update"
+							checked={opencv_install}
+							onChange={setOpencvInstall}
+							disabled={isLoading || isHtmlFunction}
+							label="Install OpenCV"
+							description="Installs python3-opencv for computer vision"
+						/>
+						{opencv_install && (
+							<div className="mt-2 flex justify-end">
+								<button type="button" onClick={handleReinstallOpencv} disabled={isReinstallingOpencv || isLoading} className={reinstallBtnClass}>
+									{isReinstallingOpencv ? "Reinstalling..." : "Trigger Reinstall"}
+								</button>
 							</div>
-							{isHtmlFunction && (
-								<p className="text-xs text-yellow-400 mt-1">
-									Docker mount is disabled for HTML startup files
-								</p>
-							)}
-						</div>
+						)}
+						{isHtmlFunction && (
+							<p className="text-xs text-muted mt-1">OpenCV install is disabled for HTML startup files</p>
+						)}
+					</div>
 
-						<div
-							className={`bg-gray-800/30 border border-cyan-600/50 rounded-lg p-4 ${
-								isHtmlFunction ? "opacity-50 pointer-events-none" : ""
-							}`}
-						>
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-3">
-									<span className="text-lg">🔒</span>
-									<div>
-										<p className="text-cyan-300 font-medium text-sm">
-											Restrict Network
-										</p>
-										<p className="text-cyan-400 text-xs">
-											Run the container with Docker network disabled
-										</p>
-									</div>
-								</div>
-								<div className="relative">
-									<input
-										type="checkbox"
-										checked={networkRestricted}
-										onChange={(e) => setNetworkRestricted(e.target.checked)}
-										className="sr-only peer"
-										disabled={isLoading || isHtmlFunction}
-										id="network-restricted-update"
-									/>
-									<label
-										htmlFor="network-restricted-update"
-										className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-cyan-500 peer-checked:to-blue-500 transition-all duration-300 cursor-pointer flex items-center relative"
-									>
-										<div
-											className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
-												networkRestricted ? "translate-x-6" : "translate-x-0.5"
-											}`}
-										></div>
-									</label>
-								</div>
+					<div>
+						<ToggleRow
+							id="cache-enabled-update"
+							checked={cacheEnabled}
+							onChange={setCacheEnabled}
+							disabled={isLoading}
+							label="Response Caching"
+							description="Cache function responses to improve performance"
+						/>
+						{cacheEnabled && (
+							<div className="mt-3 bg-background/40 border border-white/[0.07] rounded-lg p-3">
+								<label className={labelClass}>Cache TTL (seconds)</label>
+								<input
+									type="number"
+									min="1"
+									max="86400"
+									value={cacheTtl}
+									onChange={(e) => setCacheTtl(parseInt(e.target.value) || 60)}
+									className={inputClass}
+									placeholder="60"
+									disabled={isLoading}
+								/>
+								<p className="text-xs text-muted mt-1">How long to store the result (1 to 86400 seconds)</p>
 							</div>
-							{isHtmlFunction && (
-								<p className="text-xs text-cyan-400 mt-1">
-									Network restrictions are disabled for HTML startup files
-								</p>
-							)}
-						</div>
+						)}
+					</div>
 
-						{/* FFmpeg Install Toggle */}
-						<div
-							className={`bg-gray-800/30 border border-purple-600/50 rounded-lg p-4 ${
-								isHtmlFunction ? "opacity-50 pointer-events-none" : ""
-							}`}
-						>
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-3">
-									<span className="text-lg">🎬</span>
-									<div>
-										<p className="text-purple-300 font-medium text-sm">Install FFmpeg</p>
-										<p className="text-purple-400 text-xs">
-											Installs ffmpeg for media processing
-										</p>
-									</div>
-								</div>
-								<div className="relative">
-									<input
-										type="checkbox"
-										checked={ffmpegInstall}
-										onChange={(e) => setFfmpegInstall(e.target.checked)}
-										className="sr-only peer"
-										disabled={isLoading || isHtmlFunction}
-										id="ffmpeg-install-update"
-									/>
-									<label
-										htmlFor="ffmpeg-install-update"
-										className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-purple-500 peer-checked:to-pink-500 transition-all duration-300 cursor-pointer flex items-center relative"
-									>
-										<div
-											className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
-												ffmpegInstall ? "translate-x-6" : "translate-x-0.5"
-											}`}
-										></div>
-									</label>
-								</div>
-							</div>
-							{ffmpegInstall && (
-								<div className="mt-3 pt-3 border-t border-purple-600/20 flex justify-end">
-									<button
-										type="button"
-										onClick={handleReinstallFfmpeg}
-										disabled={isReinstallingFfmpeg || isLoading}
-										className="text-xs px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 rounded border border-purple-600/30 transition-all duration-300 disabled:opacity-50"
-									>
-										{isReinstallingFfmpeg ? "🔄 Reinstalling..." : "🔄 Trigger Reinstall"}
-									</button>
-								</div>
-							)}
-							{isHtmlFunction && (
-								<p className="text-xs text-purple-400 mt-1">
-									FFmpeg install is disabled for HTML startup files
-								</p>
-							)}
-						</div>
+					<div>
+						<label className={labelClass}>Secure Header</label>
+						<input
+							type="text"
+							placeholder="Optional secure header for authentication"
+							value={secureHeader || ""}
+							onChange={(e) => setSecureHeader(e.target.value)}
+							className={inputClass}
+							disabled={isLoading}
+						/>
+					</div>
 
-						{/* OpenCV Install Toggle */}
-						<div
-							className={`bg-gray-800/30 border border-teal-600/50 rounded-lg p-4 ${
-								isHtmlFunction ? "opacity-50 pointer-events-none" : ""
-							}`}
-						>
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-3">
-									<span className="text-lg">👁️</span>
-									<div>
-										<p className="text-teal-300 font-medium text-sm">Install OpenCV</p>
-										<p className="text-teal-400 text-xs">
-											Installs python3-opencv for computer vision
-										</p>
-									</div>
-								</div>
-								<div className="relative">
-									<input
-										type="checkbox"
-										checked={opencv_install}
-										onChange={(e) => setOpencvInstall(e.target.checked)}
-										className="sr-only peer"
-										disabled={isLoading || isHtmlFunction}
-										id="opencv-install-update"
-									/>
-									<label
-										htmlFor="opencv-install-update"
-										className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-teal-500 peer-checked:to-emerald-500 transition-all duration-300 cursor-pointer flex items-center relative"
-									>
-										<div
-											className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
-												opencv_install ? "translate-x-6" : "translate-x-0.5"
-											}`}
-										></div>
-									</label>
-								</div>
-							</div>
-							{opencv_install && (
-								<div className="mt-3 pt-3 border-t border-teal-600/20 flex justify-end">
-									<button
-										type="button"
-										onClick={handleReinstallOpencv}
-										disabled={isReinstallingOpencv || isLoading}
-										className="text-xs px-3 py-1.5 bg-teal-600/20 hover:bg-teal-600/40 text-teal-300 rounded border border-teal-600/30 transition-all duration-300 disabled:opacity-50"
-									>
-										{isReinstallingOpencv ? "🔄 Reinstalling..." : "🔄 Trigger Reinstall"}
-									</button>
-								</div>
-							)}
-							{isHtmlFunction && (
-								<p className="text-xs text-teal-400 mt-1">
-									OpenCV install is disabled for HTML startup files
-								</p>
-							)}
-						</div>
-
-						{/* Caching Toggle & TTL */}
-						<div className="bg-gray-800/30 border border-blue-600/50 rounded-lg p-4">
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-3">
-									<span className="text-lg">⚡</span>
-									<div>
-										<p className="text-blue-300 font-medium text-sm">Response Caching</p>
-										<p className="text-blue-400 text-xs">
-											Cache function responses to improve performance
-										</p>
-									</div>
-								</div>
-								<div className="relative">
-									<input
-										type="checkbox"
-										checked={cacheEnabled}
-										onChange={(e) => setCacheEnabled(e.target.checked)}
-										className="sr-only peer"
-										id="cache-enabled-update"
-									/>
-									<label
-										htmlFor="cache-enabled-update"
-										className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-blue-500 peer-checked:to-cyan-500 transition-all duration-300 cursor-pointer flex items-center relative"
-									>
-										<div
-											className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${
-												cacheEnabled ? "translate-x-6" : "translate-x-0.5"
-											}`}
-										></div>
-									</label>
-								</div>
-							</div>
-
-							{cacheEnabled && (
-								<div className="mt-4 pt-4 border-t border-gray-700/50 flex flex-col gap-2">
-									<label className="text-xs font-medium text-gray-400">
-										Cache TTL (seconds)
-									</label>
-									<input
-										type="number"
-										min="1"
-										max="86400"
-										value={cacheTtl}
-										onChange={(e) => setCacheTtl(parseInt(e.target.value) || 60)}
-										className="w-full p-2 bg-gray-900/50 border border-gray-600/50 text-white rounded focus:border-blue-500/50 focus:outline-none text-sm"
-										placeholder="60"
-										disabled={isLoading}
-									/>
-									<p className="text-[10px] text-gray-500">
-										How long to store the result (1 to 86400 seconds)
-									</p>
-								</div>
-							)}
-						</div>
-
-						{/* Secure Header */}
-						<div className="space-y-2">
-							<label className="text-sm font-medium text-gray-300">
-								Secure Header
-							</label>
-							<input
-								type="text"
-								placeholder="Optional secure header for authentication"
-								value={secureHeader || ""}
-								onChange={(e) => setSecureHeader(e.target.value)}
-								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
-								disabled={isLoading}
-							/>
-						</div>
-
-						{/* CORS Origins */}
-						<div className="space-y-2">
-							<label className="text-sm font-medium text-gray-300">CORS Origins</label>
+					<div className="space-y-2">
+						<label className={labelClass}>CORS Origins</label>
+						{corsOriginsArray.length > 0 && (
 							<div className="flex flex-wrap gap-2 mb-2">
 								{corsOriginsArray.map((origin) => (
-									<span
-										key={origin}
-										className="flex items-center bg-gray-700 text-white px-3 py-1 rounded-full text-xs"
-									>
+									<span key={origin} className="flex items-center gap-1.5 bg-background/60 border border-white/[0.07] text-text text-xs px-2.5 py-1 rounded-full">
 										{origin}
 										<button
 											type="button"
-											className="ml-2 text-red-400 hover:text-red-600"
+											className="text-muted hover:text-red-400 transition-colors"
 											onClick={() => removeCorsOrigin(origin)}
 											disabled={isLoading}
 											aria-label={`Remove ${origin}`}
@@ -1039,96 +622,68 @@ function UpdateFunctionModal({
 									</span>
 								))}
 							</div>
-							<div className="flex gap-2">
-								<input
-									type="text"
-									placeholder="Add origin (e.g. https://example.com)"
-									value={corsOriginInput}
-									onChange={(e) => setCorsOriginInput(e.target.value)}
-									className="flex-1 p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
-									disabled={isLoading}
-									onKeyDown={(e) => {
-										if (e.key === "Enter") {
-											e.preventDefault();
-											addCorsOrigin();
-										}
-									}}
-								/>
-								<button
-									type="button"
-									onClick={addCorsOrigin}
-									className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all duration-300 disabled:opacity-50"
-									disabled={isLoading || !corsOriginInput.trim()}
-								>
-									Add
-								</button>
-							</div>
-							<p className="text-xs text-gray-400">
-								Leave empty to allow only default origins. Each origin will be sent
-								comma separated.
-							</p>
-							{loggedUrls.length > 0 && (
-								<div className="mt-4">
-									<p className="text-xs text-blue-300 mb-2">
-										We found these URLs to be possible origins you might want to add:
-									</p>
-									<div className="flex flex-wrap gap-3">
-										{loggedUrls.map((url) => (
-											<div
-												key={url}
-												className="bg-gray-800 border border-blue-600/40 rounded-lg px-4 py-2 flex items-center gap-2 shadow-sm"
-											>
-												<span className="text-blue-400 text-xs break-all">{url}</span>
-												{["https://", "http://"].map((protocol) => {
-													const origin = `${protocol}${url}`;
-													const alreadyAdded = corsOriginsArray.includes(origin);
-													return (
-														<button
-															key={protocol}
-															type="button"
-															className={`ml-2 px-2 py-0.5 ${
-																protocol === "https://"
-																	? "bg-blue-600 hover:bg-blue-700"
-																	: "bg-gray-600 hover:bg-gray-700"
-															} text-white rounded text-xs font-medium transition`}
-															onClick={() => {
-																if (!alreadyAdded) {
-																	setCorsOrigins([...corsOriginsArray, origin].join(", "));
-																}
-															}}
-															disabled={isLoading || alreadyAdded}
-														>
-															Add {protocol.replace("://", "")}
-														</button>
-													);
-												})}
-											</div>
-										))}
-									</div>
-								</div>
-							)}
+						)}
+						<div className="flex gap-2">
+							<input
+								type="text"
+								placeholder="Add origin (e.g. https://example.com)"
+								value={corsOriginInput}
+								onChange={(e) => setCorsOriginInput(e.target.value)}
+								className={`${inputClass} flex-1`}
+								disabled={isLoading}
+								onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCorsOrigin(); } }}
+							/>
+							<button
+								type="button"
+								onClick={addCorsOrigin}
+								className={primaryBtnClass}
+								disabled={isLoading || !corsOriginInput.trim()}
+							>
+								Add
+							</button>
 						</div>
-					</div>
-				</div>
+						<p className="text-xs text-muted">Leave empty to allow only default origins.</p>
 
-				{/* Action Buttons */}
-				<div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-700/50">
-					<button
-						onClick={handleClose}
-						className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500"
-						disabled={isLoading}
-					>
+						{loggedUrls.length > 0 && (
+							<div className="mt-3 space-y-2">
+								<p className="text-xs text-muted">Possible origins from recent logs:</p>
+								<div className="flex flex-wrap gap-2">
+									{loggedUrls.map((url) => (
+										<div key={url} className="bg-background/40 border border-white/[0.07] rounded-lg px-3 py-2 flex items-center gap-2">
+											<span className="text-xs text-muted/80 break-all font-mono">{url}</span>
+											{["https://", "http://"].map((protocol) => {
+												const origin = `${protocol}${url}`;
+												const alreadyAdded = corsOriginsArray.includes(origin);
+												return (
+													<button
+														key={protocol}
+														type="button"
+														className="text-xs px-2 py-0.5 border border-white/[0.07] text-muted hover:text-text hover:bg-white/[0.04] rounded transition-colors disabled:opacity-50"
+														onClick={() => {
+															if (!alreadyAdded) setCorsOrigins([...corsOriginsArray, origin].join(", "));
+														}}
+														disabled={isLoading || alreadyAdded}
+													>
+														{protocol.replace("://", "")}
+													</button>
+												);
+											})}
+										</div>
+									))}
+								</div>
+							</div>
+						)}
+					</div>
+				</ModalSection>
+
+				<ModalFooter>
+					<button onClick={handleClose} className={cancelBtnClass} disabled={isLoading}>
 						Cancel
 					</button>
-					<button
-						onClick={handleSubmit}
-						className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-						disabled={isLoading}
-					>
-						<span className="text-sm">💾</span>
-							Update Function
-						</button>
-					</div>
+					<button onClick={handleSubmit} className={primaryBtnClass} disabled={isLoading}>
+						Update Function
+					</button>
+				</ModalFooter>
 			</div>
 		</Modal>
 	);

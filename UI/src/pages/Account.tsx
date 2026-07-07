@@ -1,8 +1,11 @@
 import { useContext, useState } from "react";
 import { UserContext } from "../App";
 import { deleteAccount, exportAccountData, updateAccountSettings } from "../services/backend.account";
+import { HelpTooltip } from "../components/ui/Tooltip";
+import { Icon } from "../components/ui/Icon";
+import { Link } from "react-router-dom";
 
-export const AccountPage = ({}) => {
+export const AccountPage = () => {
 	const { user, refreshUser, loading } = useContext(UserContext);
 	const [showDeleteModal, setShowDeleteModal] = useState(false);
 	const [deleteConfirmation, setDeleteConfirmation] = useState("");
@@ -11,7 +14,6 @@ export const AccountPage = ({}) => {
 	const [exportLoading, setExportLoading] = useState(false);
 	const aiFeaturesEnabled = Boolean(user?.apiKeyConfigured);
 
-	// AI Settings state
 	const [openRouterKey, setOpenRouterKey] = useState<string>("");
 	const [aiSettingsSaving, setAiSettingsSaving] = useState(false);
 	const [aiSettingsMessage, setAiSettingsMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -20,19 +22,13 @@ export const AccountPage = ({}) => {
 	const handleSaveAiSettings = async () => {
 		const trimmedKey = openRouterKey.trim();
 		if (!trimmedKey) {
-			setAiSettingsMessage({
-				type: "err",
-				text: "Enter an OpenRouter API key before saving.",
-			});
+			setAiSettingsMessage({ type: "err", text: "Enter an OpenRouter API key before saving." });
 			return;
 		}
-
 		setAiSettingsSaving(true);
 		setAiSettingsMessage(null);
 		try {
-			const result = await updateAccountSettings({
-				openRouterKey: trimmedKey,
-			});
+			const result = await updateAccountSettings({ openRouterKey: trimmedKey });
 			if (result.status === "OK") {
 				setAiSettingsMessage({ type: "ok", text: "API key saved successfully" });
 				setOpenRouterKey("");
@@ -71,20 +67,16 @@ export const AccountPage = ({}) => {
 			setDeleteError("Please type 'DELETE_MY_ACCOUNT' to confirm");
 			return;
 		}
-
 		setDeleteLoading(true);
 		setDeleteError("");
-
 		try {
 			const result = await deleteAccount(deleteConfirmation);
-
 			if (result.status === "OK") {
-				// Redirect to home page or login page
 				window.location.href = "/";
 			} else {
 				setDeleteError(result.message);
 			}
-		} catch (error) {
+		} catch {
 			setDeleteError("An error occurred while deleting your account");
 		} finally {
 			setDeleteLoading(false);
@@ -104,9 +96,8 @@ export const AccountPage = ({}) => {
 			link.click();
 			document.body.removeChild(link);
 			window.URL.revokeObjectURL(url);
-		} catch (error) {
-			console.error("Export failed:", error);
-			// You could show an error toast here
+		} catch {
+			// handled silently
 		} finally {
 			setExportLoading(false);
 		}
@@ -114,296 +105,197 @@ export const AccountPage = ({}) => {
 
 	if (loading) {
 		return (
-			<div className="min-h-screen bg-background flex items-center justify-center">
-				<div className="text-center space-y-4">
-					<div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto"></div>
-					<p className="text-text/70 text-lg">Loading account information...</p>
-				</div>
+			<div className="flex items-center justify-center py-24">
+				<div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
 			</div>
 		);
 	}
 
+	const inputClass = "w-full px-3 py-2 bg-background border border-white/[0.07] rounded-lg text-text text-sm focus:border-primary/50 focus:outline-none placeholder:text-muted/60";
+	const btnPrimary = "px-4 py-2 bg-primary text-background text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50";
+	const btnSecondary = "px-4 py-2 border border-white/[0.07] text-text/70 text-sm font-medium rounded-lg hover:bg-surface-raised hover:text-text hover:border-primary/20 transition-colors disabled:opacity-50";
+
 	return (
-		<div className="min-h-screen bg-background">
-			{/* Hero Header Section */}
-			<div className="relative bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-b border-primary/20">
-				<div className="max-w-6xl mx-auto px-4 py-16">
-					<div className="text-center space-y-4">
-						<h1 className="text-5xl font-bold text-primary mb-4">
-							Account Dashboard
-						</h1>
-						<div className="h-1 w-24 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
-						<p className="text-xl text-text/70 max-w-2xl mx-auto">
-							Manage your profile, settings, and account preferences
-						</p>
-					</div>
-				</div>
+		<div>
+			<div className="mb-6">
+				<h1 className="text-2xl font-semibold text-text">Account</h1>
+				<p className="text-sm text-muted mt-0.5">Manage your profile, settings, and account preferences</p>
 			</div>
 
-			<div className="max-w-6xl mx-auto px-4 py-12">
-				{user ? (
-					<div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-						{/* Profile Card */}
-						<div className="lg:col-span-2">
-							<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-2xl p-8 hover:border-primary/40 hover:shadow-[0_0_30px_rgba(124,131,253,0.1)] transition-all duration-300">
-								<h2 className="text-2xl font-bold text-primary mb-6 flex items-center gap-3">
-									<div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
-										👤
+			{user ? (
+				<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+					{/* Left column */}
+					<div className="lg:col-span-2 space-y-6">
+						{/* Profile */}
+						<div className="bg-surface border border-white/[0.07] rounded-xl">
+							<div className="px-5 py-4 border-b border-white/[0.07]">
+								<h2 className="text-sm font-semibold text-text">Profile Information</h2>
+							</div>
+							<div className="px-5 py-4">
+								<div className="flex items-center gap-3 mb-4">
+									<div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-semibold text-base shrink-0">
+										{user.email?.[0]?.toUpperCase() ?? "?"}
 									</div>
-									Profile Information
-								</h2>
-
-								{/* Avatar and Basic Info */}
-								<div className="flex items-center mb-8 p-6 bg-background/50 rounded-xl border border-primary/10">
-									<div className="flex-1">
-										<h3 className="text-2xl font-bold text-text mb-2">{user.email}</h3>
-										<div className="flex items-center gap-2 text-text/60">
-											<span className="px-3 py-1 bg-green-500/20 text-green-300 rounded-full text-sm font-medium">
-												Active User
-											</span>
-											<span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm font-medium">
-												Verified
-											</span>
+									<div>
+										<p className="text-sm font-semibold text-text">{user.email}</p>
+										<div className="flex gap-2 mt-0.5">
+											<span className="px-1.5 py-0.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded text-xs">Active</span>
+											<span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded text-xs">Verified</span>
 										</div>
 									</div>
 								</div>
-
-								{/* Account Details Grid */}
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-									<DetailCard
-										icon="📧"
-										label="Email Address"
-										value={user.email}
-										subtitle="Primary contact method"
-									/>
-									<DetailCard
-										icon="📅"
-										label="Account Since"
-										value={
-											user.createdAt
-												? new Date(user.createdAt).toLocaleDateString("en-US", {
-														year: "numeric",
-														month: "long",
-														day: "numeric",
-													})
-												: "Unknown"
-										}
-										subtitle="Account creation date"
-									/>
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+									<div className="bg-background border border-white/[0.07] rounded-lg px-3 py-3">
+										<p className="text-xs text-muted mb-1">Email Address</p>
+										<p className="text-sm text-text font-medium">{user.email}</p>
+									</div>
+									<div className="bg-background border border-white/[0.07] rounded-lg px-3 py-3">
+										<p className="text-xs text-muted mb-1">Account Since</p>
+										<p className="text-sm text-text font-medium">
+											{user.createdAt
+												? new Date(user.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+												: "Unknown"}
+										</p>
+									</div>
 								</div>
 							</div>
 						</div>
 
-						{/* AI Settings Card */}
-						<div className="lg:col-span-2">
-							<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-2xl p-8 hover:border-primary/40 hover:shadow-[0_0_30px_rgba(124,131,253,0.1)] transition-all duration-300">
-								<h2 className="text-2xl font-bold text-primary mb-2 flex items-center gap-3">
-									<div className="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
-										🤖
-									</div>
+						{/* AI Settings */}
+						<div className="bg-surface border border-white/[0.07] rounded-xl">
+							<div className="px-5 py-4 border-b border-white/[0.07]">
+								<h2 className="text-sm font-semibold text-text flex items-center gap-2">
 									AI Settings
+									<HelpTooltip
+										content="AI-powered code generation lets you describe a function in plain language and have it written automatically. Requires an OpenRouter API key."
+										placement="right"
+									/>
 								</h2>
-								<div className="mb-4 rounded-lg border border-primary/15 bg-background/40 px-4 py-3 text-sm text-text/75">
-									{aiFeaturesEnabled
-										? "AI features are currently enabled."
-										: "AI features are disabled until an OpenRouter API key is configured."}
+							</div>
+							<div className="px-5 py-4 space-y-4">
+								<div className={`px-3 py-2 rounded-lg border text-xs ${aiFeaturesEnabled ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-white/[0.03] border-white/[0.07] text-muted"}`}>
+									{aiFeaturesEnabled ? "AI features are currently enabled." : "AI features are disabled until an OpenRouter API key is configured."}
 								</div>
-								<p className="text-text/50 text-sm mb-6">
+								<p className="text-xs text-muted leading-relaxed">
 									Provide your own{" "}
-									<a
-										href="https://openrouter.ai/keys"
-										target="_blank"
-										rel="noreferrer"
-										className="text-primary/70 hover:text-primary underline underline-offset-2"
-									>
+									<a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="text-primary/70 hover:text-primary underline underline-offset-2">
 										OpenRouter API key
-										</a>{" "}
-									to enable AI-powered code generation for your functions. Your key is
-									stored securely and used only for your requests.
+									</a>{" "}
+									to enable AI-powered code generation. Your key is stored securely and used only for your requests.
 								</p>
 
-								<div className="space-y-4">
-									<div>
-										<label className="block text-text/70 text-sm font-medium mb-2">
-											OpenRouter API Key
-										</label>
-										<div className="flex gap-2">
-											<input
-												type={showKey ? "text" : "password"}
-												value={openRouterKey}
-												onChange={(e) => setOpenRouterKey(e.target.value)}
-												placeholder={aiFeaturesEnabled ? "Enter a new key to replace the saved one" : "sk-or-…"}
-												className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text font-mono text-sm focus:border-primary/50 focus:outline-none placeholder:text-text/30"
-											/>
-											<button
-												onClick={() => setShowKey((v) => !v)}
-												className="px-3 py-3 bg-background/50 border border-primary/20 rounded-lg text-text/60 hover:text-text hover:border-primary/40 transition-all duration-300"
-												title={showKey ? "Hide key" : "Show key"}
-											>
-												{showKey ? "🙈" : "👁️"}
-											</button>
-										</div>
-										<p className="text-text/40 text-xs mt-1">
-											Enter a new key to save it. The saved key is never shown back to the browser.
-										</p>
-									</div>
-
-									{aiSettingsMessage && (
-										<div
-											className={`p-3 rounded-lg text-sm border ${
-												aiSettingsMessage.type === "ok"
-													? "bg-green-500/10 border-green-500/30 text-green-300"
-													: "bg-red-500/10 border-red-500/30 text-red-300"
-											}`}
+								<div>
+									<label className="flex items-center gap-1.5 text-xs font-medium text-muted mb-1.5">
+										OpenRouter API Key
+										<HelpTooltip
+											content="Get your key at openrouter.ai/keys. Keys start with sk-or-. Your key is encrypted at rest and never returned to the browser."
+											placement="right"
+										/>
+									</label>
+									<div className="flex gap-2">
+										<input
+											type={showKey ? "text" : "password"}
+											value={openRouterKey}
+											onChange={(e) => setOpenRouterKey(e.target.value)}
+											placeholder={aiFeaturesEnabled ? "Enter a new key to replace the saved one" : "sk-or-…"}
+											className={`${inputClass} flex-1 font-mono`}
+										/>
+										<button
+											onClick={() => setShowKey((v) => !v)}
+											className="px-3 py-2 border border-white/[0.07] rounded-lg text-muted hover:text-text hover:border-primary/20 transition-colors"
+											title={showKey ? "Hide key" : "Show key"}
 										>
-											{aiSettingsMessage.text}
-										</div>
-									)}
+											<Icon name={showKey ? "eye-slash" : "eye"} className="w-4 h-4" />
+										</button>
+									</div>
+									<p className="text-xs text-muted/50 mt-1">The saved key is never shown back to the browser.</p>
+								</div>
 
-									<button
-										onClick={handleSaveAiSettings}
-										disabled={aiSettingsSaving}
-										className="px-6 py-2.5 bg-primary/20 border border-primary/30 rounded-lg text-primary font-semibold hover:bg-primary/30 hover:border-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-									>
+								{aiSettingsMessage && (
+									<div className={`px-3 py-2 rounded-lg border text-sm ${aiSettingsMessage.type === "ok" ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400"}`}>
+										{aiSettingsMessage.text}
+									</div>
+								)}
+
+								<div className="flex gap-2">
+									<button onClick={handleSaveAiSettings} disabled={aiSettingsSaving} className={btnPrimary}>
 										{aiSettingsSaving ? "Saving…" : "Save Key"}
 									</button>
 									{aiFeaturesEnabled && (
-										<button
-											onClick={handleClearAiSettings}
-											disabled={aiSettingsSaving}
-											className="px-6 py-2.5 bg-background/50 border border-primary/20 rounded-lg text-text/70 font-semibold hover:border-primary/40 hover:text-text disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-										>
-											{aiSettingsSaving ? "Clearing…" : "Remove Saved Key"}
+										<button onClick={handleClearAiSettings} disabled={aiSettingsSaving} className={btnSecondary}>
+											{aiSettingsSaving ? "Clearing…" : "Remove Key"}
 										</button>
 									)}
 								</div>
 							</div>
 						</div>
+					</div>
 
-						{/* Action Cards Sidebar */}
-						<div className="space-y-6">
-							{/* Quick Actions */}
-							<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-2xl p-6 hover:border-primary/40 transition-all duration-300">
-								<h3 className="text-xl font-bold text-primary mb-4 flex items-center gap-2">
-									<div className="w-6 h-6 bg-primary/20 rounded-lg flex items-center justify-center text-sm">
-										⚡
-									</div>
-									Quick Actions
-								</h3>
-								<div className="space-y-3">
-									<ActionButton
-										icon="🔄"
-										label="Refresh Profile"
-										description="Update account data"
-										onClick={() => refreshUser()}
-									/>
-									<ActionButton
-										icon="📥"
-										label={exportLoading ? "Exporting..." : "Export Data"}
-										description="Download account data as JSON"
-										onClick={handleExportData}
-									/>
-									<ActionButton
-										icon="🚀"
-										label="My Functions"
-										description="View deployed functions"
-										onClick={() => (window.location.href = "/functions")}
-									/>
-									<ActionButton
-										icon="📚"
-										label="Documentation"
-										description="Learn more about SHSF"
-										onClick={() => (window.location.href = "/docs")}
-									/>
-									<ActionButton
-										icon="🔑"
-										label="Access Tokens"
-										description="Manage your access tokens"
-										onClick={() => (window.location.href = "/access-tokens")}
-									/>
-								</div>
+					{/* Sidebar */}
+					<div className="space-y-6">
+						{/* Quick Actions */}
+						<div className="bg-surface border border-white/[0.07] rounded-xl">
+							<div className="px-5 py-4 border-b border-white/[0.07]">
+								<h3 className="text-sm font-semibold text-text">Quick Actions</h3>
 							</div>
+							<ul className="divide-y divide-white/[0.04]">
+								<SidebarAction icon="arrow-path" label="Refresh Profile" description="Reload account data" onClick={() => refreshUser()} />
+								<SidebarAction icon="arrow-down-tray" label={exportLoading ? "Exporting…" : "Export Data"} description="Download as JSON" onClick={handleExportData} />
+								<SidebarAction icon="code-bracket" label="My Functions" description="View deployed functions" href="/functions" />
+								<SidebarAction icon="book-open" label="Documentation" description="Learn more about SHSF" href="/docs" />
+								<SidebarAction icon="key" label="Access Tokens" description="Manage API tokens" href="/access-tokens" />
+							</ul>
+						</div>
 
-							{/* Danger Zone */}
-							<div className="bg-gradient-to-br from-red-900/20 to-red-800/20 border border-red-500/30 rounded-2xl p-6">
-								<h3 className="text-xl font-bold text-red-400 mb-4 flex items-center gap-2">
-									<div className="w-6 h-6 bg-red-500/20 rounded-lg flex items-center justify-center text-sm">
-										⚠️
-									</div>
-									Danger Zone
-								</h3>
-								<p className="text-red-300/70 text-sm mb-4">
-									This action cannot be undone. All your functions and data will be
-									permanently deleted.
-								</p>
-								<button
-									onClick={() => setShowDeleteModal(true)}
-									className="w-full p-3 bg-red-500/20 border border-red-500/30 rounded-lg hover:border-red-500/50 hover:bg-red-500/30 transition-all duration-300 text-red-300 font-semibold"
-								>
+						{/* Danger Zone */}
+						<div className="bg-surface border border-red-500/20 rounded-xl">
+							<div className="px-5 py-4 border-b border-red-500/20">
+								<h3 className="text-sm font-semibold text-red-400">Danger Zone</h3>
+							</div>
+							<div className="px-5 py-4">
+								<p className="text-xs text-muted mb-3">Permanently deletes your account and all associated data. This cannot be undone.</p>
+								<button onClick={() => setShowDeleteModal(true)} className="w-full py-2 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 hover:border-red-500/30 rounded-lg text-red-400 text-sm font-medium transition-colors">
 									Delete Account
 								</button>
 							</div>
 						</div>
 					</div>
-				) : (
-					<div className="text-center py-16">
-						<div className="bg-gradient-to-br from-red-900/20 to-orange-900/20 border border-red-500/30 rounded-2xl p-12 max-w-md mx-auto">
-							<div className="text-6xl mb-4">❌</div>
-							<h2 className="text-2xl font-bold text-red-400 mb-4">No Account Data</h2>
-							<p className="text-text/70 mb-6">
-								Unable to load your account information at this time.
-							</p>
-							<button
-								onClick={() => refreshUser()}
-								className="px-6 py-3 bg-primary text-background font-bold rounded-xl hover:shadow-[0_0_20px_rgba(124,131,253,0.3)] hover:scale-105 transition-all duration-300"
-							>
-								Try Again
-							</button>
-						</div>
-					</div>
-				)}
-			</div>
+				</div>
+			) : (
+				<div className="flex flex-col items-center py-20 text-center">
+					<p className="text-sm text-muted mb-4">Unable to load account information.</p>
+					<button onClick={() => refreshUser()} className="px-4 py-2 bg-primary text-background text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors">
+						Try Again
+					</button>
+				</div>
+			)}
 
 			{/* Delete Account Modal */}
 			{showDeleteModal && (
-				<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-					<div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-red-500/30 rounded-2xl p-8 max-w-md w-full">
-						<div className="text-center mb-6">
-							<div className="text-6xl mb-4">⚠️</div>
-							<h2 className="text-2xl font-bold text-red-400 mb-2">Delete Account</h2>
-							<p className="text-text/70">
-								This action cannot be undone. All your data will be permanently deleted.
-							</p>
-						</div>
-
-						<div className="space-y-4">
+				<div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+					<div className="bg-surface-raised border border-white/[0.07] rounded-xl p-6 w-full max-w-md shadow-2xl">
+						<h2 className="text-base font-semibold text-red-400 mb-1">Delete Account</h2>
+						<p className="text-sm text-muted mb-4">This action cannot be undone. All your data will be permanently deleted.</p>
+						<div className="space-y-3">
 							<div>
-								<label className="block text-text/70 text-sm font-medium mb-2">
-									Type "DELETE_MY_ACCOUNT" to confirm
+								<label className="block text-xs font-medium text-muted mb-1.5">
+									Type <code className="text-primary/80">DELETE_MY_ACCOUNT</code> to confirm
 								</label>
 								<input
 									type="text"
 									value={deleteConfirmation}
 									onChange={(e) => setDeleteConfirmation(e.target.value)}
-									className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none font-mono"
+									className="w-full px-3 py-2 bg-background border border-white/[0.07] rounded-lg text-text text-sm font-mono focus:border-red-500/50 focus:outline-none"
 									placeholder="DELETE_MY_ACCOUNT"
 								/>
 							</div>
-
 							{deleteError && (
-								<div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-									{deleteError}
-								</div>
+								<p className="text-sm text-red-400">{deleteError}</p>
 							)}
-
-							<div className="flex gap-3 pt-4">
+							<div className="flex gap-2 pt-1">
 								<button
-									onClick={() => {
-										setShowDeleteModal(false);
-										setDeleteConfirmation("");
-										setDeleteError("");
-									}}
-									className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text hover:border-primary/40 transition-all duration-300"
+									onClick={() => { setShowDeleteModal(false); setDeleteConfirmation(""); setDeleteError(""); }}
+									className={btnSecondary + " flex-1 justify-center"}
 									disabled={deleteLoading}
 								>
 									Cancel
@@ -411,9 +303,9 @@ export const AccountPage = ({}) => {
 								<button
 									onClick={handleDeleteAccount}
 									disabled={deleteLoading || deleteConfirmation !== "DELETE_MY_ACCOUNT"}
-									className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-red-500/50 disabled:cursor-not-allowed transition-all duration-300"
+									className="flex-1 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 								>
-									{deleteLoading ? "Deleting..." : "Delete Account"}
+									{deleteLoading ? "Deleting…" : "Delete Account"}
 								</button>
 							</div>
 						</div>
@@ -424,92 +316,30 @@ export const AccountPage = ({}) => {
 	);
 };
 
-function DetailCard({
-	icon,
-	label,
-	value,
-	subtitle,
-	mono = false,
-	truncate = false,
-}: {
-	icon: string;
-	label: string;
-	value: string;
-	subtitle?: string;
-	mono?: boolean;
-	truncate?: boolean;
-}) {
-	return (
-		<div className="bg-background/30 border border-primary/10 rounded-xl p-4 hover:border-primary/20 transition-all duration-300">
-			<div className="flex items-start gap-3">
-				<div className="text-2xl">{icon}</div>
-				<div className="flex-1 min-w-0">
-					<p className="text-text/60 text-sm font-medium mb-1">{label}</p>
-					<p
-						className={`text-text font-semibold ${mono ? "font-mono text-sm" : ""} ${truncate ? "truncate" : ""}`}
-					>
-						{value}
-					</p>
-					{subtitle && <p className="text-text/40 text-xs mt-1">{subtitle}</p>}
-				</div>
-			</div>
-		</div>
-	);
-}
-
-function ActionButton({
+function SidebarAction({
 	icon,
 	label,
 	description,
 	onClick,
+	href,
 }: {
 	icon: string;
 	label: string;
 	description: string;
-	onClick: () => void;
+	onClick?: () => void;
+	href?: string;
 }) {
-	return (
-		<button
-			onClick={onClick}
-			className="w-full p-3 bg-background/20 border border-primary/10 rounded-lg hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 text-left group"
-		>
-			<div className="flex items-center gap-3">
-				<div className="text-xl group-hover:scale-110 transition-transform duration-300">
-					{icon}
-				</div>
-				<div className="flex-1">
-					<p className="text-text font-semibold text-sm">{label}</p>
-					<p className="text-text/60 text-xs">{description}</p>
-				</div>
-				<div className="text-primary/60 group-hover:text-primary group-hover:translate-x-1 transition-all duration-300">
-					→
-				</div>
+	const cls = "w-full flex items-center gap-3 px-5 py-3 hover:bg-white/[0.03] transition-colors group text-left";
+	const inner = (
+		<>
+			<Icon name={icon as any} className="w-4 h-4 text-primary/50 shrink-0" />
+			<div className="flex-1 min-w-0">
+				<p className="text-sm font-medium text-text">{label}</p>
+				<p className="text-xs text-muted">{description}</p>
 			</div>
-		</button>
+			<Icon name="chevron-right" className="w-3.5 h-3.5 text-muted/40 shrink-0" />
+		</>
 	);
-}
-
-function StatItem({
-	label,
-	value,
-	color,
-}: {
-	label: string;
-	value: string;
-	color: "blue" | "green" | "purple";
-}) {
-	const colorClasses = {
-		blue: "from-blue-500/20 to-blue-600/20 text-blue-300",
-		green: "from-green-500/20 to-green-600/20 text-green-300",
-		purple: "from-purple-500/20 to-purple-600/20 text-purple-300",
-	};
-
-	return (
-		<div className={`bg-gradient-to-r ${colorClasses[color]} rounded-lg p-3`}>
-			<div className="flex justify-between items-center">
-				<p className="text-text/70 text-sm font-medium">{label}</p>
-				<p className="text-text font-bold">{value}</p>
-			</div>
-		</div>
-	);
+	if (href) return <li><Link to={href} className={cls}>{inner}</Link></li>;
+	return <li><button onClick={onClick} className={cls}>{inner}</button></li>;
 }

@@ -142,18 +142,6 @@ async function listAllTriggers() {
 	return data;
 }
 
-export {
-	createTrigger,
-	getTriggers,
-	getTrigger,
-	deleteTrigger,
-	updateTrigger,
-	listAllTriggers,
-	runTrigger,
-};
-export type { OKResponse, ErrorResponse };
-export type { CreateTriggerResponse };
-
 async function runTrigger(functionId: number, triggerId: number) {
 	const response = await fetch(
 		`${BASE_URL}/api/functions/${functionId}/triggers/${triggerId}/run`,
@@ -171,3 +159,15 @@ async function runTrigger(functionId: number, triggerId: number) {
 		| ErrorResponse;
 	return data;
 }
+
+export {
+	createTrigger,
+	getTriggers,
+	getTrigger,
+	deleteTrigger,
+	updateTrigger,
+	listAllTriggers,
+	runTrigger,
+};
+export type { OKResponse, ErrorResponse };
+export type { CreateTriggerResponse };

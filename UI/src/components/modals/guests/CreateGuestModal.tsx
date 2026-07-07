@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { createGuestUser } from "../../../services/backend.guest";
 import Modal from "../Modal";
+import { cancelBtnClass, primaryBtnClass, inputClass, labelClass, ModalError, ModalFooter } from "../Modal";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 
 interface CreateGuestModalProps {
 	isOpen: boolean;
@@ -8,37 +10,29 @@ interface CreateGuestModalProps {
 	onSuccess: () => void;
 }
 
-function CreateGuestModal({
-	isOpen,
-	onClose,
-	onSuccess,
-}: CreateGuestModalProps) {
+function CreateGuestModal({ isOpen, onClose, onSuccess }: CreateGuestModalProps) {
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
+	useShiftEnterSubmit(() => { handleSubmit(new Event("submit") as any); }, isOpen && !isLoading);
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setIsLoading(true);
 		setError("");
 		try {
-			const res = await createGuestUser({
-				displayName: name,
-				email: email,
-				password: password,
-			});
+			const res = await createGuestUser({ displayName: name, email, password });
 			if (res.status === "OK") {
-				setName("");
-				setEmail("");
-				setPassword("");
+				setName(""); setEmail(""); setPassword("");
 				onSuccess();
 				onClose();
 			} else {
 				setError((res as any).message || "Failed to create guest");
 			}
-		} catch (e) {
+		} catch {
 			setError("Failed to create guest");
 		} finally {
 			setIsLoading(false);
@@ -46,61 +40,58 @@ function CreateGuestModal({
 	};
 
 	return (
-		<Modal isOpen={isOpen} onClose={onClose} title="Create Guest User">
+		<Modal isOpen={isOpen} onClose={onClose} title="Create Guest User" isLoading={isLoading}>
 			<form onSubmit={handleSubmit} className="space-y-4">
-				<div className="text-center mb-6">
-					<div className="text-5xl mb-2">👤</div>
-					<p className="text-text/70 text-sm">Create a new guest user account.</p>
-				</div>
-				<input
-					type="text"
-					className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none"
-					placeholder="Display Name"
-					value={name}
-					onChange={(e) => setName(e.target.value)}
-					required
-					disabled={isLoading}
-				/>
-				<input
-					type="email"
-					className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none"
-					placeholder="Email"
-					value={email}
-					onChange={(e) => setEmail(e.target.value)}
-					required
-					disabled={isLoading}
-				/>
-				<input
-					type="password"
-					className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none"
-					placeholder="Password"
-					value={password}
-					onChange={(e) => setPassword(e.target.value)}
-					required
-					disabled={isLoading}
-				/>
-				{error && (
-					<div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-						{error}
-					</div>
-				)}
-				<div className="flex gap-3 pt-2">
-					<button
-						type="button"
-						onClick={onClose}
-						className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text hover:border-primary/40 transition-all duration-300"
+				<ModalError message={error} />
+				<div>
+					<label className={labelClass}>Display name</label>
+					<input
+						type="text"
+						className={inputClass}
+						placeholder="Display Name"
+						value={name}
+						onChange={(e) => setName(e.target.value)}
+						required
 						disabled={isLoading}
-					>
+						autoFocus
+					/>
+				</div>
+				<div>
+					<label className={labelClass}>Email</label>
+					<input
+						type="email"
+						className={inputClass}
+						placeholder="guest@example.com"
+						value={email}
+						onChange={(e) => setEmail(e.target.value)}
+						required
+						disabled={isLoading}
+					/>
+				</div>
+				<div>
+					<label className={labelClass}>Password</label>
+					<input
+						type="password"
+						className={inputClass}
+						placeholder="••••••••"
+						value={password}
+						onChange={(e) => setPassword(e.target.value)}
+						required
+						disabled={isLoading}
+					/>
+				</div>
+				<ModalFooter>
+					<button type="button" onClick={onClose} className={cancelBtnClass} disabled={isLoading}>
 						Cancel
 					</button>
 					<button
 						type="submit"
 						disabled={isLoading || !name || !email || !password}
-						className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-all duration-300"
+						className={primaryBtnClass}
 					>
-						{isLoading ? "Creating..." : "Create"}
+						Create
 					</button>
-				</div>
+				</ModalFooter>
 			</form>
 		</Modal>
 	);

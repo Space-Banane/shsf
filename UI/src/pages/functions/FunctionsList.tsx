@@ -13,6 +13,8 @@ import { deleteFunction } from "../../services/backend.functions";
 import ImportFunctionModal from "../../components/modals/functions/ImportFunctionModal";
 import MassReplaceModal from "../../components/modals/functionFiles/MassReplaceModal";
 import AIGenerateModal from "../../components/modals/AIGenerateModal";
+import { Icon } from "../../components/ui/Icon";
+import { HelpTooltip } from "../../components/ui/Tooltip";
 
 function FunctionsList() {
 	const [namespaces, setNamespaces] = useState<Namespace[]>([]);
@@ -20,41 +22,28 @@ function FunctionsList() {
 	const { user } = useContext(UserContext);
 	const aiEnabled = Boolean(user?.apiKeyConfigured);
 	const [isNamespaceModalOpen, setNamespaceModalOpen] = useState(false);
-	const [isRenameNamespaceModalOpen, setRenameNamespaceModalOpen] =
-		useState(false);
-	const [isDeleteNamespaceModalOpen, setDeleteNamespaceModalOpen] =
-		useState(false);
+	const [isRenameNamespaceModalOpen, setRenameNamespaceModalOpen] = useState(false);
+	const [isDeleteNamespaceModalOpen, setDeleteNamespaceModalOpen] = useState(false);
 	const [isFunctionModalOpen, setFunctionModalOpen] = useState(false);
 	const [isAIModalOpen, setAIModalOpen] = useState(false);
-	const [isDeleteFunctionModalOpen, setDeleteFunctionModalOpen] =
-		useState(false);
+	const [isDeleteFunctionModalOpen, setDeleteFunctionModalOpen] = useState(false);
 	const [isCloneFunctionModalOpen, setCloneFunctionModalOpen] = useState(false);
 	const [isImportModalOpen, setImportModalOpen] = useState(false);
 	const [isMassReplaceModalOpen, setMassReplaceModalOpen] = useState(false);
-	const [selectedNamespace, setSelectedNamespace] = useState<{
-		id: number;
-		name: string;
-	} | null>(null);
-	const [selectedFunction, setSelectedFunction] = useState<{
-		id: number;
-		name: string;
-	} | null>(null);
-	const [selectedFunctionForClone, setSelectedFunctionForClone] = useState<{
-		id: number;
-		name: string;
-	} | null>(null);
+	const [selectedNamespace, setSelectedNamespace] = useState<{ id: number; name: string } | null>(null);
+	const [selectedFunction, setSelectedFunction] = useState<{ id: number; name: string } | null>(null);
+	const [selectedFunctionForClone, setSelectedFunctionForClone] = useState<{ id: number; name: string } | null>(null);
 	const [expandedNamespaces, setExpandedNamespaces] = useState<number[]>([]);
 
 	useEffect(() => {
 		setLoading(true);
 		getNamespaces(true).then((data) => {
 			if (data.status === "OK") {
-				const loadedNamespaces = data.data as Namespace[];
-				setNamespaces(loadedNamespaces);
-				// Expand all namespaces by default
-				setExpandedNamespaces(loadedNamespaces.map((ns) => ns.id));
+				const loaded = data.data as Namespace[];
+				setNamespaces(loaded);
+				setExpandedNamespaces(loaded.map((ns) => ns.id));
 			} else {
-				toast.error("Error fetching namespaces:" + data.message);
+				toast.error("Error fetching namespaces: " + data.message);
 			}
 			setLoading(false);
 		});
@@ -62,26 +51,14 @@ function FunctionsList() {
 
 	const refreshData = () => {
 		getNamespaces(true).then((data) => {
-			if (data.status === "OK") {
-				setNamespaces(data.data as Namespace[]);
-			}
+			if (data.status === "OK") setNamespaces(data.data as Namespace[]);
 		});
 	};
 
-	const toggleNamespace = (namespaceId: number) => {
+	const toggleNamespace = (id: number) => {
 		setExpandedNamespaces((prev) =>
-			prev.includes(namespaceId)
-				? prev.filter((id) => id !== namespaceId)
-				: [...prev, namespaceId],
+			prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
 		);
-	};
-
-	const expandAllNamespaces = () => {
-		setExpandedNamespaces(namespaces.map((ns) => ns.id));
-	};
-
-	const collapseAllNamespaces = () => {
-		setExpandedNamespaces([]);
 	};
 
 	const handleDeleteFunction = async (functionId: number) => {
@@ -90,174 +67,124 @@ function FunctionsList() {
 			if (response.status === "OK") {
 				refreshData();
 				return true;
-			} else {
-				toast.error("Error deleting function: " + response.message);
-				return false;
 			}
-		} catch (error) {
-			console.error("Error deleting function:", error);
+			toast.error("Error deleting function: " + response.message);
+			return false;
+		} catch {
 			toast.error("An error occurred while deleting the function.");
 			return false;
 		}
 	};
 
-	const totalFunctions = namespaces.reduce(
-		(sum, ns) => sum + (ns.functions?.length ?? 0),
-		0,
-	);
+	const totalFunctions = namespaces.reduce((sum, ns) => sum + (ns.functions?.length ?? 0), 0);
+	const allExpanded = expandedNamespaces.length === namespaces.length;
 
 	if (loading) {
 		return (
-			<div className="min-h-screen bg-background flex items-center justify-center">
-				<div className="text-center space-y-4">
-					<div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto"></div>
-					<p className="text-text/70 text-lg">Loading your functions...</p>
+			<div className="flex items-center justify-center py-24">
+				<div className="text-center space-y-3">
+					<div className="w-10 h-10 border-2 border-primary/20 border-t-primary rounded-full animate-spin mx-auto" />
+					<p className="text-muted text-sm">Loading functions…</p>
 				</div>
 			</div>
 		);
 	}
 
 	return (
-		<div className="min-h-screen bg-background">
-			{/* Hero Header Section */}
-			<div className="relative bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-b border-primary/20">
-				<div className="max-w-7xl mx-auto px-4 py-12">
-					<div className="text-center space-y-3">
-						<h1 className="text-4xl font-bold text-primary mb-3">
-							{user ? `Your Functions` : "Functions Dashboard"}
-						</h1>
-						<div className="h-1 w-20 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto rounded-full"></div>
-						<p className="text-lg text-text/70 max-w-2xl mx-auto">
-							Manage your serverless functions and namespaces with ease
-						</p>
-						<div className="flex items-center justify-center gap-6 text-text/60 mt-6">
-							<div className="flex items-center gap-2">
-								<div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
-								<span className="text-sm">{namespaces.length} Namespaces</span>
-							</div>
-							<div className="flex items-center gap-2">
-								<div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
-								<span className="text-sm">{totalFunctions} Functions</span>
-							</div>
-						</div>
-					</div>
+		<div>
+			{/* Page header */}
+			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+				<div>
+					<h1 className="text-2xl font-semibold text-text">Functions</h1>
+					<p className="text-sm text-muted mt-0.5">
+						{namespaces.length} namespace{namespaces.length !== 1 ? "s" : ""} · {totalFunctions} function{totalFunctions !== 1 ? "s" : ""}
+					</p>
 				</div>
-			</div>
 
-			<div className="max-w-7xl mx-auto px-4 py-8">
-				{/* Action Bar */}
-				<div className="flex flex-col lg:flex-row gap-3 items-center justify-between mb-6">
-					<div className="flex flex-wrap gap-2">
-						<ActionButton
-							icon="📁"
-							label="Create Namespace"
-							variant="primary"
-							onClick={() => setNamespaceModalOpen(true)}
-						/>
-						<ActionButton
-							icon="🚀"
-							label="Create Function"
-							variant="primary"
-							onClick={() => setFunctionModalOpen(true)}
-						/>
-						<ActionButton
-							icon="✨"
-							label="AI KICKOFF"
-							variant="primary"
+				{/* Action toolbar */}
+				<div className="flex flex-wrap items-center gap-2">
+					<Btn
+						icon="folder"
+						label="New Namespace"
+						variant="secondary"
+						onClick={() => setNamespaceModalOpen(true)}
+					/>
+					<Btn
+						icon="plus"
+						label="New Function"
+						variant="primary"
+						onClick={() => setFunctionModalOpen(true)}
+					/>
+					<div className="flex items-center gap-1.5">
+						<Btn
+							icon="sparkles"
+							label="AI Kickoff"
+							variant="secondary"
 							disabled={!aiEnabled}
 							onClick={() => setAIModalOpen(true)}
 						/>
-						<ActionButton
-							icon="📥"
-							label="Import Function"
-							variant="secondary"
-							onClick={() => setImportModalOpen(true)}
-						/>
-						<ActionButton
-							icon="🔍"
-							label="Mass Find & Replace"
-							variant="secondary"
-							onClick={() => setMassReplaceModalOpen(true)}
-						/>
-					</div>
-
-					<div className="flex items-center gap-2">
-						<ActionButton
-							icon={expandedNamespaces.length === namespaces.length ? "📁" : "📂"}
-							label={
-								expandedNamespaces.length === namespaces.length
-									? "Collapse All"
-									: "Expand All"
-							}
-							variant="secondary"
-							onClick={() => {
-								if (expandedNamespaces.length === namespaces.length) {
-									collapseAllNamespaces();
-								} else {
-									expandAllNamespaces();
-								}
-								}}
+						{!aiEnabled && (
+							<HelpTooltip
+								content="Configure an OpenRouter API key in Account → AI Settings to enable AI-powered function generation."
+								placement="bottom"
 							/>
+						)}
 					</div>
-				</div>
-
-				{!aiEnabled && (
-					<p className="mb-6 text-sm text-yellow-300/80">
-						Enable AI in Account Settings to use AI KICKOFF.
-					</p>
-				)}
-
-				{/* Functions Grid */}
-				{namespaces.length === 0 ? (
-					<EmptyState
-						onCreateNamespace={() => setNamespaceModalOpen(true)}
-						onCreateFunction={() => setFunctionModalOpen(true)}
+					<Btn
+						icon="arrow-down-tray"
+						label="Import"
+						variant="secondary"
+						onClick={() => setImportModalOpen(true)}
 					/>
-				) : (
-					<div className="space-y-4">
-						{namespaces
-							.slice()
-							.sort((a, b) => a.name.localeCompare(b.name))
-							.map((namespace) => (
-								<NamespaceCard
-									key={namespace.id}
-									namespace={namespace}
-									isExpanded={expandedNamespaces.includes(namespace.id)}
-									onToggle={() => toggleNamespace(namespace.id)}
-									onRename={(ns) => {
-										setSelectedNamespace(ns);
-										setRenameNamespaceModalOpen(true);
-									}}
-									onDelete={(ns) => {
-										setSelectedNamespace(ns);
-										setDeleteNamespaceModalOpen(true);
-									}}
-									onDeleteFunction={(func) => {
-										setSelectedFunction(func);
-										setDeleteFunctionModalOpen(true);
-									}}
-									onCloneFunction={(func) => {
-										setSelectedFunctionForClone(func);
-										setCloneFunctionModalOpen(true);
-									}}
-								/>
-							))}
-					</div>
-				)}
+					<Btn
+						icon="magnifying-glass"
+						label="Find & Replace"
+						variant="secondary"
+						onClick={() => setMassReplaceModalOpen(true)}
+					/>
+					<button
+						onClick={() =>
+							allExpanded
+								? setExpandedNamespaces([])
+								: setExpandedNamespaces(namespaces.map((ns) => ns.id))
+						}
+						className="p-2 text-muted hover:text-text hover:bg-surface rounded-lg border border-transparent hover:border-white/[0.07] transition-colors"
+						title={allExpanded ? "Collapse all" : "Expand all"}
+					>
+						<Icon name={allExpanded ? "folder" : "folder-open"} className="w-4 h-4" />
+					</button>
+				</div>
 			</div>
 
+			{/* Namespace list */}
+			{namespaces.length === 0 ? (
+				<EmptyState
+					onCreateNamespace={() => setNamespaceModalOpen(true)}
+					onCreateFunction={() => setFunctionModalOpen(true)}
+				/>
+			) : (
+				<div className="space-y-3">
+					{namespaces
+						.slice()
+						.sort((a, b) => a.name.localeCompare(b.name))
+						.map((namespace) => (
+							<NamespaceCard
+								key={namespace.id}
+								namespace={namespace}
+								isExpanded={expandedNamespaces.includes(namespace.id)}
+								onToggle={() => toggleNamespace(namespace.id)}
+								onRename={(ns) => { setSelectedNamespace(ns); setRenameNamespaceModalOpen(true); }}
+								onDelete={(ns) => { setSelectedNamespace(ns); setDeleteNamespaceModalOpen(true); }}
+								onDeleteFunction={(func) => { setSelectedFunction(func); setDeleteFunctionModalOpen(true); }}
+								onCloneFunction={(func) => { setSelectedFunctionForClone(func); setCloneFunctionModalOpen(true); }}
+							/>
+						))}
+				</div>
+			)}
+
 			{/* Modals */}
-			<CreateNamespaceModal
-				isOpen={isNamespaceModalOpen}
-				onClose={() => setNamespaceModalOpen(false)}
-				onSuccess={refreshData}
-			/>
-			<CreateFunctionModal
-				isOpen={isFunctionModalOpen}
-				onClose={() => setFunctionModalOpen(false)}
-				onSuccess={refreshData}
-				namespaces={namespaces}
-			/>
+			<CreateNamespaceModal isOpen={isNamespaceModalOpen} onClose={() => setNamespaceModalOpen(false)} onSuccess={refreshData} />
+			<CreateFunctionModal isOpen={isFunctionModalOpen} onClose={() => setFunctionModalOpen(false)} onSuccess={refreshData} namespaces={namespaces} />
 			<AIGenerateModal
 				isOpen={isAIModalOpen}
 				onClose={() => setAIModalOpen(false)}
@@ -269,82 +196,43 @@ function FunctionsList() {
 			<CloneFunctionModal
 				isOpen={isCloneFunctionModalOpen}
 				onClose={() => setCloneFunctionModalOpen(false)}
-				onSuccess={() => {
-					setSelectedFunctionForClone(null);
-					refreshData();
-				}}
+				onSuccess={() => { setSelectedFunctionForClone(null); refreshData(); }}
 				namespaces={namespaces}
 				functionId={selectedFunctionForClone?.id || null}
 			/>
-			<RenameNamespaceModal
-				isOpen={isRenameNamespaceModalOpen}
-				onClose={() => setRenameNamespaceModalOpen(false)}
-				onRename={refreshData}
-				namespaceId={selectedNamespace?.id || null}
-				currentName={selectedNamespace?.name || ""}
-			/>
-			<DeleteNamespaceModal
-				isOpen={isDeleteNamespaceModalOpen}
-				onClose={() => setDeleteNamespaceModalOpen(false)}
-				onDelete={refreshData}
-				namespaceId={selectedNamespace?.id || null}
-				namespaceName={selectedNamespace?.name || ""}
-			/>
-			<DeleteFunctionModal
-				isOpen={isDeleteFunctionModalOpen}
-				onClose={() => setDeleteFunctionModalOpen(false)}
-				onDelete={handleDeleteFunction}
-				functionId={selectedFunction?.id || null}
-				functionName={selectedFunction?.name || ""}
-			/>
-			<ImportFunctionModal
-				isOpen={isImportModalOpen}
-				onClose={() => {
-					setImportModalOpen(false);
-					refreshData();
-				}}
-			/>
-			<MassReplaceModal
-				isOpen={isMassReplaceModalOpen}
-				onClose={() => setMassReplaceModalOpen(false)}
-				onSuccess={(msg) => {
-					toast.success(msg);
-					refreshData();
-				}}
-			/>
+			<RenameNamespaceModal isOpen={isRenameNamespaceModalOpen} onClose={() => setRenameNamespaceModalOpen(false)} onRename={refreshData} namespaceId={selectedNamespace?.id || null} currentName={selectedNamespace?.name || ""} />
+			<DeleteNamespaceModal isOpen={isDeleteNamespaceModalOpen} onClose={() => setDeleteNamespaceModalOpen(false)} onDelete={refreshData} namespaceId={selectedNamespace?.id || null} namespaceName={selectedNamespace?.name || ""} />
+			<DeleteFunctionModal isOpen={isDeleteFunctionModalOpen} onClose={() => setDeleteFunctionModalOpen(false)} onDelete={handleDeleteFunction} functionId={selectedFunction?.id || null} functionName={selectedFunction?.name || ""} />
+			<ImportFunctionModal isOpen={isImportModalOpen} onClose={() => { setImportModalOpen(false); refreshData(); }} />
+			<MassReplaceModal isOpen={isMassReplaceModalOpen} onClose={() => setMassReplaceModalOpen(false)} onSuccess={(msg) => { toast.success(msg); refreshData(); }} />
 		</div>
 	);
 }
 
-function ActionButton({
+function Btn({
 	icon,
 	label,
-	variant = "primary",
+	variant = "secondary",
 	onClick,
 	disabled = false,
 }: {
-	icon: string;
+	icon: Parameters<typeof Icon>[0]["name"];
 	label: string;
 	variant?: "primary" | "secondary";
 	onClick: () => void;
 	disabled?: boolean;
 }) {
-	const baseClasses =
-		"px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100";
-	const variantClasses = {
-		primary:
-			"bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-[0_0_30px_rgba(124,131,253,0.3)] border border-transparent",
-		secondary:
-			"bg-background/50 border border-primary/20 text-primary hover:border-primary/40 hover:bg-primary/5",
-	};
-
 	return (
 		<button
 			onClick={onClick}
 			disabled={disabled}
-			className={`${baseClasses} ${variantClasses[variant]}`}
+			className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+				variant === "primary"
+					? "bg-primary text-background hover:bg-primary/90"
+					: "border border-white/[0.07] text-text/70 hover:bg-surface hover:text-text hover:border-primary/20"
+			}`}
 		>
-			<span className="text-lg">{icon}</span>
+			<Icon name={icon} className="w-4 h-4" />
 			{label}
 		</button>
 	);
@@ -370,87 +258,49 @@ function NamespaceCard({
 	const functions = namespace.functions ?? [];
 
 	return (
-		<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-xl overflow-hidden hover:border-primary/40 transition-all duration-300">
-			{/* Namespace Header */}
+		<div className="bg-surface border border-white/[0.07] rounded-xl overflow-hidden hover:border-primary/20 transition-colors">
 			<div
-				className="flex items-center justify-between p-4 cursor-pointer hover:bg-primary/5 transition-all duration-300"
+				className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors"
 				onClick={onToggle}
 			>
-				<div className="flex items-center gap-3">
-					<div
-						className={`transform transition-transform duration-300 ${isExpanded ? "rotate-90" : ""}`}
-					>
-						<svg
-							className="w-4 h-4 text-primary"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={2}
-								d="M9 5l7 7-7 7"
-							/>
-						</svg>
-					</div>
-					<div className="flex items-center gap-3">
-						<div className="w-8 h-8 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-lg flex items-center justify-center text-lg">
-							📁
-						</div>
-						<div>
-							<h3 className="text-lg font-bold text-primary">{namespace.name}</h3>
-							<p className="text-text/60 text-xs">
-								{functions.length} functions
-							</p>
-						</div>
-					</div>
+				<div className="flex items-center gap-2.5">
+					<Icon
+						name="chevron-right"
+						className={`w-4 h-4 text-muted transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}
+					/>
+					<Icon name={isExpanded ? "folder-open" : "folder"} className="w-4 h-4 text-primary/60" />
+					<span className="text-sm font-semibold text-text">{namespace.name}</span>
+					<span className="text-xs text-muted">{functions.length}</span>
 				</div>
-
 				<div className="flex items-center gap-1">
 					<button
-						onClick={(e) => {
-							e.stopPropagation();
-							onRename({ id: namespace.id, name: namespace.name });
-						}}
-						className="p-1.5 text-yellow-400 hover:bg-yellow-400/10 rounded-lg transition-all duration-300 hover:scale-110"
-						title="Rename namespace"
+						onClick={(e) => { e.stopPropagation(); onRename({ id: namespace.id, name: namespace.name }); }}
+						className="p-1.5 text-muted hover:text-text hover:bg-white/[0.06] rounded transition-colors"
+						title="Rename"
 					>
-						✏️
+						<Icon name="pencil" className="w-3.5 h-3.5" />
 					</button>
 					<button
-						onClick={(e) => {
-							e.stopPropagation();
-							onDelete({ id: namespace.id, name: namespace.name });
-						}}
-						className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-lg transition-all duration-300 hover:scale-110"
-						title="Delete namespace"
+						onClick={(e) => { e.stopPropagation(); onDelete({ id: namespace.id, name: namespace.name }); }}
+						className="p-1.5 text-muted hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+						title="Delete"
 					>
-						🗑️
+						<Icon name="trash" className="w-3.5 h-3.5" />
 					</button>
 				</div>
 			</div>
 
-			{/* Functions List */}
 			{isExpanded && (
-				<div className="border-t border-primary/10">
+				<div className="border-t border-white/[0.07]">
 					{functions.length === 0 ? (
-						<div className="p-6 text-center">
-							<div className="text-3xl mb-3">📦</div>
-							<p className="text-text/60 text-sm">
-								No functions in this Namespace yet
-							</p>
-							<p className="text-text/40 text-xs mt-1">
-								Create your first function in this Namespace
-							</p>
-						</div>
+						<p className="px-12 py-4 text-xs text-muted">No functions yet</p>
 					) : (
-						<div className="p-3 space-y-2">
-						{functions
+						<div className="divide-y divide-white/[0.04]">
+							{functions
 								.slice()
 								.sort((a, b) => a.name.localeCompare(b.name))
 								.map((func) => (
-									<FunctionCard
+									<FunctionRow
 										key={func.id}
 										func={func}
 										onDelete={() => onDeleteFunction({ id: func.id, name: func.name })}
@@ -465,81 +315,64 @@ function NamespaceCard({
 	);
 }
 
-function FunctionCard({
+function FunctionRow({
 	func,
 	onDelete,
 	onClone,
 }: {
 	func: XFunction;
 	onDelete: () => void;
-	onClone?: () => void;
+	onClone: () => void;
 }) {
 	return (
 		<a
 			href={`/functions/${func.id}`}
-			className="block bg-background/30 border border-primary/10 rounded-lg p-3 hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 group"
+			className="flex items-center justify-between px-10 py-2.5 hover:bg-white/[0.03] transition-colors group"
 		>
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-3 flex-1 min-w-0">
-					<div className="w-6 h-6 bg-gradient-to-br from-green-500/20 to-blue-500/20 rounded-lg flex items-center justify-center text-sm flex-shrink-0">
-						🚀
-					</div>
-					<div className="flex-1 min-w-0">
-						<div className="flex items-center gap-2">
-							<h4 className="text-base font-semibold text-text group-hover:text-primary transition-colors duration-300">
-								{func.name}
-							</h4>
-							{func.imported && (
-								<span className="uppercase tracking-wide px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500/30 to-purple-500/30 text-blue-100 border border-blue-500/40 shadow-sm text-xs font-bold">
-									Imported
-								</span>
-							)}
-							{func.ai_kicked_off && (
-								<span className="uppercase tracking-wide px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-500/30 to-cyan-500/30 text-emerald-100 border border-emerald-500/40 shadow-sm text-xs font-bold">
-									AI Kicked-Off
-								</span>
-							)}
-							{func.startup_file.endsWith(".html") && (
-								<span className="uppercase tracking-wide px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500/30 to-purple-500/30 text-blue-100 border border-blue-500/40 shadow-sm text-xs font-bold">
-									HTML Only
-								</span>
-							)}
-						</div>
-						<p className="text-text/60 text-xs truncate">
-							{func.description || "No description available"}
-						</p>
-					</div>
+			<div className="flex items-center gap-3 min-w-0">
+				<Icon name="code-bracket" className="w-3.5 h-3.5 text-muted shrink-0" />
+				<span className="text-sm font-medium text-text/85 group-hover:text-primary transition-colors truncate">
+					{func.name}
+				</span>
+				<div className="flex items-center gap-1.5 shrink-0">
+					{func.imported && <Badge color="blue">Imported</Badge>}
+					{func.ai_kicked_off && <Badge color="emerald">AI</Badge>}
+					{func.startup_file.endsWith(".html") && <Badge color="blue">HTML</Badge>}
 				</div>
-
-				<div className="flex items-center gap-1 ml-3">
-					{onClone && (
-						<button
-							onClick={(e) => {
-								e.stopPropagation();
-								e.preventDefault();
-								onClone();
-							}}
-							className="p-1.5 text-yellow-400 hover:bg-yellow-400/10 rounded-lg transition-all duration-300 hover:scale-110 opacity-0 group-hover:opacity-100"
-							title="Clone function"
-						>
-							📄
-						</button>
-					)
-					}
-					<button
-						onClick={(e) => {
-							e.stopPropagation();
-							e.preventDefault();
-							onDelete();
-						}}
-						className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-lg transition-all duration-300 hover:scale-110 opacity-0 group-hover:opacity-100"
-						title="Delete function"
-					>
-						🗑️
-					</button>
-				</div>
+				{func.description && (
+					<span className="text-xs text-muted truncate hidden sm:block">{func.description}</span>
+				)}
+			</div>
+			<div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-3">
+				<button
+					onClick={(e) => { e.stopPropagation(); e.preventDefault(); onClone(); }}
+					className="p-1.5 text-muted hover:text-text hover:bg-white/[0.06] rounded transition-colors"
+					title="Clone"
+				>
+					<Icon name="document-duplicate" className="w-3.5 h-3.5" />
+				</button>
+				<button
+					onClick={(e) => { e.stopPropagation(); e.preventDefault(); onDelete(); }}
+					className="p-1.5 text-muted hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+					title="Delete"
+				>
+					<Icon name="trash" className="w-3.5 h-3.5" />
+				</button>
 			</div>
 		</a>
+	);
+}
+
+function Badge({ children, color }: { children: React.ReactNode; color: "blue" | "emerald" | "yellow" }) {
+	const colors = {
+		blue: "bg-blue-500/15 text-blue-300 border-blue-500/20",
+		emerald: "bg-emerald-500/15 text-emerald-300 border-emerald-500/20",
+		yellow: "bg-yellow-500/15 text-yellow-300 border-yellow-500/20",
+	};
+	return (
+		<span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border ${colors[color]}`}>
+			{children}
+		</span>
 	);
 }
 
@@ -551,28 +384,27 @@ function EmptyState({
 	onCreateFunction: () => void;
 }) {
 	return (
-		<div className="text-center py-12">
-			<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-xl p-8 max-w-2xl mx-auto">
-				<div className="text-5xl mb-4">🚀</div>
-				<h2 className="text-2xl font-bold text-primary mb-3">Ready to Deploy?</h2>
-				<p className="text-text/70 mb-6 leading-relaxed">
-					Start building your serverless functions! Create a namespace to organize
-					your functions, or jump right in and create your first function.
-				</p>
-				<div className="flex flex-col sm:flex-row gap-3 justify-center">
-					<ActionButton
-						icon="📁"
-						label="Create Namespace"
-						variant="secondary"
-						onClick={onCreateNamespace}
-					/>
-					<ActionButton
-						icon="🚀"
-						label="Create Function"
-						variant="primary"
-						onClick={onCreateFunction}
-					/>
-				</div>
+		<div className="flex flex-col items-center justify-center py-24 text-center">
+			<div className="w-12 h-12 rounded-xl bg-surface border border-white/[0.07] flex items-center justify-center mb-4">
+				<Icon name="code-bracket" className="w-6 h-6 text-primary/50" />
+			</div>
+			<h2 className="text-lg font-semibold text-text mb-1">No functions yet</h2>
+			<p className="text-sm text-muted mb-6 max-w-xs">
+				Create a namespace to organize your functions, then deploy your first function.
+			</p>
+			<div className="flex gap-2">
+				<button
+					onClick={onCreateNamespace}
+					className="px-4 py-2 border border-white/[0.07] text-text/70 text-sm font-medium rounded-lg hover:bg-surface hover:text-text transition-colors"
+				>
+					New Namespace
+				</button>
+				<button
+					onClick={onCreateFunction}
+					className="px-4 py-2 bg-primary text-background text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
+				>
+					New Function
+				</button>
 			</div>
 		</div>
 	);

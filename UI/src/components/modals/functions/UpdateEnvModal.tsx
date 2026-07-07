@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import Modal from "../Modal";
+import { cancelBtnClass, primaryBtnClass, ModalFooter } from "../Modal";
+import { Icon } from "../../ui/Icon";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 
 interface EnvironmentVariable {
 	name: string;
@@ -13,36 +16,24 @@ interface UpdateEnvModalProps {
 	envString: string;
 }
 
-function UpdateEnvModal({
-	isOpen,
-	onClose,
-	onUpdate,
-	envString,
-}: UpdateEnvModalProps) {
+function UpdateEnvModal({ isOpen, onClose, onUpdate, envString }: UpdateEnvModalProps) {
 	const [variables, setVariables] = useState<EnvironmentVariable[]>([]);
 	const [loading, setLoading] = useState(false);
 
-	// Parse environment variables on component mount or when envString changes
+	useShiftEnterSubmit(() => handleSubmit(), isOpen && !loading);
+
 	useEffect(() => {
 		if (envString) {
 			try {
-				// Parse JSON string if it exists
-				const parsedEnv = JSON.parse(envString);
-				setVariables(parsedEnv);
-			} catch (error) {
-				// If string is in KEY=VALUE format separated by ", "
+				setVariables(JSON.parse(envString));
+			} catch {
 				const vars: EnvironmentVariable[] = [];
-				const pairs = envString.split(", ");
-
-				pairs.forEach((pair) => {
+				envString.split(", ").forEach((pair) => {
 					if (pair.trim()) {
 						const [name, value] = pair.split("=");
-						if (name && value !== undefined) {
-							vars.push({ name, value });
-						}
+						if (name && value !== undefined) vars.push({ name, value });
 					}
 				});
-
 				setVariables(vars);
 			}
 		} else {
@@ -50,40 +41,24 @@ function UpdateEnvModal({
 		}
 	}, [envString, isOpen]);
 
-	const handleAddVariable = () => {
-		setVariables([...variables, { name: "", value: "" }]);
-	};
-
-	const handleRemoveVariable = (index: number) => {
-		setVariables(variables.filter((_, i) => i !== index));
-	};
-
-	const handleVariableChange = (
-		index: number,
-		field: "name" | "value",
-		value: string,
-	) => {
-		setVariables(
-			variables.map((variable, i) =>
-				i === index ? { ...variable, [field]: value } : variable,
-			),
-		);
+	const handleAddVariable = () => setVariables([...variables, { name: "", value: "" }]);
+	const handleRemoveVariable = (index: number) => setVariables(variables.filter((_, i) => i !== index));
+	const handleVariableChange = (index: number, field: "name" | "value", value: string) => {
+		setVariables(variables.map((v, i) => (i === index ? { ...v, [field]: value } : v)));
 	};
 
 	const handleSubmit = async () => {
-		// Filter out any variables with empty names
-		const filteredVars = variables.filter((v) => v.name.trim() !== "");
-
 		setLoading(true);
 		try {
-			const success = await onUpdate(filteredVars);
-			if (success) {
-				onClose();
-			}
+			const success = await onUpdate(variables.filter((v) => v.name.trim() !== ""));
+			if (success) onClose();
 		} finally {
 			setLoading(false);
 		}
 	};
+
+	const inputCls =
+		"flex-1 px-2.5 py-1.5 bg-background border border-white/[0.07] rounded-lg text-text text-sm focus:border-primary/50 focus:outline-none placeholder:text-muted/60 font-mono";
 
 	return (
 		<Modal
@@ -93,111 +68,73 @@ function UpdateEnvModal({
 			maxWidth="lg"
 			isLoading={loading}
 		>
-			<div className="space-y-6">
-				{/* Description */}
-				<div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg">
-					<div className="flex items-start gap-3">
-						<span className="text-blue-400 text-lg">💡</span>
-						<div>
-							<p className="text-blue-300 text-sm font-medium mb-1">
-								Environment Variables
-							</p>
-							<p className="text-blue-200/80 text-xs leading-relaxed">
-								Configure environment variables that your function can access during
-								runtime. These are useful for API keys, database URLs, and other
-								configuration values.
-							</p>
-						</div>
-					</div>
-				</div>
+			<div className="space-y-5">
+				<p className="text-xs text-muted">
+					Configure environment variables accessible during function runtime — useful for API keys,
+					database URLs, and other configuration values.
+				</p>
 
-				{/* Variables Section */}
-				<div className="space-y-4">
+				<div className="space-y-3">
 					<div className="flex items-center justify-between">
-						<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-							<span>⚙️</span> Variables ({variables.length})
-						</h3>
+						<span className="text-xs font-medium text-muted uppercase tracking-wider">
+							Variables ({variables.length})
+						</span>
 						<button
 							onClick={handleAddVariable}
-							className="px-3 py-1.5 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-500 hover:to-blue-500 text-white text-sm rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-green-500/25 flex items-center gap-2"
+							className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary text-xs font-medium rounded-lg hover:bg-primary/20 transition-colors"
 						>
-							<span className="text-xs">➕</span>
+							<Icon name="plus" className="w-3 h-3" />
 							Add Variable
 						</button>
 					</div>
 
-					{/* Variables List */}
-					<div className="space-y-3 max-h-96 overflow-y-auto">
+					<div className="space-y-2 max-h-96 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
 						{variables.length === 0 ? (
 							<div className="text-center py-8">
-								<div className="text-3xl mb-3">📝</div>
-								<p className="text-gray-400 text-sm">No environment variables yet</p>
-								<p className="text-gray-500 text-xs mt-1">
-									Click "Add Variable" to get started
-								</p>
+								<p className="text-sm text-muted">No environment variables yet.</p>
+								<p className="text-xs text-muted/60 mt-1">Click "Add Variable" to get started.</p>
 							</div>
 						) : (
 							variables.map((variable, index) => (
 								<div
 									key={index}
-									className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-3"
+									className="flex items-center gap-2 bg-background/40 border border-white/[0.07] rounded-lg p-2.5"
 								>
-									<div className="flex items-center gap-3">
-										<div className="w-6 h-6 bg-gradient-to-br from-green-500/20 to-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
-											<span className="text-xs">🔑</span>
-										</div>
-										<div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
-											<input
-												type="text"
-												placeholder="Variable name (e.g., API_KEY)"
-												className="w-full p-2 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 text-sm"
-												value={variable.name}
-												onChange={(e) =>
-													handleVariableChange(index, "name", e.target.value)
-												}
-											/>
-											<input
-												type="text"
-												placeholder="Variable value"
-												className="w-full p-2 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 text-sm"
-												value={variable.value}
-												onChange={(e) =>
-													handleVariableChange(index, "value", e.target.value)
-												}
-											/>
-										</div>
-										<button
-											onClick={() => handleRemoveVariable(index)}
-											className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition-all duration-300 hover:scale-110 flex-shrink-0"
-											title="Remove variable"
-										>
-											🗑️
-										</button>
-									</div>
+									<input
+										type="text"
+										placeholder="KEY"
+										className={inputCls}
+										value={variable.name}
+										onChange={(e) => handleVariableChange(index, "name", e.target.value)}
+									/>
+									<span className="text-muted text-sm shrink-0">=</span>
+									<input
+										type="text"
+										placeholder="value"
+										className={inputCls}
+										value={variable.value}
+										onChange={(e) => handleVariableChange(index, "value", e.target.value)}
+									/>
+									<button
+										onClick={() => handleRemoveVariable(index)}
+										className="p-1.5 text-muted hover:text-red-400 hover:bg-red-400/10 rounded transition-colors shrink-0"
+									>
+										<Icon name="trash" className="w-3.5 h-3.5" />
+									</button>
 								</div>
 							))
 						)}
 					</div>
 				</div>
 
-				{/* Action Buttons */}
-				<div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-700/50">
-					<button
-						onClick={onClose}
-						className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500"
-						disabled={loading}
-					>
+				<ModalFooter>
+					<button onClick={onClose} className={cancelBtnClass} disabled={loading}>
 						Cancel
 					</button>
-					<button
-						onClick={handleSubmit}
-						className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-						disabled={loading}
-					>
-						<span className="text-sm">💾</span>
+					<button onClick={handleSubmit} className={primaryBtnClass} disabled={loading}>
 						Update Variables
 					</button>
-				</div>
+				</ModalFooter>
 			</div>
 		</Modal>
 	);

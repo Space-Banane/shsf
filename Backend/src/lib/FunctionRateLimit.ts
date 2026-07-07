@@ -1,6 +1,9 @@
 import { Function } from "@prisma/client";
 import { env } from "process";
 import { prisma } from "..";
+import { createLogger } from "./logger";
+
+const log = createLogger("RateLimit");
 
 export const EXECUTION_RATELIMIT_IDENTITIES = [
 	"ip",
@@ -192,9 +195,7 @@ function parseRateLimitConfigJson(ratelimit: string): unknown | null {
 
 function logInvalidRateLimitConfig(context: string, ratelimit: string) {
 	const preview = ratelimit.trim().slice(0, 120);
-	console.warn(
-		`Invalid ${context} rate limit config; using fallback. Stored value starts with: ${preview}`,
-	);
+	log.warn({ context, preview }, "Invalid rate limit config, using fallback");
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -729,13 +730,13 @@ type AppliedRateLimitRuleResult =
 	| {
 			allowed: true;
 			detail: AppliedExecutionRateLimit;
-	  }
+	}
 	| {
 			allowed: false;
 			detail: AppliedExecutionRateLimit;
 			retry_after_ms: number;
 			penalty_ms?: number;
-	  };
+	};
 
 function applyRateLimitRule(
 	key: string,

@@ -4,23 +4,28 @@ module.exports = {
 	theme: {
 		extend: {
 			colors: {
-				text: "#f8f8fe",
+				text: "#dde2f0",
 				subhead: "#fbf2c4",
-				background: "#0d0e1a",
+				background: "#070b14",
+				surface: "#0c1120",
+				"surface-raised": "#111827",
 				primary: "#7c83fd",
 				secondary: "#96baff",
 				accent: "#7dedff",
-				footer: "#121325",
-				navbar: "#131424",
-				grayed: "#6a7282",
+				footer: "#070b14",
+				navbar: "#070b14",
+				grayed: "#5a6478",
 				shsf: "#7c83fd",
+				muted: "#64748b",
 			},
 			borderColor: {
+				DEFAULT: "rgba(255,255,255,0.07)",
 				primary: "#7c83fd",
 				secondary: "#96baff",
 				accent: "#7dedff",
-				text: "#f8f8fe",
-				// add more if needed
+				text: "#dde2f0",
+				subtle: "rgba(255,255,255,0.07)",
+				"primary-dim": "rgba(124,131,253,0.2)",
 			},
 			animation: {
 				fadeIn: "fadeIn 0.2s ease-in-out",

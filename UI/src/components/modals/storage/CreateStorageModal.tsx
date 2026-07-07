@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { createStorage } from "../../../services/backend.storage";
 import Modal from "../Modal";
+import { cancelBtnClass, primaryBtnClass, inputClass, labelClass, ModalError, ModalFooter } from "../Modal";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 
 interface CreateStorageModalProps {
 	isOpen: boolean;
@@ -8,33 +10,27 @@ interface CreateStorageModalProps {
 	onSuccess: () => void;
 }
 
-function CreateStorageModal({
-	isOpen,
-	onClose,
-	onSuccess,
-}: CreateStorageModalProps) {
+function CreateStorageModal({ isOpen, onClose, onSuccess }: CreateStorageModalProps) {
 	const [name, setName] = useState("");
 	const [purpose, setPurpose] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
+	useShiftEnterSubmit(() => handleSubmit(), isOpen && !isLoading && name.trim().length > 0);
+
 	const handleSubmit = async () => {
 		setIsLoading(true);
 		setError("");
 		try {
-			const res = await createStorage({
-				name: name,
-				purpose: purpose,
-			});
+			const res = await createStorage({ name, purpose });
 			if (res.status === "OK") {
-				setName("");
-				setPurpose("");
+				setName(""); setPurpose("");
 				onSuccess();
 				onClose();
 			} else {
 				setError(res.message || "Failed to create storage");
 			}
-		} catch (e) {
+		} catch {
 			setError("Failed to create storage");
 		} finally {
 			setIsLoading(false);
@@ -44,49 +40,40 @@ function CreateStorageModal({
 	if (!isOpen) return null;
 
 	return (
-		<Modal isOpen={isOpen} onClose={onClose} title="Create Storage">
-			<div className="text-center mb-6">
-				<div className="text-5xl mb-2">🗄️</div>
-				<p className="text-text/70">Create a new virtual database (storage).</p>
-			</div>
+		<Modal isOpen={isOpen} onClose={onClose} title="Create Storage" isLoading={isLoading}>
 			<div className="space-y-4">
-				<input
-					type="text"
-					className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none font-mono"
-					placeholder="Storage Name"
-					value={name}
-					onChange={(e) => setName(e.target.value)}
-					disabled={isLoading}
-				/>
-				<input
-					type="text"
-					className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none font-mono"
-					placeholder="Purpose (optional)"
-					value={purpose}
-					onChange={(e) => setPurpose(e.target.value)}
-					disabled={isLoading}
-				/>
-				{error && (
-					<div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-						{error}
-					</div>
-				)}
-				<div className="flex gap-3 pt-2">
-					<button
-						onClick={onClose}
-						className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text hover:border-primary/40 transition-all duration-300"
+				<ModalError message={error} />
+				<div>
+					<label className={labelClass}>Storage name</label>
+					<input
+						type="text"
+						className={`${inputClass} font-mono`}
+						placeholder="e.g., my-cache"
+						value={name}
+						onChange={(e) => setName(e.target.value)}
 						disabled={isLoading}
-					>
+						autoFocus
+					/>
+				</div>
+				<div>
+					<label className={labelClass}>Purpose (optional)</label>
+					<input
+						type="text"
+						className={inputClass}
+						placeholder="What will this storage be used for?"
+						value={purpose}
+						onChange={(e) => setPurpose(e.target.value)}
+						disabled={isLoading}
+					/>
+				</div>
+				<ModalFooter>
+					<button onClick={onClose} className={cancelBtnClass} disabled={isLoading}>
 						Cancel
 					</button>
-					<button
-						onClick={handleSubmit}
-						disabled={isLoading || !name}
-						className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-all duration-300"
-					>
-						{isLoading ? "Creating..." : "Create"}
+					<button onClick={handleSubmit} disabled={isLoading || !name} className={primaryBtnClass}>
+						Create
 					</button>
-				</div>
+				</ModalFooter>
 			</div>
 		</Modal>
 	);

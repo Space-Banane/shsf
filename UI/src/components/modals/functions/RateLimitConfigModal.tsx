@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import Modal from "../Modal";
+import { cancelBtnClass, primaryBtnClass } from "../Modal";
 import {
 	ExecutionRateLimitIdentity,
 	getRateLimitConfig,
@@ -1098,7 +1099,7 @@ function RateLimitConfigModal({
 						type="button"
 						onClick={onClose}
 						disabled={isSaving}
-						className="px-5 py-2.5 rounded-lg border border-primary/15 bg-background/30 text-text hover:border-primary/30 transition-all disabled:opacity-50"
+						className={cancelBtnClass}
 					>
 						Cancel
 					</button>
@@ -1106,7 +1107,7 @@ function RateLimitConfigModal({
 						type="button"
 						onClick={handleSave}
 						disabled={isSaving}
-						className="px-5 py-2.5 rounded-lg border border-blue-700 bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-50"
+						className={primaryBtnClass}
 					>
 						Save Rate Limits
 					</button>

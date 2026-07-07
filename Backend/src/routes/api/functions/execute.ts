@@ -8,6 +8,7 @@ import {
 	setFunctionCache,
 } from "../../../lib/Caching";
 import { OpenAPITags } from "../../../lib/openapi";
+import { getExternalAccessDisabled } from "../../../lib/DataManager";
 
 export = new fileRouter.Path("/")
 	.http("POST", "/api/function/{id}/execute", (http) =>
@@ -121,6 +122,14 @@ export = new fileRouter.Path("/")
 					return ctr.print({
 						status: 401,
 						message: "Unauthorized",
+					});
+				}
+
+				// Block API-key-based executions when external access is disabled
+				if (authCheck.method === "apiKey" && await getExternalAccessDisabled()) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "External function access has been disabled by the instance administrator.",
 					});
 				}
 

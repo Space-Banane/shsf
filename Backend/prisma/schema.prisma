@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
@@ -21,6 +20,8 @@ model User {
   password String? @db.VarChar(256)
 
   openRouterKey String? @db.VarChar(512) // User-supplied OpenRouter API key for AI features
+
+  allow_docker_mount Boolean @default(false) // Admin-controlled: whether this user may create functions with docker socket mount
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

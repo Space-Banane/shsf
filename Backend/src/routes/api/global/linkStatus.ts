@@ -1,5 +1,5 @@
 import { fileRouter } from "../../..";
-import { getLinkStatus, setLinkStatus } from "../../../lib/DataManager";
+import { getLinkStatus } from "../../../lib/DataManager";
 import { OpenAPITags } from "../../../lib/openapi";
 
 export = new fileRouter.Path("/").http(

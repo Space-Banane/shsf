@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { prisma, API_KEY_HEADER } from "..";
+import { prisma } from "..";
 
 export const SHSF_BINARY_TRANSPORT = "base64-bytes-v1";
 
@@ -206,7 +206,7 @@ export function handleFunctionResult(
 		"_shsf" in normalizedResult
 	) {
 		const out = normalizedResult;
-		const version: "v2" = out._shsf;
+		const _version: "v2" = out._shsf;
 		const rawHeaders = ("_headers" in out && typeof out._headers === "object" && out._headers)
 			? out._headers
 			: {};

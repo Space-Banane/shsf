@@ -1,4 +1,5 @@
 import { API_KEY_HEADER, COOKIE, fileRouter } from "../../..";
+import { env } from "../../../lib/env";
 import { checkAuthentication } from "../../../lib/Authentication";
 import * as bcrypt from "bcrypt";
 
@@ -53,7 +54,7 @@ export = new fileRouter.Path("/").http(
 
 				return ctr.print({
 					status: "OK",
-					secret: process.env.INSTANCE_SECRET || "No secret set",
+					secret: env.INSTANCE_SECRET,
 				});
 			}),
 );

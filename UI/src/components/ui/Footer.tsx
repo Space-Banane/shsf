@@ -84,7 +84,7 @@ export function Footer() {
 	})();
 
 	return (
-		<footer className="bg-footer border-t border-blue-700/30 text-base">
+		<footer className="bg-footer border-t border-white/[0.07] text-base">
 			{/* Main grid */}
 			<div className="container mx-auto px-6 pt-10 pb-6">
 				<div className="grid grid-cols-1 gap-8 md:grid-cols-[2fr_1fr_1fr]">
@@ -150,7 +150,7 @@ export function Footer() {
 				</div>
 
 				{/* Bottom bar */}
-				<div className="mt-8 pt-4 border-t border-blue-700/20 flex flex-col sm:flex-row items-center justify-between gap-2 text-grayed text-sm">
+				<div className="mt-8 pt-4 border-t border-white/[0.07] flex flex-col sm:flex-row items-center justify-between gap-2 text-grayed text-sm">
 					<p>
 						Made with{" "}
 						<span className="text-red-500">♥</span>{" "}

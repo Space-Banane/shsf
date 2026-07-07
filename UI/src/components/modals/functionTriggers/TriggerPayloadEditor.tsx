@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { inputClass, textareaClass } from "../Modal";
 
 type ParseResult = {
 	mode: "guided" | "raw";
@@ -230,41 +231,28 @@ function TriggerPayloadEditor({
 		<div className="space-y-4">
 			<div className="flex items-center justify-between gap-3 flex-wrap">
 				<div>
-					<label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-						<span className="text-lg">📊</span>
-						Payload
-					</label>
-					<p className="text-xs text-gray-400 mt-1">
+					<label className="text-sm font-medium text-text/80">Payload</label>
+					<p className="text-xs text-muted mt-1">
 						Cron payloads are sent as top-level JSON keys on <code>args</code>.
 					</p>
 				</div>
-				<div className="inline-flex rounded-lg border border-gray-700/60 bg-gray-900/40 p-1">
+				<div className="inline-flex rounded-lg border border-white/[0.07] bg-background/40 p-1">
 					<button
 						type="button"
-						onClick={() => {
-							setMode("guided");
-							setShowRawEditor(false);
-						}}
+						onClick={() => { setMode("guided"); setShowRawEditor(false); }}
 						disabled={disabled}
 						className={`px-3 py-1.5 text-xs rounded-md transition-all ${
-							mode === "guided"
-								? "bg-primary/20 text-primary"
-								: "text-gray-400 hover:text-white"
+							mode === "guided" ? "bg-primary/20 text-primary" : "text-muted hover:text-text"
 						}`}
 					>
 						Guided
 					</button>
 					<button
 						type="button"
-						onClick={() => {
-							setMode("raw");
-							setShowRawEditor(true);
-						}}
+						onClick={() => { setMode("raw"); setShowRawEditor(true); }}
 						disabled={disabled}
 						className={`px-3 py-1.5 text-xs rounded-md transition-all ${
-							mode === "raw"
-								? "bg-primary/20 text-primary"
-								: "text-gray-400 hover:text-white"
+							mode === "raw" ? "bg-primary/20 text-primary" : "text-muted hover:text-text"
 						}`}
 					>
 						Raw JSON
@@ -281,11 +269,7 @@ function TriggerPayloadEditor({
 			{mode === "guided" ? (
 				<div className="space-y-4">
 					<div className="space-y-2">
-						<label
-							htmlFor={`${inputIdPrefix}-route`}
-							className="flex items-center gap-2 text-sm font-medium text-gray-300"
-						>
-							<span className="text-lg">🛣️</span>
+						<label htmlFor={`${inputIdPrefix}-route`} className="text-sm font-medium text-text/80">
 							Route
 						</label>
 						<input
@@ -294,21 +278,16 @@ function TriggerPayloadEditor({
 							placeholder="default, register, nightly-sync"
 							value={route}
 							onChange={(e) => updateGuided(e.target.value, payloadJson)}
-							className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 font-mono"
+							className={`${inputClass} font-mono`}
 							disabled={disabled}
 						/>
-						<p className="text-xs text-gray-400">
-							Optional. Maps to <code>args.route</code>. Use a single segment without
-							slashes.
+						<p className="text-xs text-muted">
+							Optional. Maps to <code>args.route</code>. Use a single segment without slashes.
 						</p>
 					</div>
 
 					<div className="space-y-2">
-						<label
-							htmlFor={`${inputIdPrefix}-data`}
-							className="flex items-center gap-2 text-sm font-medium text-gray-300"
-						>
-							<span className="text-lg">🧩</span>
+						<label htmlFor={`${inputIdPrefix}-data`} className="text-sm font-medium text-text/80">
 							Payload Data (JSON)
 						</label>
 						<textarea
@@ -316,20 +295,20 @@ function TriggerPayloadEditor({
 							placeholder='{"key": "value"}'
 							value={payloadJson}
 							onChange={(e) => updateGuided(route, e.target.value)}
-							className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 font-mono resize-none"
+							className={`${textareaClass} font-mono`}
 							rows={6}
 							disabled={disabled}
 						/>
-						<p className="text-xs text-gray-400">
+						<p className="text-xs text-muted">
 							Enter top-level keys other than <code>route</code>.
 						</p>
 					</div>
 
-					<details className="rounded-lg border border-gray-700/50 bg-gray-900/30 p-3">
+					<details className="bg-background/40 border border-white/[0.07] rounded-lg p-3">
 						<summary className="cursor-pointer text-xs font-semibold text-primary">
 							Preview final payload
 						</summary>
-						<pre className="mt-2 whitespace-pre-wrap break-all text-xs text-gray-300 font-mono">
+						<pre className="mt-2 whitespace-pre-wrap break-all text-xs text-muted font-mono">
 							{guidedPreview ?? "Invalid payload"}
 						</pre>
 					</details>
@@ -337,17 +316,13 @@ function TriggerPayloadEditor({
 			) : (
 				<div className="space-y-2">
 					<div className="flex items-center justify-between">
-						<label
-							htmlFor={`${inputIdPrefix}-raw`}
-							className="flex items-center gap-2 text-sm font-medium text-gray-300"
-						>
-							<span className="text-lg">{"{}"}</span>
+						<label htmlFor={`${inputIdPrefix}-raw`} className="text-sm font-medium text-text/80">
 							Raw Payload JSON
 						</label>
 						<button
 							type="button"
 							onClick={() => setShowRawEditor((prev) => !prev)}
-							className="text-xs text-primary/80 transition-colors hover:text-white"
+							className="text-xs text-primary/80 transition-colors hover:text-text"
 							disabled={disabled}
 						>
 							{showRawEditor ? "Hide raw JSON" : "Show raw JSON"}
@@ -359,12 +334,12 @@ function TriggerPayloadEditor({
 							placeholder='{"route": "register", "key": "value"}'
 							value={rawJson}
 							onChange={(e) => updateRaw(e.target.value)}
-							className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 font-mono resize-none"
+							className={`${textareaClass} font-mono`}
 							rows={8}
 							disabled={disabled}
 						/>
 					)}
-					<p className="text-xs text-gray-400">
+					<p className="text-xs text-muted">
 						Advanced mode. Payload must be a JSON object and any <code>route</code>{" "}
 						value must be a single segment.
 					</p>

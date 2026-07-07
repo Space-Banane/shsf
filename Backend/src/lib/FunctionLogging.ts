@@ -4,6 +4,9 @@ Helper for Function Trigger Logging
 
 import { TriggerLog } from "@prisma/client";
 import { prisma } from "..";
+import { createLogger } from "./logger";
+
+const log = createLogger("FunctionLogging");
 
 interface LoggingConfigEnabled {
     enabled: true;
@@ -24,14 +27,14 @@ const defaultLoggingConfig: LoggingConfig = {
     enabled: true,
 };
 
-async function validateLoggingConfig(config: any): Promise<boolean> {
+async function validateLoggingConfig(config: unknown): Promise<boolean> {
     // Basic validation to check if the config has the required structure
     if (typeof config !== "object" || config === null) {
         return false;
     }
 
     // Check if the "enabled" property exists and is a boolean
-    if (typeof config.enabled !== "boolean") {
+    if (typeof (config as Record<string, unknown>).enabled !== "boolean") {
         return false;
     }
 
@@ -52,7 +55,7 @@ export async function setLoggingConfig(functionID: number, config: LoggingConfig
             }
         });
     } catch (error) {
-        console.error("Error setting logging config:", error);
+        log.error({ err: error, functionID }, "Error setting logging config");
         throw error; // Rethrow the error to be handled by the caller
     }
 }
@@ -66,13 +69,13 @@ export async function getLoggingConfigFromData(logging:string | null): Promise<L
         const config = JSON.parse(logging);
         const isValid = await validateLoggingConfig(config);
         if (!isValid) {
-            console.error("Invalid logging config structure:", config);
+            log.error({ config }, "Invalid logging config structure");
             return defaultLoggingConfig;
         }
 
         return config as LoggingConfig;
     } catch (error) {
-        console.error("Error parsing logging config:", error);
+        log.error({ err: error }, "Error parsing logging config");
         return defaultLoggingConfig;
     }
 }
@@ -92,7 +95,7 @@ export async function getLoggingConfigByID(functionID: number): Promise<ReturnTy
         const loggingdata = data.logging ?? "";
         return getLoggingConfigFromData(loggingdata);
     } catch (error) {
-        console.error("Error fetching logging config:", error);
+        log.error({ err: error, functionID }, "Error fetching logging config");
         return null;
     }
 }
@@ -106,22 +109,22 @@ export async function stripHeadersFromPayload(payload: string): Promise<string> 
         }
         return JSON.stringify(parsed);
     } catch (error) {
-        console.error("Error stripping header from payload:", error);
+        log.error({ err: error }, "Error stripping headers from payload");
         return payload;
     }
 }
 
-export async function getExitCodeFromLog(log: TriggerLog): Promise<number | null> {
+export async function getExitCodeFromLog(triggerLog: TriggerLog): Promise<number | null> {
     try {
-        if (!log.result || log.result.trim() === "") {
+        if (!triggerLog.result || triggerLog.result.trim() === "") {
             return null;
         }
-        const parsed = JSON.parse(log.result);
+        const parsed = JSON.parse(triggerLog.result);
         if (parsed && typeof parsed === "object" && "exitCode" in parsed) {
             return parsed.exitCode;
         }
     } catch (error) {
-        console.error("Error parsing log result for exit code:", error);
+        log.error({ err: error }, "Error parsing log result for exit code");
         return null;
     }
     return null;

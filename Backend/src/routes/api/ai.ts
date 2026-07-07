@@ -1,7 +1,7 @@
-import { OpenRouter } from "@openrouter/sdk";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
 import { OpenAPITags } from "../../lib/openapi";
+import { env } from "../../lib/env";
 
 const Images: string[] = [
 	"python:3.9",
@@ -614,8 +614,9 @@ export = new fileRouter.Path("/")
 
 				if (error || !body) return ctr.status(400).print({ status: 400, message: "Invalid request body" });
 
+				const { OpenRouter } = await import("@openrouter/sdk");
 				const or = new OpenRouter({
-					apiKey: authCheck.user.openRouterKey || process.env.OPENROUTER_API_KEY,
+					apiKey: authCheck.user.openRouterKey || env.OPENROUTER_API_KEY,
 					httpReferer: "https://github.com/Space-Banane/shsf",
 					xTitle: "SHSF - Self-Hostable Serverless Functions",
 				});
@@ -675,7 +676,7 @@ Platform Rules:
 							startup_file: config.startup_file ?? fallbackStartupFile,
 						},
 					});
-				} catch (e) {
+				} catch {
 					return ctr.status(500).print({ status: 500, message: "AI returned invalid JSON: " + content });
 				}
 			}),
@@ -751,7 +752,7 @@ Platform Rules:
 				}
 
 				const openRouterKey =
-					authCheck.user.openRouterKey || process.env.OPENROUTER_API_KEY;
+					authCheck.user.openRouterKey || env.OPENROUTER_API_KEY;
 
 				if (!openRouterKey) {
 					return ctr.status(ctr.$status.SERVICE_UNAVAILABLE).print({
@@ -802,6 +803,7 @@ Platform Rules:
 
 				const model = "qwen/qwen3-coder-next";
 
+				const { OpenRouter } = await import("@openrouter/sdk");
 				const openRouter = new OpenRouter({
 					apiKey: openRouterKey,
 					httpReferer: "https://github.com/Space-Banane/shsf",

@@ -14,11 +14,7 @@ type LoginLocationState = {
 
 const getRedirectPath = (state: LoginLocationState | null | undefined) => {
 	const pathname = state?.from?.pathname;
-
-	if (!pathname || !pathname.startsWith("/") || pathname === "/login") {
-		return "/";
-	}
-
+	if (!pathname || !pathname.startsWith("/") || pathname === "/login") return "/";
 	return `${pathname}${state.from?.search ?? ""}${state.from?.hash ?? ""}`;
 };
 
@@ -34,16 +30,12 @@ function LoginPage() {
 	const redirectPath = getRedirectPath(locationState);
 
 	useEffect(() => {
-		// Redirect if user is already logged in
-		if (user) {
-			navigate(redirectPath, { replace: true });
-		}
+		if (user) navigate(redirectPath, { replace: true });
 	}, [user, navigate, redirectPath]);
 
 	const handleLogin = async () => {
 		setError("");
 		setLoading(true);
-
 		try {
 			const response = await fetch(BASE_URL + "/api/account/login", {
 				method: "POST",
@@ -51,162 +43,89 @@ function LoginPage() {
 				credentials: "include",
 				body: JSON.stringify({ email, password }),
 			});
-
 			const data = await response.json();
-
 			if (data.status === "OK") {
 				refreshUser();
 				navigate(redirectPath, { replace: true });
 			} else {
 				setError(data.message || "Login failed");
 			}
-		} catch (err) {
-			console.error("Login error:", err);
+		} catch {
 			setError("An error occurred during login. Please try again.");
 		} finally {
 			setLoading(false);
 		}
 	};
 
-	// Get success message from registration
 	const successMessage = locationState?.message;
+	const inputClass = "w-full px-3 py-2.5 bg-background border border-white/[0.07] rounded-lg text-text text-sm focus:border-primary/50 focus:outline-none placeholder:text-muted/60";
 
 	return (
-		<div className="min-h-screen bg-background">
-			{/* Hero Header Section */}
-			<div className="relative bg-gradient-to-br from-green-900/20 to-blue-900/20 border-b border-primary/20">
-				<div className="max-w-6xl mx-auto px-4 py-16">
-					<div className="text-center space-y-4">
-						<h1 className="text-5xl font-bold text-primary mb-4">Welcome Back</h1>
-						<div className="h-1 w-24 bg-gradient-to-r from-green-500 to-blue-500 mx-auto rounded-full"></div>
-						<p className="text-xl text-text/70 max-w-2xl mx-auto">
-							Sign in to your SHSF account and continue building amazing functions
-						</p>
-					</div>
+		<div className="min-h-screen flex items-center justify-center bg-background px-4">
+			<div className="w-full max-w-sm">
+				<div className="text-center mb-8">
+					<span className="text-shsf font-extrabold text-3xl">{"{}"}</span>
+					<span className="text-shsf font-bold text-2xl ml-1">SHSF</span>
+					<p className="text-sm text-muted mt-2">Sign in to your account</p>
 				</div>
-			</div>
 
-			<div className="max-w-2xl mx-auto px-4 py-12">
-				<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-2xl p-8 hover:border-primary/40 hover:shadow-[0_0_30px_rgba(124,131,253,0.1)] transition-all duration-300">
-					<div className="text-center mb-8">
-						<div className="w-16 h-16 bg-gradient-to-br from-green-500/20 to-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-							<span className="text-3xl">👋</span>
-						</div>
-						<h2 className="text-2xl font-bold text-primary mb-2">Sign In</h2>
-						<p className="text-text/60">
-							Enter your credentials to access your account
-						</p>
-					</div>
-
+				<div className="bg-surface border border-white/[0.07] rounded-xl p-6 shadow-2xl space-y-4">
 					{successMessage && (
-						<div className="mb-6 p-4 bg-green-500/20 border border-green-500/30 rounded-xl text-green-300 text-sm flex items-center gap-3">
-							<span className="text-lg">✅</span>
-							<span>{successMessage}</span>
+						<div className="px-3 py-2.5 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">
+							{successMessage}
 						</div>
 					)}
-
 					{error && (
-						<div className="mb-6 p-4 bg-red-500/20 border border-red-500/30 rounded-xl text-red-300 text-sm flex items-center gap-3">
-							<span className="text-lg">⚠️</span>
-							<span>{error}</span>
+						<div className="px-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+							{error}
 						</div>
 					)}
-
-					<div className="space-y-6">
-						<div>
-							<label className="block text-text/70 text-sm font-medium mb-2">
-								Email Address
-							</label>
-							<input
-								type="email"
-								value={email}
-								onChange={(e) => setEmail(e.target.value)}
-								className="w-full p-4 bg-background/50 border border-primary/20 rounded-xl text-text placeholder-text/40 focus:border-primary/50 focus:outline-none focus:shadow-[0_0_20px_rgba(124,131,253,0.1)] transition-all duration-300"
-								placeholder="your@email.com"
-								disabled={loading}
-							/>
-						</div>
-
-						<div>
-							<label className="block text-text/70 text-sm font-medium mb-2">
-								Password
-							</label>
-							<input
-								type="password"
-								value={password}
-								onChange={(e) => setPassword(e.target.value)}
-								className="w-full p-4 bg-background/50 border border-primary/20 rounded-xl text-text placeholder-text/40 focus:border-primary/50 focus:outline-none focus:shadow-[0_0_20px_rgba(124,131,253,0.1)] transition-all duration-300"
-								placeholder="••••••••••••"
-								disabled={loading}
-								onKeyPress={(e) => {
-									if (e.key === "Enter" && !loading && email && password) {
-										handleLogin();
-									}
-								}}
-							/>
-						</div>
-
-						<button
-							onClick={handleLogin}
-							disabled={loading || !email || !password}
-							className="w-full p-4 bg-gradient-to-r from-green-600 to-blue-600 text-white font-bold rounded-xl hover:shadow-[0_0_30px_rgba(124,131,253,0.3)] hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-300 flex items-center justify-center gap-3"
-						>
-							{loading ? (
-								<>
-									<div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-									Signing In...
-								</>
-							) : (
-								<>
-									<span className="text-lg">🔑</span>
-									Sign In
-								</>
-							)}
-						</button>
+					<div>
+						<label className="block text-xs font-medium text-muted mb-1.5">Email</label>
+						<input
+							type="email"
+							value={email}
+							onChange={(e) => setEmail(e.target.value)}
+							className={inputClass}
+							placeholder="your@email.com"
+							disabled={loading}
+							autoFocus
+						/>
 					</div>
-
-					<div className="mt-8 pt-6 border-t border-primary/10 text-center">
-						<p className="text-text/60">
-							Don't have an account?{" "}
-							<a
-								href="/register"
-								className="text-primary hover:text-primary/80 font-semibold hover:underline transition-all duration-300"
-							>
-								Create one here
-							</a>
-						</p>
+					<div>
+						<label className="block text-xs font-medium text-muted mb-1.5">Password</label>
+						<input
+							type="password"
+							value={password}
+							onChange={(e) => setPassword(e.target.value)}
+							className={inputClass}
+							placeholder="••••••••••••"
+							disabled={loading}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" && !loading && email && password) handleLogin();
+							}}
+						/>
 					</div>
+					<button
+						onClick={handleLogin}
+						disabled={loading || !email || !password}
+						className="w-full py-2.5 bg-primary text-background text-sm font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+					>
+						{loading ? (
+							<><div className="w-4 h-4 border-2 border-background/30 border-t-background rounded-full animate-spin" /> Signing in…</>
+						) : "Sign In"}
+					</button>
+				</div>
 
-					{/* Quick Links */}
-					<div className="mt-8 pt-6 border-t border-primary/10">
-						<h3 className="text-lg font-semibold text-text mb-4 text-center">
-							Quick Access
-						</h3>
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-							<a
-								href="/docs"
-								className="p-3 bg-background/30 rounded-lg hover:bg-background/50 transition-all duration-300 text-center group"
-							>
-								<div className="text-2xl mb-2 group-hover:scale-110 transition-transform duration-300">
-									📚
-								</div>
-								<p className="text-text/70 group-hover:text-text transition-colors duration-300">
-									Documentation
-								</p>
-							</a>
-							<a
-								href="/"
-								className="p-3 bg-background/30 rounded-lg hover:bg-background/50 transition-all duration-300 text-center group"
-							>
-								<div className="text-2xl mb-2 group-hover:scale-110 transition-transform duration-300">
-									🏠
-								</div>
-								<p className="text-text/70 group-hover:text-text transition-colors duration-300">
-									Back to Home
-								</p>
-							</a>
-						</div>
-					</div>
+				<p className="text-center text-sm text-muted mt-4">
+					Don't have an account?{" "}
+					<a href="/register" className="text-primary hover:text-primary/80 transition-colors">
+						Create one
+					</a>
+				</p>
+				<div className="flex justify-center gap-6 mt-4 text-xs text-muted/50">
+					<a href="/docs" className="hover:text-muted transition-colors">Documentation</a>
+					<a href="/" className="hover:text-muted transition-colors">Home</a>
 				</div>
 			</div>
 		</div>

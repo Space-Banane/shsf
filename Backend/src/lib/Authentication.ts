@@ -12,18 +12,18 @@ export async function checkAuthentication(
 			method: "session";
 			user: User;
 			session: Session;
-	  }
+	}
 	| {
 			success: true;
 			method: "apiKey";
 			user: User;
 			apiKey: AccessToken;
-	  }
+	}
 	| {
 			success: false;
 			message: string;
 			method: "none";
-	  }
+	}
 > {
 	if (!sessionHash && !apiKey) {
 		return {

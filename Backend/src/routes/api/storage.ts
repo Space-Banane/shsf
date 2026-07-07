@@ -68,7 +68,7 @@ export = new fileRouter.Path("/")
 							.min(1)
 							.max(128)
 							.regex(
-								/^[a-zA-Z0-9_\-]+$/,
+								/^[a-zA-Z0-9_-]+$/,
 								"Name must be alphanumeric with underscores or hyphens",
 							),
 						purpose: z.string().min(1).max(256),
@@ -334,7 +334,7 @@ export = new fileRouter.Path("/")
 							.min(1)
 							.max(256)
 							.regex(
-								/^[a-zA-Z0-9_\-]+$/,
+								/^[a-zA-Z0-9_-]+$/,
 								"Key must be alphanumeric with underscores or hyphens",
 							),
 						value: z.any(),
@@ -479,7 +479,7 @@ export = new fileRouter.Path("/")
 						.status(ctr.$status.NOT_FOUND)
 						.print({ status: 404, message: "Item expired" });
 				}
-				let parsedItem = item;
+				const parsedItem = item;
 				try {
 					parsedItem.value = JSON.parse(item.value);
 				} catch {

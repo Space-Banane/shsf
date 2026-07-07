@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { updateGuestUser, GuestUser } from "../../../services/backend.guest";
 import Modal from "../Modal";
+import { cancelBtnClass, primaryBtnClass, inputClass, labelClass, ModalError, ModalFooter } from "../Modal";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 
 interface UpdateGuestModalProps {
 	isOpen: boolean;
@@ -9,22 +11,16 @@ interface UpdateGuestModalProps {
 	guest: GuestUser | null;
 }
 
-function UpdateGuestModal({
-	isOpen,
-	onClose,
-	onSuccess,
-	guest,
-}: UpdateGuestModalProps) {
+function UpdateGuestModal({ isOpen, onClose, onSuccess, guest }: UpdateGuestModalProps) {
 	const [name, setName] = useState("");
 	const [password, setPassword] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
+	useShiftEnterSubmit(() => { handleSubmit(new Event("submit") as any); }, isOpen && !isLoading);
+
 	useEffect(() => {
-		if (guest) {
-			setName(guest.displayName);
-			setPassword("");
-		}
+		if (guest) { setName(guest.displayName); setPassword(""); }
 	}, [guest]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
@@ -44,7 +40,7 @@ function UpdateGuestModal({
 			} else {
 				setError((res as any).message || "Failed to update guest");
 			}
-		} catch (e) {
+		} catch {
 			setError("Failed to update guest");
 		} finally {
 			setIsLoading(false);
@@ -52,51 +48,40 @@ function UpdateGuestModal({
 	};
 
 	return (
-		<Modal isOpen={isOpen} onClose={onClose} title="Update Guest User">
+		<Modal isOpen={isOpen} onClose={onClose} title="Update Guest User" isLoading={isLoading}>
 			<form onSubmit={handleSubmit} className="space-y-4">
-				<div className="text-center mb-6">
-					<div className="text-5xl mb-2">👤</div>
-					<p className="text-text/70 text-sm">Update guest user information.</p>
-				</div>
-				<input
-					type="text"
-					className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none"
-					placeholder="Display Name"
-					value={name}
-					onChange={(e) => setName(e.target.value)}
-					required
-					disabled={isLoading}
-				/>
-				<input
-					type="password"
-					className="w-full px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text focus:border-primary/50 focus:outline-none"
-					placeholder="New Password (optional)"
-					value={password}
-					onChange={(e) => setPassword(e.target.value)}
-					disabled={isLoading}
-				/>
-				{error && (
-					<div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-						{error}
-					</div>
-				)}
-				<div className="flex gap-3 pt-2">
-					<button
-						type="button"
-						onClick={onClose}
-						className="flex-1 px-4 py-3 bg-background/50 border border-primary/20 rounded-lg text-text hover:border-primary/40 transition-all duration-300"
+				<ModalError message={error} />
+				<div>
+					<label className={labelClass}>Display name</label>
+					<input
+						type="text"
+						className={inputClass}
+						placeholder="Display Name"
+						value={name}
+						onChange={(e) => setName(e.target.value)}
+						required
 						disabled={isLoading}
-					>
+					/>
+				</div>
+				<div>
+					<label className={labelClass}>New password (optional)</label>
+					<input
+						type="password"
+						className={inputClass}
+						placeholder="Leave blank to keep current"
+						value={password}
+						onChange={(e) => setPassword(e.target.value)}
+						disabled={isLoading}
+					/>
+				</div>
+				<ModalFooter>
+					<button type="button" onClick={onClose} className={cancelBtnClass} disabled={isLoading}>
 						Cancel
 					</button>
-					<button
-						type="submit"
-						disabled={isLoading || !name}
-						className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:bg-primary/50 disabled:cursor-not-allowed transition-all duration-300"
-					>
-						{isLoading ? "Updating..." : "Update"}
+					<button type="submit" disabled={isLoading || !name} className={primaryBtnClass}>
+						Update
 					</button>
-				</div>
+				</ModalFooter>
 			</form>
 		</Modal>
 	);

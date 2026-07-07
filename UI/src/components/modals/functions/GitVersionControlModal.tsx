@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import Modal from "../Modal";
+import {
+	cancelBtnClass,
+	primaryBtnClass,
+	deleteBtnClass,
+	inputClass,
+	selectClass,
+	labelClass,
+	ToggleRow,
+} from "../Modal";
 import { useConfirm } from "../ConfirmModal";
-
-import { ActionButton } from "../../buttons/ActionButton";
 import {
 	getGitConfig,
 	gitClone,
@@ -15,14 +22,13 @@ import {
 	getGitTree,
 } from "../../../services/backend.functions";
 
-// Feature flag — set to true to show username/token fields for private repo auth
 const ENABLE_GIT_AUTH = true;
 
 interface GitVersionControlModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	functionId: number | null;
-	onChanged?: () => void; // called when git config changes (e.g. added/removed)
+	onChanged?: () => void;
 }
 
 function GitVersionControlModal({
@@ -35,7 +41,6 @@ function GitVersionControlModal({
 	const [loading, setLoading] = useState(false);
 	const [isBusy, setIsBusy] = useState(false);
 
-	// Current saved state from backend
 	const [savedUrl, setSavedUrl] = useState<string | null>(null);
 	const [savedBranch, setSavedBranch] = useState<string | null>(null);
 	const [savedSourceDir, setSavedSourceDir] = useState<string | null>(null);
@@ -44,7 +49,6 @@ function GitVersionControlModal({
 	const [savedHasCredentials, setSavedHasCredentials] = useState(false);
 	const [showLogs, setShowLogs] = useState(false);
 
-	// Input state
 	const [urlInput, setUrlInput] = useState("");
 	const [usernameInput, setUsernameInput] = useState("");
 	const [sourceDirInput, setSourceDirInput] = useState("");
@@ -54,32 +58,22 @@ function GitVersionControlModal({
 	const [isFetchingBranches, setIsFetchingBranches] = useState(false);
 	const [isFetchingTree, setIsFetchingTree] = useState(false);
 
-	// Password is uncontrolled to avoid re-render on every keystroke stealing focus
 	const passwordRef = useRef<HTMLInputElement>(null);
 	const [passwordHasContent, setPasswordHasContent] = useState(false);
 	const getPassword = () => passwordRef.current?.value ?? "";
 	const clearPassword = () => { if (passwordRef.current) passwordRef.current.value = ""; setPasswordHasContent(false); };
 
-	// Logs
 	const [logs, setLogs] = useState<string>("");
 	const [logStatus, setLogStatus] = useState<"idle" | "ok" | "error">("idle");
-
 	const logsRef = useRef<HTMLPreElement>(null);
 
-	// Auto-scroll logs
 	useEffect(() => {
-		if (logsRef.current) {
-			logsRef.current.scrollTop = logsRef.current.scrollHeight;
-		}
+		if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight;
 	}, [logs]);
 
-	// Load git config when modal opens
 	useEffect(() => {
 		if (!isOpen || !functionId) return;
-		setLoading(true);
-		setLogs("");
-		setLogStatus("idle");
-
+		setLoading(true); setLogs(""); setLogStatus("idle");
 		getGitConfig(functionId)
 			.then((res) => {
 				if (res.status === "OK") {
@@ -92,7 +86,7 @@ function GitVersionControlModal({
 					setUsernameInput(res.data.git_username ?? "");
 					setSourceDirInput(res.data.git_source_dir ?? "");
 					setBranchInput(res.data.git_branch ?? "");
-					clearPassword(); // never pre-fill password
+					clearPassword();
 					setSavedHasCredentials(res.data.git_has_credentials);
 				} else {
 					appendLog("[ERROR] Failed to load git config: " + (res as any).message);
@@ -121,18 +115,11 @@ function GitVersionControlModal({
 	};
 
 	const resetGitState = () => {
-		setSavedUrl(null);
-		setSavedBranch(null);
-		setSavedSourceDir(null);
-		setUrlInput("");
-		setUsernameInput("");
-		clearPassword();
-		setSourceDirInput("");
-		setBranchInput("");
-		setAvailableBranches([]);
-		setAvailableDirs([]);
-		setSavedHasCredentials(false);
-		setPeriodicPull(false);
+		setSavedUrl(null); setSavedBranch(null); setSavedSourceDir(null);
+		setUrlInput(""); setUsernameInput(""); clearPassword();
+		setSourceDirInput(""); setBranchInput("");
+		setAvailableBranches([]); setAvailableDirs([]);
+		setSavedHasCredentials(false); setPeriodicPull(false);
 	};
 
 	const urlChanged = trimmedUrl !== (savedUrl ?? "");
@@ -140,39 +127,25 @@ function GitVersionControlModal({
 	const sourceDirChanged = trimmedSourceDir !== (savedSourceDir ?? "");
 	const hasUrl = Boolean(savedUrl);
 	const inputHasContent = trimmedUrl.length > 0;
-
 	const isDirty = urlChanged || branchChanged || sourceDirChanged;
 
 	const handleClone = async () => {
 		if (!functionId || !inputHasContent) return;
-		setIsBusy(true);
-		setLogs("");
-		setLogStatus("idle");
+		setIsBusy(true); setLogs(""); setLogStatus("idle");
 		appendLog(`[GIT] Starting ${hasUrl ? "re-initialization" : "setup"} for: ${trimmedUrl}`);
-
 		try {
 			const { username, password, hasTypedPassword } = getAuthInputs();
-			const res = await gitClone(
-				functionId,
-				trimmedUrl,
-				username,
-				password,
-				trimmedSourceDir || undefined,
-				trimmedBranch || undefined,
-			);
+			const res = await gitClone(functionId, trimmedUrl, username, password, trimmedSourceDir || undefined, trimmedBranch || undefined);
 			if ("logs" in res) appendLog(res.logs);
 			if (res.status === "OK") {
-				appendLog(`\n✅ ${hasUrl ? "Re-initialization" : "Setup"} completed!`);
+				appendLog(`\n[OK] ${hasUrl ? "Re-initialization" : "Setup"} completed!`);
 				toast.success(`${hasUrl ? "Re-initialization" : "Setup"} completed!`);
 				setLogStatus("ok");
-				setSavedUrl(trimmedUrl);
-				setSavedBranch(trimmedBranch);
-				setSavedSourceDir(trimmedSourceDir);
+				setSavedUrl(trimmedUrl); setSavedBranch(trimmedBranch); setSavedSourceDir(trimmedSourceDir);
 				setSavedHasCredentials(hasTypedPassword || savedHasCredentials);
-				clearPassword();
-				onChanged?.();
+				clearPassword(); onChanged?.();
 			} else {
-				appendLog("\n❌ Failed: " + res.message);
+				appendLog("\n[FAIL] Failed: " + res.message);
 				toast.error("Git failed: " + res.message);
 				setLogStatus("error");
 			}
@@ -187,22 +160,15 @@ function GitVersionControlModal({
 
 	const handlePull = async () => {
 		if (!functionId) return;
-		setIsBusy(true);
-		setLogs("");
-		setLogStatus("idle");
+		setIsBusy(true); setLogs(""); setLogStatus("idle");
 		appendLog("[GIT] Pulling latest changes...");
-
 		try {
 			const res = await gitPull(functionId);
 			if ("logs" in res) appendLog(res.logs);
 			if (res.status === "OK") {
-				appendLog("\n✅ Pull successful!");
-				toast.success("Pull successful!");
-				setLogStatus("ok");
+				appendLog("\n[OK] Pull successful!"); toast.success("Pull successful!"); setLogStatus("ok");
 			} else {
-				appendLog("\n❌ Pull failed: " + res.message);
-				toast.error("Pull failed: " + res.message);
-				setLogStatus("error");
+				appendLog("\n[FAIL] Pull failed: " + res.message); toast.error("Pull failed: " + res.message); setLogStatus("error");
 			}
 		} catch (err: any) {
 			appendLog("[ERROR] " + (err?.message ?? "Unexpected error"));
@@ -219,7 +185,7 @@ function GitVersionControlModal({
 		try {
 			const res = await updateGitSettings(functionId, enabled, undefined, undefined, pullInterval);
 			if (res.status !== "OK") {
-				setPeriodicPull(!enabled); // revert
+				setPeriodicPull(!enabled);
 				appendLog("[ERROR] Failed to update periodic pull setting.");
 				toast.error("Failed to update auto-sync.");
 			} else {
@@ -227,8 +193,7 @@ function GitVersionControlModal({
 				toast.info(`Auto-sync ${enabled ? "enabled" : "disabled"}.`);
 			}
 		} catch {
-			setPeriodicPull(!enabled);
-			toast.error("Error updating auto-sync.");
+			setPeriodicPull(!enabled); toast.error("Error updating auto-sync.");
 		}
 	};
 
@@ -238,25 +203,20 @@ function GitVersionControlModal({
 		try {
 			const res = await updateGitSettings(functionId, undefined, undefined, undefined, minutes);
 			if (res.status !== "OK") {
-				appendLog("[ERROR] Failed to update pull interval.");
-				toast.error("Failed to update pull interval.");
+				appendLog("[ERROR] Failed to update pull interval."); toast.error("Failed to update pull interval.");
 			} else {
 				appendLog(`[GIT] Pull interval set to ${minutes} minute${minutes === 1 ? "" : "s"}.`);
 				toast.info(`Pull interval set to ${minutes}m.`);
 			}
 		} catch {
-			appendLog("[ERROR] Unexpected error updating pull interval.");
-			toast.error("Error updating pull interval.");
+			appendLog("[ERROR] Unexpected error updating pull interval."); toast.error("Error updating pull interval.");
 		}
 	};
 
 	const handleSaveCredentials = async () => {
-		if (!functionId) return;
-		if (!inputHasContent) {
+		if (!functionId || !inputHasContent) {
 			appendLog("[ERROR] Repository URL is required before updating credentials.");
-			toast.error("Repo URL is required.");
-			setLogStatus("error");
-			return;
+			toast.error("Repo URL is required."); setLogStatus("error"); return;
 		}
 		const confirmed = await confirm({
 			title: "Update Credentials",
@@ -265,7 +225,6 @@ function GitVersionControlModal({
 			variant: "delete",
 		});
 		if (!confirmed) return;
-
 		await handleClone();
 	};
 
@@ -282,21 +241,13 @@ function GitVersionControlModal({
 		try {
 			const res = await removeGitCredentials(functionId);
 			if (res.status === "OK") {
-				setSavedHasCredentials(false);
-				setUsernameInput("");
-				clearPassword();
-				appendLog("[GIT] Credentials removed.");
-				toast.success("Credentials removed.");
-				setLogStatus("ok");
+				setSavedHasCredentials(false); setUsernameInput(""); clearPassword();
+				appendLog("[GIT] Credentials removed."); toast.success("Credentials removed."); setLogStatus("ok");
 			} else {
-				appendLog("[ERROR] Failed to remove credentials: " + res.message);
-				toast.error("Failed to remove credentials.");
-				setLogStatus("error");
+				appendLog("[ERROR] Failed to remove credentials: " + res.message); toast.error("Failed to remove credentials."); setLogStatus("error");
 			}
 		} catch (err: any) {
-			appendLog("[ERROR] " + (err?.message ?? "Unexpected error"));
-			toast.error("Error removing credentials.");
-			setLogStatus("error");
+			appendLog("[ERROR] " + (err?.message ?? "Unexpected error")); toast.error("Error removing credentials."); setLogStatus("error");
 		} finally {
 			setIsBusy(false);
 		}
@@ -315,15 +266,10 @@ function GitVersionControlModal({
 		try {
 			const res = await removeGitConfig(functionId);
 			if (res.status === "OK") {
-				resetGitState();
-				setLogs("[GIT] Git configuration removed.");
-				toast.success("Git disconnected.");
-				setLogStatus("ok");
-				onChanged?.();
+				resetGitState(); setLogs("[GIT] Git configuration removed.");
+				toast.success("Git disconnected."); setLogStatus("ok"); onChanged?.();
 			} else {
-				appendLog("[ERROR] " + res.message);
-				toast.error("Failed to disconnect Git.");
-				setLogStatus("error");
+				appendLog("[ERROR] " + res.message); toast.error("Failed to disconnect Git."); setLogStatus("error");
 			}
 		} finally {
 			setIsBusy(false);
@@ -339,18 +285,9 @@ function GitVersionControlModal({
 		setIsFetchingBranches(true);
 		try {
 			const { username, password } = getAuthInputs();
-			const res = await getGitBranches(
-				functionId,
-				trimmedUrl,
-				username,
-				password,
-			);
-			if (res.status === "OK") {
-				setAvailableBranches(res.data);
-				appendLog(`[GIT] Fetched ${res.data.length} branches.`);
-			} else {
-				appendLog(`[ERROR] Failed to fetch branches: ${res.message}`);
-			}
+			const res = await getGitBranches(functionId, trimmedUrl, username, password);
+			if (res.status === "OK") { setAvailableBranches(res.data); appendLog(`[GIT] Fetched ${res.data.length} branches.`); }
+			else appendLog(`[ERROR] Failed to fetch branches: ${res.message}`);
 		} catch (err: any) {
 			appendLog(`[ERROR] ${err?.message ?? "Failed to fetch branches"}`);
 		} finally {
@@ -363,19 +300,9 @@ function GitVersionControlModal({
 		setIsFetchingTree(true);
 		try {
 			const { username, password } = getAuthInputs();
-			const res = await getGitTree(
-				functionId,
-				trimmedUrl,
-				username,
-				password,
-				trimmedBranch || undefined,
-			);
-			if (res.status === "OK") {
-				setAvailableDirs(res.data);
-				appendLog(`[GIT] Fetched ${res.data.length} directories.`);
-			} else {
-				appendLog(`[ERROR] Failed to fetch tree: ${res.message}`);
-			}
+			const res = await getGitTree(functionId, trimmedUrl, username, password, trimmedBranch || undefined);
+			if (res.status === "OK") { setAvailableDirs(res.data); appendLog(`[GIT] Fetched ${res.data.length} directories.`); }
+			else appendLog(`[ERROR] Failed to fetch tree: ${res.message}`);
 		} catch (err: any) {
 			appendLog(`[ERROR] ${err?.message ?? "Failed to fetch tree"}`);
 		} finally {
@@ -384,24 +311,17 @@ function GitVersionControlModal({
 	};
 
 	const logBorderColor =
-		logStatus === "ok"
-			? "border-green-500/40"
-			: logStatus === "error"
-			? "border-red-500/40"
-			: "border-primary/10";
+		logStatus === "ok" ? "border-green-500/40" :
+		logStatus === "error" ? "border-red-500/40" :
+		"border-white/[0.07]";
+
+	const sectionInputClass = `${inputClass} text-sm`;
+	const sectionSelectClass = `${selectClass} text-sm`;
 
 	return (
-		<Modal
-			isOpen={isOpen}
-			onClose={handleClose}
-			title="Git Integration"
-			maxWidth="lg"
-			isLoading={loading}
-		>
-			<div className="space-y-6">
-				{/* Warning Marker */}
-				<div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
-					<span className="text-red-500 text-lg">⚠️</span>
+		<Modal isOpen={isOpen} onClose={handleClose} title="Git Integration" maxWidth="lg" isLoading={loading}>
+			<div className="space-y-5">
+				<div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-3">
 					<div>
 						<h4 className="text-[10px] font-bold uppercase tracking-widest text-red-500/80">Data Warning</h4>
 						<p className="text-[11px] text-red-400/70 leading-relaxed">
@@ -410,270 +330,190 @@ function GitVersionControlModal({
 					</div>
 				</div>
 
-				{/* Repository Configuration */}
-				<div className="bg-background/30 border border-primary/10 rounded-xl p-4 space-y-4">
-					<div className="flex items-center gap-2 pb-2 border-b border-primary/10">
-						<span className="text-primary text-sm">📦</span>
-						<h3 className="text-xs font-bold uppercase tracking-widest text-primary/70">Repository Settings</h3>
-					</div>
+				<div className="bg-surface border border-white/[0.07] rounded-lg p-4 space-y-4">
+					<h3 className="text-xs font-medium text-muted uppercase tracking-wider pb-2 border-b border-white/[0.07]">Repository Settings</h3>
 
-					{/* Git URL Input */}
-					<div className="space-y-2">
-						<label className="text-[10px] font-bold uppercase tracking-widest text-primary/50 flex items-center gap-2">
+					<div>
+						<label className={`${labelClass} flex items-center gap-2`}>
 							Repository URL
-							{hasUrl && !urlChanged && <span className="text-green-400 normal-case font-normal">(Active)</span>}
+							{hasUrl && !urlChanged && <span className="text-green-400 normal-case font-normal text-[10px]">(Active)</span>}
 						</label>
 						<input
 							type="text"
 							value={urlInput}
 							onChange={(e) => setUrlInput(e.target.value)}
 							placeholder="https://github.com/user/repo.git"
-							className="w-full bg-background/40 border border-primary/20 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-primary/50 transition-colors placeholder-gray-600"
+							className={sectionInputClass}
 						/>
 					</div>
 
 					<div className="grid grid-cols-2 gap-4">
-						{/* Branch Selection */}
-						<div className="space-y-2">
-							<label className="text-[10px] font-bold uppercase tracking-widest text-primary/50 flex items-center justify-between">
+						<div>
+							<label className={`${labelClass} flex items-center justify-between`}>
 								<span>Branch</span>
-								<button 
+								<button
 									disabled={isFetchingBranches || !trimmedUrl}
 									onClick={fetchBranches}
-									className="text-primary hover:text-white transition-colors disabled:opacity-30"
+									className="text-primary hover:text-text transition-colors disabled:opacity-30 text-[10px] normal-case font-normal"
 								>
 									{isFetchingBranches ? "..." : "Fetch"}
 								</button>
 							</label>
-							<div className="relative">
-								{availableBranches.length > 0 ? (
-									<div className="relative">
-										<select
-											value={branchInput}
-											onChange={(e) => setBranchInput(e.target.value)}
-											className="w-full bg-background/40 border border-primary/20 rounded-lg pl-3 pr-8 py-2 text-white text-sm outline-none focus:border-primary/50 transition-colors appearance-none"
-										>
-											{availableBranches.map((b) => (
-												<option key={b} value={b}>{b}</option>
-											))}
-										</select>
-										<button 
-											onClick={() => { setAvailableBranches([]); setBranchInput(""); }}
-											className="absolute right-2 top-1/2 -translate-y-1/2 text-red-400/50 hover:text-red-400 p-1"
-										>
-											✕
-										</button>
-									</div>
-								) : (
-									<input
-										type="text"
-										value={branchInput}
-										onChange={(e) => setBranchInput(e.target.value)}
-										placeholder="HEAD"
-										className="w-full bg-background/40 border border-primary/20 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-primary/50 transition-colors placeholder-gray-600"
-									/>
-								)}
-							</div>
+							{availableBranches.length > 0 ? (
+								<div className="relative">
+									<select value={branchInput} onChange={(e) => setBranchInput(e.target.value)} className={sectionSelectClass}>
+										{availableBranches.map((b) => <option key={b} value={b}>{b}</option>)}
+									</select>
+									<button onClick={() => { setAvailableBranches([]); setBranchInput(""); }} className="absolute right-8 top-1/2 -translate-y-1/2 text-muted hover:text-red-400 text-xs">✕</button>
+								</div>
+							) : (
+								<input type="text" value={branchInput} onChange={(e) => setBranchInput(e.target.value)} placeholder="HEAD" className={sectionInputClass} />
+							)}
 						</div>
 
-						{/* Source Directory */}
-						<div className="space-y-2">
-							<label className="text-[10px] font-bold uppercase tracking-widest text-primary/50 flex items-center justify-between">
+						<div>
+							<label className={`${labelClass} flex items-center justify-between`}>
 								<span>Subdirectory</span>
-								<button 
+								<button
 									disabled={isFetchingTree || !trimmedUrl}
 									onClick={fetchTree}
-									className="text-primary hover:text-white transition-colors disabled:opacity-30"
+									className="text-primary hover:text-text transition-colors disabled:opacity-30 text-[10px] normal-case font-normal"
 								>
 									{isFetchingTree ? "..." : "Fetch"}
 								</button>
 							</label>
-							<div className="relative">
-								{availableDirs.length > 0 ? (
-									<div className="relative">
-										<select
-											value={sourceDirInput}
-											onChange={(e) => setSourceDirInput(e.target.value)}
-											className="w-full bg-background/40 border border-primary/20 rounded-lg pl-3 pr-8 py-2 text-white text-sm outline-none focus:border-primary/50 transition-colors appearance-none"
-										>
-											{availableDirs.map((d) => (
-												<option key={d} value={d === "." ? "" : d}>{d}</option>
-											))}
-										</select>
-										<button 
-											onClick={() => { setAvailableDirs([]); setSourceDirInput(""); }}
-											className="absolute right-2 top-1/2 -translate-y-1/2 text-red-400/50 hover:text-red-400 p-1"
-										>
-											✕
-										</button>
-									</div>
-								) : (
-									<input
-										type="text"
-										value={sourceDirInput}
-										onChange={(e) => setSourceDirInput(e.target.value)}
-										placeholder="/"
-										className="w-full bg-background/40 border border-primary/20 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-primary/50 transition-colors placeholder-gray-600"
-									/>
-								)}
-							</div>
+							{availableDirs.length > 0 ? (
+								<div className="relative">
+									<select value={sourceDirInput} onChange={(e) => setSourceDirInput(e.target.value)} className={sectionSelectClass}>
+										{availableDirs.map((d) => <option key={d} value={d === "." ? "" : d}>{d}</option>)}
+									</select>
+									<button onClick={() => { setAvailableDirs([]); setSourceDirInput(""); }} className="absolute right-8 top-1/2 -translate-y-1/2 text-muted hover:text-red-400 text-xs">✕</button>
+								</div>
+							) : (
+								<input type="text" value={sourceDirInput} onChange={(e) => setSourceDirInput(e.target.value)} placeholder="/" className={sectionInputClass} />
+							)}
 						</div>
 					</div>
 
 					{isDirty && hasUrl && (
-						<div className="p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-[11px] text-yellow-500/80 flex gap-2">
-							<span>⚠️</span>
-							<span>Configuration changed. Re-initialization will delete current files.</span>
+						<div className="p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-[11px] text-yellow-500/80">
+							Configuration changed. Re-initialization will delete current files.
 						</div>
 					)}
 				</div>
 
-				{/* Authentication (private repos) */}
-				<div className="bg-background/30 border border-primary/10 rounded-xl p-4 space-y-4">
-					<div className="flex items-center gap-2 pb-2 border-b border-primary/10">
-						<span className="text-primary text-sm">🔑</span>
-						<h3 className="text-xs font-bold uppercase tracking-widest text-primary/70">Authentication</h3>
+				{ENABLE_GIT_AUTH && (
+					<div className="bg-surface border border-white/[0.07] rounded-lg p-4 space-y-4">
+						<h3 className="text-xs font-medium text-muted uppercase tracking-wider pb-2 border-b border-white/[0.07]">Authentication</h3>
+						<div className="grid grid-cols-2 gap-2">
+							<div>
+								<label className={labelClass}>Username</label>
+								<input
+									type="text"
+									value={usernameInput}
+									onChange={(e) => setUsernameInput(e.target.value)}
+									placeholder="e.g. octocat"
+									autoComplete="off"
+									className={sectionInputClass}
+								/>
+							</div>
+							<div>
+								<label className={labelClass}>Access Token</label>
+								<input
+									type="password"
+									ref={passwordRef}
+									defaultValue=""
+									onChange={(e) => setPasswordHasContent(e.target.value.length > 0)}
+									placeholder={savedHasCredentials ? "••••••••" : "Token"}
+									autoComplete="off"
+									className={sectionInputClass}
+								/>
+							</div>
+						</div>
+						<div className="flex gap-2">
+							<button
+								disabled={isBusy || (!trimmedUsername && !passwordHasContent)}
+								onClick={handleSaveCredentials}
+								className={`flex-1 ${cancelBtnClass}`}
+							>
+								Save Credentials
+							</button>
+							<button
+								disabled={isBusy || !savedHasCredentials}
+								onClick={handleRemoveCredentials}
+								className={`flex-1 ${deleteBtnClass}`}
+							>
+								Clear Auth
+							</button>
+						</div>
 					</div>
+				)}
 
-					{ENABLE_GIT_AUTH ? (
-						<div className="space-y-4">
-							<div className="grid grid-cols-2 gap-2">
-								<div className="space-y-1">
-									<label className="text-[10px] font-bold uppercase tracking-widest text-primary/50">Username</label>
-									<input
-										type="text"
-										value={usernameInput}
-										onChange={(e) => setUsernameInput(e.target.value)}
-										placeholder="e.g. octocat"
-										autoComplete="off"
-										className="w-full bg-background/40 border border-primary/20 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-primary/50 transition-colors placeholder-gray-600"
-									/>
-								</div>
-								<div className="space-y-1">
-									<label className="text-[10px] font-bold uppercase tracking-widest text-primary/50">Access Token</label>
-									<input
-										type="password"
-										ref={passwordRef}
-										defaultValue=""
-										onChange={(e) => setPasswordHasContent(e.target.value.length > 0)}
-										placeholder={savedHasCredentials ? "••••••••" : "Token"}
-										autoComplete="off"
-										className="w-full bg-background/40 border border-primary/20 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-primary/50 transition-colors placeholder-gray-600"
-									/>
-								</div>
-							</div>
-							<div className="flex gap-2">
-								<button
-									disabled={isBusy || (!trimmedUsername && !passwordHasContent)}
-									onClick={handleSaveCredentials}
-									className="flex-1 bg-white/5 hover:bg-white/10 text-white text-[10px] font-bold uppercase tracking-widest py-2 rounded border border-white/10 transition-colors disabled:opacity-30"
-								>
-									Save Credentials
-								</button>
-								<button
-									disabled={isBusy || !savedHasCredentials}
-									onClick={handleRemoveCredentials}
-									className="flex-1 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-[10px] font-bold uppercase tracking-widest py-2 rounded border border-red-500/10 transition-colors disabled:opacity-30"
-								>
-									Clear Auth
-								</button>
-							</div>
-						</div>
-					) : (
-						<div className="opacity-40 select-none space-y-2 italic text-xs text-center py-2">
-							Auth module disabled.
-						</div>
-					)}
-				</div>
-
-				{/* Action Buttons */}
-				<div className="grid grid-cols-2 gap-3 pt-2">
+				<div className="grid grid-cols-2 gap-3">
 					{inputHasContent && (
-						<ActionButton
-							icon={hasUrl ? (isDirty ? "🔄" : "📥") : "📥"}
-							label={hasUrl ? (isDirty ? "Re-Initialize" : "Re-Clone") : "Clone"}
-							variant={isDirty || !hasUrl ? "primary" : "secondary"}
+						<button
 							disabled={isBusy || !inputHasContent}
 							onClick={handleClone}
-						/>
+							className={isDirty || !hasUrl ? primaryBtnClass : cancelBtnClass}
+						>
+							{hasUrl ? (isDirty ? "Re-Initialize" : "Re-Clone") : "Clone"}
+						</button>
 					)}
-
 					{hasUrl && !isDirty && (
-						<ActionButton
-							icon="⬇️"
-							label="Pull"
-							variant="primary"
-							disabled={isBusy}
-							onClick={handlePull}
-						/>
+						<button disabled={isBusy} onClick={handlePull} className={primaryBtnClass}>
+							Pull
+						</button>
 					)}
-
 					{hasUrl && (
-						<ActionButton
-							icon="📂"
-							label="View Repo"
-							variant="secondary"
+						<button
 							disabled={isBusy}
 							onClick={() => {
 								if (!savedUrl) return;
 								try {
 									const url = new URL(savedUrl);
-									url.username = "";
-									url.password = "";
+									url.username = ""; url.password = "";
 									window.open(url.toString(), "_blank", "noopener,noreferrer");
 								} catch {
 									window.open(savedUrl, "_blank", "noopener,noreferrer");
 								}
 							}}
-						/>
+							className={cancelBtnClass}
+						>
+							View Repo
+						</button>
 					)}
-
 					{hasUrl && (
-						<ActionButton
-							icon="🗑️"
-							label="Disconnect"
-							variant="delete"
-							disabled={isBusy}
-							onClick={handleRemoveGit}
-						/>
+						<button disabled={isBusy} onClick={handleRemoveGit} className={deleteBtnClass}>
+							Disconnect
+						</button>
 					)}
 				</div>
 
-				{/* Periodic Pull */}
 				{hasUrl && !isDirty && (
-					<div className={`bg-background/30 border border-primary/10 rounded-xl p-4 space-y-4 transition-all ${!periodicPull ? "opacity-60" : ""}`}>
-						<div className="flex items-center justify-between pb-2 border-b border-primary/10">
-							<div className="flex items-center gap-2">
-								<span className="text-primary text-sm">🔄</span>
-								<h3 className="text-xs font-bold uppercase tracking-widest text-primary/70">Auto-Sync</h3>
-							</div>
-							<button
-								onClick={() => handleTogglePeriodicPull(!periodicPull)}
+					<div className="bg-surface border border-white/[0.07] rounded-lg p-4 space-y-3">
+						<div className="flex items-center justify-between pb-2 border-b border-white/[0.07]">
+							<h3 className="text-xs font-medium text-muted uppercase tracking-wider">Auto-Sync</h3>
+							<ToggleRow
+								id="periodic-pull-toggle"
+								checked={periodicPull}
+								onChange={(checked) => { void handleTogglePeriodicPull(checked); }}
 								disabled={isBusy}
-								className={`relative w-10 h-5 rounded-full transition-colors duration-300 ${
-									periodicPull ? "bg-blue-600" : "bg-gray-700"
-								}`}
-							>
-								<span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${periodicPull ? "translate-x-5" : "translate-x-0"}`} />
-							</button>
+								label=""
+								description=""
+							/>
 						</div>
 
 						{periodicPull && (
-							<div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-300">
+							<div className="space-y-3">
 								<div className="grid grid-cols-4 gap-1.5">
-									{[
-										{ label: "10m", value: 10 },
-										{ label: "1h", value: 60 },
-										{ label: "6h", value: 360 },
-										{ label: "1d", value: 1440 },
-									].map((preset) => (
+									{[{ label: "10m", value: 10 }, { label: "1h", value: 60 }, { label: "6h", value: 360 }, { label: "1d", value: 1440 }].map((preset) => (
 										<button
 											key={preset.value}
-											onClick={() => { setPullInterval(preset.value); handleUpdateInterval(preset.value); }}
+											onClick={() => { setPullInterval(preset.value); void handleUpdateInterval(preset.value); }}
 											className={`py-1.5 text-[10px] font-bold uppercase rounded border transition-all ${
 												pullInterval === preset.value
 													? "bg-primary/20 border-primary text-primary"
-													: "bg-background/20 border-white/5 text-gray-500 hover:text-gray-300"
+													: "bg-background/20 border-white/[0.07] text-muted hover:text-text"
 											}`}
 										>
 											{preset.label}
@@ -686,12 +526,12 @@ function GitVersionControlModal({
 										value={pullInterval}
 										onChange={(e) => setPullInterval(Math.max(1, parseInt(e.target.value) || 1))}
 										max={1440}
-										className="w-16 bg-background/40 border border-primary/20 rounded px-2 py-1 text-white text-xs outline-none"
+										className="w-16 bg-background border border-white/[0.07] rounded px-2 py-1 text-text text-xs outline-none focus:border-primary/50"
 									/>
-									<span className="text-[10px] text-primary/50 uppercase font-bold">Minutes</span>
+									<span className="text-[10px] text-muted uppercase font-bold">Minutes</span>
 									<button
-										onClick={() => handleUpdateInterval(pullInterval)}
-										className="ml-auto text-primary hover:text-white text-[10px] font-bold uppercase tracking-widest p-1 transition-colors"
+										onClick={() => void handleUpdateInterval(pullInterval)}
+										className="ml-auto text-primary hover:text-text text-[10px] font-bold uppercase tracking-widest p-1 transition-colors"
 									>
 										Save
 									</button>
@@ -701,17 +541,13 @@ function GitVersionControlModal({
 					</div>
 				)}
 
-				{/* Output Console */}
 				{logs && (
 					<div className="space-y-2">
 						<div className="flex items-center justify-between">
-							<div className="flex items-center gap-2">
-								<span className="text-primary text-sm">📺</span>
-								<h3 className="text-xs font-bold uppercase tracking-widest text-primary/70">Console Output</h3>
-							</div>
+							<h3 className="text-xs font-medium text-muted uppercase tracking-wider">Console Output</h3>
 							<button
 								onClick={() => setShowLogs(!showLogs)}
-								className="text-[10px] font-bold uppercase tracking-widest text-primary/50 hover:text-primary transition-colors bg-primary/5 px-2 py-1 rounded border border-primary/10"
+								className="text-[10px] font-bold uppercase tracking-widest text-muted hover:text-primary transition-colors bg-white/[0.04] px-2 py-1 rounded border border-white/[0.07]"
 							>
 								{showLogs ? "Hide Logs" : "Show Logs"}
 							</button>
@@ -719,7 +555,7 @@ function GitVersionControlModal({
 						{showLogs && (
 							<pre
 								ref={logsRef}
-								className={`bg-black/60 border ${logBorderColor} rounded-xl p-4 text-[11px] font-mono text-gray-300 max-h-48 overflow-y-auto whitespace-pre-wrap break-words shadow-inner animate-in fade-in slide-in-from-top-1 duration-200`}
+								className={`bg-black/60 border ${logBorderColor} rounded-lg p-4 text-[11px] font-mono text-muted max-h-48 overflow-y-auto whitespace-pre-wrap break-words`}
 								style={{ scrollbarWidth: "thin" }}
 							>
 								{logs}
@@ -728,19 +564,13 @@ function GitVersionControlModal({
 					</div>
 				)}
 
-				{/* Help / Info Footnote */}
 				{!hasUrl && !inputHasContent && (
-					<div className="bg-primary/5 border border-primary/10 rounded-xl p-4">
-						<div className="flex gap-3">
-							<span className="text-primary text-lg">💡</span>
-							<div className="space-y-1">
-								<p className="text-xs font-bold text-primary/80 uppercase tracking-widest">Getting Started</p>
-								<p className="text-[11px] text-gray-400 leading-relaxed">
-									Connecting a repository allows you to deploy code directly from Git. 
-									The file manager will be locked to prevent conflicts while Git is active.
-								</p>
-							</div>
-						</div>
+					<div className="bg-primary/5 border border-primary/10 rounded-lg p-4">
+						<p className="text-xs font-bold text-primary/80 uppercase tracking-wider mb-1">Getting Started</p>
+						<p className="text-[11px] text-muted leading-relaxed">
+							Connecting a repository allows you to deploy code directly from Git.
+							The file manager will be locked to prevent conflicts while Git is active.
+						</p>
 					</div>
 				)}
 			</div>

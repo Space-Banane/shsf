@@ -1,19 +1,20 @@
+import { env } from "./lib/env"; // must be first — loads dotenv and validates
 import { PrismaClient } from "@prisma/client";
-import { Cors, Middleware, Server } from "rjweb-server";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import { Server } from "rjweb-server";
 import { Runtime } from "@rjweb/runtime-node";
 import { network } from "@rjweb/utils";
-import { env } from "process";
 import { CronExpressionParser } from "cron-parser";
-import { executeFunction, persistFunctionExecutionLog } from "./lib/Runner";
+import { executeFunction } from "./lib/Runner";
 import { performGitPull } from "./lib/GitOps";
-import dotenv from "dotenv";
 import { getUUID, prevDirectory } from "./lib/DataManager";
 import { join } from "path";
-
-// load env file
-if (process.env.NODE_ENV !== "test") {
-	dotenv.config();
-}
+import { logger, createLogger } from "./lib/logger";
+import { corsMiddleware, initCorsDomains } from "./lib/middlewares/cors";
+import { mainMiddleware } from "./lib/middlewares/main";
+import { authResolutionMiddleware, authEnforcementMiddleware } from "./lib/middlewares/auth";
+import { makeResponse } from "./lib/response";
+import { ERROR_MESSAGES } from "./lib/errors";
 
 export const VERSION: {
 	type: "SHSF API" | "SHSF UI";
@@ -30,198 +31,44 @@ export const VERSION: {
 		return `${this.major}.${this.minor}.${this.patch}`;
 	},
 };
-export const URL = env.UI_URL!;
-export const UI_URL = env.UI_URL!;
-export const REACT_APP_API_URL = env.REACT_APP_API_URL!;
+export const URL = env.UI_URL;
+export const UI_URL = env.UI_URL;
+export const REACT_APP_API_URL = env.REACT_APP_API_URL;
 export const COOKIE = "shsf_session";
-export const DOMAIN = env.DOMAIN!;
+export const DOMAIN = env.DOMAIN;
 export const API_KEY_HEADER = "x-access-key";
-export const INSTANCE_SECRET =
-	env.INSTANCE_SECRET ?? "default_insecure_secret_please_set";
+export const INSTANCE_SECRET = env.INSTANCE_SECRET;
+export const API_URL = env.REACT_APP_API_URL;
+
+const _adapter = new PrismaMariaDb(env.DATABASE_URL);
 export const prisma = new PrismaClient({
+	adapter: _adapter,
 	log: ["info", "error", "warn"],
 	errorFormat: "pretty",
 	transactionOptions: { timeout: 30000, maxWait: 20000 },
 });
 
-const CORS_DOMAINS = env.CORS_URLS!.split(",");
+const CORS_DOMAINS = env.CORS_URLS.split(",");
 CORS_DOMAINS.push(URL);
-CORS_DOMAINS.push(REACT_APP_API_URL.replace(/\/+$/, "")); // Remove trailing slash if present
-if (process.env.NODE_ENV !== "test") {
-	console.log(CORS_DOMAINS);
-}
-
-if (process.env.NODE_ENV !== "test") {
-	console.log(
-		`Im reachable on ${env.PORT}; For Example: ${env.REACT_APP_API_URL}`,
-	);
-}
-export const API_URL = env.REACT_APP_API_URL;
-if (!API_URL) {
-	throw new Error("REACT_APP_API_URL is not defined in environment variables");
-}
+CORS_DOMAINS.push(REACT_APP_API_URL.replace(/\/+$/, ""));
 CORS_DOMAINS.push(API_URL);
 
-// DATAMANAGER
-const dataPath = join(prevDirectory, ".data");
-if (process.env.NODE_ENV !== "test") {
-	console.log(`DataManager: Using data directory at ${dataPath}`);
+initCorsDomains(CORS_DOMAINS);
+
+if (env.NODE_ENV !== "test") {
+	logger.debug({ corsDomains: CORS_DOMAINS }, "CORS domains loaded");
+	logger.info(`Reachable on ${env.PORT}; For example: ${env.REACT_APP_API_URL}`);
 }
 
-// Middleware Definition
-export const middleware = new Middleware<{}, {}>("Custom Cors", "1.0.3")
-	.load((config) => {
-		console.log(`Custom Cors Locked and Loaded`);
-	})
-	.httpRequest(async (config, server, context, ctr, end) => {
-		console.log(
-			`[SHSF API${ctr.headers.get("x-shsf-dev") === "true" ? " via shsf.dev" : ""}] ${ctr.client.ip} [${ctr.url.method}]➡️  ${ctr.url.href}`,
-		);
-
-		// Skip Ratelimit if RATELIMIT env var is set to 0 or not set at all
-		if (parseInt(env.RATELIMIT ?? "0") === 0) {
-			ctr.skipRateLimit();
-		}
-
-		// Check if the request is openapi.json, if so, skip CORS and other checks
-		if (ctr.url.href === "/api/openapi.json") {
-			console.log(
-				`[SHSF API] OpenAPI schema requested, skipping CORS and other middleware checks.`,
-			);
-
-			// Set headers
-			ctr.headers.set("Content-Type", "application/json");
-			ctr.headers.set("Access-Control-Allow-Origin", "*");
-
-			return;
-		}
-
-		// Get origin from headers
-		const origin = ctr.headers.get("origin");
-
-		// Validate origin first, regardless of method
-		if (origin && !CORS_DOMAINS.includes(origin)) {
-			let allowRequest = false;
-			console.log(
-				`[CORS MIDDLEWARE] Policy (Provisional): This origin is not allowed access - ${origin}`,
-			);
-
-			// Check if its an exec request
-			if (ctr.url.path.startsWith("/api/exec/")) {
-				// /api/exec/4/02df8773-1d03-48df-9dd7-fd452c5ba592
-				console.log(
-					`[CORS MIDDLEWARE] Custom CORS might change the outcome of this request. (Function Execution Detected)`,
-				);
-
-				const execId = ctr.url.path.split("/")[4]; // UUID
-				const func = await prisma.function.findFirst({
-					where: { executionId: execId },
-				});
-				if (func && func.cors_origins) {
-					const allowedOrigins = func.cors_origins
-						.split(",")
-						.map((o) => o.trim())
-						.filter((o) => o.length > 0);
-					if (allowedOrigins.includes(origin)) {
-						console.log(
-							`[CORS MIDDLEWARE] Policy: Allowing access for ${origin} - ${execId}`,
-						);
-						allowRequest = true;
-					}
-				} else {
-					console.log(
-						`[CORS MIDDLEWARE] Policy: No specific origins found for function - ${execId}`,
-					);
-				}
-			}
-
-			if (!allowRequest) {
-				console.log(
-					`[CORS MIDDLEWARE] Policy (Final Decision): This origin is not allowed access - ${origin}`,
-				);
-				if (ctr.url.path.startsWith("/api/exec/")) {
-					// Its a exec, but we deny access, so we'll log it, so that we can suggest this url in the UpdateFunctionModal for CORS suggestions.
-					const execId = ctr.url.path.split("/")[4]; // UUID
-					const func = await prisma.function.findFirst({
-						where: { executionId: execId },
-					});
-					if (func) {
-						console.log(
-							`[CORS MIDDLEWARE] Logging denied origin for function #${func.id} (${func.name}) - ${origin}`,
-						);
-						await persistFunctionExecutionLog({
-							functionId: func.id,
-							functionData: func,
-							logs: `Denied origin: ${origin}`,
-							output: JSON.stringify({
-								status: "FAILED",
-								message: "SERVER CORS Policy: This origin is not allowed access",
-							}),
-							payload: JSON.stringify({
-								ran_by: "exec",
-								method: ctr.url.method,
-								route: "default",
-								source_ip: ctr.client.ip.usual(),
-								origin,
-							}),
-							exit_code: 403,
-							tooks: [
-								{
-									description: "HTTP execution blocked before runtime",
-									value: 0,
-									timestamp: Date.now(),
-								},
-							],
-							error_type: "cors_denied",
-							force: true,
-						});
-					} else {
-						console.log(
-							`[CORS MIDDLEWARE] Could not find function for exec ID ${execId} to log denied origin ${origin}`,
-						);
-					}
-				}
-				return end(
-					ctr.status(ctr.$status.FORBIDDEN).print({
-						status: "FAILED",
-						message: "SERVER CORS Policy: This origin is not allowed access",
-					}),
-				);
-			}
-		}
-
-		const allowedHeaders =
-			ctr.headers.get("access-control-request-headers") || "content-type, x-*";
-		const allowedMethods = "GET, POST, PUT, DELETE, OPTIONS, PATCH";
-		const allowCredentials = "true";
-		const controlMaxAge = "86400";
-
-		if (origin) {
-			if (ctr.url.method === "OPTIONS") {
-				ctr.headers.set("Access-Control-Max-Age", controlMaxAge);
-				ctr.headers.set("Content-Length", "0");
-				ctr.headers.set("Access-Control-Allow-Origin", origin);
-				ctr.headers.set("Access-Control-Allow-Methods", allowedMethods);
-				ctr.headers.set("Vary", "Origin");
-				ctr.headers.set("Access-Control-Allow-Headers", allowedHeaders);
-				ctr.headers.set("Access-Control-Allow-Credentials", allowCredentials);
-				console.log(`[CORS MIDDLEWARE] Preflight handled for origin: ${origin}`);
-				return end(ctr.status(ctr.$status.NO_CONTENT).print(""));
-			}
-
-			ctr.headers.set("Access-Control-Allow-Origin", origin);
-			ctr.headers.set("Vary", "Origin");
-			ctr.headers.set("Access-Control-Allow-Methods", allowedMethods);
-			ctr.headers.set("Access-Control-Allow-Headers", allowedHeaders);
-			ctr.headers.set("Access-Control-Allow-Credentials", allowCredentials);
-		}
-	})
-	.export();
+const dataPath = join(prevDirectory, ".data");
+if (env.NODE_ENV !== "test") {
+	logger.debug(`DataManager: Using data directory at ${dataPath}`);
+}
 
 export const server = new Server(
 	Runtime,
 	{
-		port: parseInt(env.PORT!),
+		port: env.PORT,
 		bind: "0.0.0.0",
 		version: false,
 		performance: { lastModified: false, eTag: false },
@@ -237,59 +84,57 @@ export const server = new Server(
 			},
 		},
 	},
-	[middleware.use({})],
+	[
+		corsMiddleware.use({}),
+		mainMiddleware.use({}),
+		authResolutionMiddleware.use({}),
+		authEnforcementMiddleware.use({}),
+	],
 );
 
 const loader = new server.FileLoader("/");
-if (process.env.NODE_ENV !== "test") {
+if (env.NODE_ENV !== "test") {
 	loader.load("./routes", { fileBasedRouting: false });
 }
 export const fileRouter = loader.export();
 
 server.notFound(async (ctr) => {
-	return ctr.status(ctr.$status.NOT_FOUND).print({
-		status: "FAILED",
-		message: "The requested resource was not found",
-		note: `IMPORTANT NOTE:
-This endpoint does not exist in this instance as of this moment, if you are reading this, it means that this instance is either outdated, broken, or the endpoint you are trying to reach is not implemented yet. Please contact the administrator of this instance to resolve this issue.`,
-	});
+	return makeResponse({ ctr, content: { code: ERROR_MESSAGES.NOT_FOUND.code, message: ERROR_MESSAGES.NOT_FOUND.message } });
 });
 
-if (process.env.NODE_ENV !== "test") {
+server.error("httpRequest", async (ctr, error) => {
+	logger.error(error, "Unhandled HTTP request error");
+	return makeResponse({ ctr, content: { code: ERROR_MESSAGES.INTERNAL_SERVER_ERROR.code } });
+});
+
+if (env.NODE_ENV !== "test") {
 	server
 		.start()
 		.then(async (port) => {
 			await prisma.$connect();
 			const uuid = await getUUID();
 
-			console.log(`[SHSF API] Running on ${port} with UUID: ${uuid}`);
+			logger.info({ port, uuid }, "SHSF API running");
 
 			setInterval(async () => {
 				await processCrons();
-			}, 1000); // Every second
+			}, 1000);
 
-			// Periodic git pull — checks every minute, respects per-function interval
 			setInterval(async () => {
 				await processGitPulls();
 			}, 60 * 1000);
 
-			// Periodic cleanup for expired storage items
 			setInterval(async () => {
 				await processStorageCleanup();
-			}, 60 * 1000); // Every minute
+			}, 60 * 1000);
 		})
-		.catch(console.error);
+		.catch((err) => logger.error(err, "Server failed to start"));
 }
 
-server.error("httpRequest", async (ctr, error) => {
-	console.error(error);
-	ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
-		status: "ERROR",
-		message: "An Unknown Server Error has occurred",
-	});
-});
+const cronLog = createLogger("CRONS");
+const gitLog = createLogger("GIT");
+const storageLog = createLogger("STORAGE");
 
-// Crons
 async function processCrons() {
 	const now = new Date();
 	const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
@@ -321,41 +166,32 @@ async function processCrons() {
 				currentDate: now,
 			});
 		} catch {
-			// Prevented MASSIVE fuckup because of possible invalid cron expression
-
-			// What now though? Delete the cron?
-			// No wait, lets disable it, log an error, and change the cron expression to a safe one
-
-			console.error(
-				`[SHSF CRONS] Invalid cron expression for Cron #${cron.id}. Disabling cron.`,
-			);
+			cronLog.error({ cronId: cron.id }, "Invalid cron expression, disabling");
 
 			await prisma.functionTrigger.update({
 				where: { id: cron.id },
 				data: {
 					enabled: false,
-					cron: "0 0 * * *", // Safe cron (daily at midnight)
+					cron: "0 0 * * *",
 				},
 			});
 
-			continue; // Skip further processing for this iteration
+			continue;
 		}
 
 		try {
-			// If nextRun is null, calculate and set it
 			if (cron.nextRun === null) {
 				const next = interval.next().toDate();
 				await prisma.functionTrigger.update({
 					where: { id: cron.id },
 					data: { nextRun: next },
 				});
-				console.log(`Cron #${cron.id} nextRun set to ${next.toISOString()}`);
-				continue; // Skip further processing for this iteration
+				cronLog.debug({ cronId: cron.id, nextRun: next.toISOString() }, "Cron nextRun initialized");
+				continue;
 			}
 
 			const next = interval.next();
 
-			// Adjusted logic to ensure the cron fires correctly
 			if (next.getTime() <= now.getTime() + 1000) {
 				const followingRun = interval.next().toDate();
 
@@ -364,26 +200,22 @@ async function processCrons() {
 					data: {
 						lastRun: now,
 						nextRun: followingRun,
-						// Explicitly mark this run as in-progress/unknown until execution result is persisted.
 						lastRunSuccessful: null,
 					},
 				});
 
-				console.log(`[SHSF CRONS] Cron #${cron.id} executed`);
+				cronLog.info({ cronId: cron.id }, "Cron executed");
 				const files = await prisma.functionFile.findMany({
 					where: { functionId: cron.functionId },
 				});
-				
+
 				let cronExecutionData = {};
 
 				if (cron.data) {
 					try {
 						cronExecutionData = JSON.parse(cron.data as string);
 					} catch (err) {
-						console.error(
-							`[SHSF CRONS] Failed to parse cron data for Cron #${cron.id}:`,
-							err,
-						);
+						cronLog.error({ err, cronId: cron.id }, "Failed to parse cron data");
 					}
 				}
 
@@ -399,25 +231,19 @@ async function processCrons() {
 						JSON.stringify({
 							ran_by: "cron",
 							triggerId: cron.id,
-							...cronExecutionData
+							...cronExecutionData,
 						}),
-						{ mode: "cron_execute" }, // ran_by can be cron, user, or exec(api)
+						{ mode: "cron_execute" },
 					);
 					executionExitCode = executionResult?.exit_code ?? null;
 				} catch (executionError) {
-					console.error(
-						`[SHSF CRONS] Function execution failed for Cron #${cron.id}:`,
-						executionError,
-					);
+					cronLog.error({ err: executionError, cronId: cron.id }, "Function execution failed");
 				}
 
 				let lastRunSuccessful: boolean | null = executionExitCode === 0;
 				if (executionExitCode === null) {
-					// If we couldn't determine the exit code, we should mark it as failed to be safe, but log a warning about the uncertainty.
-					lastRunSuccessful = null; // Use null to indicate unknown result
-					console.warn(
-						`[SHSF CRONS] Could not determine execution result for Cron #${cron.id}. Marking as failed due to unknown exit code.`,
-					);
+					lastRunSuccessful = null;
+					cronLog.warn({ cronId: cron.id }, "Unknown exit code, marking run result as null");
 				}
 
 				await prisma.functionTrigger.update({
@@ -428,13 +254,9 @@ async function processCrons() {
 				});
 
 				if (lastRunSuccessful) {
-					console.log(
-						`[SHSF CRONS] Function for Cron #${cron.id} executed successfully.`,
-					);
+					cronLog.info({ cronId: cron.id }, "Cron function executed successfully");
 				} else {
-					console.error(
-						`[SHSF CRONS] Function for Cron #${cron.id} failed with exit code ${executionExitCode ?? "unknown"}.`,
-					);
+					cronLog.error({ cronId: cron.id, exitCode: executionExitCode ?? "unknown" }, "Cron function failed");
 				}
 			} else {
 				const secondsUntilNextRun = Math.round(
@@ -442,21 +264,16 @@ async function processCrons() {
 				);
 
 				if (secondsUntilNextRun <= 5) {
-					console.log(
-						`[SHSF CRONS] Cron #${cron.id} will run in ${secondsUntilNextRun} seconds`,
-					);
+					cronLog.debug({ cronId: cron.id, secondsUntilNextRun }, "Cron firing soon");
 				}
 			}
 		} catch (error) {
-			console.error(
-				`[SHSF CRONS] Error processing cron ${cron.name} (${cron.id}):`,
-				error,
-			);
+			cronLog.error({ err: error, cronId: cron.id, cronName: cron.name }, "Error processing cron");
 		}
 	}
 }
-// Periodic Git Pulls — runs every minute, each function has its own interval
-const lastGitPullAt = new Map<number, number>(); // functionId -> last pull timestamp (ms)
+
+const lastGitPullAt = new Map<number, number>();
 async function processGitPulls() {
 	const now = Date.now();
 	const functions = await prisma.function.findMany({
@@ -476,24 +293,16 @@ async function processGitPulls() {
 		try {
 			const result = await performGitPull(fn.id);
 			if (result.success) {
-				console.log(
-					`[SHSF GIT] Pull successful for function #${fn.id} (${fn.name})`,
-				);
+				gitLog.info({ funcId: fn.id, funcName: fn.name }, "Git pull successful");
 			} else {
-				console.error(
-					`[SHSF GIT] Pull failed for function #${fn.id} (${fn.name}):\n${result.logs}`,
-				);
+				gitLog.error({ funcId: fn.id, funcName: fn.name, logs: result.logs }, "Git pull failed");
 			}
 		} catch (err) {
-			console.error(
-				`[SHSF GIT] Unexpected error pulling function #${fn.id}:`,
-				err,
-			);
+			gitLog.error({ err, funcId: fn.id }, "Unexpected error during git pull");
 		}
 	}
 }
 
-// Storage Cleanup
 async function processStorageCleanup() {
 	const now = new Date();
 	try {
@@ -507,11 +316,9 @@ async function processStorageCleanup() {
 		});
 
 		if (expiredCount.count > 0) {
-			console.log(
-				`[SHSF STORAGE] Cleaned up ${expiredCount.count} expired storage item(s)`,
-			);
+			storageLog.info({ count: expiredCount.count }, "Expired storage items cleaned up");
 		}
 	} catch (error) {
-		console.error(`[SHSF STORAGE] Error during storage cleanup:`, error);
+		storageLog.error({ err: error }, "Error during storage cleanup");
 	}
 }

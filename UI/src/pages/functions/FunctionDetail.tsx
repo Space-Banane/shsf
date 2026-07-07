@@ -111,7 +111,7 @@ function FunctionDetail() {
 	const [activeFileLanguage, setActiveFileLanguage] = useState<string>("");
 	const consoleOutputRef = useRef<HTMLDivElement>(null!);
 	const [autoScroll, setAutoScroll] = useState<boolean>(true);
-	const [copyUrlColor, setCopyUrlColor] = useState<string>("text-stone-300");
+	const [, setCopyUrlColor] = useState<string>("text-stone-300");
 	const [copyUrltext, setCopyUrlText] = useState<string>(
 		"Copy URL to Clipboard",
 	);
@@ -141,7 +141,7 @@ function FunctionDetail() {
 		src: string;
 		contentType: string;
 	} | null>(null);
-	const [showAllImageHeaders, setShowAllImageHeaders] = useState<boolean>(false);
+	const [, setShowAllImageHeaders] = useState<boolean>(false);
 	const [serveHtmlOnly, setServeHtmlOnly] = useState<boolean>(false);
 	const [showDepModal, setShowDepModal] = useState(false);
 	const [depModalContent, setDepModalContent] = useState<{
@@ -864,7 +864,7 @@ function FunctionDetail() {
 
 	useEffect(() => {
 		loadData();
-	}, [id]);
+	}, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	const handleCreateFile = async (
 		filename: string,
@@ -1273,7 +1273,7 @@ function FunctionDetail() {
 				}
 			};
 		}
-	}, [id, showLogsModal]);
+	}, [id, showLogsModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Also fetch logs after running code
 	useEffect(() => {
@@ -1281,7 +1281,7 @@ function FunctionDetail() {
 			// Function execution just finished, refresh logs
 			fetchLogs();
 		}
-	}, [running, exitCode, showLogsModal]);
+	}, [running, exitCode, showLogsModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	const handleExportFunction = async () => {
 		if (!functionData) return;
@@ -1419,7 +1419,7 @@ function FunctionDetail() {
 	};
 	useEffect(() => {
 		loadInitialFile();
-	}, [functionData, files, activeFile]);
+	}, [functionData, files, activeFile]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Handle "preopen" query param to open a specific menu on load
 	useEffect(() => {
@@ -1441,29 +1441,23 @@ function FunctionDetail() {
 
 	if (loading) {
 		return (
-			<div className="min-h-screen bg-background flex items-center justify-center">
-				<div className="text-center space-y-4">
-					<div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto"></div>
-					<p className="text-text/70 text-lg">Loading function...</p>
-				</div>
+			<div className="flex items-center justify-center py-24">
+				<div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
 			</div>
 		);
 	}
 
 	if (!functionData) {
 		return (
-			<div className="min-h-screen bg-background flex items-center justify-center">
-				<div className="text-center space-y-4">
-					<div className="text-6xl">❌</div>
-					<h2 className="text-2xl font-bold text-primary">Function Not Found</h2>
-					<p className="text-text/70">The requested function could not be loaded.</p>
-				</div>
+			<div className="flex flex-col items-center py-24 text-center">
+				<h2 className="text-xl font-semibold text-text mb-2">Function Not Found</h2>
+				<p className="text-sm text-muted">The requested function could not be loaded.</p>
 			</div>
 		);
 	}
 
 	return (
-		<div className="min-h-screen bg-background w-full">
+		<div className="w-full">
 			{/* Dependency Install Modal */}
 			<DependencyModal
 				isOpen={showDepModal}
@@ -1493,54 +1487,30 @@ function FunctionDetail() {
 				content={imagePopupContent || { code: 0, contentType: "", headers: {}, src: "" }}
 			/>
 
-			{/* Hero Header Section - Full Width */}
-			<div className="relative bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-b border-primary/20 w-full">
-				<div className="w-full py-6 px-0">
-					<div className="flex items-center justify-between w-full px-8">
-						<div className="flex items-center gap-4">
-							<div className="flex items-center gap-2 text-2xl font-bold text-primary">
-								<span>📂</span>
-								<span className="bg-gray-900/50 py-1 px-3 rounded-lg border border-primary/20">
-									{nameSpace?.name}
-								</span>
-								<span className="text-text/40">/</span>
-								<span>🚀</span>
-								<span className="bg-gray-900/50 py-1 px-3 rounded-lg border border-primary/20">
-									{functionData.name}
-								</span>
-							</div>
-						</div>
-
-						<div className="flex items-center gap-6 text-text/60 text-sm">
-							<div className="flex items-center gap-2">
-								<div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-								<span>
-									{files.length} {files.length === 1 ? "File" : "Files"}
-								</span>
-							</div>
-							<div className="flex items-center gap-2">
-								<div className="w-2 h-2 bg-green-500 rounded-full"></div>
-								<span>{triggers.length} Triggers</span>
-							</div>
-							<div className="flex items-center gap-2">
-								<div
-									className={`w-2 h-2 rounded-full ${
-										functionData.allow_http ? "bg-green-500" : "bg-gray-500"
-									}`}
-								></div>
-								<span>{functionData.allow_http ? "HTTP" : "No HTTP"}</span>
-							</div>
-						</div>
+			{/* Page header */}
+			<div className="w-full border-b border-white/[0.07] mb-6 px-8 pb-4 pt-2">
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-2 text-sm">
+						<span className="text-muted">{nameSpace?.name}</span>
+						<span className="text-muted/40">/</span>
+						<span className="text-text font-semibold">{functionData.name}</span>
+					</div>
+					<div className="flex items-center gap-4 text-xs text-muted">
+						<span>{files.length} {files.length === 1 ? "file" : "files"}</span>
+						<span>{triggers.length} triggers</span>
+						<span className={functionData.allow_http ? "text-green-400" : "text-muted/50"}>
+							{functionData.allow_http ? "HTTP on" : "HTTP off"}
+						</span>
 					</div>
 				</div>
 			</div>
 
-			<div className="w-full py-6 px-0">
+			<div className="w-full px-0">
 				<div className="flex gap-6 w-full px-8">
 					{/* Sidebar */}
 					<div className="w-72 shrink-0 space-y-4">
 						{/* Quick Actions */}
-						<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4">
+						<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
 							<h2 className="text-lg font-bold text-primary mb-3 flex items-center gap-2">
 								<span>⚡</span>
 								Actions
@@ -1576,7 +1546,7 @@ function FunctionDetail() {
 						</div>
 
 						{/* Function URL - More Compact */}
-						<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4">
+						<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
 							<h2 className="text-lg font-bold text-primary mb-3 flex items-center gap-2">
 								<span>🌐</span>
 								URL
@@ -1720,7 +1690,7 @@ function FunctionDetail() {
 					{/* Main Content - Use Full Remaining Space */}
 					<div className="flex-1 min-w-0 space-y-4">
 						{/* Editor Header - More Compact */}
-						<div className="bg-gradient-to-br from-gray-900/55 to-gray-800/45 border border-primary/20 rounded-lg p-4 space-y-4">
+						<div className="bg-surface border border-white/[0.07] rounded-xl p-4 space-y-4">
 							<div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
 								<div className="min-w-0 flex items-start gap-3">
 									<div className="w-9 h-9 bg-gradient-to-br from-blue-500/15 to-cyan-500/10 border border-blue-400/20 rounded-xl flex items-center justify-center text-base flex-shrink-0">
@@ -1776,7 +1746,7 @@ function FunctionDetail() {
 										className={[
 											"h-9 px-3 text-sm rounded-lg transition-all duration-300 border",
 											showRunParams
-												? "bg-gradient-to-r from-blue-600 to-cyan-600 border-transparent text-white"
+												? "bg-primary border-transparent text-background"
 												: "bg-background/45 border-primary/20 text-primary hover:border-primary/40",
 											running || saving || serveHtmlOnly
 												? "opacity-30 cursor-not-allowed bg-slate-800 text-gray-400 border-primary/20"
@@ -1926,7 +1896,7 @@ function FunctionDetail() {
 						</div>
 
 						{/* Code Editor - Larger */}
-						<div className="bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg overflow-hidden">
+						<div className="bg-surface border border-white/[0.07] rounded-xl overflow-hidden">
 							<div className="h-[600px] relative">
 								{functionData.git_url ? (
 									<div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-sm text-center z-10">
@@ -1941,7 +1911,7 @@ function FunctionDetail() {
 											</p>
 											<button
 												onClick={() => setShowGitModal(true)}
-												className="mt-1 px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-[0_0_20px_rgba(124,131,253,0.35)] transition-all duration-300"
+												className="mt-1 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-background hover:bg-primary/90 transition-all duration-300"
 											>
 												Open Version Control
 											</button>

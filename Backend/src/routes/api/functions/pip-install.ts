@@ -3,8 +3,6 @@ import {
 	COOKIE,
 	fileRouter,
 	prisma,
-	REACT_APP_API_URL,
-	UI_URL,
 } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import { OpenAPITags } from "../../../lib/openapi";

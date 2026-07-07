@@ -35,7 +35,8 @@
 		"eject": "react-scripts eject",
 		"serve": "serve -s build",
 		"tailwind:watch": "npx @tailwindcss/cli -i ./src/index.css -o ./public/styles.css --watch",
-		"tailwind:build": "npx @tailwindcss/cli -i ./src/index.css -o ./public/styles.css"
+		"tailwind:build": "npx @tailwindcss/cli -i ./src/index.css -o ./public/styles.css",
+		"lint": "eslint src --ext .ts,.tsx"
 	},
 	"eslintConfig": {
 		"extends": [

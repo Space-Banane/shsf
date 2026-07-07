@@ -1,9 +1,12 @@
 import { randomUUID } from "crypto";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
+import { createLogger } from "../../../lib/logger";
+import { getDisabledImages } from "../../../lib/DataManager";
+
+const log = createLogger("functions/manage");
 import {
 	cleanupFunctionContainer,
-	executeFunction,
 	deleteContainerForFunction,
 } from "../../../lib/Runner";
 import Docker from "dockerode";
@@ -285,6 +288,14 @@ export = new fileRouter.Path("/")
 					});
 				}
 
+				const disabledImages = await getDisabledImages();
+				if (disabledImages.includes(data.image)) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: `The selected runtime image (${data.image}) has been disabled by the instance administrator.`,
+					});
+				}
+
 				if (!isDotnetImage(data.image) && !data.startup_file.trim()) {
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						status: 400,
@@ -305,6 +316,13 @@ export = new fileRouter.Path("/")
 					return ctr.print({
 						status: 401,
 						message: authCheck.message,
+					});
+				}
+
+				if (data.docker_mount && !authCheck.user.allow_docker_mount) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "You do not have permission to enable Docker socket mount. Contact an administrator.",
 					});
 				}
 
@@ -396,7 +414,7 @@ export = new fileRouter.Path("/")
 												)) ?? "",
 										},
 									},
-							  }
+							}
 							: {}),
 					},
 				});
@@ -955,6 +973,23 @@ export = new fileRouter.Path("/")
 
 				const nextImage = data.image ?? existingFunction.image;
 
+				if (data.image !== undefined) {
+					const disabledImages = await getDisabledImages();
+					if (disabledImages.includes(data.image)) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: `The selected runtime image (${data.image}) has been disabled by the instance administrator.`,
+						});
+					}
+				}
+
+				if (data.docker_mount === true && !existingFunction.docker_mount && !authCheck.user.allow_docker_mount) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "You do not have permission to enable Docker socket mount. Contact an administrator.",
+					});
+				}
+
 				if (
 					data.startup_file !== undefined &&
 					!isDotnetImage(nextImage) &&
@@ -1152,9 +1187,7 @@ export = new fileRouter.Path("/")
 					try {
 						const container = await docker.getContainer(`shsf_func_${functionId}`);
 						if (await container.inspect()) {
-							console.log(
-								`[SHSF] Function ${functionId} configuration changed (${changes.join(", ")}). Container will be recreated.`,
-							);
+							log.info({ functionId, changes }, "Function config changed, container will be recreated");
 
 							// Clean up existing container to force recreation
 							if (data.image && data.image !== existingFunction.image) {
@@ -1164,10 +1197,7 @@ export = new fileRouter.Path("/")
 							}
 						}
 					} catch (err) {
-						console.error(
-							`[SHSF] Error checking/cleaning up container for function ${functionId}:`,
-							err,
-						);
+						log.error({ err, functionId }, "Error checking/cleaning up container for function");
 					}
 				}
 

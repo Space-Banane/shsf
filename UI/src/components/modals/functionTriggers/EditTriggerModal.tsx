@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import Modal from "../Modal";
+import { cancelBtnClass, primaryBtnClass, inputClass, textareaClass, labelClass, ModalSection, ModalFooter, ToggleRow } from "../Modal";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 import { Trigger } from "../../../types/Prisma";
 import { cronPresets as ImportedcronPresets } from "./CreateTriggerModal";
 import TriggerPayloadEditor from "./TriggerPayloadEditor";
+import { Icon } from "../../ui/Icon";
 
 interface EditTriggerModalProps {
 	isOpen: boolean;
@@ -19,13 +22,7 @@ interface EditTriggerModalProps {
 	trigger: Trigger | null;
 }
 
-function EditTriggerModal({
-	isOpen,
-	onClose,
-	onUpdate,
-	onRun,
-	trigger,
-}: EditTriggerModalProps) {
+function EditTriggerModal({ isOpen, onClose, onUpdate, onRun, trigger }: EditTriggerModalProps) {
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
 	const [cron, setCron] = useState("0 * * * *");
@@ -35,6 +32,8 @@ function EditTriggerModal({
 	const [isPayloadValid, setIsPayloadValid] = useState(true);
 
 	const cronPresets = ImportedcronPresets;
+
+	useShiftEnterSubmit(() => handleSubmit(), isOpen && !isSubmitting);
 
 	useEffect(() => {
 		if (trigger) {
@@ -48,224 +47,126 @@ function EditTriggerModal({
 	}, [trigger]);
 
 	const handleSubmit = async () => {
-		if (!name.trim() || !cron.trim()) {
-			toast.error("Name and cron expression are required");
-			return;
-		}
-		if (!isPayloadValid) {
-			toast.error("Fix the payload before updating the trigger");
-			return;
-		}
-
+		if (!name.trim() || !cron.trim()) { toast.error("Name and cron expression are required"); return; }
+		if (!isPayloadValid) { toast.error("Fix the payload before updating the trigger"); return; }
 		setIsSubmitting(true);
 		try {
 			const success = await onUpdate(name, description, cron, data, enabled);
-			if (success) {
-				onClose();
-			}
-		} catch (error) {
-			console.error("Error updating trigger:", error);
+			if (success) onClose();
 		} finally {
 			setIsSubmitting(false);
 		}
 	};
 
 	const handleRunNow = async () => {
-		if (!trigger) {
-			toast.error("No trigger selected");
-			return;
-		}
-
+		if (!trigger) { toast.error("No trigger selected"); return; }
 		setIsSubmitting(true);
 		try {
 			await onRun?.();
-			// We don't have a toast here because the function we are calling, "onRun", has toasts already.
-			// Adding toasts here is stupid and would just have 2 toasts
-			// Don't ask me how i know... Thanks Copilot
-		} catch (error) {
-			console.error("Error running trigger:", error);
-			toast.error("Error running trigger");
 		} finally {
 			setIsSubmitting(false);
 		}
 	};
 
+	const runNowBtnClass =
+		"flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-medium rounded-lg hover:bg-green-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+
 	return (
-		<Modal
-			isOpen={isOpen}
-			onClose={onClose}
-			title="Edit Trigger"
-			maxWidth="lg"
-			isLoading={isSubmitting}
-		>
+		<Modal isOpen={isOpen} onClose={onClose} title="Edit Trigger" maxWidth="lg" isLoading={isSubmitting}>
 			<div className="space-y-6">
-				{/* Basic Information */}
-				<div className="space-y-4">
-					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-						<span>✏️</span> Basic Information
-					</h3>
-
-					<div className="grid grid-cols-1 gap-4">
-						<div className="space-y-2">
-							<label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-								<span className="text-lg">🏷️</span>
-								Trigger Name
-							</label>
-							<input
-								type="text"
-								placeholder="Enter trigger name"
-								value={name}
-								onChange={(e) => setName(e.target.value)}
-								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300"
-								disabled={isSubmitting}
-							/>
-						</div>
-
-						<div className="space-y-2">
-							<label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-								<span className="text-lg">📝</span>
-								Description
-							</label>
-							<textarea
-								placeholder="Brief description of what this trigger does..."
-								value={description}
-								onChange={(e) => setDescription(e.target.value)}
-								className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 resize-none"
-								rows={2}
-								disabled={isSubmitting}
-							/>
-						</div>
-					</div>
-				</div>
-
-				{/* Schedule Configuration */}
-				<div className="space-y-4">
-					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-						<span>⏱️</span> Schedule Configuration
-					</h3>
-
-					<div className="space-y-2">
-						<label className="flex items-center gap-2 text-sm font-medium text-gray-300">
-							<span className="text-lg">🔄</span>
-							Cron Expression
-						</label>
+				<ModalSection title="Basic Information">
+					<div>
+						<label className={labelClass}>Trigger name</label>
 						<input
 							type="text"
-							placeholder="*/5 * * * *"
-							value={cron}
-							onChange={(e) => setCron(e.target.value)}
-							className="w-full p-3 bg-gray-800/50 border border-gray-600/50 text-white rounded-lg focus:border-primary/50 focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all duration-300 font-mono"
+							placeholder="e.g., nightly-sync"
+							value={name}
+							onChange={(e) => setName(e.target.value)}
+							className={inputClass}
 							disabled={isSubmitting}
 						/>
-						<p className="text-xs text-gray-400">
-							Need help? Check out{" "}
-							<a
-								href="https://crontab.guru/"
-								target="_blank"
-								rel="noopener noreferrer"
-								className="text-primary hover:underline"
-							>
+					</div>
+					<div>
+						<label className={labelClass}>Description</label>
+						<textarea
+							placeholder="Brief description of what this trigger does…"
+							value={description}
+							onChange={(e) => setDescription(e.target.value)}
+							className={textareaClass}
+							rows={2}
+							disabled={isSubmitting}
+						/>
+					</div>
+				</ModalSection>
+
+				<ModalSection title="Schedule">
+					<div>
+						<label className={labelClass}>Cron expression</label>
+						<input
+							type="text"
+							placeholder="0 * * * *"
+							value={cron}
+							onChange={(e) => setCron(e.target.value)}
+							className={`${inputClass} font-mono`}
+							disabled={isSubmitting}
+						/>
+						<p className="mt-1.5 text-xs text-muted">
+							Need help?{" "}
+							<a href="https://crontab.guru/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
 								crontab.guru
 							</a>
 						</p>
 					</div>
-
-					{/* Preset Buttons */}
-					<div className="space-y-2">
-						<label className="text-sm font-medium text-gray-300">Quick Presets</label>
-						<div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-							{cronPresets.map((preset) => (
-								<button
-									key={`${preset.value}-${preset.label}`}
-									type="button"
-									className="p-2 text-xs bg-gray-700/50 hover:bg-gray-700 border border-gray-600/50 hover:border-primary/30 text-gray-300 hover:text-white rounded-lg transition-all duration-300"
-									onClick={() => setCron(preset.value)}
-									disabled={isSubmitting}
-								>
-									{preset.label}
-								</button>
-							))}
-						</div>
+					<div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+						{cronPresets.map((preset) => (
+							<button
+								key={`${preset.value}-${preset.label}`}
+								type="button"
+								className="px-2 py-1.5 text-xs border border-white/[0.07] text-muted hover:text-text hover:bg-white/[0.04] rounded-lg transition-colors text-left"
+								onClick={() => setCron(preset.value)}
+								disabled={isSubmitting}
+							>
+								{preset.label}
+							</button>
+						))}
 					</div>
-				</div>
+				</ModalSection>
 
-				{/* Data & Settings */}
-				<div className="space-y-4">
-					<h3 className="text-sm font-semibold text-primary flex items-center gap-2">
-						<span>⚙️</span> Data & Settings
-					</h3>
-
-					<div className="space-y-2">
-						<TriggerPayloadEditor
-							value={data}
-							onChange={setData}
-							onValidityChange={setIsPayloadValid}
-							disabled={isSubmitting}
-							inputIdPrefix="edit-trigger-payload"
-						/>
-					</div>
-
-					{/* Enable Toggle */}
-					<div className="bg-gray-800/30 border border-gray-700/50 rounded-lg p-4">
-						<div className="flex items-center justify-between">
-							<div className="flex items-center gap-3">
-								<span className="text-lg">🔛</span>
-								<div>
-									<p className="text-white font-medium text-sm">Enable Trigger</p>
-									<p className="text-gray-400 text-xs">
-										Trigger will run automatically when enabled
-									</p>
-								</div>
-							</div>
-							<div className="relative">
-								<input
-									type="checkbox"
-									checked={enabled}
-									onChange={(e) => setEnabled(e.target.checked)}
-									className="sr-only peer"
-									disabled={isSubmitting}
-									id="enabled-edit-trigger"
-								/>
-								<label
-									htmlFor="enabled-edit-trigger"
-									className="w-12 h-6 bg-gray-600 rounded-full peer-checked:bg-gradient-to-r peer-checked:from-green-500 peer-checked:to-blue-500 transition-all duration-300 cursor-pointer flex items-center relative"
-								>
-									<div
-										className={`absolute w-5 h-5 bg-white rounded-full shadow-md transition-transform duration-300 ${enabled ? "translate-x-6" : "translate-x-0.5"}`}
-									></div>
-								</label>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				{/* Action Buttons */}
-				<div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-700/50">
-					<button
-						onClick={onClose}
-						className="px-6 py-2.5 bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-medium transition-all duration-300 border border-gray-600/50 hover:border-gray-500"
+				<ModalSection title="Data & Settings">
+					<TriggerPayloadEditor
+						value={data}
+						onChange={setData}
+						onValidityChange={setIsPayloadValid}
 						disabled={isSubmitting}
-					>
+						inputIdPrefix="edit-trigger-payload"
+					/>
+					<ToggleRow
+						id="enabled-edit-trigger"
+						checked={enabled}
+						onChange={setEnabled}
+						disabled={isSubmitting}
+						label="Enable Trigger"
+						description="Trigger will run automatically when enabled"
+					/>
+				</ModalSection>
+
+				<ModalFooter>
+					<button onClick={onClose} className={cancelBtnClass} disabled={isSubmitting}>
 						Cancel
 					</button>
 					<button
 						onClick={handleRunNow}
-						className="px-6 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-green-400/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+						className={runNowBtnClass}
 						disabled={isSubmitting}
 						aria-label="Run trigger now"
 					>
-						<span className="text-sm">▶️</span>
+						<Icon name="play" className="w-3.5 h-3.5" />
 						Run Now
 					</button>
-					<button
-						onClick={handleSubmit}
-						className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-lg font-medium transition-all duration-300 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-						disabled={isSubmitting}
-					>
-						<span className="text-sm">✏️</span>
+					<button onClick={handleSubmit} className={primaryBtnClass} disabled={isSubmitting}>
 						Update Trigger
 					</button>
-				</div>
+				</ModalFooter>
 			</div>
 		</Modal>
 	);

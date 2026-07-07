@@ -2,7 +2,7 @@ import { fileRouter, server, VERSION } from "../..";
 
 export = new fileRouter.Path("/").http("GET", "/api/openapi.json", (http) =>
 	http.onRequest(async (ctr) => {
-		let openAPI = await server.openAPI(
+		const openAPI = await server.openAPI(
 			"SHSF API",
 			VERSION.toString(),
             {} as any

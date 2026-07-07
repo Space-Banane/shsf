@@ -8,10 +8,13 @@ import { UsableMiddleware } from "rjweb-server/lib/typings/classes/Middleware";
 import * as fs from "fs/promises";
 import * as fsSync from "fs";
 import * as path from "path";
-import { randomBytes } from "crypto";
 import { getLoggingConfigFromData, stripHeadersFromPayload } from "./FunctionLogging";
 import { replaceApiBaseInContent } from "./FileHelpers";
+import { createLogger } from "./logger";
 import type { LoggedExecutionRateLimitData } from "./FunctionRateLimit";
+
+const log = createLogger("Runner");
+
 import {
 	getCacheDir,
 	getFunctionAppDir,
@@ -20,328 +23,52 @@ import {
 	getFunctionExecutionsDir,
 } from "./StoragePaths";
 
-interface TimingEntry {
-	timestamp: number;
-	value: number;
-	description: string;
-}
+import type {
+	TimingEntry,
+	FunctionExecutionMode,
+	PersistedFunctionExecutionLogInput,
+} from "./RunnerTypes";
+export type { FunctionExecutionMode, PersistedFunctionExecutionLogInput };
+import {
+	SHSF_FUNCTION_RESULT_START,
+	SHSF_FUNCTION_RESULT_END,
+	ServeOnlyFileNotFoundHTML,
+} from "./RunnerTypes";
 
-export type FunctionExecutionMode =
-	| "dev_execute"
-	| "production_execute"
-	| "cron_execute";
+import {
+	truncateDbField,
+	appendLogOutput,
+	getRuntimeType,
+	isHtmlStartupFile,
+	parseExecutionPayloadRoute,
+	resolveServeOnlyHtmlFileName,
+	findFileByNameIgnoreCase,
+} from "./RunnerUtils";
 
-export interface PersistedFunctionExecutionLogInput {
-	functionId: number;
-	functionData: Pick<Function, "logging" | "startup_file">;
-	logs: string;
-	output?: string | null;
-	payload?: string | null;
-	exit_code: number | null;
-	tooks?: TimingEntry[];
-	ratelimit?: LoggedExecutionRateLimitData;
-	error_type?: string;
-	force?: boolean;
-}
+import {
+	resolveDotnetProjectPath,
+	getDotnetProjectDirectory,
+	DotnetProjectResolutionError,
+} from "./DotnetProjectResolver";
 
-// Token expiry for execution tokens (in milliseconds)
-const FUNCTION_DB_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+import {
+	DbComScriptPY,
+	DbComScriptGO,
+	DbComScriptCS,
+	ShsfRuntimeScriptCS,
+	getOrCreateFunctionDbToken,
+} from "./RunnerScripts";
 
-const ServeOnlyFileNotFoundHTML = `<html><head><title>File Not Found</title></head><body><h1>404 - File Not Found</h1><p>The requested HTML file was not found in the function's files.</p></body></html>`;
-const HTML_FILE_EXTENSION = ".html";
-const DB_FIELD_LIMIT = 10000;
-const SHSF_FUNCTION_RESULT_START = "SHSF_FUNCTION_RESULT_START";
-const SHSF_FUNCTION_RESULT_END = "SHSF_FUNCTION_RESULT_END";
-
-function truncateDbField(value: string): string {
-	return value.length > DB_FIELD_LIMIT
-		? value.substring(0, DB_FIELD_LIMIT) + "...[truncated for DB]"
-		: value;
-}
-
-function appendLogOutput(existing: string, next: string): string {
-	if (!next.trim()) {
-		return existing;
-	}
-
-	if (!existing.trim()) {
-		return next.trim();
-	}
-
-	return `${existing.trimEnd()}\n${next.trim()}`;
-}
-
-function isDotnetImage(image: string): boolean {
-	return image.startsWith("mcr.microsoft.com/dotnet/sdk:");
-}
-
-function getRuntimeType(image: string): "python" | "golang" | "dotnet" | string {
-	if (isDotnetImage(image)) {
-		return "dotnet";
-	}
-
-	return image.split(":")[0];
-}
-
-function isHtmlStartupFile(startupFile: string | null | undefined): boolean {
-	return (startupFile || "").toLowerCase().endsWith(HTML_FILE_EXTENSION);
-}
-
-function parseExecutionPayloadRoute(payload: string): string | null {
-	try {
-		const parsedPayload = JSON.parse(payload) as { route?: unknown };
-		return typeof parsedPayload?.route === "string" ? parsedPayload.route : null;
-	} catch {
-		return null;
-	}
-}
-
-function resolveServeOnlyHtmlFileName(
-	startupFile: string,
-	payloadRoute: string | null,
-): string | null {
-	if (!payloadRoute) {
-		return startupFile;
-	}
-
-	let normalizedRoute = payloadRoute.trim();
-	if (
-		!normalizedRoute ||
-		normalizedRoute === "default" ||
-		normalizedRoute === "/"
-	) {
-		return startupFile;
-	}
-
-	normalizedRoute = normalizedRoute.split("?")[0] ?? normalizedRoute;
-	normalizedRoute = normalizedRoute.split("#")[0] ?? normalizedRoute;
-	try {
-		normalizedRoute = decodeURIComponent(normalizedRoute);
-	} catch {
-		// keep original route when decoding fails
-	}
-
-	normalizedRoute = normalizedRoute.replace(/^\/+/, "");
-	if (!normalizedRoute) {
-		return startupFile;
-	}
-
-	if (normalizedRoute.includes("..") || normalizedRoute.includes("\\")) {
-		return null;
-	}
-
-	if (!normalizedRoute.toLowerCase().endsWith(HTML_FILE_EXTENSION)) {
-		normalizedRoute = `${normalizedRoute}${HTML_FILE_EXTENSION}`;
-	}
-
-	return normalizedRoute;
-}
-
-function findFileByNameIgnoreCase(
-	files: FunctionFile[],
-	fileName: string,
-): FunctionFile | undefined {
-	const normalizedFileName = fileName.toLowerCase();
-	return (
-		files.find((file) => file.name === fileName) ??
-		files.find((file) => file.name.toLowerCase() === normalizedFileName)
-	);
-}
-
-async function findFilesByExtension(
-	rootDir: string,
-	extension: string,
-): Promise<string[]> {
-	const matches: string[] = [];
-	const entries = await fs.readdir(rootDir, { withFileTypes: true });
-
-	for (const entry of entries) {
-		const fullPath = path.join(rootDir, entry.name);
-
-		if (entry.isDirectory()) {
-			if (entry.name === ".git") {
-				continue;
-			}
-			matches.push(...(await findFilesByExtension(fullPath, extension)));
-			continue;
-		}
-
-		if (entry.isFile() && entry.name.toLowerCase().endsWith(extension)) {
-			matches.push(fullPath);
-		}
-	}
-
-	return matches;
-}
-
-class DotnetProjectResolutionError extends Error {}
-
-interface DotnetProjectCandidate {
-	absolutePath: string;
-	relativePath: string;
-	depth: number;
-	inSolution: boolean;
-	isRunnable: boolean;
-	isTestProject: boolean;
-}
-
-function normalizeDotnetProjectPath(projectPath: string): string {
-	return path.normalize(projectPath.replace(/\\/g, path.sep));
-}
-
-async function readSolutionProjectPaths(
-	funcAppDir: string,
-	slnFiles: string[],
-): Promise<Set<string>> {
-	const projectPaths = new Set<string>();
-
-	for (const slnFile of slnFiles) {
-		const content = await fs.readFile(slnFile, "utf8");
-		const projectMatches = content.matchAll(
-			/Project\([^)]*\)\s*=\s*"[^"]+",\s*"([^"]+\.csproj)"/gi,
-		);
-
-		for (const match of projectMatches) {
-			const rawProjectPath = match[1];
-			if (!rawProjectPath) {
-				continue;
-			}
-
-			const absolutePath = path.resolve(
-				path.dirname(slnFile),
-				normalizeDotnetProjectPath(rawProjectPath),
-			);
-			projectPaths.add(path.relative(funcAppDir, absolutePath));
-		}
-	}
-
-	return projectPaths;
-}
-
-async function readDotnetProjectCandidate(
-	funcAppDir: string,
-	csprojPath: string,
-	solutionProjectPaths: Set<string>,
-): Promise<DotnetProjectCandidate> {
-	const relativePath = path.relative(funcAppDir, csprojPath);
-	const content = await fs.readFile(csprojPath, "utf8");
-	const outputTypeMatch = content.match(
-		/<OutputType>\s*([^<\s]+)\s*<\/OutputType>/i,
-	);
-	const sdkMatch = content.match(/<Project[^>]*\bSdk="([^"]+)"/i);
-	const outputType = outputTypeMatch?.[1]?.trim().toLowerCase() ?? "";
-	const projectSdk = sdkMatch?.[1]?.trim().toLowerCase() ?? "";
-	const isTestProject =
-		/<IsTestProject>\s*true\s*<\/IsTestProject>/i.test(content) ||
-		/Microsoft\.NET\.Test\.Sdk/i.test(content);
-	const isRunnable =
-		outputType === "exe" ||
-		outputType === "winexe" ||
-		projectSdk.includes("microsoft.net.sdk.web");
-
-	return {
-		absolutePath: csprojPath,
-		relativePath,
-		depth: relativePath.split(path.sep).length,
-		inSolution: solutionProjectPaths.has(relativePath),
-		isRunnable,
-		isTestProject,
-	};
-}
-
-function selectSingleDotnetProjectCandidate(
-	candidates: DotnetProjectCandidate[],
-	errorMessage: string,
-): DotnetProjectCandidate | null {
-	if (candidates.length === 0) {
-		return null;
-	}
-
-	if (candidates.length === 1) {
-		return candidates[0];
-	}
-
-	const candidateList = candidates
-		.map((candidate) => candidate.relativePath)
-		.sort((left, right) => left.localeCompare(right))
-		.join(", ");
-	throw new DotnetProjectResolutionError(`${errorMessage} Candidates: ${candidateList}`);
-}
-
-async function resolveDotnetProjectPath(funcAppDir: string): Promise<string> {
-	const csprojFiles = await findFilesByExtension(funcAppDir, ".csproj");
-	const slnFiles = await findFilesByExtension(funcAppDir, ".sln");
-
-	if (csprojFiles.length === 0) {
-		if (slnFiles.length > 0) {
-			throw new DotnetProjectResolutionError(
-				"Found a .sln file but no .csproj file. Add at least one runnable .csproj to execute this .NET function.",
-			);
-		}
-
-		throw new DotnetProjectResolutionError(
-			"No .csproj file found. Add a runnable .NET project before executing this function.",
-		);
-	}
-
-	const solutionProjectPaths =
-		slnFiles.length > 0
-			? await readSolutionProjectPaths(funcAppDir, slnFiles)
-			: new Set<string>();
-	const candidates = await Promise.all(
-		csprojFiles.map((csprojPath) =>
-			readDotnetProjectCandidate(funcAppDir, csprojPath, solutionProjectPaths),
-		),
-	);
-
-	const solutionRunnableCandidate = selectSingleDotnetProjectCandidate(
-		candidates.filter(
-			(candidate) => candidate.inSolution && candidate.isRunnable && !candidate.isTestProject,
-		),
-		"Multiple runnable .csproj files were found in the solution. Keep one runnable entry project in the solution or remove the ambiguity.",
-	);
-	if (solutionRunnableCandidate) {
-		return solutionRunnableCandidate.relativePath;
-	}
-
-	const runnableCandidate = selectSingleDotnetProjectCandidate(
-		candidates.filter((candidate) => candidate.isRunnable && !candidate.isTestProject),
-		"Multiple runnable .csproj files were found. Keep one runnable entry project or configure the repository so only one executable project is detected.",
-	);
-	if (runnableCandidate) {
-		return runnableCandidate.relativePath;
-	}
-
-	const solutionNonTestCandidate = selectSingleDotnetProjectCandidate(
-		candidates.filter((candidate) => candidate.inSolution && !candidate.isTestProject),
-		"Multiple non-test .csproj files were found in the solution, but none was clearly runnable. Mark the startup project as executable or remove the ambiguity.",
-	);
-	if (solutionNonTestCandidate) {
-		return solutionNonTestCandidate.relativePath;
-	}
-
-	const nonTestCandidates = candidates.filter((candidate) => !candidate.isTestProject);
-	if (nonTestCandidates.length === 1) {
-		return nonTestCandidates[0].relativePath;
-	}
-
-	if (nonTestCandidates.length > 1) {
-		throw new DotnetProjectResolutionError(
-			"No runnable .csproj could be identified automatically. Mark one project as executable with <OutputType>Exe</OutputType> or use Microsoft.NET.Sdk.Web, and keep test/support projects non-runnable.",
-		);
-	}
-
-	throw new DotnetProjectResolutionError(
-		"Only test projects were found. Add or include one runnable .csproj for this .NET function.",
-	);
-}
-
-function getDotnetProjectDirectory(
-	funcAppDir: string,
-	dotnetProjectPath: string,
-): string {
-	return path.join(funcAppDir, path.dirname(dotnetProjectPath));
-}
+import {
+	generateGoRunnerWrapperCode,
+	generatePythonRunnerScript,
+	generateGoRunnerShScript,
+	generateDotnetRunnerScript,
+	generatePythonInitBody,
+	generateGoInitBody,
+	generateDotnetInitBody,
+	generateDotnetBuildInitScript,
+} from "./RunnerRuntimeScripts";
 
 export async function persistFunctionExecutionLog(
 	input: PersistedFunctionExecutionLogInput,
@@ -396,684 +123,6 @@ export async function persistFunctionExecutionLog(
 	});
 }
 
-const DbComScriptPY = `# Database Communication Script
-# GENERATED ON THE FLY - DO NOT EDIT - THIS WILL BE OVERWRITTEN ON THE NEXT RUN
-import requests
-from typing import Any, Optional, Dict, List
-from datetime import datetime
-
-# Configuration placeholders
-BASE_URL = "{{API}}"
-ACCESS_KEY = "{{AUTHKEY}}"
-
-
-class DatabaseError(Exception):
-    """Custom exception for database operations"""
-    pass
-
-
-class Database:
-    """
-    Database class for interacting with the storage API.
-    
-    Usage:
-        from _db_com import database
-        db = database()
-        db.set("storage1", "name", "Paul")
-        print(db.get("storage1", "name"))
-    """
-    
-    def __init__(self):
-        self.base_url = BASE_URL.rstrip('/')
-        self.headers = {
-            "Content-Type": "application/json",
-            "X-Access-Key": ACCESS_KEY
-        }
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
-    
-    def _make_request(self, method: str, url: str, **kwargs) -> Dict:
-        """Make HTTP request and handle response"""
-        try:
-            response = self.session.request(method, url, **kwargs)
-            data = response.json()
-            
-            if isinstance(data, dict) and data.get("status") != "OK" and "status" in data:
-                raise DatabaseError(f"API Error: {data.get('message', 'Unknown error')}")
-            
-            return data
-        except requests.exceptions.RequestException as e:
-            raise DatabaseError(f"Request failed: {str(e)}")
-    
-    def create_storage(self, name: str, purpose: str = "") -> Dict:
-        """
-        Create a new storage.
-        
-        Args:
-            name: Storage name
-            purpose: Purpose description
-            
-        Returns:
-            Storage object
-        """
-        url = f"{self.base_url}/api/storage"
-        payload = {"name": name, "purpose": purpose}
-        result = self._make_request("POST", url, json=payload)
-        return result.get("data", result)
-    
-    def list_storages(self) -> List[Dict]:
-        """
-        List all storages for the user.
-        
-        Returns:
-            List of storage objects
-        """
-        url = f"{self.base_url}/api/storage"
-        result = self._make_request("GET", url)
-        return result.get("data", result)
-    
-    def delete_storage(self, storage_name: str) -> Dict:
-        """
-        Delete a storage by name.
-        
-        Args:
-            storage_name: Name of the storage to delete
-            
-        Returns:
-            Response object
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}"
-        return self._make_request("DELETE", url)
-    
-    def clear(self, storage_name: str) -> Dict:
-        """
-        Clear all items in a storage.
-        
-        Args:
-            storage_name: Name of the storage to clear
-            
-        Returns:
-            Response object
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/items"
-        return self._make_request("DELETE", url)
-    
-    def set(self, storage_name: str, key: str, value: Any, 
-            expires_at: Optional[str] = None) -> Dict:
-        """
-        Set (create/update) an item in storage.
-        
-        Args:
-            storage_name: Name of the storage
-            key: Item key
-            value: Item value (any JSON-serializable type)
-            expires_at: Optional expiration timestamp (ISO format string or Unix timestamp)
-            
-        Returns:
-            StorageItem object
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/item"
-        payload = {"key": key, "value": value}
-        if expires_at is not None:
-            payload["expiresAt"] = expires_at
-        
-        result = self._make_request("POST", url, json=payload)
-        return result.get("data", result)
-    
-    def get(self, storage_name: str, key: str) -> Any:
-        """
-        Get an item value by key from storage.
-        
-        Args:
-            storage_name: Name of the storage
-            key: Item key
-            
-        Returns:
-            Item value (the actual value, not the full object)
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/item/{requests.utils.quote(key)}"
-        result = self._make_request("GET", url)
-        item = result.get("data", result)
-        return item.get("value") if isinstance(item, dict) else item
-    
-    def get_item(self, storage_name: str, key: str) -> Dict:
-        """
-        Get full item object by key from storage (includes metadata).
-        
-        Args:
-            storage_name: Name of the storage
-            key: Item key
-            
-        Returns:
-            Full StorageItem object
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/item/{requests.utils.quote(key)}"
-        result = self._make_request("GET", url)
-        return result.get("data", result)
-    
-    def list_items(self, storage_name: str) -> List[Dict]:
-        """
-        List all items in a storage.
-        
-        Args:
-            storage_name: Name of the storage
-            
-        Returns:
-            List of StorageItem objects
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/items"
-        result = self._make_request("GET", url)
-        return result.get("data", result)
-    
-    def delete_item(self, storage_name: str, key: str) -> Dict:
-        """
-        Delete an item by key from storage.
-        
-        Args:
-            storage_name: Name of the storage
-            key: Item key
-            
-        Returns:
-            Response object
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/item/{requests.utils.quote(key)}"
-        return self._make_request("DELETE", url)
-    
-    def exists(self, storage_name: str, key: str) -> bool:
-        """
-        Check if an item exists in storage.
-        
-        Args:
-            storage_name: Name of the storage
-            key: Item key
-            
-        Returns:
-            True if item exists, False otherwise
-        """
-        try:
-            self.get(storage_name, key)
-            return True
-        except DatabaseError:
-            return False
-
-
-def database() -> Database:
-    """
-    Factory function to create a Database instance.
-    
-    Returns:
-        Database instance
-    """
-    return Database()
-
-
-# Alternative: Direct instantiation
-# You can also use: db = Database()`;
-
-const DbComScriptGO = `// Database Communication Script in Go
-// GENERATED ON THE FLY - DO NOT EDIT - THIS WILL BE OVERWRITTEN ON THE NEXT RUN
-
-package dbcom
-
-import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"strings"
-	"time"
-)
-
-// Configuration placeholders
-const (
-	BaseURL   = "{{API}}"
-	AccessKey = "{{AUTHKEY}}"
-)
-
-// DatabaseError represents an API error
-type DatabaseError struct {
-	Message string
-}
-
-func (e *DatabaseError) Error() string {
-	return fmt.Sprintf("API Error: %s", e.Message)
-}
-
-// Database client
-type Database struct {
-	client  *http.Client
-	baseURL string
-	headers map[string]string
-}
-
-// New creates a new Database instance
-func New() *Database {
-	return &Database{
-		client:  &http.Client{Timeout: 30 * time.Second},
-		baseURL: strings.TrimRight(BaseURL, "/"),
-		headers: map[string]string{
-			"Content-Type": "application/json",
-			"X-Access-Key": AccessKey,
-		},
-	}
-}
-
-// internal response wrapper
-type apiResponse struct {
-	Status  string          ` +
-	"`" +
-	`json:"status"` +
-	"`" +
-	`
-	Message string          ` +
-	"`" +
-	`json:"message,omitempty"` +
-	"`" +
-	`
-	Data    json.RawMessage ` +
-	"`" +
-	`json:"data,omitempty"` +
-	"`" +
-	`
-}
-
-func (db *Database) makeRequest(method, path string, payload interface{}) ([]byte, error) {
-	fullURL := db.baseURL + path
-	var body io.Reader
-
-	if payload != nil {
-		b, err := json.Marshal(payload)
-		if err != nil {
-			return nil, err
-		}
-		body = bytes.NewBuffer(b)
-	}
-
-	req, err := http.NewRequest(method, fullURL, body)
-	if err != nil {
-		return nil, err
-	}
-
-	for k, v := range db.headers {
-		req.Header.Set(k, v)
-	}
-
-	resp, err := db.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	// Try to parse as standard API response
-	var res apiResponse
-	if err := json.Unmarshal(respData, &res); err == nil {
-		// If it has a status field, check it
-		if res.Status != "" && res.Status != "OK" {
-			msg := res.Message
-			if msg == "" {
-				msg = "Unknown error"
-			}
-			return nil, &DatabaseError{Message: msg}
-		}
-		// If data is present, return that. Mimics python's result.get("data", result)
-		if len(res.Data) > 0 {
-			return res.Data, nil
-		}
-	}
-
-	// Fallback: return raw body if not a standard wrapped response or parsing failed
-	return respData, nil
-}
-
-// CreateStorage creates a new storage
-func (db *Database) CreateStorage(name, purpose string) (map[string]interface{}, error) {
-	urlPath := "/api/storage"
-	payload := map[string]string{
-		"name":    name,
-		"purpose": purpose,
-	}
-	
-	resp, err := db.makeRequest("POST", urlPath, payload)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]interface{}
-	json.Unmarshal(resp, &result)
-	return result, nil
-}
-
-// ListStorages lists all storages
-func (db *Database) ListStorages() ([]map[string]interface{}, error) {
-	urlPath := "/api/storage"
-	resp, err := db.makeRequest("GET", urlPath, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var result []map[string]interface{}
-	json.Unmarshal(resp, &result)
-	return result, nil
-}
-
-// DeleteStorage deletes a storage by name
-func (db *Database) DeleteStorage(name string) error {
-	urlPath := fmt.Sprintf("/api/storage/%s", url.PathEscape(name))
-	_, err := db.makeRequest("DELETE", urlPath, nil)
-	return err
-}
-
-// Clear clears all items in a storage
-func (db *Database) Clear(name string) error {
-	urlPath := fmt.Sprintf("/api/storage/%s/items", url.PathEscape(name))
-	_, err := db.makeRequest("DELETE", urlPath, nil)
-	return err
-}
-
-// Set creates or updates an item
-func (db *Database) Set(storageName, key string, value interface{}, expiresAt *string) (map[string]interface{}, error) {
-	urlPath := fmt.Sprintf("/api/storage/%s/item", url.PathEscape(storageName))
-	payload := map[string]interface{}{
-		"key":   key,
-		"value": value,
-	}
-	if expiresAt != nil {
-		payload["expiresAt"] = *expiresAt
-	}
-
-	resp, err := db.makeRequest("POST", urlPath, payload)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]interface{}
-	json.Unmarshal(resp, &result)
-	return result, nil
-}
-
-// Get returns an item's value by key. 
-// Returns interface{} to match Python's dynamic return type.
-func (db *Database) Get(storageName, key string) (interface{}, error) {
-	urlPath := fmt.Sprintf("/api/storage/%s/item/%s", url.PathEscape(storageName), url.PathEscape(key))
-	resp, err := db.makeRequest("GET", urlPath, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// We need to check if the returned data is the item wrapper or the value itself.
-	// Based on Python script: item.get("value")
-	var itemWrapper map[string]interface{}
-	if err := json.Unmarshal(resp, &itemWrapper); err == nil {
-		if val, ok := itemWrapper["value"]; ok {
-			return val, nil
-		}
-		// If no "value" key, return the whole object
-		return itemWrapper, nil
-	}
-	
-	return nil, fmt.Errorf("could not parse item")
-}
-
-// GetItem returns the full item object (metadata included)
-func (db *Database) GetItem(storageName, key string) (map[string]interface{}, error) {
-	urlPath := fmt.Sprintf("/api/storage/%s/item/%s", url.PathEscape(storageName), url.PathEscape(key))
-	resp, err := db.makeRequest("GET", urlPath, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]interface{}
-	json.Unmarshal(resp, &result)
-	return result, nil
-}
-
-// ListItems lists all items in storage
-func (db *Database) ListItems(storageName string) ([]map[string]interface{}, error) {
-	urlPath := fmt.Sprintf("/api/storage/%s/items", url.PathEscape(storageName))
-	resp, err := db.makeRequest("GET", urlPath, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var result []map[string]interface{}
-	json.Unmarshal(resp, &result)
-	return result, nil
-}
-
-// DeleteItem deletes an item by key
-func (db *Database) DeleteItem(storageName, key string) error {
-	urlPath := fmt.Sprintf("/api/storage/%s/item/%s", url.PathEscape(storageName), url.PathEscape(key))
-	_, err := db.makeRequest("DELETE", urlPath, nil)
-	return err
-}
-
-// Exists checks if an item exists
-func (db *Database) Exists(storageName, key string) bool {
-	_, err := db.Get(storageName, key)
-	return err == nil
-}
-`;
-
-const DbComScriptCS = `// Database Communication Script in C#
-// GENERATED ON THE FLY - DO NOT EDIT - THIS WILL BE OVERWRITTEN ON THE NEXT RUN
-using System;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Threading.Tasks;
-
-namespace SHSF;
-
-public sealed class DatabaseError : Exception
-{
-    public DatabaseError(string message) : base(message) { }
-}
-
-public sealed class Database
-{
-    private static readonly HttpClient Client = new();
-    private readonly string _baseUrl = "{{API}}".TrimEnd('/');
-    private readonly string _accessKey = "{{AUTHKEY}}";
-
-    private async Task<JsonNode?> MakeRequestAsync(HttpMethod method, string path, object? payload = null)
-    {
-        using var request = new HttpRequestMessage(method, _baseUrl + path);
-        request.Headers.TryAddWithoutValidation("X-Access-Key", _accessKey);
-
-        if (payload is not null)
-        {
-            request.Content = new StringContent(
-                JsonSerializer.Serialize(payload),
-                Encoding.UTF8,
-                "application/json"
-            );
-        }
-
-        using var response = await Client.SendAsync(request);
-        var body = await response.Content.ReadAsStringAsync();
-        JsonNode? parsed = null;
-
-        if (!string.IsNullOrWhiteSpace(body))
-        {
-            parsed = JsonNode.Parse(body);
-        }
-
-        if (parsed is JsonObject obj && obj["status"] is not null)
-        {
-            var status = obj["status"]?.GetValue<string>();
-            if (!string.Equals(status, "OK", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new DatabaseError(obj["message"]?.GetValue<string>() ?? "Unknown error");
-            }
-
-            return obj["data"] ?? parsed;
-        }
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new DatabaseError($"HTTP {(int)response.StatusCode}: {body}");
-        }
-
-        return parsed;
-    }
-
-    public Task<JsonNode?> CreateStorage(string name, string purpose = "") =>
-        MakeRequestAsync(HttpMethod.Post, "/api/storage", new { name, purpose });
-
-    public Task<JsonNode?> ListStorages() =>
-        MakeRequestAsync(HttpMethod.Get, "/api/storage");
-
-    public Task<JsonNode?> DeleteStorage(string storageName) =>
-        MakeRequestAsync(HttpMethod.Delete, $"/api/storage/{Uri.EscapeDataString(storageName)}");
-
-    public Task<JsonNode?> Clear(string storageName) =>
-        MakeRequestAsync(HttpMethod.Delete, $"/api/storage/{Uri.EscapeDataString(storageName)}/items");
-
-    public Task<JsonNode?> Set(string storageName, string key, object? value, string? expiresAt = null) =>
-        MakeRequestAsync(
-            HttpMethod.Post,
-            $"/api/storage/{Uri.EscapeDataString(storageName)}/item",
-            expiresAt is null
-                ? new { key, value }
-                : new { key, value, expiresAt }
-        );
-
-    public async Task<JsonNode?> Get(string storageName, string key)
-    {
-        var result = await MakeRequestAsync(
-            HttpMethod.Get,
-            $"/api/storage/{Uri.EscapeDataString(storageName)}/item/{Uri.EscapeDataString(key)}"
-        );
-
-        if (result is JsonObject obj && obj["value"] is not null)
-        {
-            return obj["value"];
-        }
-
-        return result;
-    }
-
-    public Task<JsonNode?> GetItem(string storageName, string key) =>
-        MakeRequestAsync(
-            HttpMethod.Get,
-            $"/api/storage/{Uri.EscapeDataString(storageName)}/item/{Uri.EscapeDataString(key)}"
-        );
-
-    public Task<JsonNode?> ListItems(string storageName) =>
-        MakeRequestAsync(HttpMethod.Get, $"/api/storage/{Uri.EscapeDataString(storageName)}/items");
-
-    public Task<JsonNode?> DeleteItem(string storageName, string key) =>
-        MakeRequestAsync(
-            HttpMethod.Delete,
-            $"/api/storage/{Uri.EscapeDataString(storageName)}/item/{Uri.EscapeDataString(key)}"
-        );
-
-    public async Task<bool> Exists(string storageName, string key)
-    {
-        try
-        {
-            await Get(storageName, key);
-            return true;
-        }
-        catch (DatabaseError)
-        {
-            return false;
-        }
-    }
-}
-`;
-
-const ShsfRuntimeScriptCS = `// SHSF runtime helper for C#
-// GENERATED ON THE FLY - DO NOT EDIT - THIS WILL BE OVERWRITTEN ON THE NEXT RUN
-using System;
-using System.IO;
-using System.Runtime.CompilerServices;
-using System.Text.Json;
-
-namespace SHSF;
-
-internal static class RuntimeBootstrap
-{
-    internal static readonly TextWriter OriginalStdout = new StreamWriter(Console.OpenStandardOutput())
-    {
-        AutoFlush = true
-    };
-
-    [ModuleInitializer]
-    internal static void Initialize()
-    {
-        Console.SetOut(Console.Error);
-    }
-}
-
-public static class Runtime
-{
-    public static string PayloadPath =>
-        Environment.GetEnvironmentVariable("SHSF_PAYLOAD_PATH")
-        ?? (Environment.GetCommandLineArgs().Length > 1
-            ? Environment.GetCommandLineArgs()[1]
-            : throw new InvalidOperationException("SHSF payload path not provided."));
-
-    public static string LoadPayload() => File.ReadAllText(PayloadPath);
-
-    public static T? LoadPayloadJson<T>() =>
-        JsonSerializer.Deserialize<T>(LoadPayload());
-
-    public static void Return(object? value)
-    {
-        RuntimeBootstrap.OriginalStdout.WriteLine("${SHSF_FUNCTION_RESULT_START}");
-        RuntimeBootstrap.OriginalStdout.Write(JsonSerializer.Serialize(value));
-        RuntimeBootstrap.OriginalStdout.WriteLine();
-        RuntimeBootstrap.OriginalStdout.Write("${SHSF_FUNCTION_RESULT_END}");
-        RuntimeBootstrap.OriginalStdout.Flush();
-    }
-}
-`;
-
-async function getOrCreateFunctionDbToken(userId: number): Promise<string> {
-	const tokenName = `__function_db_access__`;
-
-	// Try to find existing valid token
-	const existingToken = await prisma.accessToken.findFirst({
-		where: {
-			userId: userId,
-			name: tokenName,
-			hidden: true,
-			expiresAt: {
-				gt: new Date(), // Not expired
-			},
-		},
-	});
-
-	if (existingToken) {
-		return existingToken.token;
-	}
-
-	// Create new token with 24 hour expiry
-	const newToken = randomBytes(32).toString("hex");
-
-	await prisma.accessToken.create({
-		data: {
-			userId: userId,
-			name: tokenName,
-			token: newToken,
-			hidden: true,
-			purpose: "Shared database access token for all function executions",
-			expiresAt: new Date(Date.now() + FUNCTION_DB_TOKEN_EXPIRY_MS),
-		},
-	});
-
-	return newToken;
-}
-
 export async function executeFunction(
 	id: number,
 	functionData: Function,
@@ -1099,11 +148,11 @@ export async function executeFunction(
 		const value = (now - _lastMark) / 1000;
 		tooks.push({ timestamp: now, value, description });
 		_lastMark = now;
-		console.log(`[SHSF] ${description}: ${value.toFixed(3)}s`);
+		log.debug({ description, durationSeconds: value.toFixed(3) }, "Execution phase");
 	};
 
-	// log() — internal console-only trace, does NOT appear in tooks
-	const log = (msg: string) => console.log(`[SHSF] ${msg}`);
+	// trace() — internal trace, does NOT appear in tooks
+	const trace = (msg: string) => log.trace(msg);
 
 	// Serve Only HTML (serve-only)
 	if (isHtmlStartupFile(functionData.startup_file)) {
@@ -1189,542 +238,60 @@ export async function executeFunction(
 			);
 			mark(`Write user files (${files.length})`);
 		} else {
-			log(`[GIT] Git source active — skipping DB file writes for function ${functionData.id}`);
+			log.info({ functionId: functionData.id }, "[GIT] Git source active — skipping DB file writes");
 			mark(`Skip DB file writes (git_url set)`);
 		}
 
 		let dotnetProjectPath: string | null = null;
 		if (runtimeType === "dotnet") {
 			dotnetProjectPath = await resolveDotnetProjectPath(funcAppDir);
-			log(`Resolved .NET project: ${dotnetProjectPath}`);
+			log.info({ functionId: functionData.id, dotnetProjectPath }, "Resolved .NET project");
 		}
 
 		// For Go runtime, generate the runner wrapper file and go.mod if needed
 		if (runtimeType === "golang") {
-			const runnerWrapperCode = `package main
-
-import (
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"os"
-	"reflect"
-)
-
-const shsfBinaryTransport = "base64-bytes-v1"
-
-func envelopeBytes(raw []byte) map[string]interface{} {
-	return map[string]interface{}{
-		"__shsf_transport": shsfBinaryTransport,
-		"data":             base64.StdEncoding.EncodeToString(raw),
-		"length":           len(raw),
-	}
-}
-
-func normalizeForTransport(value interface{}) interface{} {
-	if value == nil {
-		return nil
-	}
-
-	if raw, ok := value.([]byte); ok {
-		return envelopeBytes(raw)
-	}
-
-	rv := reflect.ValueOf(value)
-
-	switch rv.Kind() {
-	case reflect.Pointer, reflect.Interface:
-		if rv.IsNil() {
-			return nil
-		}
-		return normalizeForTransport(rv.Elem().Interface())
-
-	case reflect.Slice:
-		if rv.Type().Elem().Kind() == reflect.Uint8 {
-			raw := make([]byte, rv.Len())
-			reflect.Copy(reflect.ValueOf(raw), rv)
-			return envelopeBytes(raw)
-		}
-
-		out := make([]interface{}, rv.Len())
-		for i := 0; i < rv.Len(); i++ {
-			out[i] = normalizeForTransport(rv.Index(i).Interface())
-		}
-		return out
-
-	case reflect.Array:
-		if rv.Type().Elem().Kind() == reflect.Uint8 {
-			raw := make([]byte, rv.Len())
-			for i := 0; i < rv.Len(); i++ {
-				raw[i] = byte(rv.Index(i).Uint())
-			}
-			return envelopeBytes(raw)
-		}
-
-		out := make([]interface{}, rv.Len())
-		for i := 0; i < rv.Len(); i++ {
-			out[i] = normalizeForTransport(rv.Index(i).Interface())
-		}
-		return out
-
-	case reflect.Map:
-		out := make(map[string]interface{}, rv.Len())
-		iter := rv.MapRange()
-		for iter.Next() {
-			out[fmt.Sprint(iter.Key().Interface())] = normalizeForTransport(iter.Value().Interface())
-		}
-		return out
-
-	case reflect.Struct:
-		out := make(map[string]interface{}, rv.NumField())
-		rt := rv.Type()
-		for i := 0; i < rv.NumField(); i++ {
-			field := rt.Field(i)
-			// Skip unexported fields.
-			if field.PkgPath != "" {
-				continue
-			}
-			out[field.Name] = normalizeForTransport(rv.Field(i).Interface())
-		}
-		return out
-
-	default:
-		return value
-	}
-}
-
-// Runner wrapper that handles payload loading and result marshaling
-func runFunction(payloadPath string, out *os.File) error {
-	// Read payload from file
-	var payload interface{}
-	if payloadPath != "" {
-		data, err := os.ReadFile(payloadPath)
-		if err != nil {
-			return fmt.Errorf("error reading payload file: %w", err)
-		}
-		
-		if len(data) > 0 {
-			if err := json.Unmarshal(data, &payload); err != nil {
-				return fmt.Errorf("error decoding payload JSON: %w", err)
-			}
-		}
-	}
-	
-	// Call user's main_user function
-	result, err := main_user(payload)
-	if err != nil {
-		return fmt.Errorf("error executing main function: %w", err)
-	}
-	
-	// Marshal normalized result so binary values are transport-safe across runtimes.
-	normalizedResult := normalizeForTransport(result)
-	resultJSON, err := json.Marshal(normalizedResult)
-	if err != nil {
-		return fmt.Errorf("error serializing result: %w", err)
-	}
-	
-	// Write result with markers to original stdout (passed as out)
-	fmt.Fprintln(out, "SHSF_FUNCTION_RESULT_START")
-	fmt.Fprint(out, string(resultJSON))
-	fmt.Fprint(out, "\\nSHSF_FUNCTION_RESULT_END")
-	
-	return nil
-}
-
-func main() {
-	// Redirect user's stdout to stderr so logs don't interfere with result
-	oldStdout := os.Stdout
-	os.Stdout = os.Stderr
-	
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "Error: Payload file path not provided")
-		os.Exit(1)
-	}
-	
-	payloadPath := os.Args[1]
-	
-	// Do NOT restore stdout here for user code execution.
-	// This ensures fmt.Println in user code goes to stderr (logs).
-	
-	// Run the function, passing original stdout for the result
-	if err := runFunction(payloadPath, oldStdout); err != nil {
-		// Ensure error goes to stderr
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-}
-`;
-			await fs.writeFile(path.join(funcAppDir, "shsf_runner.go"), runnerWrapperCode);
+			await fs.writeFile(path.join(funcAppDir, "shsf_runner.go"), generateGoRunnerWrapperCode());
 
 			const goModPath = path.join(funcAppDir, "go.mod");
 			if (!fsSync.existsSync(goModPath)) {
 				await fs.writeFile(goModPath, `module shsf_function_${functionData.id}\n\ngo 1.23\n`);
 			}
-			log("Go runner wrapper written");
+			trace("Go runner wrapper written");
 		}
 
 		// Always generate/update the runner script to accept payload file path as argument
 		if (runtimeType === "python") {
 			const wrapperPath = path.join(funcAppDir, "_runner.py");
-			const wrapperContent = `#!/bin/sh
-# Source environment variables if the file exists
-if [ -f /app/.shsf_env ]; then
-    . /app/.shsf_env
-    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
-else
-    echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
-fi
-
-# Execute the actual Python runner with payload file path as argument
-python3 - "$@" << 'PYTHON_SCRIPT_EOF'
-import json
-import sys
-import os
-import base64
-import traceback
-
-SHSF_BINARY_TRANSPORT = "base64-bytes-v1"
-
-def _shsf_json_default(obj):
-	if isinstance(obj, (bytes, bytearray, memoryview)):
-		raw = bytes(obj)
-		return {
-			"__shsf_transport": SHSF_BINARY_TRANSPORT,
-			"data": base64.b64encode(raw).decode("ascii"),
-			"length": len(raw)
-		}
-
-	if isinstance(obj, set):
-		return list(obj)
-
-	if hasattr(obj, "__dict__"):
-		return obj.__dict__
-
-	# Last-resort fallback keeps execution alive for unknown object types.
-	return repr(obj)
-
-# Get payload file path from command line argument
-if len(sys.argv) < 2:
-	sys.stderr.write("Error: Payload file path not provided\\n")
-	sys.exit(1)
-
-payload_file_path = sys.argv[1]  # This will be /executions/<id>/payload.json due to new mount
-
-# Store original stdout, then redirect sys.stdout to sys.stderr for user code
-original_stdout = sys.stdout
-sys.stdout = sys.stderr
-
-sys.path.append('/app')
-target_module_name = "${startupFile.replace(".py", "")}"
-
-# Read payload from the specified file
-run_data = None
-try:
-    with open(payload_file_path, 'r') as f:
-        payload_content = f.read()
-        if payload_content.strip():
-            run_data = json.loads(payload_content)
-except FileNotFoundError:
-    sys.stderr.write(f"Warning: Payload file not found at {payload_file_path}\\n")
-except json.JSONDecodeError as e:
-    sys.stderr.write(f"Error decoding payload JSON: {str(e)}\\n")
-    sys.exit(1)
-except Exception as e:
-    sys.stderr.write(f"Error reading payload file: {str(e)}\\n")
-    sys.exit(1)
-
-user_result = None
-try:
-    original_name_val = __name__
-    __name__ = 'imported_module'
-    target_module = __import__(target_module_name)
-    __name__ = original_name_val # Restore __name__
-
-    if hasattr(target_module, 'main') and callable(target_module.main):
-        try:
-            # User's main function is called. Its print() statements will go to current sys.stdout (which is sys.stderr).
-            user_result = target_module.main(run_data) if run_data is not None else target_module.main()
-
-            # Restore original stdout for printing the JSON result
-            sys.stdout = original_stdout
-            # Wrap the output in markers for clear identification on the *original* stdout
-            sys.stdout.write("SHSF_FUNCTION_RESULT_START\\n")
-            sys.stdout.write(json.dumps(user_result, default=_shsf_json_default))
-            sys.stdout.write("\\nSHSF_FUNCTION_RESULT_END")
-            sys.stdout.flush()
-        except Exception as e:
-            # Error during main execution or result serialization.
-            # Ensure output goes to stderr. If json.dumps failed, sys.stdout might be original_stdout.
-            sys.stdout = sys.stderr
-            sys.stderr.write(f"Error executing main function or serializing result: {str(e)}\\n")
-            traceback.print_exc(file=sys.stderr)
-            sys.stdout = original_stdout # Restore for finally block consistency
-            sys.exit(1)
-    else:
-        # sys.stdout is already sys.stderr
-        sys.stderr.write(f"No 'main' function found in {target_module_name}.py\\n")
-        sys.exit(1)
-except Exception as e:
-    # Error during module import or other setup.
-    # Ensure output goes to stderr.
-    sys.stdout = sys.stderr
-    sys.stderr.write(f"Error importing module {target_module_name} or during initial setup: {str(e)}\\n")
-    traceback.print_exc(file=sys.stderr)
-    sys.stdout = original_stdout # Restore for finally block consistency
-    sys.exit(1)
-finally:
-    # Ensure sys.stdout is restored to its original state before exiting.
-    # This is good practice, though effect might be minimal in docker exec.
-    sys.stdout = original_stdout
-PYTHON_SCRIPT_EOF
-`;
-			await fs.writeFile(wrapperPath, wrapperContent);
+			await fs.writeFile(wrapperPath, generatePythonRunnerScript(startupFile ?? "main"));
 			await fs.chmod(wrapperPath, "755");
-			log("Python runner script written");
+			trace("Python runner script written");
 		} else if (runtimeType === "golang") {
 			const wrapperPath = path.join(funcAppDir, "_runner.sh");
-			const wrapperContent = `#!/bin/sh
-# Source environment variables if the file exists
-if [ -f /app/.shsf_env ]; then
-    . /app/.shsf_env
-    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
-else
-    echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
-fi
-
-# Execute the compiled Go binary with payload file path as argument
-/app/_shsf_runner "$@"
-`;
-			await fs.writeFile(wrapperPath, wrapperContent);
+			await fs.writeFile(wrapperPath, generateGoRunnerShScript());
 			await fs.chmod(wrapperPath, "755");
-			log("Go runner script written");  // intermediate — mark fires after init.sh below
+			trace("Go runner script written");  // intermediate — mark fires after init.sh below
 		} else if (runtimeType === "dotnet") {
 			const wrapperPath = path.join(funcAppDir, "_runner.sh");
-			const wrapperContent = `#!/bin/sh
-if [ -f /app/.shsf_env ]; then
-    . /app/.shsf_env
-    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
-else
-    echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
-fi
-
-if [ $# -lt 2 ]; then
-    echo "Error: Missing payload file path or execution mode" >&2
-    exit 1
-fi
-
-PAYLOAD_PATH="$1"
-EXECUTION_MODE="$2"
-export SHSF_PAYLOAD_PATH="$PAYLOAD_PATH"
-export SHSF_EXECUTION_MODE="$EXECUTION_MODE"
-PROJECT_PATH="${dotnetProjectPath ?? ""}"
-
-if [ -z "$PROJECT_PATH" ]; then
-    echo "Error: No runnable .NET project could be resolved." >&2
-    exit 1
-fi
-
-cd /app
-
-if [ "$EXECUTION_MODE" = "dev_execute" ]; then
-    exec dotnet run --project "$PROJECT_PATH" -- "$PAYLOAD_PATH"
-fi
-
-ENTRY_PATH_FILE="/app/.shsf_dotnet_entry"
-BUILT_TARGET=""
-
-if [ -f "$ENTRY_PATH_FILE" ]; then
-    BUILT_TARGET="$(cat "$ENTRY_PATH_FILE" 2>/dev/null)"
-fi
-
-if [ -z "$BUILT_TARGET" ] || [ ! -f "$BUILT_TARGET" ]; then
-    PROJECT_DIR="$(dirname "$PROJECT_PATH")"
-    ASSEMBLY_NAME="$(basename "$PROJECT_PATH" .csproj)"
-    BUILT_TARGET="$(find "/app/$PROJECT_DIR/bin" -type f -name "$ASSEMBLY_NAME.dll" ! -path "*/ref/*" ! -path "*/obj/*" | sort | tail -n 1)"
-fi
-
-if [ -z "$BUILT_TARGET" ] || [ ! -f "$BUILT_TARGET" ]; then
-    echo "Error: No built .NET assembly found for $PROJECT_PATH. Run .NET Build before using production execution routes." >&2
-    exit 1
-fi
-
-exec dotnet "$BUILT_TARGET" "$PAYLOAD_PATH"
-`;
-			await fs.writeFile(wrapperPath, wrapperContent);
+			await fs.writeFile(wrapperPath, generateDotnetRunnerScript(dotnetProjectPath));
 			await fs.chmod(wrapperPath, "755");
-			log(".NET runner script written");
+			trace(".NET runner script written");
 		} else {
-			console.warn(
-				`[executeFunction] Runner script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`
-			);
+			log.warn({ runtimeType, functionId: functionData.id }, "Runner script generation skipped: unsupported runtime type");
 		}
 
 		// Always generate/update the init.sh script
 		if (runtimeType === "python") {
-			// Add ffmpeg installation if requested
-			if (functionData.ffmpeg_install) {
-				initScript += `
-      echo "[SHSF INIT] Checking ffmpeg installation..."
-      if [ ! -f ".already_installed_ffmpeg" ]; then
-          command -v ffmpeg >/dev/null 2>&1 || (apt update && apt-get install -y ffmpeg && touch /app/.already_installed_ffmpeg)
-      else
-          echo "[SHSF INIT] ffmpeg already installed (marker file present)."
-      fi
-      echo "[SHSF INIT] ffmpeg check complete."
-      `;
-			}
-
-			// Add opencv installation if requested
-			if (functionData.opencv_install) {
-				initScript += `
-      echo "[SHSF INIT] Checking opencv installation..."
-      if [ ! -f ".already_installed_opencv" ]; then
-          python3 -c "import cv2" >/dev/null 2>&1 || (apt update && apt install -y python3-opencv && touch /app/.already_installed_opencv)
-      else
-          echo "[SHSF INIT] opencv already installed (marker file present)."
-      fi
-      echo "[SHSF INIT] opencv check complete."
-      `;
-			}
-
-			initScript += `
-if [ -f "requirements.txt" ]; then 
-	echo "[SHSF INIT] Setting up Python environment for function ${functionData.id}"
-	VENV_DIR="/pip-cache/venv/function-${functionData.id}" 
-	HASH_FILE="/pip-cache/hashes/function-${functionData.id}/req.hash"
-	PIP_PKG_CACHE_DIR="/pip-cache/pip_packages_cache"
-	mkdir -p "$(dirname "$VENV_DIR")" "$(dirname "$HASH_FILE")" "$PIP_PKG_CACHE_DIR"
-	REQUIREMENTS_HASH=$(md5sum requirements.txt | awk '{print $1}')
-	NEEDS_UPDATE=0
-	if [ ! -d "$VENV_DIR" ]; then NEEDS_UPDATE=1; echo "[SHSF INIT] No venv. Creating."; fi
-	if [ ! -f "$HASH_FILE" ] || [ "$(cat "$HASH_FILE" 2>/dev/null)" != "$REQUIREMENTS_HASH" ]; then NEEDS_UPDATE=1; echo "[SHSF INIT] Hash mismatch. Updating."; fi
-	
-	if [ $NEEDS_UPDATE -eq 1 ]; then
-		rm -rf "$VENV_DIR"
-		python -m venv "$VENV_DIR"
-		. "$VENV_DIR/bin/activate"
-		pip install --upgrade pip
-		if pip install --cache-dir "$PIP_PKG_CACHE_DIR" -r requirements.txt; then
-			echo "$REQUIREMENTS_HASH" > "$HASH_FILE"
-			echo "[SHSF INIT] Python dependencies installed."
-		else
-			echo "[SHSF INIT] Error installing Python dependencies." >&2
-			exit 1
-		fi
-	else
-		echo "[SHSF INIT] Python venv up-to-date."
-	fi
-	. "$VENV_DIR/bin/activate" # Ensure activated for subsequent exec
-	
-	# Create a persistent environment file that can be sourced during execution
-	echo "export PATH=$VENV_DIR/bin:\$PATH" > /app/.shsf_env
-	echo "export PYTHONPATH=/app:\$PYTHONPATH" >> /app/.shsf_env
-	echo "export VIRTUAL_ENV=$VENV_DIR" >> /app/.shsf_env
-fi
-echo "[SHSF INIT] Python setup complete."
-`;
+			initScript += generatePythonInitBody(functionData.id, {
+				ffmpeg_install: functionData.ffmpeg_install,
+				opencv_install: functionData.opencv_install,
+			});
 		} else if (runtimeType === "golang") {
-			// Add ffmpeg installation if requested
-			if (functionData.ffmpeg_install) {
-				initScript += `
-      echo "[SHSF INIT] Checking ffmpeg installation..."
-      if [ ! -f ".already_installed_ffmpeg" ]; then
-          command -v ffmpeg >/dev/null 2>&1 || (apt update && apt-get install -y ffmpeg && touch /app/.already_installed_ffmpeg)
-      else
-          echo "[SHSF INIT] ffmpeg already installed (marker file present)."
-      fi
-      echo "[SHSF INIT] ffmpeg check complete."
-      `;
-			}
-
-			initScript += `
-echo "[SHSF INIT] Setting up Go environment for function ${functionData.id}"
-BIN_DIR="/go-cache/bin/function-${functionData.id}"
-HASH_FILE="/go-cache/hashes/function-${functionData.id}/go.hash"
-GO_PKG_CACHE_DIR="/go-cache/go_packages_cache"
-mkdir -p "$(dirname "$BIN_DIR")" "$(dirname "$HASH_FILE")" "$GO_PKG_CACHE_DIR"
-
-# Calculate hash of all Go files
-GO_HASH=$(find . -name "*.go" -type f | sort | xargs cat | md5sum | awk '{print $1}')
-if [ -f "go.mod" ]; then
-	if [ -f "go.sum" ]; then
-		GO_HASH=$(cat go.mod go.sum | md5sum | awk '{print $1}')-$GO_HASH
-	else
-		GO_HASH=$(md5sum go.mod | awk '{print $1}')-$GO_HASH
-	fi
-fi
-
-NEEDS_BUILD=0
-if [ ! -f "$BIN_DIR/_shsf_runner" ]; then NEEDS_BUILD=1; echo "[SHSF INIT] No binary. Building."; fi
-if [ ! -f "$HASH_FILE" ] || [ "$(cat "$HASH_FILE" 2>/dev/null)" != "$GO_HASH" ]; then NEEDS_BUILD=1; echo "[SHSF INIT] Hash mismatch. Rebuilding."; fi
-
-if [ $NEEDS_BUILD -eq 1 ]; then
-	export GOCACHE="$GO_PKG_CACHE_DIR"
-	export GOMODCACHE="$GO_PKG_CACHE_DIR/mod"
-	
-	# Run go mod tidy to add missing dependencies from imports
-	if [ -f "go.mod" ]; then
-		echo "[SHSF INIT] Running go mod tidy to resolve dependencies..."
-		if go mod tidy; then
-			echo "[SHSF INIT] Dependencies resolved."
-		else
-			echo "[SHSF INIT] Error running go mod tidy." >&2
-			exit 1
-		fi
-	fi
-	
-	# Download dependencies if go.mod exists
-	if [ -f "go.mod" ]; then
-		if go mod download; then
-			echo "[SHSF INIT] Go dependencies downloaded."
-		else
-			echo "[SHSF INIT] Error downloading Go dependencies." >&2
-			exit 1
-		fi
-	fi
-	
-	# Build the runner binary
-	if go build -o "$BIN_DIR/_shsf_runner" .; then
-		cp "$BIN_DIR/_shsf_runner" /app/_shsf_runner
-		chmod +x /app/_shsf_runner
-		echo "$GO_HASH" > "$HASH_FILE"
-		echo "[SHSF INIT] Go binary built successfully."
-	else
-		echo "[SHSF INIT] Error building Go binary." >&2
-		exit 1
-	fi
-else
-	echo "[SHSF INIT] Go binary up-to-date."
-	# Copy the cached binary to /app in case it's missing
-	if [ ! -f "/app/_shsf_runner" ]; then
-		cp "$BIN_DIR/_shsf_runner" /app/_shsf_runner
-		chmod +x /app/_shsf_runner
-	fi
-fi
-
-# Create a persistent environment file that can be sourced during execution
-echo "export GOCACHE=$GO_PKG_CACHE_DIR" > /app/.shsf_env
-echo "export GOMODCACHE=$GO_PKG_CACHE_DIR/mod" >> /app/.shsf_env
-echo "export PATH=/app:\$PATH" >> /app/.shsf_env
-echo "[SHSF INIT] Go setup complete."
-`;
+			initScript += generateGoInitBody(functionData.id, { ffmpeg_install: functionData.ffmpeg_install });
 		} else if (runtimeType === "dotnet") {
-			initScript += `
-echo "[SHSF INIT] Setting up .NET environment for function ${functionData.id}"
-DOTNET_CACHE_DIR="/dotnet-cache/function-${functionData.id}"
-NUGET_PACKAGES_DIR="$DOTNET_CACHE_DIR/nuget"
-DOTNET_CLI_HOME_DIR="$DOTNET_CACHE_DIR/cli-home"
-mkdir -p "$NUGET_PACKAGES_DIR" "$DOTNET_CLI_HOME_DIR"
-echo "export NUGET_PACKAGES=$NUGET_PACKAGES_DIR" > /app/.shsf_env
-echo "export DOTNET_CLI_HOME=$DOTNET_CLI_HOME_DIR" >> /app/.shsf_env
-echo "export PATH=/app:\$PATH" >> /app/.shsf_env
-echo "[SHSF INIT] .NET setup complete."
-`;
+			initScript += generateDotnetInitBody(functionData.id);
 		} else {
 			// This was already checked for runner script, but as a safeguard for init.sh:
-			console.warn(
-				`[executeFunction] init.sh script generation skipped: Unsupported runtime type '${runtimeType}' for function ${functionData.id}.`
-			);
+			log.warn({ runtimeType, functionId: functionData.id }, "init.sh script generation skipped: unsupported runtime type");
 			// Potentially throw an error if an unsupported runtime should halt execution.
 			// throw new Error(`Unsupported runtime type for init script generation: ${runtimeType}`);
 		}
@@ -1777,7 +344,7 @@ echo "[SHSF INIT] .NET setup complete."
 				await container.start();
 				mark("Container start");
 			} else {
-				log("Reusing running container");
+				trace("Reusing running container");
 			}
 
 			if (runtimeType === "golang") {
@@ -1788,29 +355,29 @@ echo "[SHSF INIT] .NET setup complete."
 				});
 				const initStream = await initExec.start({ hijack: true, stdin: false });
 				const initOutput = { stdout: "", stderr: "" };
-				
+
 				const initStdout = new PassThrough();
 				const initStderr = new PassThrough();
-				
+
 				initStdout.on("data", (chunk) => {
 					initOutput.stdout += chunk.toString("utf8");
 				});
 				initStderr.on("data", (chunk) => {
 					initOutput.stderr += chunk.toString("utf8");
 				});
-				
+
 				docker.modem.demuxStream(initStream, initStdout, initStderr);
 
 				await new Promise<void>((resolve) => {
 					initStream.on("end", resolve);
 				});
 
-				log(`Init output: ${initOutput.stderr}`);
+				log.debug({ functionId: functionData.id }, `Init output: ${initOutput.stderr}`);
 				mark("Go init/rebuild");
 			}
 		} catch (error: any) {
 			if (error.statusCode === 404) {
-				log("Container not found — creating");
+				trace("Container not found — creating");
 
 				const pipCacheHost = getCacheDir("pip");
 				const goCacheHost = getCacheDir("go");
@@ -1822,7 +389,7 @@ echo "[SHSF INIT] .NET setup complete."
 				]);
 
 				// Mount /app and /executions separately instead of the old /function_data
-				let BINDS: string[] = [
+				const BINDS: string[] = [
 					`${getFunctionAppDir(functionIdStr)}:/app`,
 					`${getFunctionExecutionsDir(functionIdStr)}:/executions`,
 				];
@@ -1848,7 +415,7 @@ echo "[SHSF INIT] .NET setup complete."
 						filters: JSON.stringify({ reference: [functionData.image] }),
 					});
 					if (imageExists.length === 0) {
-						log(`Pulling image: ${functionData.image}`);
+						log.info({ functionId: functionData.id, image: functionData.image }, "Pulling image");
 						const pullStream = await docker.pull(functionData.image);
 						await new Promise((resolve, reject) => {
 							docker.modem.followProgress(pullStream, (err) =>
@@ -1858,14 +425,14 @@ echo "[SHSF INIT] .NET setup complete."
 						mark("Image pull");
 					}
 				} catch (imgError) {
-					console.error("Error checking or pulling image:", imgError);
+					log.error({ err: imgError }, "Error checking or pulling image");
 					throw imgError;
 				}
 
 				const initialEnv = functionData.env
 					? JSON.parse(functionData.env).map(
 							(env: { name: string; value: any }) => `${env.name}=${env.value}`
-					  )
+					)
 					: [];
 
 				container = await docker.createContainer({
@@ -1918,7 +485,7 @@ echo "[SHSF INIT] .NET setup complete."
 					);
 				}
 			} catch (e) {
-				console.error("Failed to parse functionData.env for exec:", e);
+				log.error({ err: e }, "Failed to parse functionData.env for exec");
 			}
 		}
 
@@ -1990,6 +557,7 @@ echo "[SHSF INIT] .NET setup complete."
 			}
 
 			if (stream.enabled && !stderrTruncated) {
+				// eslint-disable-next-line no-control-regex
 				const ansiRegex = /\x1B\[[0-9;]*[A-Za-z]/g;
 				const nonPrintableRegex = /[^\x20-\x7E\n\r\t]/g;
 				const cleanText = text
@@ -2031,17 +599,12 @@ echo "[SHSF INIT] .NET setup complete."
 				logs =
 					combinedOutput.length > MAX_OUTPUT_SIZE
 						? combinedOutput.substring(0, MAX_OUTPUT_SIZE) +
-						  "\n[SHSF TRUNCATED] Combined output exceeded 3MB limit"
+							"\n[SHSF TRUNCATED] Combined output exceeded 3MB limit"
 						: combinedOutput;
-				console.error(
-					`[executeFunction] Exec failed with code ${exitCode}. Logs truncated due to size.`
-				);
+				log.error({ exitCode }, "Exec failed, logs truncated due to size");
 			}
 		} catch (execError: any) {
-			console.error(
-				"[executeFunction] Exec failed or timed out:",
-				execError.message
-			);
+			log.error({ err: execError.message }, "Exec failed or timed out");
 			logs = `${execOutput.stderr}\nExecution Error: ${execError.message}`;
 			exitCode = -1;
 			func_result = "";
@@ -2086,9 +649,7 @@ echo "[SHSF INIT] .NET setup complete."
 				} else {
 					// If no markers are found, or they are in the wrong order,
 					// treat the entire stdout as potential logging output.
-					console.warn(
-						`[executeFunction] Function result markers not found or in wrong order in stdout. Treating stdout as logs.`
-					);
+					log.warn("Function result markers not found or in wrong order in stdout, treating stdout as logs");
 					if (func_result.trim()) {
 						logs = appendLogOutput(
 							logs,
@@ -2098,9 +659,7 @@ echo "[SHSF INIT] .NET setup complete."
 					// No parsedResult, leave it as null
 				}
 			} catch (e: any) {
-				console.error(
-					`[executeFunction] Failed to parse JSON result from stdout: ${e.message}. Raw stdout content: ${func_result}`
-				);
+				log.error({ err: e.message }, "Failed to parse JSON result from stdout");
 				logs += `\nError parsing result JSON from stdout: ${e.message}`;
 				exitCode = -2; // Custom code for result parsing error
 			}
@@ -2119,7 +678,7 @@ echo "[SHSF INIT] .NET setup complete."
 			exit_code: exitCode,
 		};
 	} catch (error: any) {
-		console.error(`[executeFunction] Critical error for function ${id}:`, error);
+		log.error({ err: error, functionId: id }, "Critical error in executeFunction");
 		tooks.push({
 			timestamp: Date.now(),
 			value: (Date.now() - starting_time) / 1000,
@@ -2142,18 +701,16 @@ echo "[SHSF INIT] .NET setup complete."
 			mark("Cleanup");
 		} catch (cleanupError: any) {
 			if (cleanupError.code !== "ENOENT") {
-				console.error(
-					`[executeFunction] Cleanup failed (${cleanupError.code}) for ${executionDir}:`,
-					cleanupError.message
-				);
+				log.error({ err: cleanupError.message, code: cleanupError.code, executionDir }, "Cleanup failed");
 			}
 		}
 
-		console.log(
-			`[SHSF] fn#${functionData.id} (${functionData.name}) done — exit ${exitCode}, total ${
-				((Date.now() - starting_time) / 1000).toFixed(3)
-			}s`
-		);
+		log.info({
+			functionId: functionData.id,
+			functionName: functionData.name,
+			exitCode,
+			totalSeconds: ((Date.now() - starting_time) / 1000).toFixed(3),
+		}, "Function execution complete");
 
 		try {
 			await prisma.function.update({
@@ -2161,7 +718,7 @@ echo "[SHSF INIT] .NET setup complete."
 				data: { lastRun: new Date() },
 			});
 		} catch (dbError) {
-			console.error("Error updating function lastRun:", dbError);
+			log.error({ err: dbError }, "Error updating function lastRun");
 		}
 
 		try {
@@ -2179,11 +736,12 @@ echo "[SHSF INIT] .NET setup complete."
 				...(options?.ratelimit ? { ratelimit: options.ratelimit } : {}),
 			});
 		} catch (error) {
-			console.error("Error creating trigger log:", error);
+			log.error({ err: error }, "Error creating trigger log");
 		}
 	}
 }
 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export async function buildPayloadFromGET(
 	ctr: DataContext<
 		"HttpRequest",
@@ -2233,18 +791,19 @@ export async function buildPayloadFromPOST(
 		method: "POST",
 	};
 }
+/* eslint-enable @typescript-eslint/no-empty-object-type */
 
 export async function installDependencies(
 	functionId: number,
 	functionData: any,
-	files: any[]
+	_files: any[]
 ): Promise<boolean | 404> {
 	const docker = new Docker();
 	const functionIdStr = String(functionId);
 	const containerName = `shsf_func_${functionIdStr}`;
 
 	try {
-		let container = docker.getContainer(containerName);
+		const container = docker.getContainer(containerName);
 
 		try {
 			const inspectInfo = await container.inspect();
@@ -2262,13 +821,10 @@ export async function installDependencies(
 		const execEnv: string[] = functionData.env
 			? JSON.parse(functionData.env).map(
 					(env: { name: string; value: any }) => `${env.name}=${env.value}`
-			  )
+			)
 			: [];
 
-		console.log(
-			"[SHSF] Starting dependency installation for function:",
-			functionId
-		);
+		log.info({ functionId }, "Starting dependency installation");
 
 		const exec = await container.exec({
 			Cmd: [
@@ -2282,33 +838,18 @@ export async function installDependencies(
 			Tty: false,
 		});
 
-		console.log("[SHSF] Exec command created for dependency installation.");
+		log.debug({ functionId }, "Exec command created for dependency installation");
 
 		const execStream = await exec.start({ hijack: true, stdin: false });
 
-		console.log("[SHSF] Exec stream started for dependency installation.");
-
-		// // Log the stream output
-		// const execOutput = { stdout: "", stderr: "" };
-		// execStream.on("data", (chunk) => {
-		// 	const text = chunk.toString("utf8");
-		// 	execOutput.stdout += text;
-		// 	console.log("[SHSF] Exec stdout:", text.trim());
-		// });
-		// execStream.on("error", (chunk) => {
-		// 	const text = chunk.toString();
-		// 	execOutput.stderr += text;
-		// 	console.error("[SHSF] Exec stderr:", text.trim());
-		// });
+		log.debug({ functionId }, "Exec stream started for dependency installation");
 
 		// Consume the stream to completion (required for exec to finish)
 		await new Promise<void>((resolve, reject) => {
 			execStream.on("end", () => {
-				// console.log("[SHSF] Exec stream ended for dependency installation.");
 				resolve();
 			});
 			execStream.on("error", (error) => {
-				// console.error("[SHSF] Exec stream error during dependency installation:", error);
 				reject(error);
 			});
 			// Drain the stream
@@ -2317,25 +858,17 @@ export async function installDependencies(
 
 		// Inspect the exec to get the exit code
 		const inspect = await exec.inspect();
-		console.log("[SHSF] Exec inspection completed. Exit code:", inspect.ExitCode);
+		log.debug({ functionId, exitCode: inspect.ExitCode }, "Exec inspection completed");
 
 		if (inspect.ExitCode === 0) {
-			console.log(
-				"[SHSF] Dependency installation completed successfully for function:",
-				functionId
-			);
+			log.info({ functionId }, "Dependency installation completed successfully");
 			return true;
 		} else {
-			console.error(
-				"[SHSF] Dependency installation failed for function:",
-				functionId,
-				"Exit code:",
-				inspect.ExitCode
-			);
+			log.error({ functionId, exitCode: inspect.ExitCode }, "Dependency installation failed");
 			return false;
 		}
 	} catch (error) {
-		console.error("Error installing dependencies:", error);
+		log.error({ err: error }, "Error installing dependencies");
 		return false;
 	}
 }
@@ -2359,7 +892,6 @@ export async function buildDotnetFunction(
 	const docker = new Docker();
 	const functionIdStr = String(functionId);
 	const containerName = `shsf_func_${functionIdStr}`;
-	const funcBaseDir = getFunctionBaseDir(functionIdStr);
 	const funcAppDir = getFunctionAppDir(functionIdStr);
 	const executionDir = getFunctionExecutionsDir(functionIdStr);
 	const dotnetCacheHost = getCacheDir("dotnet");
@@ -2392,19 +924,7 @@ export async function buildDotnetFunction(
 			funcAppDir,
 			dotnetProjectPath,
 		);
-		const initScript = `#!/bin/sh
-set -e
-echo "[SHSF INIT] Setting up .NET environment..."
-DOTNET_CACHE_DIR="/dotnet-cache/function-${functionId}"
-NUGET_PACKAGES_DIR="$DOTNET_CACHE_DIR/nuget"
-DOTNET_CLI_HOME_DIR="$DOTNET_CACHE_DIR/cli-home"
-mkdir -p "$NUGET_PACKAGES_DIR" "$DOTNET_CLI_HOME_DIR"
-echo "export NUGET_PACKAGES=$NUGET_PACKAGES_DIR" > /app/.shsf_env
-echo "export DOTNET_CLI_HOME=$DOTNET_CLI_HOME_DIR" >> /app/.shsf_env
-echo "export PATH=/app:\\$PATH" >> /app/.shsf_env
-echo "[SHSF INIT] .NET environment ready."
-`;
-		await fs.writeFile(path.join(funcAppDir, "init.sh"), initScript);
+		await fs.writeFile(path.join(funcAppDir, "init.sh"), generateDotnetBuildInitScript(functionId));
 		await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
 		await fs.writeFile(
 			path.join(dotnetProjectDir, "SHSF.Runtime.cs"),
@@ -2447,7 +967,7 @@ echo "[SHSF INIT] .NET environment ready."
 				Env: functionData.env
 					? JSON.parse(functionData.env).map(
 							(env: { name: string; value: any }) => `${env.name}=${env.value}`,
-					  )
+					)
 					: [],
 				HostConfig: {
 					Binds: [
@@ -2483,7 +1003,7 @@ echo "[SHSF INIT] .NET environment ready."
 			Env: functionData.env
 				? JSON.parse(functionData.env).map(
 						(env: { name: string; value: any }) => `${env.name}=${env.value}`,
-				  )
+				)
 				: [],
 			AttachStdout: true,
 			AttachStderr: true,
@@ -2514,9 +1034,7 @@ echo "[SHSF INIT] .NET environment ready."
 			.filter(Boolean)
 			.join("\n");
 		if (inspect.ExitCode !== 0) {
-			console.error(
-				`Error building .NET function: ${buildLogs || "dotnet build failed without output"}`,
-			);
+			log.error({ functionId, buildLogs }, "dotnet build failed");
 
 			const persistedBuildLogs = appendLogOutput(
 				"[SHSF] .NET build failed.",
@@ -2533,7 +1051,7 @@ echo "[SHSF INIT] .NET environment ready."
 					force: true,
 				});
 			} catch (persistError) {
-				console.error("Error persisting .NET build failure logs:", persistError);
+				log.error({ err: persistError }, "Error persisting .NET build failure logs");
 			}
 
 			return {
@@ -2544,7 +1062,7 @@ echo "[SHSF INIT] .NET environment ready."
 		}
 		return { status: "success" };
 	} catch (error) {
-		console.error("Error building .NET function:", error);
+		log.error({ err: error, functionId }, "Error building .NET function");
 		if (error instanceof DotnetProjectResolutionError) {
 			return {
 				status: "build_failed",
@@ -2571,31 +1089,23 @@ export async function deleteContainerForFunction(functionId: number) {
 			const containerInfo = await container.inspect();
 
 			if (containerInfo.State.Running) {
-				console.log(`[SHSF] Stopping container for function ${functionId}`);
+				log.info({ functionId }, "Stopping container");
 				await container.kill({ t: 10 }); // 10-second timeout
 			}
 
-			console.log(`[SHSF] Removing container for function ${functionId}`);
+			log.info({ functionId }, "Removing container");
 			await container.remove();
 		} catch (containerError: any) {
 			if (containerError.statusCode !== 404) {
-				console.error(
-					`[SHSF] Error removing container for function ${functionId}:`,
-					containerError
-				);
+				log.error({ err: containerError, functionId }, "Error removing container");
 			} else {
-				console.log(
-					`[SHSF] Container for function ${functionId} not found, skipping removal`
-				);
+				log.debug({ functionId }, "Container not found, skipping removal");
 			}
 		}
 
 		return true;
 	} catch (error) {
-		console.error(
-			`[SHSF] Error during container deletion for function ${functionId}:`,
-			error
-		);
+		log.error({ err: error, functionId }, "Error during container deletion");
 		return false;
 	}
 }
@@ -2613,34 +1123,26 @@ export async function cleanupFunctionContainer(functionId: number) {
 			const containerInfo = await container.inspect();
 
 			if (containerInfo.State.Running) {
-				console.log(`[SHSF] Stopping container for function ${functionId}`);
+				log.info({ functionId }, "Stopping container for cleanup");
 				await container.kill({ t: 10 }); // 10-second timeout
 			}
 
-			console.log(`[SHSF] Removing container for function ${functionId}`);
+			log.info({ functionId }, "Removing container for cleanup");
 			await container.remove();
 		} catch (containerError: any) {
 			if (containerError.statusCode !== 404) {
-				console.error(
-					`[SHSF] Error removing container for function ${functionId}:`,
-					containerError
-				);
+				log.error({ err: containerError, functionId }, "Error removing container");
 			} else {
-				console.log(
-					`[SHSF] Container for function ${functionId} not found, skipping removal`
-				);
+				log.debug({ functionId }, "Container not found, skipping removal");
 			}
 		}
 
 		// Remove the function directory
 		try {
-			console.log(`[SHSF] Removing function directory: ${funcAppDir}`);
+			log.info({ funcAppDir }, "Removing function directory");
 			await fs.rm(funcAppDir, { recursive: true, force: true });
 		} catch (dirError) {
-			console.error(
-				`[SHSF] Error removing function directory ${funcAppDir}:`,
-				dirError
-			);
+			log.error({ err: dirError, funcAppDir }, "Error removing function directory");
 		}
 
 		// Clean up cache directories
@@ -2657,18 +1159,12 @@ export async function cleanupFunctionContainer(functionId: number) {
 				await fs.rm(pipHashDir, { recursive: true, force: true });
 			}
 		} catch (cacheError) {
-			console.error(
-				`[SHSF] Error cleaning up cache directories for function ${functionId}:`,
-				cacheError
-			);
+			log.error({ err: cacheError, functionId }, "Error cleaning up cache directories");
 		}
 
 		return true;
 	} catch (error) {
-		console.error(
-			`[SHSF] Error during container cleanup for function ${functionId}:`,
-			error
-		);
+		log.error({ err: error, functionId }, "Error during container cleanup");
 		return false;
 	}
 }

@@ -8,7 +8,7 @@ a:hover {
 
 /* Ensure the app background covers overscroll (trackpad bounce) */
 html, body, #root {
-	background-color: #121325;
+	background-color: #070b14;
 	min-height: 100%;
 }
 

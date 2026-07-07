@@ -2,14 +2,16 @@ import { Cookie } from "rjweb-server";
 import {
 	API_KEY_HEADER,
 	COOKIE,
-	DOMAIN,
 	fileRouter,
 	prisma,
 	REACT_APP_API_URL,
-	UI_URL,
 } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import * as bcrypt from "bcrypt";
+import { createLogger } from "../../../lib/logger";
+import { getGuestAccessDisabled } from "../../../lib/DataManager";
+
+const log = createLogger("guest-auth");
 
 export = new fileRouter.Path("/")
 	// Create a new guest user
@@ -483,6 +485,13 @@ export = new fileRouter.Path("/")
 			if (!data)
 				return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
+			if (await getGuestAccessDisabled()) {
+				return ctr.status(ctr.$status.FORBIDDEN).print({
+					status: "FAILED",
+					message: "Guest access has been disabled by the instance administrator.",
+				});
+			}
+
 			const guest = await prisma.guestUser.findUnique({
 				where: { email: data.email },
 			});
@@ -534,10 +543,10 @@ export = new fileRouter.Path("/")
 				},
 			});
 
-			let newdomain = REACT_APP_API_URL.replace("https://", "")
+			const newdomain = REACT_APP_API_URL.replace("https://", "")
 				.replace("http://", "")
 				.replace("/", "");
-			console.log(`[GUEST AUTH] Setting cookie for domain: ${newdomain}`);
+			log.debug({ domain: newdomain }, "Setting guest session cookie");
 
 			ctr.cookies.set(
 				`shsf_guest_${data.namespaceId}_${data.functionExecId}`,
