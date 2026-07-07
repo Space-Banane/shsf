@@ -96,18 +96,14 @@ async function getRuntimeEnvironment(functionData: Pick<Function, "env" | "userI
 
 async function isContainerReady(container: Docker.Container, since: number): Promise<boolean> {
 	try {
-		const stream = await container.logs({
+		const output = await container.logs({
 			stdout: true,
 			stderr: false,
 			follow: false,
 			since,
-		}) as NodeJS.ReadableStream;
-		return new Promise<boolean>((resolve) => {
-			let data = "";
-			stream.on("data", (chunk: Buffer) => { data += chunk.toString("utf8"); });
-			stream.on("end", () => { resolve(data.includes("[SHSF] Container ready.")); });
-			stream.on("error", () => resolve(false));
 		});
+		const data = (output as unknown as Buffer).toString("utf8");
+		return data.includes("[SHSF] Container ready.");
 	} catch {
 		return false;
 	}
