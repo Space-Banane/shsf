@@ -30,7 +30,7 @@
 ## P3 - Priority 3 (Low)
 - [x] Account Wide Environment Variables
 - [ ] Add a way to manage function dependencies (eg. requirements.txt) from the UI
-- [ ] Runner & Backend: Implement a Block for interactions on Functions while "Container ready." not reached (pretty much wait for “[SHSF] Container ready.”). Message would be something like "Function is not ready yet."
+- [x] Runner & Backend: Implement a Block for interactions on Functions while “Container ready.” not reached (pretty much wait for “[SHSF] Container ready.”). Message would be something like “Function is not ready yet.”
 - [ ] Function Logs Update
     - Investigate (Shows only Errors)
     - Hide Specifics (regex blur)

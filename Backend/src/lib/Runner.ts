@@ -94,6 +94,25 @@ async function getRuntimeEnvironment(functionData: Pick<Function, "env" | "userI
 	);
 }
 
+async function isContainerReady(container: Docker.Container, since: number): Promise<boolean> {
+	try {
+		const stream = await container.logs({
+			stdout: true,
+			stderr: false,
+			follow: false,
+			since,
+		}) as NodeJS.ReadableStream;
+		return new Promise<boolean>((resolve) => {
+			let data = "";
+			stream.on("data", (chunk: Buffer) => { data += chunk.toString("utf8"); });
+			stream.on("end", () => { resolve(data.includes("[SHSF] Container ready.")); });
+			stream.on("error", () => resolve(false));
+		});
+	} catch {
+		return false;
+	}
+}
+
 export async function persistFunctionExecutionLog(
 	input: PersistedFunctionExecutionLogInput,
 ) {
@@ -240,6 +259,7 @@ export async function executeFunction(
 
 	let initScript =
 		"#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
+	let containerNotReady = false;
 
 	try {
 		let container = docker.getContainer(containerName);
@@ -482,7 +502,21 @@ export async function executeFunction(
 			}
 		}
 
-		// At this point, container is running (either existing or newly created and initialized)
+		// Block execution if the container has not yet finished initializing (init.sh still running)
+		const containerInspect = await container.inspect();
+		const containerStartedAt = new Date(containerInspect.State.StartedAt).getTime() / 1000;
+		if (!await isContainerReady(container, containerStartedAt)) {
+			log.warn({ functionId: id }, "Container not ready — blocking execution");
+			containerNotReady = true;
+			return {
+				logs: "Function is not ready yet.",
+				result: { _shsf: "v2" as const, _code: 503, _res: "Function is not ready yet." },
+				tooks: [{ description: "Container not ready", value: (Date.now() - starting_time) / 1000, timestamp: Date.now() }],
+				exit_code: -10,
+			};
+		}
+
+		// At this point, container is running and ready (init completed)
 		// Now, execute the function logic using docker exec
 
 		await fs.writeFile(transportPaths.payloadPath, payload);
@@ -715,31 +749,33 @@ export async function executeFunction(
 			totalSeconds: ((Date.now() - starting_time) / 1000).toFixed(3),
 		}, "Function execution complete");
 
-		try {
-			await prisma.function.update({
-				where: { id },
-				data: { lastRun: new Date() },
-			});
-		} catch (dbError) {
-			log.error({ err: dbError }, "Error updating function lastRun");
-		}
+		if (!containerNotReady) {
+			try {
+				await prisma.function.update({
+					where: { id },
+					data: { lastRun: new Date() },
+				});
+			} catch (dbError) {
+				log.error({ err: dbError }, "Error updating function lastRun");
+			}
 
-		try {
-			await persistFunctionExecutionLog({
-				functionId: id,
-				functionData,
-				logs,
-				output:
-					typeof func_result === "string" && func_result !== ""
-						? func_result
-						: JSON.stringify(null),
-				payload,
-				exit_code: exitCode,
-				tooks,
-				...(options?.ratelimit ? { ratelimit: options.ratelimit } : {}),
-			});
-		} catch (error) {
-			log.error({ err: error }, "Error creating trigger log");
+			try {
+				await persistFunctionExecutionLog({
+					functionId: id,
+					functionData,
+					logs,
+					output:
+						typeof func_result === "string" && func_result !== ""
+							? func_result
+							: JSON.stringify(null),
+					payload,
+					exit_code: exitCode,
+					tooks,
+					...(options?.ratelimit ? { ratelimit: options.ratelimit } : {}),
+				});
+			} catch (error) {
+				log.error({ err: error }, "Error creating trigger log");
+			}
 		}
 	}
 }
