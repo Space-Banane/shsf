@@ -1,6 +1,7 @@
 {
     "name": "shsf",
     "private": true,
+    "packageManager": "pnpm@11.5.2",
     "scripts": {
         "build": "pnpm -C Backend build && pnpm -C UI build",
         "full-install": "pnpm -C Backend install && pnpm -C UI install"
