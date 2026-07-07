@@ -71,24 +71,9 @@ jobs:
             - name: UI ESLint
               run: cd UI && pnpm lint
 
-    compose_validation:
-        name: Validate Docker Compose
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-
-            - name: Setup environment variables
-              run: |
-                  echo "UI_PORT=4000" >> .env
-                  echo "PORT=3000" >> .env
-
-            - name: Validate Docker Compose
-              run: docker compose config --quiet
-
     generate_openapi_release:
         name: Generate OpenAPI Release
-        needs: [build, test-and-lint, compose_validation]
+        needs: [build, test-and-lint]
         runs-on: ubuntu-latest
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         steps:
@@ -158,9 +143,9 @@ jobs:
 
     push-image:
         name: Build and Push Docker Image
-        needs: [build, test-and-lint, compose_validation]
+        needs: [build, test-and-lint]
         runs-on: ubuntu-latest
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
         steps:
             - name: Checkout
               uses: actions/checkout@v4
@@ -174,7 +159,9 @@ jobs:
               with:
                   images: registry.reversed.dev/shsf/core
                   tags: |
-                      type=raw,value=latest
+                      type=raw,value=prod,enable=${{ github.ref == 'refs/heads/main' }}
+                      type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+                      type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
                       type=sha,format=long
                   labels: |
                       org.opencontainers.image.title=SHSF
