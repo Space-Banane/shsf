@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -
 
 WORKDIR /app
 
-COPY Backend/package.json Backend/pnpm-lock.yaml Backend/pnpm-workspace.yaml ./Backend/
+COPY Backend/package.json Backend/pnpm-lock.yaml Backend/pnpm-workspace.yaml Backend/prisma.config.ts ./Backend/
 COPY Backend/prisma ./Backend/prisma
 
 RUN cd Backend && pnpm install --prod --frozen-lockfile && DATABASE_URL=mysql://x:x@localhost/x pnpm run generate
