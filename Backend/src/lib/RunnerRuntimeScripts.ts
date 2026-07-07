@@ -377,8 +377,7 @@ if [ -f "requirements.txt" ]; then
 	echo "[SHSF INIT] Setting up Python environment for function ${functionId}"
 	VENV_DIR="/pip-cache/venv/function-${functionId}"
 	HASH_FILE="/pip-cache/hashes/function-${functionId}/req.hash"
-	PIP_PKG_CACHE_DIR="/pip-cache/pip_packages_cache"
-	mkdir -p "$(dirname "$VENV_DIR")" "$(dirname "$HASH_FILE")" "$PIP_PKG_CACHE_DIR"
+	mkdir -p "$(dirname "$VENV_DIR")" "$(dirname "$HASH_FILE")"
 	REQUIREMENTS_HASH=$(md5sum requirements.txt | awk '{print $1}')
 	NEEDS_UPDATE=0
 	if [ ! -d "$VENV_DIR" ]; then NEEDS_UPDATE=1; echo "[SHSF INIT] No venv. Creating."; fi
@@ -389,7 +388,7 @@ if [ -f "requirements.txt" ]; then
 		python -m venv "$VENV_DIR"
 		. "$VENV_DIR/bin/activate"
 		pip install --upgrade pip
-		if pip install --cache-dir "$PIP_PKG_CACHE_DIR" -r requirements.txt; then
+		if pip install --no-cache-dir -r requirements.txt; then
 			echo "$REQUIREMENTS_HASH" > "$HASH_FILE"
 			echo "[SHSF INIT] Python dependencies installed."
 		else
