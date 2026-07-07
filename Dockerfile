@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
+COPY package.json ./
 COPY Backend/package.json Backend/pnpm-lock.yaml Backend/pnpm-workspace.yaml ./Backend/
 COPY UI/package.json UI/pnpm-lock.yaml UI/pnpm-workspace.yaml ./UI/
 
