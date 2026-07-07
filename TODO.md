@@ -25,7 +25,7 @@
     - Manage runtimes & images (enable disable)
     - Manage Users (CRUD)
     - Execution Statistics (timings and resource usage)
-- [ ] Manage runtimes & images (CRUD) and move hard coded stuff to this. Migration baseline needed tho for existing instances.
+- [ ] Manage runtimes & images (CRUD) and move hard coded stuff to this. Migration baseline needed tho for existing instances. & pre pulling images on button presses with live ui statuses
 
 ## P3 - Priority 3 (Low)
 - [x] Account Wide Environment Variables
