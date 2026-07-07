@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { prisma as defaultPrisma } from "./db";
 
 export class StorageServiceError extends Error {
 	constructor(
@@ -65,9 +66,7 @@ export class FunctionStorageService {
 			return this.db;
 		}
 
-		// Resolve lazily to avoid importing the Prisma singleton while index.ts
-		// is still initializing its exports.
-		return require("..").prisma as StoragePrisma;
+		return defaultPrisma;
 	}
 
 	async createStorage(userId: number, name: string, purpose: string) {

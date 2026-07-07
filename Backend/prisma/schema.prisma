@@ -11,6 +11,22 @@ enum UserRole {
   User
 }
 
+enum InstanceSettingType {
+  instance_uuid
+  registration_disabled
+  link_lock
+  guest_access_disabled
+  external_access_disabled
+  disabled_images
+  link_status
+}
+
+model InstanceSetting {
+  type      InstanceSettingType @id
+  value     String              @db.Text
+  updatedAt DateTime            @updatedAt
+}
+
 model User {
   id          Int      @id @default(autoincrement())
   displayName String   @db.VarChar(128)

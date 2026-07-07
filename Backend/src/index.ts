@@ -1,13 +1,12 @@
 import { env } from "./lib/env"; // must be first — loads dotenv and validates
-import { PrismaClient } from "@prisma/client";
-import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { Server } from "rjweb-server";
 import { Runtime } from "@rjweb/runtime-node";
 import { network } from "@rjweb/utils";
 import { existsSync } from "node:fs";
 import { executeFunction } from "./lib/Runner";
 import { performGitPull } from "./lib/GitOps";
-import { getUUID, prevDirectory } from "./lib/DataManager";
+import { getUUID } from "./lib/DataManager";
+import { prisma } from "./lib/db";
 import { join } from "path";
 import { logger } from "./lib/logger";
 import { corsMiddleware, initCorsDomains } from "./lib/middlewares/cors";
@@ -41,13 +40,7 @@ export const API_KEY_HEADER = "x-access-key";
 export const INSTANCE_SECRET = env.INSTANCE_SECRET;
 export const API_URL = env.REACT_APP_API_URL;
 
-const _adapter = new PrismaMariaDb(env.DATABASE_URL);
-export const prisma = new PrismaClient({
-	adapter: _adapter,
-	log: ["info", "error", "warn"],
-	errorFormat: "pretty",
-	transactionOptions: { timeout: 30000, maxWait: 20000 },
-});
+export { prisma };
 
 const CORS_DOMAINS = env.CORS_URLS.split(",");
 CORS_DOMAINS.push(URL);
@@ -61,14 +54,10 @@ if (env.NODE_ENV !== "test") {
 	logger.info(`Reachable on ${env.PORT}; For example: ${env.REACT_APP_API_URL}`);
 }
 
-const dataPath = join(prevDirectory, ".data");
 const uiBuildPath = join(__dirname, "../../UI/build");
 const uiIndexPath = join(uiBuildPath, "index.html");
 const hasUiBuild = existsSync(uiBuildPath);
 const hasUiIndex = existsSync(uiIndexPath);
-if (env.NODE_ENV !== "test") {
-	logger.debug(`DataManager: Using data directory at ${dataPath}`);
-}
 
 export const server = new Server(
 	Runtime,

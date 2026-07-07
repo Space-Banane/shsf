@@ -1,206 +1,116 @@
-// Manages the .data directory, which contains config and info files for cross platform communication
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { InstanceSettingType } from "@prisma/client";
+import { prisma } from "./db";
 import { createLogger } from "./logger";
 
 const log = createLogger("DataManager");
 
-/* Files and what they contain:
-
-- .uuid: A unique identifier for this instance. Generated on the first run and stored in the .data directory.
-- .linked: A JSON file indicating whether this instance is linked to a global user account.
-*/
-
-// We are always in the Backend/dist directory, so we need to go up two levels to get to the .data directory
-// But when we are in a container, we cant really
-// export const prevDirectory = env.CI ? "../" : "../../";
-export const prevDirectory = "../../"; // For now, as we should just mount the containers .data directory to the host's /app/.data directory
-async function ensureDataDirectory() {
-    try {
-        if (!existsSync(prevDirectory + ".data")) {
-            mkdirSync(prevDirectory + ".data");
-        }
-    } catch (err) {
-        log.error({ err }, "Error ensuring .data directory exists");
-		throw new Error("Failed to ensure .data directory exists");
-    }
+async function getSetting(type: InstanceSettingType): Promise<string | null> {
+	const row = await prisma.instanceSetting.findUnique({ where: { type } });
+	return row?.value ?? null;
 }
 
-
-async function setupUUID() {
-	await ensureDataDirectory();
-
-	if (existsSync(prevDirectory + ".data/.uuid")) {
-		return { error: "UUID already exists" };
-	}
-
-	const newUUID = crypto.randomUUID();
-	try {
-		writeFileSync(prevDirectory + ".data/.uuid", newUUID, "utf-8");
-		return { uuid: newUUID };
-	} catch (err) {
-		log.error({ err }, "Error writing .uuid file");
-		return { error: "Failed to create UUID" };
-	}
+async function setSetting(type: InstanceSettingType, value: string): Promise<void> {
+	await prisma.instanceSetting.upsert({
+		where: { type },
+		create: { type, value },
+		update: { value },
+	});
 }
 
-export async function getUUID() {
-	await ensureDataDirectory();
+export async function getUUID(): Promise<string | null> {
+	const val = await getSetting("instance_uuid");
+	if (val !== null) return val;
 
+	const uuid = crypto.randomUUID();
 	try {
-		const uuid = readFileSync(prevDirectory + ".data/.uuid", "utf-8");
+		await setSetting("instance_uuid", uuid);
+		log.info({ uuid }, "Generated new instance UUID");
 		return uuid;
 	} catch (err) {
-		log.warn({ err }, "Could not read .uuid file, attempting to create one");
-		const setupResult = await setupUUID();
-		if (setupResult.error) {
-			log.error({ error: setupResult.error }, "Error setting up UUID");
-			return null;
-		}
-		log.info({ uuid: setupResult.uuid }, "Successfully created new UUID");
-		return setupResult.uuid;
+		log.error({ err }, "Failed to persist instance UUID");
+		return null;
 	}
 }
 
-type LinkStatusLinked = { linked: true; global_user_email: string };
-type LinkStatusUnlinked = { linked: false };
-export type LinkStatus = LinkStatusLinked | LinkStatusUnlinked;
+export type LinkStatus =
+	| { linked: true; global_user_email: string }
+	| { linked: false };
 
 export async function getLinkStatus(): Promise<LinkStatus> {
-	await ensureDataDirectory();
-
-	try {
-		const raw = readFileSync(prevDirectory + ".data/.linked", "utf-8");
-		const parsed = JSON.parse(raw) as LinkStatus;
-		return parsed;
-	} catch {
-		return { linked: false };
+	const val = await getSetting("link_status");
+	if (val !== null) {
+		try {
+			return JSON.parse(val) as LinkStatus;
+		} catch {
+			return { linked: false };
+		}
 	}
+	return { linked: false };
 }
 
 export async function setLinkStatus(status: LinkStatus): Promise<void> {
-	await ensureDataDirectory();
-
-	try {
-		writeFileSync(prevDirectory + ".data/.linked", JSON.stringify(status), "utf-8");
-	} catch (err) {
-		log.error({ err }, "Error writing .linked file");
-		throw new Error("Failed to write link status");
-	}
+	await setSetting("link_status", JSON.stringify(status));
 }
 
 export async function getData() {
-	await ensureDataDirectory();
-
 	const uuid = await getUUID();
 	const linkStatus = await getLinkStatus();
-
-	return {
-		uuid: uuid,
-		linkStatus: linkStatus,
-	};
+	return { uuid, linkStatus };
 }
 
 export async function getLinkLock(): Promise<boolean> {
-	await ensureDataDirectory();
-
-	try {
-		const raw = readFileSync(prevDirectory + ".data/.linkLock", "utf-8");
-		return JSON.parse(raw) === true;
-	} catch {
-		return false;
-	}
+	const val = await getSetting("link_lock");
+	if (val !== null) return val === "true";
+	return false;
 }
 
 export async function setLinkLock(locked: boolean): Promise<void> {
-	await ensureDataDirectory();
-
-	try {
-		writeFileSync(prevDirectory + ".data/.linkLock", JSON.stringify(locked), "utf-8");
-	} catch (err) {
-		log.error({ err }, "Error writing .linkLock file");
-		throw new Error("Failed to write link lock status");
-	}
+	await setSetting("link_lock", String(locked));
 }
 
 export async function getRegistrationDisabled(): Promise<boolean> {
-	await ensureDataDirectory();
-
-	try {
-		const raw = readFileSync(prevDirectory + ".data/.registrationDisabled", "utf-8");
-		return JSON.parse(raw) === true;
-	} catch {
-		return false;
-	}
+	const val = await getSetting("registration_disabled");
+	if (val !== null) return val === "true";
+	return false;
 }
 
 export async function setRegistrationDisabled(disabled: boolean): Promise<void> {
-	await ensureDataDirectory();
-
-	try {
-		writeFileSync(prevDirectory + ".data/.registrationDisabled", JSON.stringify(disabled), "utf-8");
-	} catch (err) {
-		log.error({ err }, "Error writing .registrationDisabled file");
-		throw new Error("Failed to write registration disabled status");
-	}
+	await setSetting("registration_disabled", String(disabled));
 }
 
 export async function getGuestAccessDisabled(): Promise<boolean> {
-	await ensureDataDirectory();
-	try {
-		const raw = readFileSync(prevDirectory + ".data/.guestAccessDisabled", "utf-8");
-		return JSON.parse(raw) === true;
-	} catch {
-		return false;
-	}
+	const val = await getSetting("guest_access_disabled");
+	if (val !== null) return val === "true";
+	return false;
 }
 
 export async function setGuestAccessDisabled(disabled: boolean): Promise<void> {
-	await ensureDataDirectory();
-	try {
-		writeFileSync(prevDirectory + ".data/.guestAccessDisabled", JSON.stringify(disabled), "utf-8");
-	} catch (err) {
-		log.error({ err }, "Error writing .guestAccessDisabled file");
-		throw new Error("Failed to write guest access disabled status");
-	}
+	await setSetting("guest_access_disabled", String(disabled));
 }
 
 export async function getExternalAccessDisabled(): Promise<boolean> {
-	await ensureDataDirectory();
-	try {
-		const raw = readFileSync(prevDirectory + ".data/.externalAccessDisabled", "utf-8");
-		return JSON.parse(raw) === true;
-	} catch {
-		return false;
-	}
+	const val = await getSetting("external_access_disabled");
+	if (val !== null) return val === "true";
+	return false;
 }
 
 export async function setExternalAccessDisabled(disabled: boolean): Promise<void> {
-	await ensureDataDirectory();
-	try {
-		writeFileSync(prevDirectory + ".data/.externalAccessDisabled", JSON.stringify(disabled), "utf-8");
-	} catch (err) {
-		log.error({ err }, "Error writing .externalAccessDisabled file");
-		throw new Error("Failed to write external access disabled status");
-	}
+	await setSetting("external_access_disabled", String(disabled));
 }
 
 export async function getDisabledImages(): Promise<string[]> {
-	await ensureDataDirectory();
-	try {
-		const raw = readFileSync(prevDirectory + ".data/.disabledImages", "utf-8");
-		const parsed = JSON.parse(raw);
-		return Array.isArray(parsed) ? parsed : [];
-	} catch {
-		return [];
+	const val = await getSetting("disabled_images");
+	if (val !== null) {
+		try {
+			const parsed = JSON.parse(val);
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
 	}
+	return [];
 }
 
 export async function setDisabledImages(images: string[]): Promise<void> {
-	await ensureDataDirectory();
-	try {
-		writeFileSync(prevDirectory + ".data/.disabledImages", JSON.stringify(images), "utf-8");
-	} catch (err) {
-		log.error({ err }, "Error writing .disabledImages file");
-		throw new Error("Failed to write disabled images list");
-	}
+	await setSetting("disabled_images", JSON.stringify(images));
 }
