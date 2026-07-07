@@ -36,7 +36,7 @@
     - Hide Specifics (regex blur)
     - Toggle to only log Generic Headers
 - [ ] any Modal(???) / function update: Scroll to top on error or move errors to toast (preferred)
-- [ ] Remove "Error fetching files: File edits are disabled while git is configured for this function. Remove git configuration to edit files."
+- [x] Remove "Error fetching files: File edits are disabled while git is configured for this function. Remove git configuration to edit files."
 
 ## P4 - Priority 4 (Trivial)
 - [x] Redesign the entire UI to be more user friendly, modern, dark and visually organized. Currently cluttered and not super friendly. Tool tips and such are missing. (eg. add a "?" icon next to each setting that explains what it does)

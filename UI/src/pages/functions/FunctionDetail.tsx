@@ -506,7 +506,7 @@ function FunctionDetail() {
 							setActiveFile(null);
 							setCode(null);
 						}
-					} else {
+					} else if (!functionData.data.git_url) {
 						toast.error("Error fetching files: " + filesData.message);
 					}
 
