@@ -63,7 +63,6 @@ DATABASE_URL=mysql://USER:PASSWORD@HOST:PORT/DATABASE
 # Domain & URLs
 DOMAIN=localhost
 UI_URL=http://localhost:5000
-REACT_APP_API_URL=http://localhost:5000
 
 # Runtime flags
 CONTAINERIZED=false     # true if running in Docker containers
@@ -103,13 +102,6 @@ CORS_URLS=https://space.reversed.dev  # comma-separated allowed origins`}
 						<p className="text-text/80 text-sm">
 							Public app URL. In the Docker deployment, the UI and API are served from
 							the same origin.
-						</p>
-					</div>
-
-					<div>
-						<strong className="text-primary">REACT_APP_API_URL</strong>
-						<p className="text-text/80 text-sm">
-							URL the frontend uses to send API requests (e.g., http://localhost:5000).
 						</p>
 					</div>
 

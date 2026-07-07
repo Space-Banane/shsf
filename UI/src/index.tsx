@@ -6,8 +6,7 @@ const root = ReactDOM.createRoot(container);
 
 root.render(<App />);
 
-export const BASE_URL =
-	process.env.REACT_APP_API_URL || "http://localhost:5000";
+export const BASE_URL = process.env.REACT_APP_API_URL || "";
 
 export const VERSION: {
 	type: "SHSF API" | "SHSF UI";
