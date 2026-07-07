@@ -1,20 +1,13 @@
-import { randomBytes } from "crypto";
-import { prisma } from "..";
-import {
-	FUNCTION_DB_TOKEN_EXPIRY_MS,
-	SHSF_FUNCTION_RESULT_START,
-	SHSF_FUNCTION_RESULT_END,
-} from "./RunnerTypes";
-
 export const DbComScriptPY = `# Database Communication Script
 # GENERATED ON THE FLY - DO NOT EDIT - THIS WILL BE OVERWRITTEN ON THE NEXT RUN
-import requests
+import json
+import os
+import time
+import uuid
 from typing import Any, Optional, Dict, List
-from datetime import datetime
 
-# Configuration placeholders
-BASE_URL = "{{API}}"
-ACCESS_KEY = "{{AUTHKEY}}"
+REQUEST_DIR = os.environ.get("SHSF_STORAGE_REQUEST_DIR", "/executions/storage-requests")
+RESPONSE_DIR = os.environ.get("SHSF_STORAGE_RESPONSE_DIR", "/executions/storage-responses")
 
 
 class DatabaseError(Exception):
@@ -24,7 +17,7 @@ class DatabaseError(Exception):
 
 class Database:
     """
-    Database class for interacting with the storage API.
+    Database class for interacting with the SHSF storage bridge.
 
     Usage:
         from _db_com import database
@@ -33,187 +26,78 @@ class Database:
         print(db.get("storage1", "name"))
     """
 
-    def __init__(self):
-        self.base_url = BASE_URL.rstrip('/')
-        self.headers = {
-            "Content-Type": "application/json",
-            "X-Access-Key": ACCESS_KEY
-        }
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
+    def __init__(self, timeout_seconds: float = 30.0):
+        self.request_dir = REQUEST_DIR
+        self.response_dir = RESPONSE_DIR
+        self.timeout_seconds = timeout_seconds
 
-    def _make_request(self, method: str, url: str, **kwargs) -> Dict:
-        """Make HTTP request and handle response"""
-        try:
-            response = self.session.request(method, url, **kwargs)
-            data = response.json()
+    def _make_request(self, operation: str, args: Optional[Dict[str, Any]] = None) -> Any:
+        request_id = uuid.uuid4().hex
+        request_path = os.path.join(self.request_dir, f"{request_id}.json")
+        temp_request_path = request_path + ".tmp"
+        response_path = os.path.join(self.response_dir, f"{request_id}.json")
 
-            if isinstance(data, dict) and data.get("status") != "OK" and "status" in data:
-                raise DatabaseError(f"API Error: {data.get('message', 'Unknown error')}")
+        os.makedirs(self.request_dir, exist_ok=True)
+        os.makedirs(self.response_dir, exist_ok=True)
 
-            return data
-        except requests.exceptions.RequestException as e:
-            raise DatabaseError(f"Request failed: {str(e)}")
+        with open(temp_request_path, "w", encoding="utf-8") as f:
+            json.dump({"id": request_id, "operation": operation, "args": args or {}}, f)
+        os.replace(temp_request_path, request_path)
+
+        deadline = time.time() + self.timeout_seconds
+        while time.time() < deadline:
+            if os.path.exists(response_path):
+                with open(response_path, "r", encoding="utf-8") as f:
+                    response = json.load(f)
+                try:
+                    os.remove(response_path)
+                except OSError:
+                    pass
+
+                if isinstance(response, dict) and response.get("status") == "OK":
+                    return response.get("data")
+                message = response.get("message", "Unknown storage error") if isinstance(response, dict) else "Invalid storage response"
+                raise DatabaseError(message)
+            time.sleep(0.01)
+
+        raise DatabaseError("Timed out waiting for storage response")
 
     def create_storage(self, name: str, purpose: str = "") -> Dict:
-        """
-        Create a new storage.
-
-        Args:
-            name: Storage name
-            purpose: Purpose description
-
-        Returns:
-            Storage object
-        """
-        url = f"{self.base_url}/api/storage"
-        payload = {"name": name, "purpose": purpose}
-        result = self._make_request("POST", url, json=payload)
-        return result.get("data", result)
+        return self._make_request("create_storage", {"name": name, "purpose": purpose})
 
     def list_storages(self) -> List[Dict]:
-        """
-        List all storages for the user.
-
-        Returns:
-            List of storage objects
-        """
-        url = f"{self.base_url}/api/storage"
-        result = self._make_request("GET", url)
-        return result.get("data", result)
+        return self._make_request("list_storages")
 
     def delete_storage(self, storage_name: str) -> Dict:
-        """
-        Delete a storage by name.
-
-        Args:
-            storage_name: Name of the storage to delete
-
-        Returns:
-            Response object
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}"
-        return self._make_request("DELETE", url)
+        return self._make_request("delete_storage", {"storageName": storage_name})
 
     def clear(self, storage_name: str) -> Dict:
-        """
-        Clear all items in a storage.
-
-        Args:
-            storage_name: Name of the storage to clear
-
-        Returns:
-            Response object
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/items"
-        return self._make_request("DELETE", url)
+        return self._make_request("clear", {"storageName": storage_name})
 
     def set(self, storage_name: str, key: str, value: Any,
             expires_at: Optional[str] = None) -> Dict:
-        """
-        Set (create/update) an item in storage.
-
-        Args:
-            storage_name: Name of the storage
-            key: Item key
-            value: Item value (any JSON-serializable type)
-            expires_at: Optional expiration timestamp (ISO format string or Unix timestamp)
-
-        Returns:
-            StorageItem object
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/item"
-        payload = {"key": key, "value": value}
+        payload = {"storageName": storage_name, "key": key, "value": value}
         if expires_at is not None:
             payload["expiresAt"] = expires_at
-
-        result = self._make_request("POST", url, json=payload)
-        return result.get("data", result)
+        return self._make_request("set", payload)
 
     def get(self, storage_name: str, key: str) -> Any:
-        """
-        Get an item value by key from storage.
-
-        Args:
-            storage_name: Name of the storage
-            key: Item key
-
-        Returns:
-            Item value (the actual value, not the full object)
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/item/{requests.utils.quote(key)}"
-        result = self._make_request("GET", url)
-        item = result.get("data", result)
-        return item.get("value") if isinstance(item, dict) else item
+        return self._make_request("get", {"storageName": storage_name, "key": key})
 
     def get_item(self, storage_name: str, key: str) -> Dict:
-        """
-        Get full item object by key from storage (includes metadata).
-
-        Args:
-            storage_name: Name of the storage
-            key: Item key
-
-        Returns:
-            Full StorageItem object
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/item/{requests.utils.quote(key)}"
-        result = self._make_request("GET", url)
-        return result.get("data", result)
+        return self._make_request("get_item", {"storageName": storage_name, "key": key})
 
     def list_items(self, storage_name: str) -> List[Dict]:
-        """
-        List all items in a storage.
-
-        Args:
-            storage_name: Name of the storage
-
-        Returns:
-            List of StorageItem objects
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/items"
-        result = self._make_request("GET", url)
-        return result.get("data", result)
+        return self._make_request("list_items", {"storageName": storage_name})
 
     def delete_item(self, storage_name: str, key: str) -> Dict:
-        """
-        Delete an item by key from storage.
-
-        Args:
-            storage_name: Name of the storage
-            key: Item key
-
-        Returns:
-            Response object
-        """
-        url = f"{self.base_url}/api/storage/{requests.utils.quote(storage_name)}/item/{requests.utils.quote(key)}"
-        return self._make_request("DELETE", url)
+        return self._make_request("delete_item", {"storageName": storage_name, "key": key})
 
     def exists(self, storage_name: str, key: str) -> bool:
-        """
-        Check if an item exists in storage.
-
-        Args:
-            storage_name: Name of the storage
-            key: Item key
-
-        Returns:
-            True if item exists, False otherwise
-        """
-        try:
-            self.get(storage_name, key)
-            return True
-        except DatabaseError:
-            return False
+        return bool(self._make_request("exists", {"storageName": storage_name, "key": key}))
 
 
 def database() -> Database:
-    """
-    Factory function to create a Database instance.
-
-    Returns:
-        Database instance
-    """
     return Database()
 
 
@@ -226,256 +110,221 @@ export const DbComScriptGO = `// Database Communication Script in Go
 package dbcom
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"strings"
+	"math/rand"
+	"os"
+	"path/filepath"
 	"time"
 )
 
-// Configuration placeholders
-const (
-	BaseURL   = "{{API}}"
-	AccessKey = "{{AUTHKEY}}"
-)
-
-// DatabaseError represents an API error
+// DatabaseError represents a storage bridge error.
 type DatabaseError struct {
 	Message string
 }
 
 func (e *DatabaseError) Error() string {
-	return fmt.Sprintf("API Error: %s", e.Message)
+	return fmt.Sprintf("Storage Error: %s", e.Message)
 }
 
-// Database client
+// Database client.
 type Database struct {
-	client  *http.Client
-	baseURL string
-	headers map[string]string
+	requestDir  string
+	responseDir string
+	timeout     time.Duration
 }
 
-// New creates a new Database instance
+// New creates a new Database instance.
 func New() *Database {
+	requestDir := os.Getenv("SHSF_STORAGE_REQUEST_DIR")
+	if requestDir == "" {
+		requestDir = "/executions/storage-requests"
+	}
+	responseDir := os.Getenv("SHSF_STORAGE_RESPONSE_DIR")
+	if responseDir == "" {
+		responseDir = "/executions/storage-responses"
+	}
 	return &Database{
-		client:  &http.Client{Timeout: 30 * time.Second},
-		baseURL: strings.TrimRight(BaseURL, "/"),
-		headers: map[string]string{
-			"Content-Type": "application/json",
-			"X-Access-Key": AccessKey,
-		},
+		requestDir:  requestDir,
+		responseDir: responseDir,
+		timeout:     30 * time.Second,
 	}
 }
 
-// internal response wrapper
-type apiResponse struct {
-	Status  string          ` +
-	"`" +
-	`json:"status"` +
-	"`" +
-	`
-	Message string          ` +
-	"`" +
-	`json:"message,omitempty"` +
-	"`" +
-	`
-	Data    json.RawMessage ` +
-	"`" +
-	`json:"data,omitempty"` +
-	"`" +
-	`
+type rpcRequest struct {
+	ID        string                 ` + "`" + `json:"id"` + "`" + `
+	Operation string                 ` + "`" + `json:"operation"` + "`" + `
+	Args      map[string]interface{} ` + "`" + `json:"args"` + "`" + `
 }
 
-func (db *Database) makeRequest(method, path string, payload interface{}) ([]byte, error) {
-	fullURL := db.baseURL + path
-	var body io.Reader
+type rpcResponse struct {
+	Status  string          ` + "`" + `json:"status"` + "`" + `
+	Message string          ` + "`" + `json:"message,omitempty"` + "`" + `
+	Data    json.RawMessage ` + "`" + `json:"data,omitempty"` + "`" + `
+}
 
-	if payload != nil {
-		b, err := json.Marshal(payload)
-		if err != nil {
-			return nil, err
-		}
-		body = bytes.NewBuffer(b)
+func requestID() string {
+	return fmt.Sprintf("%d_%d", time.Now().UnixNano(), rand.Int63())
+}
+
+func (db *Database) makeRequest(operation string, args map[string]interface{}) ([]byte, error) {
+	id := requestID()
+	if args == nil {
+		args = map[string]interface{}{}
 	}
 
-	req, err := http.NewRequest(method, fullURL, body)
-	if err != nil {
+	if err := os.MkdirAll(db.requestDir, 0o755); err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(db.responseDir, 0o755); err != nil {
 		return nil, err
 	}
 
-	for k, v := range db.headers {
-		req.Header.Set(k, v)
-	}
+	requestPath := filepath.Join(db.requestDir, id+".json")
+	tempRequestPath := requestPath + ".tmp"
+	responsePath := filepath.Join(db.responseDir, id+".json")
 
-	resp, err := db.client.Do(req)
+	payload, err := json.Marshal(rpcRequest{ID: id, Operation: operation, Args: args})
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	respData, err := io.ReadAll(resp.Body)
-	if err != nil {
+	if err := os.WriteFile(tempRequestPath, payload, 0o644); err != nil {
+		return nil, err
+	}
+	if err := os.Rename(tempRequestPath, requestPath); err != nil {
 		return nil, err
 	}
 
-	// Try to parse as standard API response
-	var res apiResponse
-	if err := json.Unmarshal(respData, &res); err == nil {
-		// If it has a status field, check it
-		if res.Status != "" && res.Status != "OK" {
-			msg := res.Message
-			if msg == "" {
-				msg = "Unknown error"
+	deadline := time.Now().Add(db.timeout)
+	for time.Now().Before(deadline) {
+		raw, err := os.ReadFile(responsePath)
+		if err == nil {
+			_ = os.Remove(responsePath)
+			var response rpcResponse
+			if err := json.Unmarshal(raw, &response); err != nil {
+				return nil, err
 			}
-			return nil, &DatabaseError{Message: msg}
+			if response.Status != "OK" {
+				if response.Message == "" {
+					response.Message = "Unknown storage error"
+				}
+				return nil, &DatabaseError{Message: response.Message}
+			}
+			if len(response.Data) == 0 {
+				return []byte("null"), nil
+			}
+			return response.Data, nil
 		}
-		// If data is present, return that. Mimics python's result.get("data", result)
-		if len(res.Data) > 0 {
-			return res.Data, nil
-		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
-	// Fallback: return raw body if not a standard wrapped response or parsing failed
-	return respData, nil
+	return nil, &DatabaseError{Message: "Timed out waiting for storage response"}
 }
 
-// CreateStorage creates a new storage
+// CreateStorage creates a new storage.
 func (db *Database) CreateStorage(name, purpose string) (map[string]interface{}, error) {
-	urlPath := "/api/storage"
-	payload := map[string]string{
-		"name":    name,
-		"purpose": purpose,
-	}
-
-	resp, err := db.makeRequest("POST", urlPath, payload)
+	resp, err := db.makeRequest("create_storage", map[string]interface{}{"name": name, "purpose": purpose})
 	if err != nil {
 		return nil, err
 	}
-
 	var result map[string]interface{}
 	json.Unmarshal(resp, &result)
 	return result, nil
 }
 
-// ListStorages lists all storages
+// ListStorages lists all storages.
 func (db *Database) ListStorages() ([]map[string]interface{}, error) {
-	urlPath := "/api/storage"
-	resp, err := db.makeRequest("GET", urlPath, nil)
+	resp, err := db.makeRequest("list_storages", nil)
 	if err != nil {
 		return nil, err
 	}
-
 	var result []map[string]interface{}
 	json.Unmarshal(resp, &result)
 	return result, nil
 }
 
-// DeleteStorage deletes a storage by name
+// DeleteStorage deletes a storage by name.
 func (db *Database) DeleteStorage(name string) error {
-	urlPath := fmt.Sprintf("/api/storage/%s", url.PathEscape(name))
-	_, err := db.makeRequest("DELETE", urlPath, nil)
+	_, err := db.makeRequest("delete_storage", map[string]interface{}{"storageName": name})
 	return err
 }
 
-// Clear clears all items in a storage
+// Clear clears all items in storage.
 func (db *Database) Clear(name string) error {
-	urlPath := fmt.Sprintf("/api/storage/%s/items", url.PathEscape(name))
-	_, err := db.makeRequest("DELETE", urlPath, nil)
+	_, err := db.makeRequest("clear", map[string]interface{}{"storageName": name})
 	return err
 }
 
-// Set creates or updates an item
+// Set creates or updates an item.
 func (db *Database) Set(storageName, key string, value interface{}, expiresAt *string) (map[string]interface{}, error) {
-	urlPath := fmt.Sprintf("/api/storage/%s/item", url.PathEscape(storageName))
-	payload := map[string]interface{}{
-		"key":   key,
-		"value": value,
-	}
+	args := map[string]interface{}{"storageName": storageName, "key": key, "value": value}
 	if expiresAt != nil {
-		payload["expiresAt"] = *expiresAt
+		args["expiresAt"] = *expiresAt
 	}
-
-	resp, err := db.makeRequest("POST", urlPath, payload)
+	resp, err := db.makeRequest("set", args)
 	if err != nil {
 		return nil, err
 	}
-
 	var result map[string]interface{}
 	json.Unmarshal(resp, &result)
 	return result, nil
 }
 
 // Get returns an item's value by key.
-// Returns interface{} to match Python's dynamic return type.
 func (db *Database) Get(storageName, key string) (interface{}, error) {
-	urlPath := fmt.Sprintf("/api/storage/%s/item/%s", url.PathEscape(storageName), url.PathEscape(key))
-	resp, err := db.makeRequest("GET", urlPath, nil)
+	resp, err := db.makeRequest("get", map[string]interface{}{"storageName": storageName, "key": key})
 	if err != nil {
 		return nil, err
 	}
-
-	// We need to check if the returned data is the item wrapper or the value itself.
-	// Based on Python script: item.get("value")
-	var itemWrapper map[string]interface{}
-	if err := json.Unmarshal(resp, &itemWrapper); err == nil {
-		if val, ok := itemWrapper["value"]; ok {
-			return val, nil
-		}
-		// If no "value" key, return the whole object
-		return itemWrapper, nil
-	}
-
-	return nil, fmt.Errorf("could not parse item")
+	var result interface{}
+	json.Unmarshal(resp, &result)
+	return result, nil
 }
 
-// GetItem returns the full item object (metadata included)
+// GetItem returns the full item object.
 func (db *Database) GetItem(storageName, key string) (map[string]interface{}, error) {
-	urlPath := fmt.Sprintf("/api/storage/%s/item/%s", url.PathEscape(storageName), url.PathEscape(key))
-	resp, err := db.makeRequest("GET", urlPath, nil)
+	resp, err := db.makeRequest("get_item", map[string]interface{}{"storageName": storageName, "key": key})
 	if err != nil {
 		return nil, err
 	}
-
 	var result map[string]interface{}
 	json.Unmarshal(resp, &result)
 	return result, nil
 }
 
-// ListItems lists all items in storage
+// ListItems lists all items in storage.
 func (db *Database) ListItems(storageName string) ([]map[string]interface{}, error) {
-	urlPath := fmt.Sprintf("/api/storage/%s/items", url.PathEscape(storageName))
-	resp, err := db.makeRequest("GET", urlPath, nil)
+	resp, err := db.makeRequest("list_items", map[string]interface{}{"storageName": storageName})
 	if err != nil {
 		return nil, err
 	}
-
 	var result []map[string]interface{}
 	json.Unmarshal(resp, &result)
 	return result, nil
 }
 
-// DeleteItem deletes an item by key
+// DeleteItem deletes an item by key.
 func (db *Database) DeleteItem(storageName, key string) error {
-	urlPath := fmt.Sprintf("/api/storage/%s/item/%s", url.PathEscape(storageName), url.PathEscape(key))
-	_, err := db.makeRequest("DELETE", urlPath, nil)
+	_, err := db.makeRequest("delete_item", map[string]interface{}{"storageName": storageName, "key": key})
 	return err
 }
 
-// Exists checks if an item exists
+// Exists checks if an item exists.
 func (db *Database) Exists(storageName, key string) bool {
-	_, err := db.Get(storageName, key)
-	return err == nil
+	resp, err := db.makeRequest("exists", map[string]interface{}{"storageName": storageName, "key": key})
+	if err != nil {
+		return false
+	}
+	var exists bool
+	json.Unmarshal(resp, &exists)
+	return exists
 }
 `;
 
 export const DbComScriptCS = `// Database Communication Script in C#
 // GENERATED ON THE FLY - DO NOT EDIT - THIS WILL BE OVERWRITTEN ON THE NEXT RUN
 using System;
-using System.Net.Http;
-using System.Text;
+using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
@@ -489,114 +338,79 @@ public sealed class DatabaseError : Exception
 
 public sealed class Database
 {
-    private static readonly HttpClient Client = new();
-    private readonly string _baseUrl = "{{API}}".TrimEnd('/');
-    private readonly string _accessKey = "{{AUTHKEY}}";
+    private readonly string _requestDir = Environment.GetEnvironmentVariable("SHSF_STORAGE_REQUEST_DIR") ?? "/executions/storage-requests";
+    private readonly string _responseDir = Environment.GetEnvironmentVariable("SHSF_STORAGE_RESPONSE_DIR") ?? "/executions/storage-responses";
+    private readonly TimeSpan _timeout = TimeSpan.FromSeconds(30);
 
-    private async Task<JsonNode?> MakeRequestAsync(HttpMethod method, string path, object? payload = null)
+    private async Task<JsonNode?> MakeRequestAsync(string operation, object? args = null)
     {
-        using var request = new HttpRequestMessage(method, _baseUrl + path);
-        request.Headers.TryAddWithoutValidation("X-Access-Key", _accessKey);
+        Directory.CreateDirectory(_requestDir);
+        Directory.CreateDirectory(_responseDir);
 
-        if (payload is not null)
+        var id = Guid.NewGuid().ToString("N");
+        var requestPath = Path.Combine(_requestDir, id + ".json");
+        var tempRequestPath = requestPath + ".tmp";
+        var responsePath = Path.Combine(_responseDir, id + ".json");
+        var request = JsonSerializer.Serialize(new { id, operation, args = args ?? new { } });
+        await File.WriteAllTextAsync(tempRequestPath, request);
+        File.Move(tempRequestPath, requestPath, true);
+
+        var deadline = DateTime.UtcNow + _timeout;
+        while (DateTime.UtcNow < deadline)
         {
-            request.Content = new StringContent(
-                JsonSerializer.Serialize(payload),
-                Encoding.UTF8,
-                "application/json"
-            );
-        }
-
-        using var response = await Client.SendAsync(request);
-        var body = await response.Content.ReadAsStringAsync();
-        JsonNode? parsed = null;
-
-        if (!string.IsNullOrWhiteSpace(body))
-        {
-            parsed = JsonNode.Parse(body);
-        }
-
-        if (parsed is JsonObject obj && obj["status"] is not null)
-        {
-            var status = obj["status"]?.GetValue<string>();
-            if (!string.Equals(status, "OK", StringComparison.OrdinalIgnoreCase))
+            if (File.Exists(responsePath))
             {
-                throw new DatabaseError(obj["message"]?.GetValue<string>() ?? "Unknown error");
+                var raw = await File.ReadAllTextAsync(responsePath);
+                try { File.Delete(responsePath); } catch { }
+                var response = JsonNode.Parse(raw);
+                if (response is JsonObject obj && string.Equals(obj["status"]?.GetValue<string>(), "OK", StringComparison.OrdinalIgnoreCase))
+                {
+                    return obj["data"];
+                }
+                throw new DatabaseError(response?["message"]?.GetValue<string>() ?? "Unknown storage error");
             }
-
-            return obj["data"] ?? parsed;
+            await Task.Delay(10);
         }
 
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new DatabaseError($"HTTP {(int)response.StatusCode}: {body}");
-        }
-
-        return parsed;
+        throw new DatabaseError("Timed out waiting for storage response");
     }
 
     public Task<JsonNode?> CreateStorage(string name, string purpose = "") =>
-        MakeRequestAsync(HttpMethod.Post, "/api/storage", new { name, purpose });
+        MakeRequestAsync("create_storage", new { name, purpose });
 
     public Task<JsonNode?> ListStorages() =>
-        MakeRequestAsync(HttpMethod.Get, "/api/storage");
+        MakeRequestAsync("list_storages");
 
     public Task<JsonNode?> DeleteStorage(string storageName) =>
-        MakeRequestAsync(HttpMethod.Delete, $"/api/storage/{Uri.EscapeDataString(storageName)}");
+        MakeRequestAsync("delete_storage", new { storageName });
 
     public Task<JsonNode?> Clear(string storageName) =>
-        MakeRequestAsync(HttpMethod.Delete, $"/api/storage/{Uri.EscapeDataString(storageName)}/items");
+        MakeRequestAsync("clear", new { storageName });
 
     public Task<JsonNode?> Set(string storageName, string key, object? value, string? expiresAt = null) =>
         MakeRequestAsync(
-            HttpMethod.Post,
-            $"/api/storage/{Uri.EscapeDataString(storageName)}/item",
+            "set",
             expiresAt is null
-                ? new { key, value }
-                : new { key, value, expiresAt }
+                ? new { storageName, key, value }
+                : new { storageName, key, value, expiresAt }
         );
 
-    public async Task<JsonNode?> Get(string storageName, string key)
-    {
-        var result = await MakeRequestAsync(
-            HttpMethod.Get,
-            $"/api/storage/{Uri.EscapeDataString(storageName)}/item/{Uri.EscapeDataString(key)}"
-        );
-
-        if (result is JsonObject obj && obj["value"] is not null)
-        {
-            return obj["value"];
-        }
-
-        return result;
-    }
+    public Task<JsonNode?> Get(string storageName, string key) =>
+        MakeRequestAsync("get", new { storageName, key });
 
     public Task<JsonNode?> GetItem(string storageName, string key) =>
-        MakeRequestAsync(
-            HttpMethod.Get,
-            $"/api/storage/{Uri.EscapeDataString(storageName)}/item/{Uri.EscapeDataString(key)}"
-        );
+        MakeRequestAsync("get_item", new { storageName, key });
 
     public Task<JsonNode?> ListItems(string storageName) =>
-        MakeRequestAsync(HttpMethod.Get, $"/api/storage/{Uri.EscapeDataString(storageName)}/items");
+        MakeRequestAsync("list_items", new { storageName });
 
     public Task<JsonNode?> DeleteItem(string storageName, string key) =>
-        MakeRequestAsync(
-            HttpMethod.Delete,
-            $"/api/storage/{Uri.EscapeDataString(storageName)}/item/{Uri.EscapeDataString(key)}"
-        );
+        MakeRequestAsync("delete_item", new { storageName, key });
 
     public async Task<bool> Exists(string storageName, string key)
     {
-        try
-        {
-            await Get(storageName, key);
-            return true;
-        }
-        catch (DatabaseError)
-        {
-            return false;
-        }
+        var result = await MakeRequestAsync("exists", new { storageName, key });
+        return result?.GetValue<bool>() ?? false;
     }
 }
 `;
@@ -612,11 +426,6 @@ namespace SHSF;
 
 internal static class RuntimeBootstrap
 {
-    internal static readonly TextWriter OriginalStdout = new StreamWriter(Console.OpenStandardOutput())
-    {
-        AutoFlush = true
-    };
-
     [ModuleInitializer]
     internal static void Initialize()
     {
@@ -632,6 +441,12 @@ public static class Runtime
             ? Environment.GetCommandLineArgs()[1]
             : throw new InvalidOperationException("SHSF payload path not provided."));
 
+    public static string ResultPath =>
+        Environment.GetEnvironmentVariable("SHSF_RESULT_PATH")
+        ?? (Environment.GetCommandLineArgs().Length > 2
+            ? Environment.GetCommandLineArgs()[2]
+            : throw new InvalidOperationException("SHSF result path not provided."));
+
     public static string LoadPayload() => File.ReadAllText(PayloadPath);
 
     public static T? LoadPayloadJson<T>() =>
@@ -639,47 +454,9 @@ public static class Runtime
 
     public static void Return(object? value)
     {
-        RuntimeBootstrap.OriginalStdout.WriteLine("${SHSF_FUNCTION_RESULT_START}");
-        RuntimeBootstrap.OriginalStdout.Write(JsonSerializer.Serialize(value));
-        RuntimeBootstrap.OriginalStdout.WriteLine();
-        RuntimeBootstrap.OriginalStdout.Write("${SHSF_FUNCTION_RESULT_END}");
-        RuntimeBootstrap.OriginalStdout.Flush();
+        var tempPath = ResultPath + ".tmp";
+        File.WriteAllText(tempPath, JsonSerializer.Serialize(value));
+        File.Move(tempPath, ResultPath, true);
     }
 }
 `;
-
-export async function getOrCreateFunctionDbToken(userId: number): Promise<string> {
-	const tokenName = `__function_db_access__`;
-
-	// Try to find existing valid token
-	const existingToken = await prisma.accessToken.findFirst({
-		where: {
-			userId: userId,
-			name: tokenName,
-			hidden: true,
-			expiresAt: {
-				gt: new Date(), // Not expired
-			},
-		},
-	});
-
-	if (existingToken) {
-		return existingToken.token;
-	}
-
-	// Create new token with 24 hour expiry
-	const newToken = randomBytes(32).toString("hex");
-
-	await prisma.accessToken.create({
-		data: {
-			userId: userId,
-			name: tokenName,
-			token: newToken,
-			hidden: true,
-			purpose: "Shared database access token for all function executions",
-			expiresAt: new Date(Date.now() + FUNCTION_DB_TOKEN_EXPIRY_MS),
-		},
-	});
-
-	return newToken;
-}

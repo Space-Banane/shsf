@@ -14,8 +14,8 @@ export const DatabaseComDocPage = () => {
 				</p>
 
 				<div className="mb-6 p-4 bg-yellow-900/20 border-l-4 border-yellow-400 rounded">
-					<b>Note:</b> You must install the <code>requests</code> package in your
-					Python environment. Add it to your <code>requirements.txt</code> file.
+					<b>Note:</b> The helper uses SHSF's internal execution transport, so it
+					does not need an API token or the <code>requests</code> package.
 				</div>
 
 				<h2 className="text-2xl font-bold text-primary mt-8 mb-4">Quick Start</h2>

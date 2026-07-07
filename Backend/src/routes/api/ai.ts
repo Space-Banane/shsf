@@ -349,7 +349,7 @@ def main(args):
 
 ### 7. SHSF Database Communication (_db_com) — Python
 
-The _db_com.py helper is auto-provisioned. Add \`requests\` to requirements.txt.
+The _db_com.py helper is auto-provisioned by SHSF. Do not add \`requests\` only for this helper; storage communication uses SHSF's internal execution transport.
 
 \`\`\`python
 from _db_com import database

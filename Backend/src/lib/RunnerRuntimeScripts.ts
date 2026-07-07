@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 )
 
@@ -94,8 +95,25 @@ func normalizeForTransport(value interface{}) interface{} {
 	}
 }
 
-// Runner wrapper that handles payload loading and result marshaling
-func runFunction(payloadPath string, out *os.File) error {
+func writeResultFile(resultPath string, value interface{}) error {
+	resultJSON, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("error serializing result: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(resultPath), 0755); err != nil {
+		return err
+	}
+
+	tempPath := resultPath + ".tmp"
+	if err := os.WriteFile(tempPath, resultJSON, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tempPath, resultPath)
+}
+
+// Runner wrapper that handles payload loading and result marshaling.
+func runFunction(payloadPath string, resultPath string) error {
 	// Read payload from file
 	var payload interface{}
 	if payloadPath != "" {
@@ -119,36 +137,22 @@ func runFunction(payloadPath string, out *os.File) error {
 
 	// Marshal normalized result so binary values are transport-safe across runtimes.
 	normalizedResult := normalizeForTransport(result)
-	resultJSON, err := json.Marshal(normalizedResult)
-	if err != nil {
-		return fmt.Errorf("error serializing result: %w", err)
-	}
-
-	// Write result with markers to original stdout (passed as out)
-	fmt.Fprintln(out, "SHSF_FUNCTION_RESULT_START")
-	fmt.Fprint(out, string(resultJSON))
-	fmt.Fprint(out, "\\nSHSF_FUNCTION_RESULT_END")
-
-	return nil
+	return writeResultFile(resultPath, normalizedResult)
 }
 
 func main() {
-	// Redirect user's stdout to stderr so logs don't interfere with result
-	oldStdout := os.Stdout
+	// Redirect user's stdout to stderr; function results are written to result.json.
 	os.Stdout = os.Stderr
 
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "Error: Payload file path not provided")
+	if len(os.Args) < 3 {
+		fmt.Fprintln(os.Stderr, "Error: Payload or result file path not provided")
 		os.Exit(1)
 	}
 
 	payloadPath := os.Args[1]
+	resultPath := os.Args[2]
 
-	// Do NOT restore stdout here for user code execution.
-	// This ensures fmt.Println in user code goes to stderr (logs).
-
-	// Run the function, passing original stdout for the result
-	if err := runFunction(payloadPath, oldStdout); err != nil {
+	if err := runFunction(payloadPath, resultPath); err != nil {
 		// Ensure error goes to stderr
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -167,7 +171,7 @@ else
     echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
 fi
 
-# Execute the actual Python runner with payload file path as argument
+# Execute the actual Python runner with payload and result file paths as arguments
 python3 - "$@" << 'PYTHON_SCRIPT_EOF'
 import json
 import sys
@@ -195,15 +199,22 @@ def _shsf_json_default(obj):
 	# Last-resort fallback keeps execution alive for unknown object types.
 	return repr(obj)
 
-# Get payload file path from command line argument
-if len(sys.argv) < 2:
-	sys.stderr.write("Error: Payload file path not provided\\n")
+# Get transport file paths from command line arguments
+if len(sys.argv) < 3:
+	sys.stderr.write("Error: Payload or result file path not provided\\n")
 	sys.exit(1)
 
-payload_file_path = sys.argv[1]  # This will be /executions/<id>/payload.json due to new mount
+payload_file_path = sys.argv[1]
+result_file_path = sys.argv[2]
 
-# Store original stdout, then redirect sys.stdout to sys.stderr for user code
-original_stdout = sys.stdout
+def _write_result_file(path, value):
+    temp_path = path + ".tmp"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump(value, f, default=_shsf_json_default)
+    os.replace(temp_path, path)
+
+# Redirect stdout to stderr; function results are written to result.json.
 sys.stdout = sys.stderr
 
 sys.path.append('/app')
@@ -237,20 +248,12 @@ try:
             # User's main function is called. Its print() statements will go to current sys.stdout (which is sys.stderr).
             user_result = target_module.main(run_data) if run_data is not None else target_module.main()
 
-            # Restore original stdout for printing the JSON result
-            sys.stdout = original_stdout
-            # Wrap the output in markers for clear identification on the *original* stdout
-            sys.stdout.write("SHSF_FUNCTION_RESULT_START\\n")
-            sys.stdout.write(json.dumps(user_result, default=_shsf_json_default))
-            sys.stdout.write("\\nSHSF_FUNCTION_RESULT_END")
-            sys.stdout.flush()
+            _write_result_file(result_file_path, user_result)
         except Exception as e:
             # Error during main execution or result serialization.
-            # Ensure output goes to stderr. If json.dumps failed, sys.stdout might be original_stdout.
             sys.stdout = sys.stderr
             sys.stderr.write(f"Error executing main function or serializing result: {str(e)}\\n")
             traceback.print_exc(file=sys.stderr)
-            sys.stdout = original_stdout # Restore for finally block consistency
             sys.exit(1)
     else:
         # sys.stdout is already sys.stderr
@@ -262,12 +265,9 @@ except Exception as e:
     sys.stdout = sys.stderr
     sys.stderr.write(f"Error importing module {target_module_name} or during initial setup: {str(e)}\\n")
     traceback.print_exc(file=sys.stderr)
-    sys.stdout = original_stdout # Restore for finally block consistency
     sys.exit(1)
 finally:
-    # Ensure sys.stdout is restored to its original state before exiting.
-    # This is good practice, though effect might be minimal in docker exec.
-    sys.stdout = original_stdout
+    sys.stdout = sys.stderr
 PYTHON_SCRIPT_EOF
 `;
 }
@@ -282,7 +282,7 @@ else
     echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
 fi
 
-# Execute the compiled Go binary with payload file path as argument
+# Execute the compiled Go binary with payload and result file paths as arguments
 /app/_shsf_runner "$@"
 `;
 }
@@ -296,14 +296,16 @@ else
     echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
 fi
 
-if [ $# -lt 2 ]; then
-    echo "Error: Missing payload file path or execution mode" >&2
+if [ $# -lt 3 ]; then
+    echo "Error: Missing payload file path, result file path, or execution mode" >&2
     exit 1
 fi
 
 PAYLOAD_PATH="$1"
-EXECUTION_MODE="$2"
+RESULT_PATH="$2"
+EXECUTION_MODE="$3"
 export SHSF_PAYLOAD_PATH="$PAYLOAD_PATH"
+export SHSF_RESULT_PATH="$RESULT_PATH"
 export SHSF_EXECUTION_MODE="$EXECUTION_MODE"
 PROJECT_PATH="${dotnetProjectPath ?? ""}"
 
@@ -315,7 +317,7 @@ fi
 cd /app
 
 if [ "$EXECUTION_MODE" = "dev_execute" ]; then
-    exec dotnet run --project "$PROJECT_PATH" -- "$PAYLOAD_PATH"
+    exec dotnet run --project "$PROJECT_PATH" -- "$PAYLOAD_PATH" "$RESULT_PATH"
 fi
 
 ENTRY_PATH_FILE="/app/.shsf_dotnet_entry"
@@ -336,7 +338,7 @@ if [ -z "$BUILT_TARGET" ] || [ ! -f "$BUILT_TARGET" ]; then
     exit 1
 fi
 
-exec dotnet "$BUILT_TARGET" "$PAYLOAD_PATH"
+exec dotnet "$BUILT_TARGET" "$PAYLOAD_PATH" "$RESULT_PATH"
 `;
 }
 

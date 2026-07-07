@@ -10,7 +10,7 @@
 - [x] Shift Enter Submits on modals (any modal) (add as a agent rule for the future)
 
 ## P1 - Priority 1 (High)
-- [ ] Replace data transport layer between backend and functions with a more robust and safe solution.
+- [x] Replace data transport layer between backend and functions with a more robust and safe solution.
 - [ ] Find a way to speed up function execution more (completly diffrent approach to the current one?)
 - [x] Move system crons to a diffrent approach, move into src/lib(?)
 

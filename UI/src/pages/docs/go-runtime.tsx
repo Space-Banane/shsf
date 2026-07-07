@@ -236,7 +236,8 @@ func main_user(args interface{}) (interface{}, error) {
 				<div className="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
 					<p className="text-sm text-blue-300">
 						<strong>Note:</strong> The <code>dbcom</code> package is automatically
-						generated when your function code contains "_db_com" references.
+						generated when your function code imports the SHSF storage helper. It
+						communicates through SHSF's internal execution transport, not an API token.
 					</p>
 				</div>
 

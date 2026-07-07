@@ -48,9 +48,8 @@ export const DocsDotnetRuntime = () => {
 					project files and before relying on production routes.
 				</li>
 				<li>
-					SHSF only treats text between{" "}
-					<code>SHSF_FUNCTION_RESULT_START</code> and{" "}
-					<code>SHSF_FUNCTION_RESULT_END</code> as the function response.
+					SHSF captures stdout and stderr as logs. Return the response with{" "}
+					<code>SHSF.Runtime.Return(...)</code>.
 				</li>
 			</ul>
 
@@ -161,7 +160,8 @@ Runtime.Return(new
 			</h2>
 			<p className="mb-4 text-text/90">
 				SHSF generates a <code>SHSF.Database</code> class for .NET functions so you
-				can read and write persistent data without building your own HTTP client.
+				can read and write persistent data without building your own HTTP client or
+				shipping API tokens in your function code.
 			</p>
 
 			<h3 className="text-xl font-semibold text-primary mb-4">

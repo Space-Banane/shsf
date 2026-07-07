@@ -25,11 +25,6 @@ export interface PersistedFunctionExecutionLogInput {
 	force?: boolean;
 }
 
-// Token expiry for execution tokens (in milliseconds)
-export const FUNCTION_DB_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
-
 export const ServeOnlyFileNotFoundHTML = `<html><head><title>File Not Found</title></head><body><h1>404 - File Not Found</h1><p>The requested HTML file was not found in the function's files.</p></body></html>`;
 export const HTML_FILE_EXTENSION = ".html";
 export const DB_FIELD_LIMIT = 10000;
-export const SHSF_FUNCTION_RESULT_START = "SHSF_FUNCTION_RESULT_START";
-export const SHSF_FUNCTION_RESULT_END = "SHSF_FUNCTION_RESULT_END";

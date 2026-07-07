@@ -1,7 +1,7 @@
 import { Function, FunctionFile } from "@prisma/client";
 import Docker from "dockerode";
 import { PassThrough } from "stream"; // Added PassThrough
-import { API_URL, prisma } from "..";
+import { prisma } from "..";
 import { HttpRequestContext } from "rjweb-server";
 import { DataContext } from "rjweb-server/lib/typings/types/internal";
 import { UsableMiddleware } from "rjweb-server/lib/typings/classes/Middleware";
@@ -30,8 +30,6 @@ import type {
 } from "./RunnerTypes";
 export type { FunctionExecutionMode, PersistedFunctionExecutionLogInput };
 import {
-	SHSF_FUNCTION_RESULT_START,
-	SHSF_FUNCTION_RESULT_END,
 	ServeOnlyFileNotFoundHTML,
 } from "./RunnerTypes";
 
@@ -56,8 +54,15 @@ import {
 	DbComScriptGO,
 	DbComScriptCS,
 	ShsfRuntimeScriptCS,
-	getOrCreateFunctionDbToken,
 } from "./RunnerScripts";
+
+import {
+	getRunnerTransportPaths,
+	prepareRunnerTransport,
+	readRunnerResult,
+	revokeLegacyFunctionDbTokens,
+	startStorageRpcBridge,
+} from "./RunnerTransport";
 
 import {
 	generateGoRunnerWrapperCode,
@@ -209,6 +214,7 @@ export async function executeFunction(
 			? crypto.randomUUID()
 			: `${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 	const executionDir = getFunctionExecutionDir(functionIdStr, executionId);
+	const transportPaths = getRunnerTransportPaths(executionDir);
 
 	// Define startupFile and initScript here as they are needed for script generation
 	const startupFile = functionData.startup_file;
@@ -220,7 +226,8 @@ export async function executeFunction(
 		let container = docker.getContainer(containerName);
 
 		await fs.mkdir(funcAppDir, { recursive: true });
-		await fs.mkdir(executionDir, { recursive: true });
+		await prepareRunnerTransport(transportPaths);
+		await revokeLegacyFunctionDbTokens();
 
 		// Skip writing User files when git version control is active (git_url is set)
 		if (!functionData.git_url) {
@@ -315,27 +322,25 @@ export async function executeFunction(
 		}
 
 		const requiresDbCom =
-			runtimeType === "dotnet" || files.some((f) => f.content.includes("_db_com"));
+			runtimeType === "dotnet" ||
+			files.some((f) => f.content.includes("_db_com") || f.content.includes("dbcom"));
 		if (requiresDbCom) {
-			const dbToken = await getOrCreateFunctionDbToken(functionData.userId);
 			if (runtimeType === "python") {
-				const dbScript = DbComScriptPY.replace("{{API}}", API_URL!).replace("{{AUTHKEY}}", dbToken);
-				await fs.writeFile(path.join(funcAppDir, "_db_com.py"), dbScript);
+				await fs.writeFile(path.join(funcAppDir, "_db_com.py"), DbComScriptPY);
 				await fs.chmod(path.join(funcAppDir, "_db_com.py"), "755");
 			} else if (runtimeType === "golang") {
-				const dbScript = DbComScriptGO.replace("{{API}}", API_URL!).replace("{{AUTHKEY}}", dbToken);
-				await fs.writeFile(path.join(funcAppDir, "_db_com.go"), dbScript);
-				await fs.chmod(path.join(funcAppDir, "_db_com.go"), "755");
+				const dbComDir = path.join(funcAppDir, "dbcom");
+				await fs.mkdir(dbComDir, { recursive: true });
+				await fs.writeFile(path.join(dbComDir, "dbcom.go"), DbComScriptGO);
 			} else if (runtimeType === "dotnet") {
 				const dotnetProjectPath = await resolveDotnetProjectPath(funcAppDir);
 				const dotnetProjectDir = getDotnetProjectDirectory(
 					funcAppDir,
 					dotnetProjectPath,
 				);
-				const dbScript = DbComScriptCS.replace("{{API}}", API_URL!).replace("{{AUTHKEY}}", dbToken);
-				await fs.writeFile(path.join(dotnetProjectDir, "_db_com.cs"), dbScript);
+				await fs.writeFile(path.join(dotnetProjectDir, "_db_com.cs"), DbComScriptCS);
 			}
-			mark("DB token + script");
+			mark("Storage helper script");
 		}
 
 		try {
@@ -465,7 +470,7 @@ export async function executeFunction(
 		// At this point, container is running (either existing or newly created and initialized)
 		// Now, execute the function logic using docker exec
 
-		await fs.writeFile(path.join(executionDir, "payload.json"), payload);
+		await fs.writeFile(transportPaths.payloadPath, payload);
 		const dotnetPayloadDir = path.join(funcAppDir, ".shsf-executions");
 		const dotnetPayloadPath = path.join(dotnetPayloadDir, `${executionId}.json`);
 		if (runtimeType === "dotnet") {
@@ -490,17 +495,19 @@ export async function executeFunction(
 		}
 
 		// Pass the unique payload file path as an argument to the runner script
-		const containerPayloadPath = `/executions/${executionId}/payload.json`; // Updated to use /executions mount
+		const containerPayloadPath = `/executions/${executionId}/payload.json`;
+		const containerResultPath = `/executions/${executionId}/result.json`;
 		let execCmd: string[];
 		if (runtimeType === "python") {
-			execCmd = ["/bin/sh", "/app/_runner.py", containerPayloadPath];
+			execCmd = ["/bin/sh", "/app/_runner.py", containerPayloadPath, containerResultPath];
 		} else if (runtimeType === "golang") {
-			execCmd = ["/bin/sh", "/app/_runner.sh", containerPayloadPath];
+			execCmd = ["/bin/sh", "/app/_runner.sh", containerPayloadPath, containerResultPath];
 		} else if (runtimeType === "dotnet") {
 			execCmd = [
 				"/bin/sh",
 				"/app/_runner.sh",
 				`/app/.shsf-executions/${executionId}.json`,
+				`/app/.shsf-executions/${executionId}.result.json`,
 				executionMode,
 			];
 		} else {
@@ -511,13 +518,25 @@ export async function executeFunction(
 
 		const exec = await container.exec({
 			Cmd: execCmd,
-			Env: execEnv,
+			Env: [
+				...execEnv,
+				`SHSF_PAYLOAD_PATH=${containerPayloadPath}`,
+				`SHSF_RESULT_PATH=${containerResultPath}`,
+				`SHSF_TRANSPORT_DIR=/executions/${executionId}`,
+				`SHSF_STORAGE_REQUEST_DIR=/executions/${executionId}/storage-requests`,
+				`SHSF_STORAGE_RESPONSE_DIR=/executions/${executionId}/storage-responses`,
+			],
 			AttachStdout: true,
 			AttachStderr: true,
 			Tty: false,
 		});
 		const execStream = await exec.start({ hijack: true, stdin: false });
 		mark("Exec started");
+		const storageBridge = startStorageRpcBridge({
+			userId: functionData.userId,
+			requestDir: transportPaths.storageRequestDir,
+			responseDir: transportPaths.storageResponseDir,
+		});
 
 		const execOutput = { stdout: "", stderr: "" };
 		const MAX_OUTPUT_SIZE = 3 * 1024 * 1024; // 3MB limit to stay under Docker's 4MB limit
@@ -539,6 +558,16 @@ export async function executeFunction(
 				execOutput.stdout +=
 					"\n[SHSF TRUNCATED] Output exceeded 3MB limit and was truncated";
 				stdoutTruncated = true;
+			}
+
+			if (stream.enabled && !stdoutTruncated) {
+				// eslint-disable-next-line no-control-regex
+				const ansiRegex = /\x1B\[[0-9;]*[A-Za-z]/g;
+				const nonPrintableRegex = /[^\x20-\x7E\n\r\t]/g;
+				const cleanText = text
+					.replace(ansiRegex, "")
+					.replace(nonPrintableRegex, "");
+				stream.onChunk(cleanText);
 			}
 		});
 
@@ -590,9 +619,9 @@ export async function executeFunction(
 		try {
 			execResultDetails = await Promise.race([execPromise, timeoutPromise]);
 			exitCode = execResultDetails.ExitCode ?? 1; // Default to 1 if null/undefined
-			logs = execOutput.stderr;
+			logs = [execOutput.stderr, execOutput.stdout].filter(Boolean).join("\n");
 			if (exitCode === 0 && execOutput.stdout) {
-				func_result = execOutput.stdout.trim();
+				func_result = "";
 			} else if (exitCode !== 0) {
 				// Combine outputs but respect size limits
 				const combinedOutput = `Exit Code: ${exitCode}\n${execOutput.stderr}\n${execOutput.stdout}`;
@@ -608,60 +637,28 @@ export async function executeFunction(
 			logs = `${execOutput.stderr}\nExecution Error: ${execError.message}`;
 			exitCode = -1;
 			func_result = "";
+		} finally {
+			await storageBridge.stop();
 		}
 		mark("Exec finished");
 		// Process result if successful
 		let parsedResult: any = null;
-		if (exitCode === 0 && func_result) {
-			try {
-				// Look for the function result markers
-				const startMarker = SHSF_FUNCTION_RESULT_START;
-				const endMarker = SHSF_FUNCTION_RESULT_END;
-				const startIdx = func_result.indexOf(startMarker);
-				const endIdx = func_result.lastIndexOf(endMarker);
-
-				if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-					// Ensure markers are present and in correct order
-					// Extract only the content between markers
-					const actualResult = func_result
-						.substring(startIdx + startMarker.length, endIdx)
-						.trim();
-
-					const prefix = func_result.substring(0, startIdx).trim();
-					if (prefix) {
-						logs = appendLogOutput(logs, prefix);
-					}
-
-					const suffix = func_result.substring(endIdx + endMarker.length).trim();
-					if (suffix) {
-						logs = appendLogOutput(logs, suffix);
-					}
-
-					func_result = actualResult;
-					parsedResult = JSON.parse(actualResult);
-				} else if (runtimeType === "dotnet") {
-					if (func_result.trim()) {
-						logs = appendLogOutput(
-							logs,
-							`Stdout content (missing ${SHSF_FUNCTION_RESULT_START}/${SHSF_FUNCTION_RESULT_END} markers):\n${func_result.trim()}`
-						);
-					}
-				} else {
-					// If no markers are found, or they are in the wrong order,
-					// treat the entire stdout as potential logging output.
-					log.warn("Function result markers not found or in wrong order in stdout, treating stdout as logs");
-					if (func_result.trim()) {
-						logs = appendLogOutput(
-							logs,
-							`Stdout content (no valid markers found):\n${func_result.trim()}`
-						);
-					}
-					// No parsedResult, leave it as null
-				}
-			} catch (e: any) {
-				log.error({ err: e.message }, "Failed to parse JSON result from stdout");
-				logs += `\nError parsing result JSON from stdout: ${e.message}`;
-				exitCode = -2; // Custom code for result parsing error
+		if (exitCode === 0) {
+			const resultPath =
+				runtimeType === "dotnet"
+					? path.join(funcAppDir, ".shsf-executions", `${executionId}.result.json`)
+					: transportPaths.resultPath;
+			const resultState = await readRunnerResult(resultPath);
+			if (resultState.status === "ok") {
+				func_result = resultState.raw;
+				parsedResult = resultState.result;
+			} else if (resultState.status === "malformed") {
+				log.error({ err: resultState.error.message }, "Failed to parse JSON result file");
+				logs += `\nError parsing result JSON file: ${resultState.error.message}`;
+				func_result = resultState.raw;
+				exitCode = -2;
+			} else {
+				func_result = JSON.stringify(null);
 			}
 		}
 
@@ -694,9 +691,14 @@ export async function executeFunction(
 		try {
 			await fs.rm(executionDir, { recursive: true, force: true });
 			if (runtimeType === "dotnet") {
-				await fs.rm(path.join(funcAppDir, ".shsf-executions", `${executionId}.json`), {
-					force: true,
-				});
+				await Promise.all([
+					fs.rm(path.join(funcAppDir, ".shsf-executions", `${executionId}.json`), {
+						force: true,
+					}),
+					fs.rm(path.join(funcAppDir, ".shsf-executions", `${executionId}.result.json`), {
+						force: true,
+					}),
+				]);
 			}
 			mark("Cleanup");
 		} catch (cleanupError: any) {
@@ -931,12 +933,7 @@ export async function buildDotnetFunction(
 			ShsfRuntimeScriptCS,
 		);
 
-		const dbToken = await getOrCreateFunctionDbToken(functionData.userId);
-		const dbScript = DbComScriptCS.replace("{{API}}", API_URL!).replace(
-			"{{AUTHKEY}}",
-			dbToken,
-		);
-		await fs.writeFile(path.join(dotnetProjectDir, "_db_com.cs"), dbScript);
+		await fs.writeFile(path.join(dotnetProjectDir, "_db_com.cs"), DbComScriptCS);
 
 		let container = docker.getContainer(containerName);
 		try {
