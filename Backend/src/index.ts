@@ -15,6 +15,8 @@ import { authResolutionMiddleware, authEnforcementMiddleware } from "./lib/middl
 import { makeResponse } from "./lib/response";
 import { ERROR_MESSAGES } from "./lib/errors";
 import { startSystemCrons } from "./lib/SystemCrons";
+import { hydrateUpdateState } from "./lib/Updater";
+import { getUpdateLastCheck } from "./lib/DataManager";
 
 export const VERSION: {
 	type: "SHSF API" | "SHSF UI";
@@ -118,6 +120,10 @@ if (env.NODE_ENV !== "test") {
 			const uuid = await getUUID();
 
 			logger.info({ port, uuid }, "SHSF API running");
+
+			// Restore last update-check result into memory so the Admin UI has it immediately
+			const lastCheck = await getUpdateLastCheck();
+			if (lastCheck) hydrateUpdateState(lastCheck);
 
 			startSystemCrons({ prisma, executeFunction, performGitPull });
 		})

@@ -3,6 +3,8 @@ import type { PrismaClient } from "@prisma/client";
 import type { executeFunction as executeFunctionImpl } from "./Runner";
 import type { performGitPull as performGitPullImpl } from "./GitOps";
 import { createLogger } from "./logger";
+import { getAutoUpdateEnabled } from "./DataManager";
+import { getUpdateState, checkForUpdate, applyUpdate } from "./Updater";
 
 type ExecuteFunction = typeof executeFunctionImpl;
 type PerformGitPull = typeof performGitPullImpl;
@@ -80,6 +82,11 @@ export function startSystemCrons(dependencies: SystemCronDependencies): SystemCr
 			name: "storage-cleanup",
 			intervalMs: 60 * 1000,
 			run: () => processStorageCleanup(dependencies),
+		},
+		{
+			name: "auto-update",
+			intervalMs: 6 * 60 * 60 * 1000, // every 6 hours
+			run: () => processAutoUpdate(),
 		},
 	];
 
@@ -277,5 +284,31 @@ export async function processStorageCleanup({ prisma }: SystemCronDependencies) 
 		}
 	} catch (error) {
 		storageLog.error({ err: error }, "Error during storage cleanup");
+	}
+}
+
+const updateLog = createLogger("AUTO_UPDATE");
+
+export async function processAutoUpdate() {
+	const enabled = await getAutoUpdateEnabled();
+	if (!enabled) return;
+
+	const current = getUpdateState();
+	if (current.phase !== "idle") {
+		updateLog.debug({ phase: current.phase }, "Skipping auto-update — operation in progress");
+		return;
+	}
+
+	updateLog.info("Running scheduled update check");
+	try {
+		const result = await checkForUpdate();
+		if (result.updateAvailable) {
+			updateLog.info({ newImageId: result.newImageId }, "Update available — applying automatically");
+			await applyUpdate();
+		} else {
+			updateLog.info("No update available");
+		}
+	} catch (err) {
+		updateLog.error({ err }, "Scheduled update check/apply failed");
 	}
 }

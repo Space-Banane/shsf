@@ -114,3 +114,36 @@ export async function getDisabledImages(): Promise<string[]> {
 export async function setDisabledImages(images: string[]): Promise<void> {
 	await setSetting("disabled_images", JSON.stringify(images));
 }
+
+export async function getAutoUpdateEnabled(): Promise<boolean> {
+	const val = await getSetting("auto_update_enabled");
+	if (val !== null) return val === "true";
+	return false;
+}
+
+export async function setAutoUpdateEnabled(enabled: boolean): Promise<void> {
+	await setSetting("auto_update_enabled", String(enabled));
+}
+
+export type UpdateLastCheck = {
+	checkedAt: string; // ISO
+	updateAvailable: boolean;
+	currentImageId: string;
+	newImageId: string | null;
+};
+
+export async function getUpdateLastCheck(): Promise<UpdateLastCheck | null> {
+	const val = await getSetting("update_last_check");
+	if (val !== null) {
+		try {
+			return JSON.parse(val) as UpdateLastCheck;
+		} catch {
+			return null;
+		}
+	}
+	return null;
+}
+
+export async function setUpdateLastCheck(check: UpdateLastCheck): Promise<void> {
+	await setSetting("update_last_check", JSON.stringify(check));
+}

@@ -27,8 +27,13 @@ import {
 	setExternalAccessDisabled as apiSetExternalAccessDisabled,
 	getDisabledImages,
 	setDisabledImages as apiSetDisabledImages,
+	getUpdateStatus,
+	setAutoUpdate as apiSetAutoUpdate,
+	triggerUpdateCheck,
+	triggerUpdateApply,
 	type AdminUser,
 	type AdminStats,
+	type UpdateStatus,
 } from "../services/backend.admin";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -977,9 +982,246 @@ function StatisticsTab() {
 	);
 }
 
+// ─── Tab: Updates ──────────────────────────────────────────────────────────────
+
+function UpdatesTab() {
+	const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
+
+	const [checking, setChecking] = useState(false);
+	const [checkError, setCheckError] = useState<string | null>(null);
+
+	const [applying, setApplying] = useState(false);
+	const [applyMessage, setApplyMessage] = useState<string | null>(null);
+	const [applyError, setApplyError] = useState<string | null>(null);
+	const [restarting, setRestarting] = useState(false);
+
+	const [autoUpdateLoading, setAutoUpdateLoading] = useState(false);
+
+	const load = useCallback(async () => {
+		setLoadError(null);
+		try {
+			const data = await getUpdateStatus();
+			if (data.status === "OK") setUpdateStatus(data);
+			else setLoadError("Failed to load update status.");
+		} catch {
+			setLoadError("Failed to load update status.");
+		}
+	}, []);
+
+	useEffect(() => { load(); }, [load]);
+
+	// Poll while checking/applying so UI stays up to date
+	useEffect(() => {
+		if (!updateStatus || updateStatus.phase === "idle") return;
+		const id = setInterval(load, 2000);
+		return () => clearInterval(id);
+	}, [updateStatus, load]);
+
+	// Once "applying", start polling the health endpoint until the service is back up
+	useEffect(() => {
+		if (!restarting) return;
+		const id = setInterval(async () => {
+			try {
+				const res = await fetch("/health");
+				if (res.ok) {
+					setRestarting(false);
+					setApplyMessage("Service is back online with the new version.");
+					load();
+				}
+			} catch {
+				// still restarting
+			}
+		}, 2000);
+		return () => clearInterval(id);
+	}, [restarting, load]);
+
+	const handleCheck = async () => {
+		setChecking(true);
+		setCheckError(null);
+		setApplyMessage(null);
+		try {
+			const data = await triggerUpdateCheck();
+			if (data.status === "OK") {
+				await load();
+			} else {
+				setCheckError(data.message);
+			}
+		} catch {
+			setCheckError("Update check failed.");
+		} finally {
+			setChecking(false);
+		}
+	};
+
+	const handleApply = async () => {
+		setApplying(true);
+		setApplyError(null);
+		setApplyMessage(null);
+		try {
+			const data = await triggerUpdateApply();
+			if (data.status === "OK") {
+				setApplyMessage(data.message + " Waiting for service to restart…");
+				setRestarting(true);
+				setUpdateStatus((prev) => prev ? { ...prev, updateAvailable: false, newImageId: null } : prev);
+			} else {
+				setApplyError(data.message);
+			}
+		} catch {
+			setApplyError("Failed to apply update.");
+		} finally {
+			setApplying(false);
+		}
+	};
+
+	const toggleAutoUpdate = async () => {
+		if (!updateStatus) return;
+		setAutoUpdateLoading(true);
+		try {
+			const data = await apiSetAutoUpdate(!updateStatus.autoUpdateEnabled);
+			if (data.status === "OK") setUpdateStatus((prev) => prev ? { ...prev, autoUpdateEnabled: data.autoUpdateEnabled } : prev);
+		} catch {
+			// ignore
+		} finally {
+			setAutoUpdateLoading(false);
+		}
+	};
+
+	const isIdle = !updateStatus || updateStatus.phase === "idle";
+	const isBusy = checking || applying || restarting || !isIdle;
+
+	return (
+		<div className="space-y-4">
+			{loadError && <p className="text-sm text-red-400">{loadError}</p>}
+
+			{/* Current state */}
+			<div className={cardClass}>
+				<h2 className="text-base font-semibold text-primary mb-1 flex items-center gap-2">
+					Instance Image
+					<HelpTooltip content="The Docker image currently running this SHSF instance." placement="right" />
+				</h2>
+				<p className="text-text/60 text-sm mb-3">Manage updates for the SHSF backend image.</p>
+
+				{updateStatus === null ? (
+					<Skeleton className="h-6 w-48" />
+				) : (
+					<div className="space-y-2">
+						<div className="flex items-center gap-3 flex-wrap">
+							<span className="text-xs text-text/50">Current image ID</span>
+							<code className="font-mono text-xs text-text/80 bg-background/60 px-2 py-0.5 rounded">
+								{updateStatus.currentImageId ?? "unknown"}
+							</code>
+							{updateStatus.updateAvailable === true && (
+								<Badge variant="warning">Update available</Badge>
+							)}
+							{updateStatus.updateAvailable === false && (
+								<Badge variant="success">Up to date</Badge>
+							)}
+						</div>
+
+						{updateStatus.newImageId && (
+							<div className="flex items-center gap-3">
+								<span className="text-xs text-text/50">New image ID</span>
+								<code className="font-mono text-xs text-green-400 bg-background/60 px-2 py-0.5 rounded">
+									{updateStatus.newImageId}
+								</code>
+							</div>
+						)}
+
+						{updateStatus.lastCheckedAt && (
+							<p className="text-xs text-text/40">
+								Last checked: {new Date(updateStatus.lastCheckedAt).toLocaleString()}
+							</p>
+						)}
+
+						{updateStatus.phase !== "idle" && (
+							<div className="flex items-center gap-2 mt-2">
+								<span className="inline-block h-2 w-2 rounded-full bg-primary/70 animate-pulse" />
+								<span className="text-sm text-primary/80">
+									{updateStatus.phase === "checking" && "Pulling image and checking for update…"}
+									{updateStatus.phase === "applying" && "Recreating container…"}
+								</span>
+							</div>
+						)}
+
+						{restarting && (
+							<div className="flex items-center gap-2 mt-2">
+								<span className="inline-block h-2 w-2 rounded-full bg-yellow-400 animate-pulse" />
+								<span className="text-sm text-yellow-400/80">Waiting for service to come back online…</span>
+							</div>
+						)}
+
+						{updateStatus.error && (
+							<p className="text-sm text-red-400 mt-1">{updateStatus.error}</p>
+						)}
+
+						{applyMessage && (
+							<p className="text-sm text-green-400 mt-1">{applyMessage}</p>
+						)}
+					</div>
+				)}
+			</div>
+
+			{/* Actions */}
+			<div className={cardClass}>
+				<h2 className="text-base font-semibold text-primary mb-1">Update Actions</h2>
+				<p className="text-text/60 text-sm mb-4">
+					"Check" pulls the latest image and detects if a new version is available. "Apply" recreates the container — the service will be briefly unavailable.
+				</p>
+
+				{checkError && <p className="text-sm text-red-400 mb-3">{checkError}</p>}
+				{applyError && <p className="text-sm text-red-400 mb-3">{applyError}</p>}
+
+				<div className="flex items-center gap-3 flex-wrap">
+					<button
+						onClick={handleCheck}
+						disabled={isBusy}
+						className="px-3 py-1.5 bg-primary/20 border border-primary/30 hover:bg-primary/30 disabled:opacity-50 text-primary rounded-lg text-sm font-medium transition-all duration-200"
+					>
+						{checking || (!isIdle && updateStatus?.phase === "checking") ? "Checking…" : "Check for Update"}
+					</button>
+
+					{updateStatus?.updateAvailable && (
+						<button
+							onClick={handleApply}
+							disabled={isBusy}
+							className="px-3 py-1.5 bg-yellow-500/20 border border-yellow-500/30 hover:bg-yellow-500/30 disabled:opacity-50 text-yellow-400 rounded-lg text-sm font-medium transition-all duration-200"
+						>
+							{applying || (!isIdle && updateStatus.phase === "applying") ? "Applying…" : "Apply Update"}
+						</button>
+					)}
+				</div>
+			</div>
+
+			{/* Auto-update toggle */}
+			<div className={cardClass}>
+				<h2 className="text-base font-semibold text-primary mb-1 flex items-center gap-2">
+					Auto-Update
+					<HelpTooltip content="When enabled, SHSF checks for a new image every 6 hours and automatically recreates the container if one is found." placement="right" />
+				</h2>
+				<p className="text-text/60 text-sm mb-3">Automatically pull and apply new images every 6 hours.</p>
+				{updateStatus === null ? (
+					<Skeleton />
+				) : (
+					<div className="flex items-center gap-3">
+						<Toggle
+							active={updateStatus.autoUpdateEnabled}
+							onChange={toggleAutoUpdate}
+							disabled={autoUpdateLoading}
+						/>
+						<span className="text-text/80 text-sm">
+							{updateStatus.autoUpdateEnabled ? "Enabled — updates apply automatically" : "Disabled — manual updates only"}
+						</span>
+					</div>
+				)}
+			</div>
+		</div>
+	);
+}
+
 // ─── Main AdminPage ─────────────────────────────────────────────────────────────
 
-type Tab = "overview" | "access" | "users" | "runtimes" | "stats";
+type Tab = "overview" | "access" | "users" | "runtimes" | "stats" | "updates";
 
 const TABS: { id: Tab; label: string; description: string }[] = [
 	{ id: "overview", label: "Connectivity", description: "Link management & server secret" },
@@ -987,6 +1229,7 @@ const TABS: { id: Tab; label: string; description: string }[] = [
 	{ id: "users", label: "Users", description: "Create, edit, and delete user accounts" },
 	{ id: "runtimes", label: "Runtimes", description: "Enable or disable runtime images" },
 	{ id: "stats", label: "Statistics", description: "Execution stats and resource usage" },
+	{ id: "updates", label: "Updates", description: "Check for and apply image updates" },
 ];
 
 export const AdminPage = () => {
@@ -1025,6 +1268,7 @@ export const AdminPage = () => {
 			{activeTab === "users" && <UsersTab />}
 			{activeTab === "runtimes" && <RuntimesTab />}
 			{activeTab === "stats" && <StatisticsTab />}
+			{activeTab === "updates" && <UpdatesTab />}
 		</div>
 	);
 };

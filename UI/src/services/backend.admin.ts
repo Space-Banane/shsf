@@ -153,3 +153,52 @@ export async function setDisabledImages(disabledImages: string[]): Promise<{ sta
 	});
 	return res.json();
 }
+
+// --- Updates ---
+
+export interface UpdateStatus {
+	autoUpdateEnabled: boolean;
+	phase: "idle" | "checking" | "applying";
+	error: string | null;
+	lastCheckedAt: string | null;
+	updateAvailable: boolean | null;
+	currentImageId: string | null;
+	newImageId: string | null;
+}
+
+export async function getUpdateStatus(): Promise<{ status: "OK" } & UpdateStatus> {
+	const res = await fetch(`${BASE_URL}/api/admin/update`, { credentials: "include" });
+	return res.json();
+}
+
+export async function setAutoUpdate(autoUpdateEnabled: boolean): Promise<{ status: "OK"; autoUpdateEnabled: boolean }> {
+	const res = await fetch(`${BASE_URL}/api/admin/update`, {
+		method: "PATCH",
+		credentials: "include",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ autoUpdateEnabled }),
+	});
+	return res.json();
+}
+
+export async function triggerUpdateCheck(): Promise<
+	{ status: "OK"; updateAvailable: boolean; currentImageId: string; newImageId: string | null } |
+	{ status: "FAILED"; message: string }
+> {
+	const res = await fetch(`${BASE_URL}/api/admin/update/check`, {
+		method: "POST",
+		credentials: "include",
+	});
+	return res.json();
+}
+
+export async function triggerUpdateApply(): Promise<
+	{ status: "OK"; method: string; message: string } |
+	{ status: "FAILED"; message: string }
+> {
+	const res = await fetch(`${BASE_URL}/api/admin/update/apply`, {
+		method: "POST",
+		credentials: "include",
+	});
+	return res.json();
+}

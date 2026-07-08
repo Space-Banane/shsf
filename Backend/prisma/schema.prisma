@@ -19,6 +19,8 @@ enum InstanceSettingType {
   external_access_disabled
   disabled_images
   link_status
+  auto_update_enabled
+  update_last_check
 }
 
 model InstanceSetting {
