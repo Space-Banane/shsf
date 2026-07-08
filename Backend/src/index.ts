@@ -12,6 +12,7 @@ import { logger } from "./lib/logger";
 import { corsMiddleware, initCorsDomains } from "./lib/middlewares/cors";
 import { mainMiddleware } from "./lib/middlewares/main";
 import { authResolutionMiddleware, authEnforcementMiddleware } from "./lib/middlewares/auth";
+import { executionMiddleware } from "./lib/middlewares/execution";
 import { makeResponse } from "./lib/response";
 import { ERROR_MESSAGES } from "./lib/errors";
 import { startSystemCrons } from "./lib/SystemCrons";
@@ -41,6 +42,7 @@ export const DOMAIN = env.DOMAIN;
 export const API_KEY_HEADER = "x-access-key";
 export const INSTANCE_SECRET = env.INSTANCE_SECRET;
 export const API_URL = env.REACT_APP_API_URL;
+export const PORT = env.PORT;
 
 export { prisma };
 
@@ -85,6 +87,7 @@ export const server = new Server(
 		mainMiddleware.use({}),
 		authResolutionMiddleware.use({}),
 		authEnforcementMiddleware.use({}),
+		executionMiddleware.use({}),
 	],
 );
 

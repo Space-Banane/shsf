@@ -9,7 +9,7 @@
 - [x] Remove the entire pip DOWNLOAD cache for shared functions as its a security risk
 - [x] Shift Enter Submits on modals (any modal) (add as a agent rule for the future)
 - [ ] Fix SHSF Global & Redo it
-- [ ] Built-in MCP Server & ready to copy Agentic commands ("claude mcp xxxx", "openclaw mcp add xxxxx", and codex ofc) // Seperate Agents Page & usecases for agents using shsf
+- [x] Built-in MCP Server & ready to copy Agentic commands ("claude mcp xxxx", "openclaw mcp add xxxxx", and codex ofc) // Seperate Agents Page & usecases for agents using shsf
 
 ## P1 - Priority 1 (High)
 - [x] Replace data transport layer between backend and functions with a more robust and safe solution.
