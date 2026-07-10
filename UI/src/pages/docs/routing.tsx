@@ -7,27 +7,29 @@ export const RoutingDocPage = () => {
 			<DocHeader title="Routing">
 				A single SHSF function can serve multiple logical endpoints by reading
 				the <code>route</code> argument from <code>args</code>. The route is
-				the path segment immediately after the function URL — no framework,
-				no config file needed.
+				the full path after the function URL — no framework, no config file
+				needed.
 			</DocHeader>
 
-			<Callout variant="warning" title="Single segment only">
+			<Callout variant="info" title="Deep paths are fully supported">
 				<p>
-					Only one path segment after the function URL is captured. Deep paths
-					like <code>/exec/func/a/b/c</code> are not supported — only the first
-					segment (<code>a</code>) becomes the route. When no segment is
-					present the value is <code>"default"</code> (not <code>"/"</code>).
-					The value never includes a leading slash.
+					Everything after the function URL is captured as the route, including
+					nested segments. <code>/exec/func/a/b/c</code> gives{" "}
+					<code>route = "a/b/c"</code>. When no segment is present the value is{" "}
+					<code>"default"</code>. Leading and trailing slashes are stripped; the
+					value never contains a leading slash.
 				</p>
 			</Callout>
 
 			<h2>How routing works</h2>
 			<CodeCaption>URL → route value</CodeCaption>
 			<pre>
-				<code>{`GET  /exec/my-func            → route = "default"
-GET  /exec/my-func/users      → route = "users"
-POST /exec/my-func/register   → route = "register"
-GET  /exec/my-func/health     → route = "health"`}</code>
+				<code>{`GET    /exec/my-func               → route = "default"
+GET    /exec/my-func/users         → route = "users"
+POST   /exec/my-func/register      → route = "register"
+GET    /exec/my-func/health        → route = "health"
+GET    /exec/my-func/users/42      → route = "users/42"
+DELETE /exec/my-func/items/7/tag   → route = "items/7/tag"`}</code>
 			</pre>
 
 			<h2>Dispatching routes (Python)</h2>
@@ -52,6 +54,28 @@ def handle_register(args):
 def handle_login(args):
     # login logic
     return {"_shsf": "v2", "_code": 200, "_res": {"token": "..."}}`}</code>
+			</pre>
+
+			<h2>Deep path routing (Python)</h2>
+			<p>
+				Split <code>route</code> on <code>"/"</code> to handle nested paths like{" "}
+				<code>/exec/func/users/42</code>:
+			</p>
+			<CodeCaption>Python — deep path dispatcher</CodeCaption>
+			<pre>
+				<code>{`def main(args):
+    parts = args.get("route", "default").split("/")
+    resource = parts[0]           # e.g. "users"
+    resource_id = parts[1] if len(parts) > 1 else None  # e.g. "42"
+
+    if resource == "users":
+        if resource_id:
+            return get_user(resource_id)
+        return list_users()
+    elif resource == "health":
+        return {"ok": True}
+    else:
+        return {"_shsf": "v2", "_code": 404, "_res": {"error": "not found"}}`}</code>
 			</pre>
 
 			<h2>Dispatching routes (Go)</h2>
@@ -108,7 +132,7 @@ def main(args):
 			<h2>Best practices</h2>
 			<ul>
 				<li>
-					Use short, lowercase route names — e.g. <code>users</code>,{" "}
+					Use lowercase route names — e.g. <code>users</code>,{" "}
 					<code>register</code>, <code>health</code>.
 				</li>
 				<li>

@@ -7,7 +7,7 @@ export const DataPassingPage = () => {
 			<DocHeader title="Data Passing">
 				Every function receives a single <code>args</code> object that contains
 				everything about the incoming request — body, query parameters, headers,
-				the matched route segment, the HTTP method, and the raw body bytes.
+				the matched route, the HTTP method, and the raw body bytes.
 			</DocHeader>
 
 			<h2>The args object</h2>
@@ -21,7 +21,7 @@ export const DataPassingPage = () => {
 				<code>{`{
   "headers":   { "user-agent": "...", ... },   // all request headers (lowercase keys)
   "queries":   { "page": "2", ... },           // URL query parameters
-  "route":     "default",                       // path segment after the function URL (or "default")
+  "route":     "default",                       // path after the function URL (or "default")
   "method":    "GET",
   "source_ip": "1.2.3.4"
 }`}</code>
@@ -82,14 +82,17 @@ def main(args):
 
 			<h2>Routing via args.route</h2>
 			<p>
-				The path segment after the function URL becomes <code>args["route"]</code>.
-				When no segment is present the value is <code>"default"</code>.
+				The path after the function URL becomes <code>args["route"]</code>.
+				Deep paths are fully supported — the entire remainder is captured and
+				joined with <code>/</code>. When no segment is present the value is{" "}
+				<code>"default"</code>.
 			</p>
 			<CodeCaption>URL examples</CodeCaption>
 			<pre>
-				<code>{`GET /exec/my-func           → route = "default"
-GET /exec/my-func/users     → route = "users"
-GET /exec/my-func/health    → route = "health"`}</code>
+				<code>{`GET /exec/my-func              → route = "default"
+GET /exec/my-func/users        → route = "users"
+GET /exec/my-func/users/42     → route = "users/42"
+GET /exec/my-func/a/b/c        → route = "a/b/c"`}</code>
 			</pre>
 			<CodeCaption>Dispatching on route (Python)</CodeCaption>
 			<pre>
@@ -103,13 +106,6 @@ GET /exec/my-func/health    → route = "health"`}</code>
     else:
         return {"_shsf": "v2", "_code": 404, "_res": {"error": "not found"}}`}</code>
 			</pre>
-			<Callout variant="note" title="Single-segment only">
-				<p>
-					Only one path segment after the function URL is supported. Deep paths
-					like <code>/exec/func/a/b</code> are not routed — only the first
-					segment (<code>a</code>) is captured. See the Routing page for more.
-				</p>
-			</Callout>
 
 			<h2>Passing data from a cron trigger</h2>
 			<p>
