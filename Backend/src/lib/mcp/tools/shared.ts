@@ -113,3 +113,13 @@ export async function resolveFunction(
 	}
 	return null;
 }
+
+// ── trigger lookup ────────────────────────────────────────────────────────────
+
+/** Resolve a cron trigger by id, scoped to functions owned by the user. */
+export async function resolveTrigger(triggerId: number, userId: number) {
+	return prisma.functionTrigger.findFirst({
+		where: { id: triggerId, function: { userId } },
+		include: { function: { select: { id: true, name: true, namespace: { select: { name: true } } } } },
+	});
+}
