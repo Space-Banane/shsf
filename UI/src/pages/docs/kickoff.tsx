@@ -156,7 +156,7 @@ HTTP status code. Handle network errors gracefully.`}</code>
 				<li>
 					SHSF db_com (<code>_db_com.py</code> / <code>myfunction/dbcom</code>)
 				</li>
-				<li>Single-segment routing via <code>args["route"]</code></li>
+				<li>Deep-path routing via <code>args["route"]</code> (e.g. <code>"users/42"</code> for <code>/exec/func/users/42</code>)</li>
 				<li>
 					Reserved filenames it must never produce: <code>_runner.py</code>,{" "}
 					<code>_runner.js</code>, <code>init.sh</code>

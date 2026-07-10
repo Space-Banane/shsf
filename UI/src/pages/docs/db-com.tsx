@@ -172,7 +172,7 @@ exists     := db.Exists("hits", "home")            // bool, no error return`}</c
 
 			<NextStep href="/docs/routing" label="#15 Routing">
 				Next: handle multiple endpoints with a single function using SHSF's
-				single-segment routing system.
+				deep-path routing system.
 			</NextStep>
 		</DocsContentShell>
 	);

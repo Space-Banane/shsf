@@ -92,8 +92,9 @@ def main(args):
 					not a string, no redirect occurs.
 				</li>
 				<li>
-					Other envelope fields (<code>_res</code>, <code>_headers</code>) are
-					ignored when a redirect fires.
+					<code>_headers</code> are applied before the redirect fires — you can
+					set custom response headers alongside a redirect. Only{" "}
+					<code>_res</code> is ignored when a redirect is issued.
 				</li>
 			</ul>
 

@@ -40,10 +40,10 @@ export const DocsDotnetRuntime = () => {
 					(builds and runs).
 				</li>
 				<li>
-					<strong>HTTP/cron invocations</strong> — uses{" "}
-					<code>dotnet run --no-build</code> for speed. Click the{" "}
+					<strong>HTTP/cron invocations</strong> — runs the pre-built DLL
+					directly (<code>dotnet &lt;dll&gt;</code>). Click the{" "}
 					<strong>.NET Build</strong> button in the function dashboard after
-					changing project files.
+					changing project files to rebuild before invoking.
 				</li>
 				<li>
 					Stdout and stderr are captured as execution logs.

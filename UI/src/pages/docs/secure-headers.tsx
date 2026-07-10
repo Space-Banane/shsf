@@ -6,10 +6,10 @@ export const SecureHeadersPage = () => {
 		<DocsContentShell>
 			<DocHeader title="Secure Headers (x-secure-header)">
 				When the <strong>Secure Header</strong> setting is enabled on a
-				function, every HTTP request must include the correct{" "}
-				<code>x-secure-header</code> value or it is rejected before your code
-				ever runs. Requests made by the function owner from the SHSF UI are
-				always permitted.
+				function, every HTTP request to <code>/exec/</code> must include the
+				correct <code>x-secure-header</code> value or it is rejected before
+				your code ever runs. Invocations from the SHSF dashboard use a
+				separate execution endpoint and are unaffected by this check.
 			</DocHeader>
 
 			<h2>How it works</h2>

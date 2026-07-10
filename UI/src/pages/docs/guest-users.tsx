@@ -6,9 +6,9 @@ export const GuestUsersDocPage = () => {
 		<DocsContentShell>
 			<DocHeader title="Guest Users">
 				Guest users are lightweight credentials you create and attach to a
-				specific function. Once at least one guest user exists on a function,
-				all callers are required to authenticate — either with those guest
-				credentials, a secure header, or an access token.
+				specific function. Once guest users are configured on a function,
+				only callers with valid guest credentials can invoke it over HTTP —
+				API keys and secure headers do not bypass this requirement.
 			</DocHeader>
 
 			<Callout variant="warning" title="Authentication becomes required once a guest user is added">
@@ -48,27 +48,33 @@ export const GuestUsersDocPage = () => {
 
 			<h2>How authentication works</h2>
 			<p>
-				When a caller accesses a function that has guest users, SHSF checks for
-				one of the following (in order):
+				When <code>guest_access</code> is enabled (i.e. at least one guest user
+				exists), SHSF's execution middleware enforces the following rule on every
+				request to <code>/exec/</code>:
 			</p>
 			<ol>
 				<li>
-					<strong>Function owner request</strong> (via SHSF session) — always
-					permitted.
+					Any prior permission state — including a valid{" "}
+					<code>x-access-key</code> API token or a correct{" "}
+					<code>x-secure-header</code> — is <strong>overridden</strong>.
+					Permission is reset to denied.
 				</li>
 				<li>
-					<strong><code>x-access-key</code> header</strong> — a valid access
-					token from the function owner bypasses the guest check.
-				</li>
-				<li>
-					<strong><code>x-secure-header</code></strong> — if configured, a
-					matching secure header value is accepted.
-				</li>
-				<li>
-					<strong>Guest credentials</strong> — the caller is prompted for the
-					guest email and password.
+					<strong>Only a valid guest session cookie</strong> can restore access.
+					The guest user must have logged in with their email and password to
+					obtain this cookie.
 				</li>
 			</ol>
+			<Callout variant="warning" title="API keys do not bypass guest access">
+				<p>
+					Unlike most other authentication checks, guest access cannot be
+					bypassed with an <code>x-access-key</code> access token or a correct{" "}
+					<code>x-secure-header</code> value. The only valid credential is a
+					guest user session cookie. Function owners can still invoke the
+					function from the SHSF dashboard, which uses a separate execution
+					endpoint unaffected by this check.
+				</p>
+			</Callout>
 
 			<h2>Managing guest users</h2>
 			<ul>

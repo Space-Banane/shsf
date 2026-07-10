@@ -117,11 +117,11 @@ func main_user(args interface{}) (interface{}, error) {
     return map[string]string{"id": uuid.NewString()}, nil
 }`}</code>
 			</pre>
-			<Callout variant="note" title="go.sum is auto-generated">
+			<Callout variant="info" title="go.sum is generated automatically">
 				<p>
-					Run <code>go mod tidy</code> locally to generate <code>go.sum</code>,
-					then upload both files. SHSF will not generate <code>go.sum</code> for
-					you.
+					SHSF runs <code>go mod tidy</code> during the init phase, so{" "}
+					<code>go.sum</code> is created and updated for you. You only need to
+					provide <code>go.mod</code>.
 				</p>
 			</Callout>
 
