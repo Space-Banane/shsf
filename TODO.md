@@ -10,7 +10,7 @@
 - [x] Shift Enter Submits on modals (any modal) (add as a agent rule for the future)
 - [ ] Fix SHSF Global & Redo it
 - [x] Built-in MCP Server & ready to copy Agentic commands ("claude mcp xxxx", "openclaw mcp add xxxxx", and codex ofc) // Seperate Agents Page & usecases for agents using shsf
-- [ ] Add cron and more mcp tools
+- [x] Add cron and more mcp tools
 
 ## P1 - Priority 1 (High)
 - [x] Replace data transport layer between backend and functions with a more robust and safe solution.
@@ -20,8 +20,7 @@
 
 ## P2 - Priority 2 (Medium)
 - [x] Resolve most of the 83 warnings (no-explicit-any) in backend
-- [ ] Storage Limits for Function Data
-- [ ] Fully rework builtin docs
+- [ ] Fully rework builtin docs; Format pages, add and update the content based on the actual state code and features of the project. Add simple explainers and better examples, highlight warnings at the top of the page; etc etc
 - [x] Reworked Admin Panel (UI) - Add more features, make it more user friendly
     - Disable Guest Access
     - Disable External Access

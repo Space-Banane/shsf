@@ -15,6 +15,12 @@ import readFile from "./read_file";
 import writeFile from "./write_file";
 import deleteFile from "./delete_file";
 import renameFile from "./rename_file";
+import listTriggers from "./list_triggers";
+import createTrigger from "./create_trigger";
+import getTrigger from "./get_trigger";
+import updateTrigger from "./update_trigger";
+import deleteTrigger from "./delete_trigger";
+import runTriggerNow from "./run_trigger_now";
 import { McpToolDef } from "./shared";
 
 export type { McpToolResult, ToolContext, ToolHandler, McpToolDef } from "./shared";
@@ -37,6 +43,12 @@ export const tools: McpToolDef[] = [
 	writeFile,
 	deleteFile,
 	renameFile,
+	listTriggers,
+	createTrigger,
+	getTrigger,
+	updateTrigger,
+	deleteTrigger,
+	runTriggerNow,
 ];
 
 export const toolMap = new Map<string, McpToolDef>(tools.map((t) => [t.name, t]));
