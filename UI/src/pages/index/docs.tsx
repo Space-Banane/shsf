@@ -115,14 +115,15 @@ const lessons: {
 		identifier: "#0",
 		title: "Getting Started",
 		description:
-			"Learn how to set up and use SHSF for your serverless functions.",
+			"Deploy SHSF with Docker Compose, configure environment variables, and create your first account.",
 		link: "/docs/getting-started",
 	},
 	{
 		key: "my-first-function",
 		identifier: "#1",
 		title: "My First Function",
-		description: "Learn how to create your first function.",
+		description:
+			"Build a Discord Monday-greeting bot — covers creation, dependencies, env vars, and cron triggers.",
 		link: "/docs/my-first-function",
 	},
 	{
@@ -130,7 +131,7 @@ const lessons: {
 		identifier: "#2",
 		title: "Data Passing",
 		description:
-			"Learn how to pass data between triggers and functions using JSON payloads.",
+			"Explore the full args object: body, queries, headers, route, method, and raw_body.",
 		link: "/docs/data-passing",
 	},
 	{
@@ -138,7 +139,7 @@ const lessons: {
 		identifier: "#3",
 		title: "Custom Responses",
 		description:
-			"Learn how to create custom responses for your functions to handle different scenarios.",
+			"Control HTTP status codes, headers, and response body using the SHSF v2 response envelope.",
 		link: "/docs/custom-responses",
 	},
 	{
@@ -146,7 +147,7 @@ const lessons: {
 		identifier: "#4",
 		title: "Environment Variables",
 		description:
-			"Learn how to manage sensitive information like API keys using environment variables.",
+			"Store secrets and config outside your code — at the account level or per-function, live-updated.",
 		link: "/docs/environment-variables",
 	},
 	{
@@ -154,21 +155,23 @@ const lessons: {
 		identifier: "#5",
 		title: "Secure Headers",
 		description:
-			"Learn how to use secure headers to protect your functions from unauthorized access.",
+			"Require an x-secure-header value on every HTTP request to lock down public endpoints.",
 		link: "/docs/secure-headers",
 	},
 	{
 		key: "persistent-data",
 		identifier: "#6",
 		title: "Persistent Data",
-		description: "Learn how to store and manage data for your functions.",
+		description:
+			"Persist data across invocations using /app/ filesystem storage or the built-in db_com key-value helper.",
 		link: "/docs/persistent-data",
 	},
 	{
 		key: "redirects",
 		identifier: "#7",
 		title: "Redirects",
-		description: "Learn how to implement HTTP redirects in your functions.",
+		description:
+			"Issue 301 or 302 HTTP redirects by returning a _location field in the v2 response envelope.",
 		link: "/docs/redirects",
 	},
 	{
@@ -176,7 +179,7 @@ const lessons: {
 		identifier: "#8",
 		title: "Raw Body",
 		description:
-			"Learn how to use args.raw_body for binary data and file uploads.",
+			"Handle binary uploads and non-JSON payloads via args.raw_body — a Latin-1 binary string.",
 		link: "/docs/raw-body",
 	},
 	{
@@ -184,7 +187,7 @@ const lessons: {
 		identifier: "#9",
 		title: "User Interfaces",
 		description:
-			"Learn how to serve HTML files as user interfaces from your functions.",
+			"Serve HTML pages from functions by setting Content-Type: text/html and returning HTML in _res.",
 		link: "/docs/user-interfaces",
 	},
 	{
@@ -192,14 +195,15 @@ const lessons: {
 		identifier: "#10",
 		title: "Docker Mount",
 		description:
-			"Learn how to use the Docker mount option to create and modify containers on the host.",
+			"Mount /var/run/docker.sock to give a function full control over Docker on the host — high risk.",
 		link: "/docs/docker-mount",
 	},
 	{
 		key: "serve-only",
 		identifier: "#11",
 		title: "Serve Only HTML",
-		description: "Learn how to serve only an HTML file from your function.",
+		description:
+			"Set a .html file as the startup file to serve it directly, bypassing all runtime machinery.",
 		link: "/docs/serve-only",
 	},
 	{
@@ -207,7 +211,7 @@ const lessons: {
 		identifier: "#12",
 		title: "Access Tokens",
 		description:
-			"Learn how to generate and use API access tokens for secure automation and integrations.",
+			"Generate long-lived API tokens for scripts and integrations — sent via x-access-key header.",
 		link: "/docs/access-tokens",
 	},
 	{
@@ -215,7 +219,7 @@ const lessons: {
 		identifier: "#13",
 		title: "CLI Usage",
 		description:
-			"Learn how to use the shsf-cli to manage your functions, files, and environments from the command line.",
+			"Use shsf-cli to sync files, inspect functions, manage env vars, and run debug executions.",
 		link: "/docs/cli",
 	},
 	{
@@ -223,7 +227,7 @@ const lessons: {
 		identifier: "#14",
 		title: "Database Communication",
 		description:
-			"Learn how to use the Python database communication interface for fast persistent storage and retrieval.",
+			"Built-in key-value storage for Python and Go — no token, no HTTP client, TTL expiry supported.",
 		link: "/docs/db-com",
 	},
 	{
@@ -231,7 +235,7 @@ const lessons: {
 		identifier: "#15",
 		title: "Routing",
 		description:
-			"Learn how to map multiple routes to a single function and best practices for route handling in SHSF.",
+			"Handle multiple endpoints in one function using args.route — the single path segment after the URL.",
 		link: "/docs/routing",
 	},
 	{
@@ -239,7 +243,7 @@ const lessons: {
 		identifier: "#16",
 		title: "Custom CORS",
 		description:
-			"Learn how to allow or block specific origins for each function.",
+			"Set a per-function allowlist of trusted origins to control browser cross-origin access.",
 		link: "/docs/custom-cors",
 	},
 	{
@@ -247,7 +251,7 @@ const lessons: {
 		identifier: "#17",
 		title: "Guest Users",
 		description:
-			"Learn how to create and assign guest users for function-specific authentication.",
+			"Create credential pairs tied to a single function for controlled collaborator access.",
 		link: "/docs/guest-users",
 	},
 	{
@@ -255,7 +259,7 @@ const lessons: {
 		identifier: "#18",
 		title: "Execution Alias",
 		description:
-			"Learn how to use human-readable aliases to invoke functions via the Browser.",
+			"Assign a human-readable alias to replace the UUID in your function's invocation URL.",
 		link: "/docs/execution-alias",
 	},
 	{
@@ -263,7 +267,7 @@ const lessons: {
 		identifier: "#19",
 		title: "FFmpeg Installation",
 		description:
-			"Learn how to enable automatic FFmpeg installation for media processing in your functions.",
+			"Auto-install FFmpeg on first container init using a marker file — video and audio processing ready.",
 		link: "/docs/ffmpeg-install",
 	},
 	{
@@ -271,7 +275,7 @@ const lessons: {
 		identifier: "#20",
 		title: "Go Runtime",
 		description:
-			"Learn how to set up and use the Go runtime for your serverless functions.",
+			"Compile-once, cache-forever Go functions with module support, db_com, and custom responses.",
 		link: "/docs/go-runtime",
 	},
 	{
@@ -287,7 +291,7 @@ const lessons: {
 		identifier: "#22",
 		title: "Kickoff",
 		description:
-			"KICKOFF your new functions with AI-powered code generation.",
+			"AI-powered code generation via OpenRouter — describe your function and get production-ready files.",
 		link: "/docs/kickoff",
 	},
 	{
@@ -295,23 +299,23 @@ const lessons: {
 		identifier: "#23",
 		title: "VERSION // CONTROL",
 		description:
-			"Deploy functions directly from a Git repository. Clone, pull, and keep your code in sync — automatically or on demand.",
+			"Deploy from a Git repo — clone, manual pull, periodic pull, monorepo source directories.",
 		link: "/docs/version-control",
 	},
 	{
 		key: "clone-function",
-		identifier: "#23",
+		identifier: "#24",
 		title: "Cloning Functions",
 		description:
-			"Duplicate any function — including all its files and settings — into the same or a different namespace.",
+			"Duplicate a function with all files, settings, and env vars — aliases, git config, and logs excluded.",
 		link: "/docs/clone-function",
 	},
 	{
 		key: "opencv-install",
-		identifier: "#24",
+		identifier: "#25",
 		title: "OpenCV Installation",
 		description:
-			"Learn how to enable automatic OpenCV installation for computer vision in your functions.",
+			"Auto-install python3-opencv on first init via a marker file — computer vision in Python functions.",
 		link: "/docs/opencv-install",
 	},
 ];

@@ -1,98 +1,113 @@
 import { DocsContentShell } from "./DocsContentShell";
+import { Callout, DocHeader, NextStep } from "./_components";
 
 export const GuestUsersDocPage = () => {
 	return (
 		<DocsContentShell>
-				<h1 className="text-3xl font-bold text-primary mb-2">
-					Guest Users - Function-Specific Access
-				</h1>
+			<DocHeader title="Guest Users">
+				Guest users are lightweight credentials you create and attach to a
+				specific function. Once guest users are configured on a function,
+				only callers with valid guest credentials can invoke it over HTTP —
+				API keys and secure headers do not bypass this requirement.
+			</DocHeader>
 
-				<p className="mt-3 text-lg text-text/90 mb-6">
-					SHSF allows function owners to create and assign <b>guest users</b> to
-					individual functions. Guest users are identified by an email, display name,
-					and password. This enables secure, limited access for collaborators or
-					external users without granting full account privileges.
+			<Callout variant="warning" title="Authentication becomes required once a guest user is added">
+				<p>
+					Adding a guest user to a function enables authentication enforcement.
+					Public/unauthenticated callers will be prompted for credentials. Make
+					sure this is intentional before adding the first guest user.
 				</p>
+			</Callout>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-4">
-					Why Use Guest Users?
-				</h2>
-				<ul className="list-disc list-inside mb-6 text-text/90 space-y-2">
-					<li>
-						<b>Granular Access Control:</b> Limit access to specific functions without
-						exposing your main account or sensitive data.
-					</li>
-					<li>
-						<b>Collaboration:</b> Allow external users, clients, or team members to
-						interact with a function securely, without giving them full platform
-						access.
-					</li>
-					<li>
-						<b>Security:</b> Reduce risk by isolating guest credentials to only the
-						functions they need.
-					</li>
-					<li>
-						<b>Convenience:</b> Quickly grant and revoke access for temporary users or
-						one-off integrations.
-					</li>
-				</ul>
+			<h2>Why use guest users?</h2>
+			<ul>
+				<li>
+					<strong>Granular access control</strong> — give a collaborator or
+					client access to one specific function without an SHSF account.
+				</li>
+				<li>
+					<strong>No full account exposure</strong> — guest credentials only
+					unlock their assigned function, nothing else.
+				</li>
+				<li>
+					<strong>Easy to revoke</strong> — delete a guest user and their access
+					is immediately gone.
+				</li>
+			</ul>
 
-				<div className="mb-6 p-4 bg-yellow-900/20 border-l-4 border-yellow-400 rounded">
-					<b>Note:</b> Once a function has a guest user assigned, authentication is
-					required to access it. Users must authenticate via guest account, secure
-					header, or access key.
-				</div>
+			<h2>Creating a guest user</h2>
+			<ol>
+				<li>Open your function and go to the <strong>Guest Users</strong> tab.</li>
+				<li>Click <strong>Create Guest User</strong>.</li>
+				<li>
+					Enter an email address, display name, and a strong password. These
+					are the credentials the guest will use to authenticate.
+				</li>
+				<li>Click <strong>Create</strong>.</li>
+			</ol>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-4">
-					How Guest User Access Works
-				</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90 space-y-2">
-					<li>
-						Function owners can create guest users with an email, display name, and
-						password.
-					</li>
-					<li>Guest users are assigned to specific functions, not globally.</li>
-					<li>
-						When another user tries to access a protected function, SHSF prompts for
-						the guest user's email and password.
-					</li>
-					<li>
-						Authentication is enforced for any function with guest users assigned.
-					</li>
-					<li>
-						Alternative authentication methods (secure header or access key) are also
-						supported.
-					</li>
-				</ul>
+			<h2>How authentication works</h2>
+			<p>
+				When <code>guest_access</code> is enabled (i.e. at least one guest user
+				exists), SHSF's execution middleware enforces the following rule on every
+				request to <code>/exec/</code>:
+			</p>
+			<ol>
+				<li>
+					Any prior permission state — including a valid{" "}
+					<code>x-access-key</code> API token or a correct{" "}
+					<code>x-secure-header</code> — is <strong>overridden</strong>.
+					Permission is reset to denied.
+				</li>
+				<li>
+					<strong>Only a valid guest session cookie</strong> can restore access.
+					The guest user must have logged in with their email and password to
+					obtain this cookie.
+				</li>
+			</ol>
+			<Callout variant="warning" title="API keys do not bypass guest access">
+				<p>
+					Unlike most other authentication checks, guest access cannot be
+					bypassed with an <code>x-access-key</code> access token or a correct{" "}
+					<code>x-secure-header</code> value. The only valid credential is a
+					guest user session cookie. Function owners can still invoke the
+					function from the SHSF dashboard, which uses a separate execution
+					endpoint unaffected by this check.
+				</p>
+			</Callout>
 
-				<h2 className="text-xl font-bold text-primary mt-8 mb-3">Best Practices</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>
-						Assign guest users only to functions that require restricted access.
-					</li>
-					<li>Use strong passwords for guest accounts.</li>
-					<li>Regularly review and update guest user assignments.</li>
-					<li>
-						Inform users about authentication requirements for protected functions.
-					</li>
-				</ul>
+			<h2>Managing guest users</h2>
+			<ul>
+				<li>
+					View all guest users for a function in the{" "}
+					<strong>Guest Users</strong> tab.
+				</li>
+				<li>
+					Delete a guest user to immediately revoke their access.
+				</li>
+				<li>
+					You can have multiple guest users per function — useful for different
+					collaborators or environments.
+				</li>
+			</ul>
 
-				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-					<h2 className="text-xl font-bold text-primary mb-3">
-						🚀 Next Step - Execution Alias
-					</h2>
-					<p className="text-text/90 mb-4">
-						Ugly UUID urls? Learn how to set human-readable execution aliases for your
-						functions to make invocation easier via the Browser.
-					</p>
-					<a
-						href="/docs/execution-alias"
-						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
-					>
-						#18 Execution Alias
-						<span className="text-lg">→</span>
-					</a>
-				</div>
+			<h2>Best practices</h2>
+			<ul>
+				<li>Use strong, unique passwords for each guest user.</li>
+				<li>
+					Don't share a single guest account between multiple people — create
+					individual accounts so you can revoke access per-person.
+				</li>
+				<li>
+					Review guest user assignments periodically and remove accounts that
+					are no longer needed.
+				</li>
+			</ul>
+
+			<NextStep href="/docs/execution-alias" label="#18 Execution Alias">
+				Next: replace the UUID in your function's invocation URL with a
+				human-readable alias.
+			</NextStep>
 		</DocsContentShell>
 	);
 };

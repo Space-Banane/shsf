@@ -20,7 +20,7 @@
 
 ## P2 - Priority 2 (Medium)
 - [x] Resolve most of the 83 warnings (no-explicit-any) in backend
-- [ ] Fully rework builtin docs; Format pages, add and update the content based on the actual state code and features of the project. Add simple explainers and better examples, highlight warnings at the top of the page; etc etc
+- [x] Fully rework builtin docs; Format pages, add and update the content based on the actual state code and features of the project. Add simple explainers and better examples, highlight warnings at the top of the page; etc etc
 - [x] Reworked Admin Panel (UI) - Add more features, make it more user friendly
     - Disable Guest Access
     - Disable External Access

@@ -1,77 +1,102 @@
 import { DocsContentShell } from "./DocsContentShell";
+import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
 
 export const ServeOnlyHtmlPage = () => {
 	return (
 		<DocsContentShell>
-				<h1 className="text-3xl font-bold text-primary mb-2">Serve Only HTML</h1>
-				<p className="mt-3 text-lg text-text/90 mb-6">
-					SHSF allows you to create a function that serves{" "}
-					<b>only a single HTML file</b> as its response. This disables most dynamic
-					features and is ideal for static landing pages, maintenance notices, or
-					simple documentation.
+			<DocHeader title="Serve Only HTML">
+				SHSF can serve a single <code>.html</code> file directly, bypassing
+				all runtime machinery. There is no Python/Go process, no{" "}
+				<code>main(args)</code> entrypoint — just the file, streamed to the
+				browser on every request.
+			</DocHeader>
+
+			<Callout variant="info" title="How SHSF detects serve-only mode">
+				<p>
+					If the function's <strong>startup file</strong> ends in{" "}
+					<code>.html</code>, SHSF automatically switches to serve-only mode.
+					No toggle or special setting is required.
 				</p>
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					How to Enable Serve Only HTML
-				</h2>
-				<ol className="list-decimal list-inside mb-4 text-text/90 space-y-2">
-					<li>
-						<b>Create a new function</b> (or edit an existing one).
-					</li>
-					<li>
-						In the file editor, <b>delete all files except your HTML file</b> (e.g.,{" "}
-						<code>index.html</code>).
-					</li>
-					<li>
-						<b>Set your HTML file as the startup file</b> in the function settings
-						(e.g., set <code>index.html</code> as the entry/startup file).
-					</li>
-				</ol>
-				<span className="text-green-600 font-semibold">Boom!</span> SHSF
-				automatically detects serve-only mode and serves your HTML file.
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					Example: Minimal HTML Function
-				</h2>
-				<div className="mb-8">
-					<pre className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 text-white rounded-lg p-6 overflow-x-auto text-sm shadow-lg">
-						{`<!-- index.html -->
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>My Static Page</title>
-  </head>
-  <body>
-    <h1>Hello from SHSF!</h1>
-    <p>This function serves only this HTML file.</p>
-  </body>
-</html>
-`}
-					</pre>
-					<p className="text-text/80 mt-2">
-						Create your HTML file, set it as the startup file, and boom you're done!
-					</p>
-				</div>
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					What Features Are Disabled?
-				</h2>
-				<p className="mb-4 text-text/90">
-					Almost all of them. Check in the UI on what is enabled and what is not.
+			</Callout>
+
+			<h2>How to set it up</h2>
+			<ol>
+				<li>
+					Create (or update) a function and set the{" "}
+					<strong>Startup File</strong> field to a name ending in{" "}
+					<code>.html</code>, e.g. <code>index.html</code>.
+				</li>
+				<li>
+					Upload your HTML file to the function via the file manager.
+				</li>
+				<li>
+					That's it. SHSF detects the <code>.html</code> extension and serves
+					the file directly.
+				</li>
+			</ol>
+
+			<h2>Example HTML file</h2>
+			<CodeCaption>index.html — a minimal static page</CodeCaption>
+			<pre>
+				<code>{`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Static Page</title>
+  <style>body { font-family: sans-serif; padding: 2rem; }</style>
+</head>
+<body>
+  <h1>Hello from SHSF!</h1>
+  <p>This is a static page served directly — no server-side code.</p>
+</body>
+</html>`}</code>
+			</pre>
+
+			<h2>What is disabled in serve-only mode</h2>
+			<p>
+				Because no runtime container is started, several dynamic features are
+				unavailable:
+			</p>
+			<ul>
+				<li>No <code>main(args)</code> entrypoint — function code is not executed</li>
+				<li>No environment variable injection at runtime</li>
+				<li>No <code>args</code> object, routes, or query parameters handling</li>
+				<li>No dependency installation (<code>requirements.txt</code>, <code>go.mod</code>)</li>
+				<li>No custom response envelope (<code>_shsf v2</code>)</li>
+				<li>No db_com storage access</li>
+				<li>FFmpeg and OpenCV installation options are automatically disabled</li>
+			</ul>
+			<Callout variant="tip" title="Check the UI for the live status">
+				<p>
+					The function dashboard marks unavailable features clearly when
+					serve-only mode is active.
 				</p>
-				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-					<h2 className="text-xl font-bold text-primary mb-3">
-						🚀 Next Step - Access Tokens
-					</h2>
-					<p className="text-text/90 mb-4">
-						Learn how to generate and use API access tokens for secure automation and
-						integrations.
-					</p>
-					<a
-						href="/docs/access-tokens"
-						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
-					>
-						#12 Access Tokens
-						<span className="text-lg">→</span>
-					</a>
-				</div>
+			</Callout>
+
+			<h2>When to use it</h2>
+			<ul>
+				<li>Static landing pages or maintenance notices</li>
+				<li>Simple documentation pages or status pages</li>
+				<li>
+					Front-end apps that call <em>other</em> SHSF functions for their API
+					(the HTML is static; logic lives in a separate function)
+				</li>
+			</ul>
+			<Callout variant="note" title="Need dynamic HTML?">
+				<p>
+					If you need server-side rendering or dynamic data injection, use a
+					regular Python/Go function and return the HTML via the{" "}
+					<a href="/docs/user-interfaces" className="text-blue-400 hover:text-blue-300">
+						User Interfaces
+					</a>{" "}
+					pattern instead.
+				</p>
+			</Callout>
+
+			<NextStep href="/docs/access-tokens" label="#12 Access Tokens">
+				Next: generate API access tokens to authenticate scripts and
+				third-party integrations without using your password.
+			</NextStep>
 		</DocsContentShell>
 	);
 };
