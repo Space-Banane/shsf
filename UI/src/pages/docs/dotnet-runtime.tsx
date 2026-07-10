@@ -1,80 +1,77 @@
 import { DocsContentShell } from "./DocsContentShell";
+import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
 
 export const DocsDotnetRuntime = () => {
 	return (
 		<DocsContentShell>
-			<h1 className="text-3xl font-bold text-primary mb-2">.NET Runtime</h1>
-			<p className="mt-3 text-lg text-text/90 mb-8">
-				Learn how to build SHSF functions in C# with the generated{" "}
-				<code>SHSF</code> helpers for payload loading, responses, and database
-				communication.
-			</p>
+			<DocHeader title=".NET Runtime">
+				SHSF supports multi-file C# projects. Save <code>.cs</code>,{" "}
+				<code>.csproj</code>, and <code>.sln</code> files in the editor and
+				run them inside a .NET SDK container. Generated helper classes under
+				the <code>SHSF</code> namespace handle payload loading, responses,
+				and database communication.
+			</DocHeader>
 
-			<h2 className="text-2xl font-bold text-primary mt-8 mb-6">Overview</h2>
-			<p className="mb-6 text-text/90">
-				SHSF supports the .NET SDK runtime for multi-file C# projects. You can save
-				your <code>.cs</code>, <code>.csproj</code>, and <code>.sln</code> files
-				directly in the editor, then run them inside a .NET SDK container.
-			</p>
+			<Callout variant="info" title="Startup file is disabled for .NET">
+				<p>
+					SHSF resolves the runnable project from your <code>.csproj</code>{" "}
+					files automatically. The startup-file field has no effect for .NET
+					functions.
+				</p>
+			</Callout>
 
-			<div className="mb-6 p-4 bg-cyan-900/20 border-l-4 border-cyan-400 rounded">
-				<b>Important:</b> SHSF resolves the runnable project from your{" "}
-				<code>.csproj</code> files automatically. The startup-file field is disabled
-				for .NET functions on purpose.
-			</div>
-
-			<h2 className="text-2xl font-bold text-primary mt-8 mb-6">
-				Supported .NET Versions
-			</h2>
-			<ul className="list-disc list-inside mb-6 text-text/90 space-y-2">
-				<li>.NET 8</li>
-				<li>.NET 9</li>
-				<li>.NET 10</li>
-			</ul>
-
-			<h2 className="text-2xl font-bold text-primary mt-8 mb-6">
-				How SHSF Runs .NET Functions
-			</h2>
-			<ul className="list-disc list-inside mb-6 text-text/90 space-y-2">
+			<h2>Supported .NET versions</h2>
+			<ul>
 				<li>
-					Development UI runs use <code>dotnet run</code>.
+					<code>mcr.microsoft.com/dotnet/sdk:8.0</code> — .NET 8
 				</li>
 				<li>
-					HTTP routes, cron jobs, and production-style trigger execution use{" "}
-					<code>dotnet run --no-build</code>.
+					<code>mcr.microsoft.com/dotnet/sdk:9.0</code> — .NET 9
 				</li>
 				<li>
-					Use the <code>.NET Build</code> button in Function Detail after changing
-					project files and before relying on production routes.
-				</li>
-				<li>
-					SHSF captures stdout and stderr as logs. Return the response with{" "}
-					<code>SHSF.Runtime.Return(...)</code>.
+					<code>mcr.microsoft.com/dotnet/sdk:10.0</code> — .NET 10
 				</li>
 			</ul>
 
-			<h2 className="text-2xl font-bold text-primary mt-8 mb-6">
-				Generated SHSF Helpers
-			</h2>
-			<p className="mb-4 text-text/90">
-				Every .NET function gets generated helper classes under the{" "}
-				<code>SHSF</code> namespace:
-			</p>
-			<ul className="list-disc list-inside mb-6 text-text/90 space-y-2">
+			<h2>How SHSF runs .NET functions</h2>
+			<ul>
 				<li>
-					<code>SHSF.Runtime</code> for payload loading and response output
+					<strong>UI Run button</strong> — uses <code>dotnet run</code>{" "}
+					(builds and runs).
 				</li>
 				<li>
-					<code>SHSF.Database</code> for persistent storage communication
+					<strong>HTTP/cron invocations</strong> — uses{" "}
+					<code>dotnet run --no-build</code> for speed. Click the{" "}
+					<strong>.NET Build</strong> button in the function dashboard after
+					changing project files.
+				</li>
+				<li>
+					Stdout and stderr are captured as execution logs.
+				</li>
+				<li>
+					Return your response with <code>SHSF.Runtime.Return(...)</code> — not
+					via <code>Console.WriteLine</code>.
 				</li>
 			</ul>
 
-			<h2 className="text-2xl font-bold text-primary mt-8 mb-6">
-				Example Project Files
-			</h2>
+			<h2>Generated helpers</h2>
+			<p>
+				Every .NET function gets two auto-generated helper classes:
+			</p>
+			<ul>
+				<li>
+					<code>SHSF.Runtime</code> — <code>LoadPayload()</code>,{" "}
+					<code>LoadPayloadJson&lt;T&gt;()</code>, and <code>Return(...)</code>
+				</li>
+				<li>
+					<code>SHSF.Database</code> — key-value storage via the internal
+					transport (no API token needed)
+				</li>
+			</ul>
 
-			<h3 className="text-xl font-semibold text-primary mb-4">1. Example .csproj</h3>
-			<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-6">
+			<h2>Example project files</h2>
+			<CodeCaption>MyFunction.csproj</CodeCaption>
+			<pre>
 				<code>{`<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -85,183 +82,99 @@ export const DocsDotnetRuntime = () => {
 </Project>`}</code>
 			</pre>
 
-			<h3 className="text-xl font-semibold text-primary mb-4">
-				2. Basic Program.cs
-			</h3>
-			<p className="mb-4 text-text/90">
-				Use <code>SHSF.Runtime.LoadPayload()</code> to read the raw payload file and{" "}
-				<code>SHSF.Runtime.Return(...)</code> to send the response back to SHSF.
-			</p>
-			<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-6">
+			<CodeCaption>Program.cs — minimal function</CodeCaption>
+			<pre>
 				<code>{`using SHSF;
 
 var payload = Runtime.LoadPayload();
-Console.Error.WriteLine("Raw payload length: " + payload.Length);
-
-Runtime.Return(new
-{
-    message = "Hello from .NET",
-    payload
-});`}</code>
+Runtime.Return(new { message = "Hello from .NET!", payloadSize = payload.Length });`}</code>
 			</pre>
 
-			<h3 className="text-xl font-semibold text-primary mb-4">
-				3. Deserialize JSON Payloads
-			</h3>
-			<p className="mb-4 text-text/90">
-				Use <code>LoadPayloadJson&lt;T&gt;()</code> when you expect JSON input.
-			</p>
-			<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-6">
+			<h2>Deserialising the payload</h2>
+			<CodeCaption>Program.cs — typed payload</CodeCaption>
+			<pre>
 				<code>{`using SHSF;
 
-public sealed class RunPayload
+public sealed class Input
 {
-    public string? Name { get; set; }
+    public string? Name  { get; set; }
     public string? Route { get; set; }
 }
 
-var payload = Runtime.LoadPayloadJson<RunPayload>() ?? new RunPayload();
+var input = Runtime.LoadPayloadJson<Input>() ?? new Input();
 
 Runtime.Return(new
 {
-    greeting = $"Hello, {payload.Name ?? "world"}!",
-    route = payload.Route ?? "default"
+    greeting = $"Hello, {input.Name ?? "world"}!",
+    route    = input.Route ?? "default"
 });`}</code>
 			</pre>
 
-			<h3 className="text-xl font-semibold text-primary mb-4">
-				4. Custom HTTP Responses
-			</h3>
-			<p className="mb-4 text-text/90">
-				You can still return SHSF custom response envelopes from C#.
-			</p>
-			<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-6">
+			<h2>Custom HTTP responses</h2>
+			<CodeCaption>Program.cs — v2 envelope</CodeCaption>
+			<pre>
 				<code>{`using SHSF;
 
 Runtime.Return(new
 {
-    _shsf = "v2",
-    _code = 201,
+    _shsf    = "v2",
+    _code    = 201,
     _headers = new Dictionary<string, string>
     {
         ["Content-Type"] = "application/json",
         ["X-Powered-By"] = "SHSF .NET"
     },
-    _res = new
-    {
-        status = "created",
-        runtime = ".NET"
-    }
+    _res = new { status = "created", runtime = ".NET" }
 });`}</code>
 			</pre>
 
-			<h2 className="text-2xl font-bold text-primary mt-8 mb-6">
-				Using The Database Helper
-			</h2>
-			<p className="mb-4 text-text/90">
-				SHSF generates a <code>SHSF.Database</code> class for .NET functions so you
-				can read and write persistent data without building your own HTTP client or
-				shipping API tokens in your function code.
-			</p>
-
-			<h3 className="text-xl font-semibold text-primary mb-4">
-				Create and Write Data
-			</h3>
-			<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-6">
+			<h2>Database communication</h2>
+			<CodeCaption>Program.cs — create, write, read</CodeCaption>
+			<pre>
 				<code>{`using SHSF;
 
 var db = new Database();
 
-await db.CreateStorage("users", "Stores user profile data");
-await db.Set("users", "alice", new
-{
-    name = "Alice",
-    tier = "pro"
-});
-
-Runtime.Return(new { status = "saved" });`}</code>
-			</pre>
-
-			<h3 className="text-xl font-semibold text-primary mb-4">Read Data</h3>
-			<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-6">
-				<code>{`using SHSF;
-
-var db = new Database();
+await db.CreateStorage("users", "User profile data");
+await db.Set("users", "alice", new { name = "Alice", tier = "pro" });
 var user = await db.Get("users", "alice");
 
-Runtime.Return(new
-{
-    user
-});`}</code>
+Runtime.Return(new { user });`}</code>
 			</pre>
 
-			<h3 className="text-xl font-semibold text-primary mb-4">
-				Check If A Key Exists
-			</h3>
-			<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-6">
+			<CodeCaption>Program.cs — list, exists, delete</CodeCaption>
+			<pre>
 				<code>{`using SHSF;
 
 var db = new Database();
+var items  = await db.ListItems("users");
 var exists = await db.Exists("users", "alice");
-
-Runtime.Return(new
-{
-    exists
-});`}</code>
-			</pre>
-
-			<h3 className="text-xl font-semibold text-primary mb-4">
-				List and Delete Items
-			</h3>
-			<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-6">
-				<code>{`using SHSF;
-
-var db = new Database();
-var items = await db.ListItems("users");
 await db.DeleteItem("users", "alice");
 
-Runtime.Return(new
-{
-    items
-});`}</code>
+Runtime.Return(new { items, exists });`}</code>
 			</pre>
 
-			<h2 className="text-2xl font-bold text-primary mt-8 mb-6">
-				Logging and Responses
-			</h2>
-			<p className="mb-4 text-text/90">
-				Write normal logs with <code>Console.WriteLine</code> or{" "}
-				<code>Console.Error.WriteLine</code>. Return the actual function response
-				only with <code>SHSF.Runtime.Return(...)</code>.
+			<h2>Logging</h2>
+			<p>
+				Use <code>Console.WriteLine</code> or{" "}
+				<code>Console.Error.WriteLine</code> for log output. Only call{" "}
+				<code>Runtime.Return()</code> once per invocation — that is the
+				function's response.
 			</p>
-			<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-6">
+			<CodeCaption>Program.cs — logging</CodeCaption>
+			<pre>
 				<code>{`using SHSF;
 
-Console.WriteLine("Starting request processing...");
-Console.Error.WriteLine("This is also captured as a log line.");
+Console.WriteLine("Starting...");
+Console.Error.WriteLine("Both stdout and stderr appear in logs.");
 
-Runtime.Return(new
-{
-    ok = true
-});`}</code>
+Runtime.Return(new { ok = true });`}</code>
 			</pre>
 
-			<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-				<h2 className="text-xl font-bold text-primary mb-3">
-					🚀 Next Step - Kickoff
-				</h2>
-				<p className="text-text/90 mb-4">
-					Now that you know the .NET runtime contract, you can generate starter
-					files faster with SHSF Kickoff.
-				</p>
-				<a
-					href="/docs/kickoff"
-					className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
-				>
-					#22 Kickoff
-					<span className="text-lg">→</span>
-				</a>
-			</div>
+			<NextStep href="/docs/kickoff" label="#22 Kickoff">
+				Next: use SHSF's AI code generation to scaffold function files in
+				Python, Go, or .NET from a plain-English description.
+			</NextStep>
 		</DocsContentShell>
 	);
 };

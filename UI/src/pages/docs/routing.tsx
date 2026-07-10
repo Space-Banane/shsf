@@ -1,109 +1,134 @@
 import { DocsContentShell } from "./DocsContentShell";
+import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
 
 export const RoutingDocPage = () => {
 	return (
 		<DocsContentShell>
-				<h1 className="text-3xl font-bold text-primary mb-2">Routing</h1>
-				<p className="mt-3 text-lg text-text/90 mb-6">
-					SHSF allows you to map multiple routes to a single function, making it easy
-					to handle different endpoints with one function. This is more efficient and
-					maintainable than using body arguments to distinguish between actions.
+			<DocHeader title="Routing">
+				A single SHSF function can serve multiple logical endpoints by reading
+				the <code>route</code> argument from <code>args</code>. The route is
+				the path segment immediately after the function URL — no framework,
+				no config file needed.
+			</DocHeader>
+
+			<Callout variant="warning" title="Single segment only">
+				<p>
+					Only one path segment after the function URL is captured. Deep paths
+					like <code>/exec/func/a/b/c</code> are not supported — only the first
+					segment (<code>a</code>) becomes the route. When no segment is
+					present the value is <code>"default"</code> (not <code>"/"</code>).
+					The value never includes a leading slash.
 				</p>
+			</Callout>
 
-				<div className="mb-6 p-4 bg-yellow-900/20 border-l-4 border-yellow-400 rounded">
-					<b>Note:</b> Routing is handled by the <code>route</code> argument in{" "}
-					<code>args</code>. The default route is <code>"default"</code>. The{" "}
-					<code>route</code> argument never includes a slash, and only supports a
-					single path segment after your function's main URL.
-				</div>
+			<h2>How routing works</h2>
+			<CodeCaption>URL → route value</CodeCaption>
+			<pre>
+				<code>{`GET  /exec/my-func            → route = "default"
+GET  /exec/my-func/users      → route = "users"
+POST /exec/my-func/register   → route = "register"
+GET  /exec/my-func/health     → route = "health"`}</code>
+			</pre>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-4">Quick Example</h2>
-				<p className="mb-4 text-text/90">
-					Route handling in your function might look like this:
-				</p>
-				<pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm mb-6">
-					<code>{`route = args.get("route", "")
-if route == "register":
-    return RouteHandler.register() # Or any other logic
-elif route == "login":
-    return RouteHandler.login() # Or any other logic
-else:
-    return RouteHandler.default() # Or any other logic; Maybe even a 404 if you don't have a interface for this route`}</code>
-				</pre>
+			<h2>Dispatching routes (Python)</h2>
+			<CodeCaption>Python — simple dispatcher</CodeCaption>
+			<pre>
+				<code>{`def main(args):
+    route = args.get("route", "default")
 
-				<h2 className="text-xl font-bold text-primary mt-8 mb-3">
-					Why Use Routes?
-				</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>
-						Cleaner and more maintainable than using body arguments to switch logic.
-					</li>
-					<li>
-						Lets you expose multiple endpoints (e.g., <code>/register</code>,{" "}
-						<code>/login</code>) with a single function.
-					</li>
-					<li>Improves clarity for API consumers and documentation.</li>
-				</ul>
+    if route == "register":
+        return handle_register(args)
+    elif route == "login":
+        return handle_login(args)
+    elif route == "health":
+        return {"ok": True}
+    else:
+        return {"_shsf": "v2", "_code": 404, "_res": {"error": "not found"}}
 
-				<h2 className="text-xl font-bold text-primary mt-8 mb-3">
-					How Routing Works
-				</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>
-						The <code>route</code> argument is set based on the path after your
-						function's main URL.
-					</li>
-					<li>
-						Only one path segment is supported (e.g.,{" "}
-						<code>.../exec/&lt;id&gt;/&lt;token&gt;/register</code>).
-					</li>
-					<li>
-						Subroutes (e.g.,{" "}
-						<code>/thiswouldwork/from_that_slash_on_my_left_it_would_not</code>) are{" "}
-						<b>not</b> supported yet.
-					</li>
-					<li>
-						The default route is <code>"default"</code>, not <code>"/"</code>.
-					</li>
-					<li>
-						The <code>route</code> argument never includes a slash.
-					</li>
-				</ul>
+def handle_register(args):
+    # registration logic
+    return {"_shsf": "v2", "_code": 201, "_res": {"registered": True}}
 
-				<h2 className="text-xl font-bold text-primary mt-8 mb-3">
-					Best Practices & Notes
-				</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>
-						Always check for the <code>route</code> argument in <code>args</code> and
-						provide a sensible default.
-					</li>
-					<li>
-						Use clear, short route names for best clarity. Try to keep them longer if
-						you have a bunch of them, or similar ones.
-					</li>
-					<li>Document your available routes for users of your function.</li>
-					<li>
-						Remember: Only one route segment is supported after the function URL.
-					</li>
-				</ul>
+def handle_login(args):
+    # login logic
+    return {"_shsf": "v2", "_code": 200, "_res": {"token": "..."}}`}</code>
+			</pre>
 
-				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-					<h2 className="text-xl font-bold text-primary mb-3">
-						🚀 Next Step - Custom CORS
-					</h2>
-					<p className="text-text/90 mb-4">
-						The Error Web Devs hate the most, CORS! Learn how to allow or block
-						specific origins for each function.
-					</p>
-					<a
-						href="/docs/custom-cors"
-						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
-					>
-						#16 Custom CORS
-						<span className="text-lg">→</span>
-					</a>
-				</div>
+			<h2>Dispatching routes (Go)</h2>
+			<CodeCaption>Go — type-assert args and switch on route</CodeCaption>
+			<pre>
+				<code>{`package main
+
+import "fmt"
+
+func main_user(args interface{}) (interface{}, error) {
+    payload, _ := args.(map[string]interface{})
+    route, _ := payload["route"].(string)
+    if route == "" { route = "default" }
+
+    switch route {
+    case "users":
+        return getUsers(payload)
+    case "health":
+        return map[string]bool{"ok": true}, nil
+    default:
+        return map[string]interface{}{
+            "_shsf": "v2", "_code": 404,
+            "_res": fmt.Sprintf("unknown route: %s", route),
+        }, nil
+    }
+}`}</code>
+			</pre>
+
+			<h2>Combining routes with HTTP methods</h2>
+			<p>
+				Use <code>args["method"]</code> together with the route to build
+				REST-style endpoints:
+			</p>
+			<CodeCaption>Python — RESTful handler</CodeCaption>
+			<pre>
+				<code>{`import json
+
+def main(args):
+    route  = args.get("route", "default")
+    method = args.get("method", "GET")
+
+    if route == "items":
+        if method == "GET":
+            return list_items()
+        elif method == "POST":
+            data = json.loads(args.get("body", "{}"))
+            return create_item(data)
+        else:
+            return {"_shsf": "v2", "_code": 405, "_res": {"error": "method not allowed"}}
+
+    return {"_shsf": "v2", "_code": 404, "_res": {"error": "not found"}}`}</code>
+			</pre>
+
+			<h2>Best practices</h2>
+			<ul>
+				<li>
+					Use short, lowercase route names — e.g. <code>users</code>,{" "}
+					<code>register</code>, <code>health</code>.
+				</li>
+				<li>
+					Always provide a default/fallback case and return a <code>404</code>{" "}
+					rather than crashing.
+				</li>
+				<li>
+					Keep each route handler in its own function for readability as the
+					number of routes grows.
+				</li>
+				<li>
+					Document the available routes so callers know what to expect — consider
+					returning them from the <code>default</code> route.
+				</li>
+			</ul>
+
+			<NextStep href="/docs/custom-cors" label="#16 Custom CORS">
+				Next: control which origins can call your function — useful when
+				building browser-based apps.
+			</NextStep>
 		</DocsContentShell>
 	);
 };

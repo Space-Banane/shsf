@@ -1,90 +1,86 @@
 import { DocsContentShell } from "./DocsContentShell";
+import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
 
 export const CustomCorsDocPage = () => {
 	return (
 		<DocsContentShell>
-				<h1 className="text-3xl font-bold text-primary mb-2">
-					Custom CORS - Allowing X but not Y
-				</h1>
-				<p className="mt-3 text-lg text-text/90 mb-6">
-					SHSF allows you to configure{" "}
-					<b>Custom CORS (Cross-Origin Resource Sharing)</b> settings for each
-					function individually. This means you can specify exactly which origin
-					domains are allowed to access your function, improving security and
-					flexibility.
+			<DocHeader title="Custom CORS">
+				SHSF and its own UI are always allowed to call your function. For
+				calls from other origins — your frontend, a third-party app — you can
+				configure a per-function allowlist of trusted origins. Requests from
+				any origin not on the list are blocked by the browser's CORS policy.
+			</DocHeader>
+
+			<Callout variant="warning" title="Wildcard * is not supported">
+				<p>
+					For security reasons, the <code>*</code> wildcard origin is not
+					accepted. You must specify exact origins (including scheme and port if
+					non-standard).
 				</p>
+			</Callout>
 
-				<div className="mb-6 p-4 bg-yellow-900/20 border-l-4 border-yellow-400 rounded">
-					<b>Note:</b> CORS settings are <b>per-function</b>. You can allow or deny
-					specific origins for each function separately. SHSF and its UI are allowed
-					by default.
-				</div>
+			<h2>Setting allowed origins</h2>
+			<p>
+				Open the <strong>Create Function</strong> or{" "}
+				<strong>Update Function</strong> modal and find the{" "}
+				<strong>CORS Origins</strong> section. Enter each allowed origin on its
+				own line or separated by commas.
+			</p>
+			<CodeCaption>Example origins</CodeCaption>
+			<pre>
+				<code>{`https://myapp.com
+https://admin.myapp.com
+http://localhost:3000`}</code>
+			</pre>
+			<p>
+				With this config, only requests from those three origins will include
+				the correct CORS headers. All others will be blocked at the browser.
+			</p>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-4">
-					How to Set Allowed Origins
-				</h2>
-				<ol className="list-decimal list-inside mb-4 text-text/90 space-y-2">
-					<li>
-						<b>When Creating a Function:</b> In the <b>Create Function</b> modal, find
-						the <b>CORS Origins</b> section. Enter one or more allowed origins (e.g.,{" "}
-						<code>https://example.com</code>). You can add multiple origins, separated
-						by commas, or use the UI controls to add/remove them.
-					</li>
-					<li>
-						<b>When Editing a Function:</b> In the <b>Update Function</b> modal,
-						scroll to the <b>CORS Origins</b> section. Here you can update, add, or
-						remove allowed origins at any time.
-					</li>
-				</ol>
+			<h2>You can also use the CLI</h2>
+			<CodeCaption>shsf-cli</CodeCaption>
+			<pre>
+				<code>{`# Add an origin
+shsf cors add https://myapp.com --id func_42a7c1
 
-				<h2 className="text-xl font-bold text-primary mt-8 mb-3">
-					Example: Allowing Only Specific Domains
-				</h2>
-				<pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm mb-6">
-					<code>{`CORS Origins: https://myapp.com, https://admin.myapp.com`}</code>
-				</pre>
-				<p className="mb-4 text-text/90">
-					With this setting, only requests from <code>https://myapp.com</code> and{" "}
-					<code>https://admin.myapp.com</code> will be allowed. All other origins
-					will be blocked by the browser.
+# List current origins
+shsf cors list --id func_42a7c1`}</code>
+			</pre>
+
+			<h2>How CORS works in SHSF</h2>
+			<ul>
+				<li>
+					SHSF sets the <code>Access-Control-Allow-Origin</code> response header
+					to the matched origin from the allowlist.
+				</li>
+				<li>
+					SHSF and the configured <code>CORS_URLS</code> instance variable are
+					always allowed regardless of per-function settings.
+				</li>
+				<li>
+					If no origins are configured for a function, only SHSF itself and the
+					instance CORS URLs are permitted.
+				</li>
+				<li>
+					CORS controls browser behaviour — server-to-server calls are not
+					affected by CORS headers.
+				</li>
+			</ul>
+
+			<h2>Development tip</h2>
+			<Callout variant="tip" title="Add localhost during development, remove before production">
+				<p>
+					It's fine to temporarily add <code>http://localhost:3000</code> (or
+					your local dev port) to the allowlist while building. Remove it before
+					making the function production-facing so your endpoint isn't
+					accidentally callable from any local origin.
 				</p>
+			</Callout>
 
-				<h2 className="text-xl font-bold text-primary mt-8 mb-3">Best Practices</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>Only allow origins you trust.</li>
-					<li>
-						You can update CORS origins at any time via the function settings in the
-						UI.
-					</li>
-					<li>
-						For development, you may temporarily allow{" "}
-						<code>http://localhost:3000</code> or similar, but remove it for
-						production.
-					</li>
-				</ul>
-
-				<div className="mb-6 p-4 bg-red-900/20 border-l-4 border-red-400 rounded">
-					<b>⚠️ Security Warning:</b> The wildcard origin <code>*</code> is not
-					supported for security reasons. You must specify exact domain origins to
-					ensure proper access control.
-				</div>
-
-				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-					<h2 className="text-xl font-bold text-primary mb-3">
-						🚀 Next Step - Guest Users
-					</h2>
-					<p className="text-text/90 mb-4">
-						Learn how to create and assign guest users for function-specific
-						authentication.
-					</p>
-					<a
-						href="/docs/guest-users"
-						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
-					>
-						#17 Guest Users
-						<span className="text-lg">→</span>
-					</a>
-				</div>
+			<NextStep href="/docs/guest-users" label="#17 Guest Users">
+				Next: create guest user credentials to grant controlled access to
+				specific functions without sharing your main account.
+			</NextStep>
 		</DocsContentShell>
 	);
 };

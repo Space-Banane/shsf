@@ -1,134 +1,124 @@
 import { DocsContentShell } from "./DocsContentShell";
+import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
 
 export const AccessTokensDocPage = () => {
 	return (
 		<DocsContentShell>
-				<h1 className="text-3xl font-bold text-primary mb-2">Access Tokens</h1>
-				<p className="mt-3 text-lg text-text/90 mb-6">
-					Access Tokens allow you to securely authenticate API requests and automate
-					access to your SHSF account without using your password. This is ideal for
-					CLI tools, scripts, or third-party integrations.
+			<DocHeader title="Access Tokens">
+				Access Tokens let you authenticate API requests and automate SHSF
+				operations without using your account password. Each token is a
+				long-lived secret tied to your account and can be scoped with a
+				name and optional expiry date.
+			</DocHeader>
+
+			<Callout variant="danger" title="Tokens are shown only once">
+				<p>
+					Copy your token immediately after creating it. SHSF stores only a
+					hashed version — the plaintext is never shown again. If you lose it,
+					revoke it and generate a new one.
 				</p>
+			</Callout>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-4">
-					What are Access Tokens?
-				</h2>
-				<p className="mb-4 text-text/90">
-					Access Tokens are unique, secret keys you can generate and manage from your
-					account. Each token can have a name, purpose, and optional expiration date.
-					Tokens are only shown <b>once</b> when created—store them securely!
+			<h2>Generating a token</h2>
+			<ol>
+				<li>
+					Go to <strong>Account &gt; Access Tokens</strong>.
+				</li>
+				<li>
+					Click <strong>Generate New Token</strong>.
+				</li>
+				<li>
+					Enter a name, an optional purpose, and choose an expiry (or never
+					expires).
+				</li>
+				<li>
+					Click <strong>Generate Token</strong> and copy the value shown.
+				</li>
+			</ol>
+
+			<h2>Using a token in requests</h2>
+			<p>
+				Pass the token in the <code>x-access-key</code> header on any API
+				request:
+			</p>
+			<CodeCaption>curl</CodeCaption>
+			<pre>
+				<code>{`curl -H "x-access-key: YOUR_TOKEN" https://your-shsf-instance/api/functions`}</code>
+			</pre>
+
+			<CodeCaption>Python requests</CodeCaption>
+			<pre>
+				<code>{`import requests
+
+headers = {"x-access-key": "YOUR_TOKEN"}
+resp = requests.get("https://your-shsf-instance/api/functions", headers=headers)
+print(resp.json())`}</code>
+			</pre>
+
+			<CodeCaption>Node.js fetch</CodeCaption>
+			<pre>
+				<code>{`const resp = await fetch("https://your-shsf-instance/api/functions", {
+  headers: { "x-access-key": "YOUR_TOKEN" }
+});
+const data = await resp.json();`}</code>
+			</pre>
+
+			<h2>Bypassing secure headers</h2>
+			<p>
+				If a function has the <strong>Secure Header</strong> setting enabled,
+				providing a valid <code>x-access-key</code> from the function's owner
+				automatically satisfies the secure-header check — no need to also send
+				the <code>x-secure-header</code> value.
+			</p>
+			<CodeCaption>curl — invoking a secure function with a token</CodeCaption>
+			<pre>
+				<code>{`curl -H "x-access-key: YOUR_TOKEN" https://your-shsf-instance/exec/my-secure-function`}</code>
+			</pre>
+			<Callout variant="warning" title="Token must belong to the function owner">
+				<p>
+					Access Token bypass of secure headers only works when the token was
+					created by the same account that owns the function.
 				</p>
+			</Callout>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-4">
-					How to Generate a Token
-				</h2>
-				<ol className="list-decimal list-inside mb-4 text-text/90 space-y-2">
-					<li>
-						Go to <b>Account &gt; Access Tokens</b> in the UI.
-					</li>
-					<li>
-						Click <b>Generate New Token</b>.
-					</li>
-					<li>
-						Enter a name, optional purpose, and set expiration (or choose never
-						expire).
-					</li>
-					<li>
-						Click <b>Generate Token</b> and copy the token shown.{" "}
-						<span className="text-red-400 font-semibold">
-							You won't be able to see it again!
-						</span>
-					</li>
-				</ol>
+			<h2>Managing tokens</h2>
+			<ul>
+				<li>
+					<strong>View</strong> — all tokens are listed on the Access Tokens page
+					(values are masked).
+				</li>
+				<li>
+					<strong>Edit</strong> — update the name or purpose at any time.
+				</li>
+				<li>
+					<strong>Revoke</strong> — deletes the token immediately; any client
+					using it will get a 401 on the next request.
+				</li>
+				<li>
+					Expired tokens are rejected automatically; they do not need to be
+					manually revoked.
+				</li>
+			</ul>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-4">
-					Using Access Tokens
-				</h2>
-				<p className="mb-4 text-text/90">
-					To authenticate API requests, include your token in the{" "}
-					<code>x-access-key</code> header:
-				</p>
-				<div className="mb-6">
-					<pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-						<code>{`curl -H "x-access-key: YOUR_TOKEN_HERE" https://your-shsf-instance/api/your-endpoint`}</code>
-					</pre>
-				</div>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>Never share your tokens publicly.</li>
-					<li>Tokens can be revoked at any time from the UI.</li>
-					<li>Expired tokens cannot be used for authentication.</li>
-				</ul>
+			<h2>Security tips</h2>
+			<ul>
+				<li>Never commit tokens to source control or share them in chat.</li>
+				<li>
+					Store tokens in environment variables or a secrets manager on the
+					client side.
+				</li>
+				<li>
+					Create separate tokens for separate integrations so you can revoke one
+					without affecting others.
+				</li>
+				<li>Set an expiry date for tokens used in temporary scripts.</li>
+			</ul>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-4">
-					Running Functions That Require Secure Headers
-				</h2>
-				<p className="mb-4 text-text/90">
-					If you have a function that requires a secure header (such as{" "}
-					<code>x-secure-header</code>), you can still invoke it using an Access
-					Token. When you include the <code>x-access-key</code> header in your API
-					request, SHSF will automatically authorize the call without needing to
-					provide the secure header separately.
-				</p>
-				<div className="mb-6">
-					<pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-						<code>{`curl -H "x-access-key: YOUR_TOKEN_HERE" https://your-shsf-instance/api/functions/my-secure-func`}</code>
-					</pre>
-				</div>
-				<p className="mb-4 text-text/90">
-					This makes it easy to automate or script calls to protected functions
-					without exposing or managing additional headers.
-				</p>
-				<p className="mb-4 text-red-400">
-					This requires the Access Key to be created by the same user that owns the
-					function.
-				</p>
-
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-4">
-					Managing Tokens
-				</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>
-						<b>View</b> all your tokens (masked) in the Access Tokens page.
-					</li>
-					<li>
-						<b>Edit</b> the name or purpose of a token.
-					</li>
-					<li>
-						<b>Revoke</b> (delete) tokens you no longer need.
-					</li>
-				</ul>
-
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-4">
-					Example: Using a Token in Python
-				</h2>
-				<div className="mb-8">
-					<pre className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 text-white rounded-lg p-6 overflow-x-auto text-sm shadow-lg">
-						{`import requests
-
-url = "https://your-shsf-instance/api/your-endpoint"
-headers = {"x-access-key": "YOUR_TOKEN_HERE"}
-response = requests.get(url, headers=headers)
-print(response.json())
-`}
-					</pre>
-				</div>
-
-				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-					<h2 className="text-xl font-bold text-primary mb-3">
-						🚀 Next Steps - CLI
-					</h2>
-					<p className="text-text/90 mb-4">
-						Now that we can use Access Tokens, let's learn how to use the shsf-cli to
-						manage your functions, files, and environments from the command line.
-					</p>
-					<a
-						href="/docs/cli"
-						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
-					>
-						#11 CLI Usage
-						<span className="text-lg">→</span>
-					</a>
-				</div>
+			<NextStep href="/docs/cli" label="#13 CLI Usage">
+				Next: use the <code>shsf-cli</code> to sync files, update metadata,
+				and run functions from your terminal — with access token authentication
+				built in.
+			</NextStep>
 		</DocsContentShell>
 	);
 };

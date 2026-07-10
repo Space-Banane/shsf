@@ -1,198 +1,140 @@
 import { DocsContentShell } from "./DocsContentShell";
+import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
 
 export const DataPassingPage = () => {
 	return (
 		<DocsContentShell>
+			<DocHeader title="Data Passing">
+				Every function receives a single <code>args</code> object that contains
+				everything about the incoming request — body, query parameters, headers,
+				the matched route segment, the HTTP method, and the raw body bytes.
+			</DocHeader>
 
-				<h1 className="text-3xl font-bold text-primary mb-2">Data Passing</h1>
-				<p className="mt-3 text-lg text-text/90 mb-8">
-					Learn how to pass data between triggers and functions using JSON payloads.
-				</p>
+			<h2>The args object</h2>
+			<p>
+				SHSF builds the payload before calling your function. The shape differs
+				slightly between GET and POST requests:
+			</p>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-6">
-					Understanding Data Passing
-				</h2>
-				<p className="mb-4 text-text/90">
-					In SHSF, data can be passed between triggers and functions using JSON
-					payloads. This allows you to send structured data that your functions can
-					easily parse and utilize.
-				</p>
+			<CodeCaption>GET request — args fields</CodeCaption>
+			<pre>
+				<code>{`{
+  "headers":   { "user-agent": "...", ... },   // all request headers (lowercase keys)
+  "queries":   { "page": "2", ... },           // URL query parameters
+  "route":     "default",                       // path segment after the function URL (or "default")
+  "method":    "GET",
+  "source_ip": "1.2.3.4"
+}`}</code>
+			</pre>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-6">
-					Passing Data from Triggers to Functions
-				</h2>
-				<p className="mb-4 text-text/90">
-					When setting up a trigger, you can define a JSON payload that will be sent
-					to the function when the trigger is activated. This payload can include any
-					data your function needs to perform its task.
-				</p>
-				<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
-					<code>
-						{`{
-  "event": "user_signup",
-  "user": {
-    "id": "12345",
-    "name": "John Doe",
-    "email": "john.doe@example.com"
-    }
-}`}
-					</code>
-				</pre>
-				<p className="mb-4 text-text/90">
-					In this example, the trigger sends a payload containing user information
-					when a new user signs up.
-				</p>
-				<p className="mb-4 text-text/90 italic">
-					You can access this via <code>args.body</code> in your function.
-				</p>
+			<CodeCaption>POST request — adds body and raw_body</CodeCaption>
+			<pre>
+				<code>{`{
+  "headers":   { "content-type": "application/json", ... },
+  "queries":   { ... },
+  "route":     "default",
+  "method":    "POST",
+  "source_ip": "1.2.3.4",
+  "body":      "{ \\"name\\": \\"Alice\\" }",    // UTF-8 decoded request body string
+  "raw_body":  "<binary string>"               // raw bytes as a binary (Latin-1) string
+}`}</code>
+			</pre>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-6">
-					Accessing Data in Functions
-				</h2>
-				<p className="mb-4 text-text/90">
-					Inside your function, you can access the passed data through{" "}
-					<code>args</code>. This is how you can take a look at it in Python:
+			<Callout variant="warning" title="body is always a string">
+				<p>
+					<code>args["body"]</code> is the raw UTF-8 text of the request body —
+					SHSF does not parse it for you. Call <code>json.loads(args["body"])</code>{" "}
+					(Python) or <code>json.Unmarshal</code> (Go) to get a dict/map.
 				</p>
-				<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
-					<code>
-						{`def main(args):
-    print(args)
-`}
-					</code>
-				</pre>
-				<p className="mb-4 text-text/90">
-					The <code>args</code> parameter contains any data passed to the function,
-					either via HTTP or a Trigger. You can parse this data and use it as needed
-					in your function logic.
-				</p>
+			</Callout>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-6">HTTP Data</h2>
-				<p className="mb-4 text-text/90">
-					When invoking functions via HTTP requests, you can also pass data in the
-					request body as JSON. This is useful for scenarios where you want to
-					trigger a function manually or from an external service.
-				</p>
-				<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
-					<code>
-						{`POST (FUNCTIONURL)
-Content-Type: application/json
-{
-  "task": "process_data",
-  "data": {
-    "item1": "value1",
-    "item2": "value2"
-  }
-}`}
-					</code>
-				</pre>
-				<p className="mb-4 text-text/90">
-					In this example, an HTTP POST request is made to the function's URL with a
-					JSON body containing a task and associated data.
-				</p>
-				<h3 className="text-xl font-semibold text-primary mt-6 mb-3">
-					Accessing HTTP Data in Functions
-				</h3>
-				<p className="mb-4 text-text/90">
-					To access the HTTP request data in your function, you can use the same
-					approach as with trigger data. Here's an example in Python:
-				</p>
-				<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
-					<code>
-						{`def main(args):
-    body = args.get("body")
-    print(body)
-`}
-					</code>
-				</pre>
-				<p className="mb-4 text-text/90">
-					The <code>args</code> parameter contains the JSON payload sent by the HTTP
-					request. You can parse this data and use it as needed in your function
-					logic.
-				</p>
+			<h2>Reading body data (Python)</h2>
+			<CodeCaption>Example (Python)</CodeCaption>
+			<pre>
+				<code>{`import json
 
-				<h3 className="text-xl font-semibold text-primary mt-6 mb-3">
-					HTTP Parameters
-				</h3>
-				<p className="mb-4 text-text/90">
-					You can also pass data via URL parameters in HTTP requests. For example, if
-					your function URL is <code>https://example.com/function</code>, you can
-					append query parameters like this:{" "}
-					<code>https://example.com/function?param1=value1&amp;param2=value2</code>.
-				</p>
-				<p className="mb-4 text-text/90">
-					To access these parameters in your function, you can use the following
-					code:
-				</p>
-				<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
-					<code>
-						{`def main(args):
-    queries = args.get("queries")
-    param1 = queries.get("param1")
-    param2 = queries.get("param2")
-    print(f"Param1: {param1}, Param2: {param2}")
-`}
-					</code>
-				</pre>
-				<p className="mb-4 text-text/90">
-					This will retrieve the values of <code>param1</code> and{" "}
-					<code>param2</code> from the URL query parameters.
-				</p>
+def main(args):
+    raw = args.get("body", "{}")
+    data = json.loads(raw)          # parse JSON string → dict
+    name = data.get("name", "world")
+    return {"_shsf": "v2", "_code": 200, "_res": {"greeting": f"Hello, {name}!"}}`}</code>
+			</pre>
 
-				<div className="p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
-					<p className="text-yellow-300">
-						<strong>⚠️ Warning:</strong> You can always use queries and body at the
-						same time. However, in GET requests, the body will be empty, or undefined.
-						Be aware to check types!
-					</p>
-				</div>
+			<h2>Reading query parameters</h2>
+			<CodeCaption>Example (Python)</CodeCaption>
+			<pre>
+				<code>{`def main(args):
+    queries = args.get("queries", {})
+    page   = int(queries.get("page", "1"))
+    limit  = int(queries.get("limit", "20"))
+    return {"page": page, "limit": limit}`}</code>
+			</pre>
 
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-6">Routes</h2>
-				<p className="mb-4 text-text/90">
-					You can define multiple routes within your code, retrieve the route from{" "}
-					<code>args.route</code>, here is how:
-				</p>
-				<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
-					<code>
-						{`def main(args):
-    route = args.get("route")
-    if route == "/task1":
-        return handle_task1(args)
-    elif route == "/task2":
-        return handle_task2(args)
+			<h2>Reading headers</h2>
+			<CodeCaption>Example (Python)</CodeCaption>
+			<pre>
+				<code>{`def main(args):
+    headers = args.get("headers", {})
+    content_type = headers.get("content-type", "")
+    auth_token   = headers.get("authorization", "")
+    return {"content_type": content_type}`}</code>
+			</pre>
+
+			<h2>Routing via args.route</h2>
+			<p>
+				The path segment after the function URL becomes <code>args["route"]</code>.
+				When no segment is present the value is <code>"default"</code>.
+			</p>
+			<CodeCaption>URL examples</CodeCaption>
+			<pre>
+				<code>{`GET /exec/my-func           → route = "default"
+GET /exec/my-func/users     → route = "users"
+GET /exec/my-func/health    → route = "health"`}</code>
+			</pre>
+			<CodeCaption>Dispatching on route (Python)</CodeCaption>
+			<pre>
+				<code>{`def main(args):
+    route = args.get("route", "default")
+
+    if route == "users":
+        return get_users(args)
+    elif route == "health":
+        return {"ok": True}
     else:
-        return "Custom response here" # We will learn this next
-`}
-					</code>
-				</pre>
-
-				<h2 className="text-2xl font-bold text-primary mt-8 mb-6">Conclusion</h2>
-				<p className="mb-4 text-text/90">
-					Passing data into a function using JSON payloads or a HTTP Request is a
-					powerful feature of SHSF. It allows you to create dynamic and responsive
-					serverless applications that can handle a variety of tasks based on the
-					data they receive.
+        return {"_shsf": "v2", "_code": 404, "_res": {"error": "not found"}}`}</code>
+			</pre>
+			<Callout variant="note" title="Single-segment only">
+				<p>
+					Only one path segment after the function URL is supported. Deep paths
+					like <code>/exec/func/a/b</code> are not routed — only the first
+					segment (<code>a</code>) is captured. See the Routing page for more.
 				</p>
-				<p className="mb-4 text-text/90">
-					Experiment with different data structures and see how you can leverage this
-					capability to enhance your serverless functions!
-				</p>
+			</Callout>
 
-				<div className="mt-12 p-6 bg-linear-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-					<h2 className="text-xl font-bold text-primary mb-3">
-						🚀 Next Steps - Custom Responses
-					</h2>
-					<p className="text-text/90 mb-4">
-						Now that we know how to pass data into a function, lets learn how we can
-						return custom responses from our functions.
-					</p>
-					<a
-						href="/docs/custom-responses"
-						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
-					>
-						#3 Custom Responses
-						<span className="text-lg">→</span>
-					</a>
-				</div>
+			<h2>Passing data from a cron trigger</h2>
+			<p>
+				When a trigger fires it calls your function with a POST-style payload.
+				Any JSON you enter in the trigger's <em>Body</em> field becomes
+				the <code>body</code> string in <code>args</code>.
+			</p>
+			<CodeCaption>Trigger payload (set in trigger config)</CodeCaption>
+			<pre>
+				<code>{`{ "event": "weekly-report", "send_to": "team@example.com" }`}</code>
+			</pre>
+			<CodeCaption>Reading it in your function</CodeCaption>
+			<pre>
+				<code>{`import json
+
+def main(args):
+    data = json.loads(args.get("body", "{}"))
+    event = data.get("event")
+    print(f"Triggered by: {event}")`}</code>
+			</pre>
+
+			<NextStep href="/docs/custom-responses" label="#3 Custom Responses">
+				Now you know how data flows in. Next up: controlling what flows back
+				out — custom HTTP status codes, headers, and response bodies.
+			</NextStep>
 		</DocsContentShell>
 	);
 };

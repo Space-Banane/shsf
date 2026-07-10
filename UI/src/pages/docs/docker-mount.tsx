@@ -1,120 +1,102 @@
 import { DocsContentShell } from "./DocsContentShell";
+import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
 
 export const DockerMountPage = () => {
 	return (
 		<DocsContentShell>
+			<DocHeader title="Docker Socket Mount">
+				Enable <strong>Mount Docker Socket</strong> to bind{" "}
+				<code>/var/run/docker.sock</code> from the host into your function's
+				container. This grants the function full programmatic control over
+				Docker on the host.
+			</DocHeader>
 
-				<h1 className="text-3xl font-bold text-primary mb-2">
-					Docker Socket Mount
-				</h1>
-
-				<p className="mt-3 text-lg text-text/90 mb-6">
-					<span className="font-bold text-yellow-400">Warning:</span> Enabling the{" "}
-					<b>Docker Socket Mount</b> option will mount{" "}
-					<code>/var/run/docker.sock</code> from the host into your function's
-					container.{" "}
-					<span className="text-yellow-300 font-semibold">
-						This grants the function full control over Docker on the host, which is a{" "}
-						<span className="text-red-400">major security risk</span>!
-					</span>
+			<Callout variant="danger" title="Major security risk — use with extreme care">
+				<p>
+					Any code running in the function can start, stop, delete, or
+					reconfigure containers and images on the host. Malicious or buggy code
+					could compromise the entire host system. Only enable this for functions
+					whose code you fully trust and control.
 				</p>
+			</Callout>
 
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					What is Docker Socket Mount?
-				</h2>
-				<p className="mb-4 text-text/90">
-					When enabled, your function can communicate with the Docker daemon on the
-					host. This allows advanced use cases such as running sibling containers,
-					inspecting Docker resources, or building images from within your function.
+			<h2>What it enables</h2>
+			<ul>
+				<li>
+					Running Docker CLI commands from inside the function (
+					<code>docker ps</code>, <code>docker run</code>, etc.)
+				</li>
+				<li>Orchestrating sibling containers as part of a workflow</li>
+				<li>Executing commands inside a running container via <code>exec_run</code></li>
+				<li>Building and pushing Docker images dynamically</li>
+				<li>Inspecting container logs, health, and resource usage</li>
+			</ul>
+
+			<h2>How to enable</h2>
+			<p>
+				When creating or updating a function, expand the{" "}
+				<strong>Advanced Settings</strong> section and toggle{" "}
+				<strong>Mount Docker Socket</strong> on.
+			</p>
+			<Callout variant="note" title="Requires admin permission">
+				<p>
+					An SHSF administrator may need to grant your account permission to use
+					the Docker mount feature. If the toggle is missing or disabled, contact
+					your instance admin.
 				</p>
+			</Callout>
 
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">How to Enable</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>
-						When creating or updating a function, toggle the{" "}
-						<b>Mount Docker Socket</b> option in the advanced settings section of the
-						modal.
-					</li>
-					<li>
-						This will mount <code>/var/run/docker.sock</code> into the container at
-						the same path.
-					</li>
-				</ul>
-
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					Example Use Cases
-				</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>
-						Running Docker CLI commands from your function (e.g.,{" "}
-						<code>docker ps</code>, <code>docker run</code>).
-					</li>
-					<li>Orchestrating other containers as part of a workflow.</li>
-					<li>Building and pushing Docker images dynamically.</li>
-				</ul>
-
-				<h3 className="text-xl font-semibold text-primary mt-8 mb-2">
-					Example: Using Docker Socket in Python
-				</h3>
-				<div className="mb-8">
-					<pre className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 text-white rounded-lg p-6 overflow-x-auto text-sm shadow-lg">
-						{`def main(args):
+			<h2>Example — executing a command in another container</h2>
+			<CodeCaption>Python — using the docker SDK</CodeCaption>
+			<pre>
+				<code>{`def main(args):
     import docker
     client = docker.from_env()
 
-    # Exec container "mailserver"
-    out = client.containers.get("mailserver").exec_run("setup email list")
-    return out.output.decode()
-`}
-					</pre>
-					<p className="text-text/80 mt-2">
-						This example shows how your function can use the <code>docker</code>{" "}
-						Python library to execute a command inside a running container when the
-						Docker socket is mounted.
-					</p>
-				</div>
+    # Run a command inside an existing container
+    container = client.containers.get("my-mailserver")
+    result = container.exec_run("postfix status")
+    output = result.output.decode("utf-8")
 
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					Security Implications
-				</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li className="text-red-400 font-semibold">
-						Any code running in the function can control Docker on the host, including
-						starting, stopping, or deleting containers and images.
-					</li>
-					<li>Malicious or buggy code could compromise the entire host system.</li>
-					<li>
-						Only enable this option if you fully trust the function's code and
-						understand the risks.
-					</li>
-				</ul>
+    return {"output": output, "exit_code": result.exit_code}`}</code>
+			</pre>
+			<p>
+				Add <code>docker</code> to your <code>requirements.txt</code> to install
+				the Python Docker SDK.
+			</p>
 
-				<div className="mt-12 p-6 bg-gradient-to-r from-yellow-900/20 to-red-900/20 border border-yellow-600/30 rounded-xl">
-					<h2 className="text-xl font-bold text-yellow-400 mb-3">
-						⚠️ Use With Extreme Caution
-					</h2>
-					<p className="text-text/90 mb-4">
-						The Docker socket is a powerful but dangerous tool. For most use cases,{" "}
-						<b>do not enable</b> this option unless absolutely necessary.
-					</p>
-				</div>
+			<h2>Example — listing running containers</h2>
+			<CodeCaption>Python</CodeCaption>
+			<pre>
+				<code>{`def main(args):
+    import docker
+    client = docker.from_env()
+    containers = client.containers.list()
+    return {
+        "running": [c.name for c in containers]
+    }`}</code>
+			</pre>
 
-				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-					<h2 className="text-xl font-bold text-primary mb-3">
-						🚀 Next Step - Serve Only HTML
-					</h2>
-					<p className="text-text/90 mb-4">
-						Ever wanted to only serve an html file from your function? Check out our
-						guide on serving ONLY an HTML file.
-					</p>
-					<a
-						href="/docs/serve-only"
-						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
-					>
-						#11 Serve Only HTML
-						<span className="text-lg">→</span>
-					</a>
-				</div>
+			<h2>Security checklist</h2>
+			<ul>
+				<li>
+					Do not expose functions with Docker mount enabled via public HTTP
+					without strong authentication (secure headers, access tokens, or guest
+					users).
+				</li>
+				<li>
+					Audit every code change to a Docker-mounted function before deploying.
+				</li>
+				<li>
+					For most use cases, Docker mount is not necessary — prefer environment
+					variables or the built-in storage helpers.
+				</li>
+			</ul>
+
+			<NextStep href="/docs/serve-only" label="#11 Serve Only HTML">
+				Next: an even simpler mode — serve a single static HTML file without
+				any runtime at all.
+			</NextStep>
 		</DocsContentShell>
 	);
 };

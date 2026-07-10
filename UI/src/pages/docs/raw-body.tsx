@@ -1,102 +1,108 @@
 import { DocsContentShell } from "./DocsContentShell";
+import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
 
 export const RawBodyPage = () => {
 	return (
 		<DocsContentShell>
+			<DocHeader title="Raw Body Handling">
+				<code>args["raw_body"]</code> gives you the unmodified request body as
+				a binary string (Latin-1 encoding). Use it whenever you need to process
+				binary data — file uploads, images, audio, or any non-JSON payload.
+			</DocHeader>
 
-				<h1 className="text-3xl font-bold text-primary mb-2">Raw Body Handling</h1>
-
-				<p className="mt-3 text-lg text-text/90 mb-6">
-					When your function receives a request with a binary payload (such as file
-					uploads or audio), the raw body is available in <code>args.raw_body</code>.
-					This is useful for handling data that isn't standard JSON, like files or
-					binary streams.
+			<Callout variant="note" title="raw_body vs body">
+				<p>
+					<code>args["body"]</code> is the UTF-8 decoded string — fine for JSON
+					and text. <code>args["raw_body"]</code> is the same bytes read back
+					as Latin-1, preserving every byte value. Use <code>raw_body</code>{" "}
+					when byte-exact handling matters (e.g. images, binary protocols).
 				</p>
+			</Callout>
 
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					Accessing the Raw Body
-				</h2>
-				<p className="mb-4 text-text/90">
-					<code>args.raw_body</code> contains the raw request body as bytes (or a
-					string, depending on the client). You can process it directly for custom
-					parsing, file handling, or binary protocols.
-				</p>
+			<h2>Converting raw_body to bytes (Python)</h2>
+			<p>
+				In Python, encode the Latin-1 string back to <code>bytes</code> to get
+				the original binary data:
+			</p>
+			<CodeCaption>Python — decode raw_body to bytes</CodeCaption>
+			<pre>
+				<code>{`def main(args):
+    raw = args.get("raw_body")
+    if raw is None:
+        return {"_shsf": "v2", "_code": 400, "_res": {"error": "no body"}}
 
-				<div className="mb-6">
-					<label className="block text-sm font-medium text-text/70 mb-2">
-						Example (Verbose, Not Recommended):
-					</label>
-					<pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-						<code>{`raw_body = args.get("raw_body")
-if raw_body is None:
-    return {"_code": 400, "error": "no raw body provided", "_shsf": "v2"}
+    body_bytes = raw.encode("latin-1")    # recovers the original bytes
+    return {"_shsf": "v2", "_code": 200, "_res": {"size": len(body_bytes)}}`}</code>
+			</pre>
 
-# Convert to bytes if it's a string
-if isinstance(raw_body, str):
-    body_bytes = raw_body.encode('latin-1')
-else:
-    body_bytes = raw_body
+			<h2>Saving an uploaded file</h2>
+			<CodeCaption>Python — write upload to /app/</CodeCaption>
+			<pre>
+				<code>{`def main(args):
+    raw = args.get("raw_body")
+    if not raw:
+        return {"_shsf": "v2", "_code": 400, "_res": {"error": "no file uploaded"}}
 
-# ...multipart parsing logic...
-`}</code>
-					</pre>
-				</div>
+    body_bytes = raw.encode("latin-1")
+    with open("/app/upload.bin", "wb") as f:
+        f.write(body_bytes)
 
-				<div className="mb-6">
-					<label className="block text-sm font-medium text-text/70 mb-2">
-						Example (Recommended):
-					</label>
-					<pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-						<code>{`raw_body = args.get("raw_body")
-if raw_body is None:
-    return {"_code": 400, "error": "no raw body provided"}
+    return {"_shsf": "v2", "_code": 200, "_res": {"saved": len(body_bytes)}}`}</code>
+			</pre>
 
-# Save raw bytes to a file
-with open("upload.bin", "wb") as f:
-    f.write(raw_body if isinstance(raw_body, bytes) else raw_body.encode("latin-1"))
+			<h2>Decoding a base64-encoded payload</h2>
+			<p>
+				If callers send binary data encoded as base64 in a JSON body, decode
+				it from the regular <code>body</code> field instead:
+			</p>
+			<CodeCaption>Python — decode base64 from JSON body</CodeCaption>
+			<pre>
+				<code>{`import json, base64
 
-return {"_code": 200, "message": "File saved", "_shsf": "v2"}
-`}</code>
-					</pre>
-				</div>
+def main(args):
+    data = json.loads(args.get("body", "{}"))
+    encoded = data.get("file_data", "")
+    raw_bytes = base64.b64decode(encoded)
 
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>
-						<code>args.raw_body</code> is useful for file uploads, audio, or any
-						binary data.
-					</li>
-					<li>
-						Always check for <code>None</code> before using <code>raw_body</code>.
-					</li>
-					<li>
-						Convert to <code>bytes</code> if needed using{" "}
-						<code>encode('latin-1')</code>.
-					</li>
-				</ul>
+    with open("/app/upload.png", "wb") as f:
+        f.write(raw_bytes)
+    return {"saved": len(raw_bytes)}`}</code>
+			</pre>
 
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">Use Cases</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>Handling file uploads (images, audio, etc.)</li>
-					<li>Processing binary protocols or custom data formats</li>
-					<li>Saving raw request data for later analysis</li>
-				</ul>
+			<h2>Parsing multipart form data</h2>
+			<CodeCaption>Python — multipart upload with the cgi module</CodeCaption>
+			<pre>
+				<code>{`import cgi, io
 
-				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-					<h2 className="text-xl font-bold text-primary mb-3">
-						🚀 Next Step - User Interfaces
-					</h2>
-					<p className="text-text/90 mb-4">
-						Let's also take a look at how we can serve HTML files as user interfaces
-						from our functions.
-					</p>
-					<a
-						href="/docs/user-interfaces"
-						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
-					>
-						#9 User Interfaces
-						<span className="text-lg">→</span>
-					</a>
-				</div>
+def main(args):
+    raw = args.get("raw_body", "").encode("latin-1")
+    headers = args.get("headers", {})
+    content_type = headers.get("content-type", "")
+
+    environ = {"REQUEST_METHOD": "POST", "CONTENT_TYPE": content_type,
+               "CONTENT_LENGTH": str(len(raw))}
+    form = cgi.FieldStorage(fp=io.BytesIO(raw), environ=environ)
+
+    if "file" in form:
+        file_item = form["file"]
+        with open(f"/app/{file_item.filename}", "wb") as f:
+            f.write(file_item.file.read())
+        return {"uploaded": file_item.filename}
+    return {"_shsf": "v2", "_code": 400, "_res": {"error": "no file field"}}`}</code>
+			</pre>
+
+			<h2>Use cases</h2>
+			<ul>
+				<li>File uploads (images, PDFs, audio clips)</li>
+				<li>Binary protocol parsing</li>
+				<li>Webhook payloads with non-JSON content types</li>
+				<li>Receiving raw bytes from IoT devices or sensors</li>
+			</ul>
+
+			<NextStep href="/docs/user-interfaces" label="#9 User Interfaces">
+				Next: serve full HTML pages from your functions — dashboards, forms,
+				and static sites.
+			</NextStep>
 		</DocsContentShell>
 	);
 };

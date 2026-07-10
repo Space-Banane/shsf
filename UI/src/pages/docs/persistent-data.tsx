@@ -1,117 +1,110 @@
 import { DocsContentShell } from "./DocsContentShell";
+import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
 
 export const PersistentDataPage = () => {
 	return (
 		<DocsContentShell>
+			<DocHeader title="Persistent Data">
+				SHSF functions run in isolated containers. Two built-in options let you
+				store data that survives across invocations: the{" "}
+				<strong>filesystem</strong> at <code>/app/</code> and SHSF's native{" "}
+				<strong>key-value storage</strong> via the <code>db_com</code> helper.
+			</DocHeader>
 
-				<h1 className="text-3xl font-bold text-primary mb-2">Persistent Data</h1>
+			<Callout variant="warning" title="Only /app/ persists">
+				<p>
+					<code>/app/</code> is the only directory guaranteed to persist between
+					invocations. <code>/tmp/</code> is ephemeral — treat it as scratch
+					space only; it is cleared when the container restarts.
+				</p>
+			</Callout>
 
-				<p className="mt-3 text-lg text-text/90 mb-6">
-					When working with Functions, you might want to save data. Doing it via a
-					big database can cause performance issues, thats why we can use redis or
-					storing it in files, if we only need it when the function runs.
-				</p>
-				<p className="mb-4 text-text/90">
-					You obviously can store stuff in databases if you like, or need. But it
-					isn't fully recomended for a reason
-				</p>
+			<h2>Filesystem storage at /app/</h2>
+			<p>
+				Write any file to <code>/app/</code> and it will be there on the next
+				invocation. Good for caching computed data, storing state between runs,
+				or saving output files.
+			</p>
+			<CodeCaption>Python — read and write a file</CodeCaption>
+			<pre>
+				<code>{`def main(args):
+    counter_path = "/app/counter.txt"
 
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					Filesystem Storage
-				</h2>
-				<p className="mb-4 text-text/90">
-					You can store files in the filesystem, and they will persist between
-					function invocations. This is useful for caching data or storing temporary
-					files.
-				</p>
-				<p className="mb-4 text-text/90">
-					ALWAYS store within the <code>/app/</code> directory, as other directories
-					are NOT persist between invocations. <br />
-					Use <code>/tmp/</code> for temporary files that do not need to persist.
-				</p>
-				<p className="mb-4 text-text/90">
-					Here is how you can read and write files in a Python Runtime:
-				</p>
-				<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
-					<code>{`def main(args):
-    # Writing to a file
-    with open("/app/myfile.txt", "w") as f:
-        f.write("Hello, World!")
+    # Read current count (default 0)
+    try:
+        with open(counter_path) as f:
+            count = int(f.read().strip())
+    except FileNotFoundError:
+        count = 0
 
-    # Reading from a file
-    with open("/app/myfile.txt", "r") as f:
-        content = f.read()
+    count += 1
+    with open(counter_path, "w") as f:
+        f.write(str(count))
 
-    return {"content": content}
-`}</code>
-				</pre>
-
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">Redis Storage</h2>
-				<p className="mb-4 text-text/90">
-					You can use Redis to store key-value pairs that persist between function
-					invocations. This is useful for caching data or storing session
-					information.
+    return {"invocations": count}`}</code>
+			</pre>
+			<Callout variant="note" title="File manager shows /app/ contents">
+				<p>
+					Files written at runtime appear in the SHSF file manager, making it
+					easy to inspect or delete them from the UI.
 				</p>
-				<p className="mb-4 text-text/90">
-					Here is how you can connect to Redis in a Python Runtime:
-				</p>
-				<pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm mb-4">
-					<code>{`import redis
+			</Callout>
 
-r = redis.Redis(host="localhost", port=6379, db=0)
+			<h2>Built-in key-value storage (db_com)</h2>
+			<p>
+				For structured data — counters, session tokens, cached API responses —
+				use SHSF's built-in storage helper. It communicates over the internal
+				execution transport (no API token, no <code>requests</code> needed) and
+				supports TTL-based expiry.
+			</p>
+			<CodeCaption>Python — quick start</CodeCaption>
+			<pre>
+				<code>{`from _db_com import database
+
+db = database()
+
 def main(args):
-    # Set a value
-    r.set("mykey", "Hello, World!")
+    # Create a storage bucket once (safe to call multiple times)
+    db.create_storage("cache", purpose="Function cache")
 
-    # Get a value
-    value = r.get("mykey")
-    return {"value": value.decode("utf-8")}
-`}</code>
-				</pre>
+    # Write a value (optional TTL via expires_at)
+    db.set("cache", "last_run", "2024-07-10T00:00:00")
 
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					Important Notes
-				</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>
-						Always handle exceptions when working with files or Redis to avoid
-						crashes.
-					</li>
-					<li>
-						Be mindful of the storage limits and performance implications of using
-						filesystem or Redis.
-					</li>
-					<li>
-						Regularly clean up old or unused data to free up space and improve
-						performance.
-					</li>
-				</ul>
+    # Read it back
+    value = db.get("cache", "last_run")
+    return {"last_run": value}`}</code>
+			</pre>
+			<p>
+				See the{" "}
+				<a href="/docs/db-com" className="text-blue-400 hover:text-blue-300">
+					Database Communication
+				</a>{" "}
+				page for the full API including <code>list_items</code>,{" "}
+				<code>delete_item</code>, <code>exists</code>, and TTL expiry.
+			</p>
 
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">Summary</h2>
-				<p className="mb-4 text-text/90">
-					In summary, when working with persistent data in Functions, you have
-					several options including filesystem storage and Redis. Each method has its
-					own use cases, benefits, and limitations. Always consider the specific
-					requirements of your application and choose the most appropriate storage
-					solution.
-				</p>
+			<h2>Temporary files at /tmp/</h2>
+			<p>
+				Use <code>/tmp/</code> for intermediate files within a single
+				invocation — e.g. downloading a file, processing it, and uploading the
+				result. Never rely on <code>/tmp/</code> data being there on the next
+				call.
+			</p>
 
-				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-					<h2 className="text-xl font-bold text-primary mb-3">
-						🚀 Next Step - Redirects
-					</h2>
-					<p className="text-text/90 mb-4">
-						Let's also take a look at how we can redirect users after certain actions,
-						such as form submissions or login events.
-					</p>
-					<a
-						href="/docs/redirects"
-						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
-					>
-						#7 Redirects
-						<span className="text-lg">→</span>
-					</a>
-				</div>
+			<h2>External databases</h2>
+			<p>
+				You can connect to any external database (PostgreSQL, MySQL, MongoDB,
+				etc.) using environment variables for the connection string. This is
+				appropriate for application data that multiple services share or that
+				needs relational queries. Use{" "}
+				<code>db_com</code> or the filesystem for lightweight function-local
+				state.
+			</p>
+
+			<NextStep href="/docs/redirects" label="#7 Redirects">
+				Data is stored. Next: how to send the caller to a different URL using
+				HTTP redirects.
+			</NextStep>
 		</DocsContentShell>
 	);
 };

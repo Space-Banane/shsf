@@ -30,6 +30,7 @@ export function DocsContentShell({ children }: DocsContentShellProps) {
 						[&_a:hover]:underline
 						[&_code]:font-mono
 						[&_code]:text-primary/95
+						[&_pre_code]:text-text/85
 						[&_h1]:mb-3
 						[&_h1]:text-3xl
 						[&_h1]:font-bold
@@ -54,7 +55,7 @@ export function DocsContentShell({ children }: DocsContentShellProps) {
 						[&_h3]:text-primary
 						[&_label]:text-sm
 						[&_label]:font-medium
-						[&_label]:text-text/65
+						[&_label]:text-muted
 						[&_li]:leading-7
 						[&_ol]:mb-6
 						[&_ol]:space-y-2
@@ -67,7 +68,7 @@ export function DocsContentShell({ children }: DocsContentShellProps) {
 						[&_pre]:rounded-xl
 						[&_pre]:border
 						[&_pre]:border-primary/15
-						[&_pre]:bg-muted
+						[&_pre]:bg-surface-raised
 						[&_pre]:p-4
 						[&_pre]:text-sm
 						[&_strong]:text-primary

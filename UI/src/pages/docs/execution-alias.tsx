@@ -1,146 +1,82 @@
 import { DocsContentShell } from "./DocsContentShell";
+import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
 
 export const ExecutionAliasPage = () => {
 	return (
 		<DocsContentShell>
+			<DocHeader title="Execution Aliases">
+				An execution alias is a human-readable string you assign to a function
+				so it can be invoked by name instead of UUID. Aliases are optional —
+				without one, you use the function ID in the URL.
+			</DocHeader>
 
-				<h1 className="text-3xl font-bold text-primary mb-2">Execution Aliases</h1>
-				<p className="mt-3 text-lg text-text/90 mb-6">
-					SHSF supports <b>execution aliases</b> for functions. An execution alias is
-					a human-readable string you can assign to a function, making it easier to
-					reference and invoke via API, CLI, or UI.
-				</p>
+			<h2>Alias rules</h2>
+			<ul>
+				<li>8–128 characters long</li>
+				<li>
+					Alphanumeric characters, hyphens (<code>-</code>), and underscores
+					(<code>_</code>) only
+				</li>
+				<li>Case-sensitive and globally unique across all SHSF functions</li>
+				<li>Not copied when cloning — assign a new alias to each clone</li>
+			</ul>
 
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					What is an Execution Alias?
-				</h2>
-				<p className="mb-4 text-text/90">
-					An execution alias is an optional identifier (8-128 characters,
-					alphanumeric, hyphens, underscores) that you can set when creating or
-					updating a function. It allows you to invoke your function using a friendly
-					URL or CLI argument, instead of a UUID.
-				</p>
+			<h2>Setting an alias</h2>
+			<p>
+				Enter the alias in the <strong>Execution Alias</strong> field when
+				creating or updating a function. Or use the CLI:
+			</p>
+			<CodeCaption>CLI — set alias at creation</CodeCaption>
+			<pre>
+				<code>{`shsf create function --name hello-api --execution-alias hello-api \
+  --image python:3.11 --startup-file main.py --namespace-id ns_12345678`}</code>
+			</pre>
+			<CodeCaption>CLI — update alias on an existing function</CodeCaption>
+			<pre>
+				<code>{`shsf update function func_42a7c1 --execution-alias hello-api`}</code>
+			</pre>
 
-				<div className="mb-6">
-					<label className="block text-sm font-medium text-text/70 mb-2">
-						Example (Python):
-					</label>
-					<pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-						<code>{`def main(args):
-    return "Hello from an alias!"
-            `}</code>
-					</pre>
-				</div>
-
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					How to Set an Alias
-				</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>
-						In the UI, enter your desired alias in the <b>Execution Alias</b> field
-						when creating or updating a function.
-					</li>
-					<li>
-						In the CLI, use <code>shsf update function</code> with the{" "}
-						<code>--execution-alias</code> flag.
-					</li>
-					<li>Aliases must be unique per function.</li>
-				</ul>
-
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					Invoking by Alias
-				</h2>
-				<p className="mb-4 text-text/90">
-					You can now invoke functions using their alias via HTTP:
-				</p>
-				<div className="mb-6">
-					<label className="block text-sm font-medium text-text/70 mb-2">
-						Example (HTTP GET):
-					</label>
-					<pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-						<code>{`GET {API_URL}/exec/{executionAlias}
-            `}</code>
-					</pre>
-				</div>
-				<div className="mb-6">
-					<label className="block text-sm font-medium text-text/70 mb-2">
-						Example (HTTP POST):
-					</label>
-					<pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm">
-						<code>{`POST {API_URL}/exec/{executionAlias}
+			<h2>Invoking a function by alias</h2>
+			<CodeCaption>HTTP GET — alias in URL</CodeCaption>
+			<pre>
+				<code>{`GET {API_URL}/exec/{alias}
+GET {API_URL}/exec/{alias}/{route}`}</code>
+			</pre>
+			<CodeCaption>HTTP POST — with JSON body</CodeCaption>
+			<pre>
+				<code>{`POST {API_URL}/exec/{alias}
 Content-Type: application/json
-{ "key": "value" }
-            `}</code>
-					</pre>
-				</div>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>All permission checks and HTTP options apply as usual.</li>
-					<li>Aliases are case-sensitive.</li>
-				</ul>
 
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">CLI Support</h2>
-				<div className="space-y-4 mb-6">
-					<p className="text-text/90">
-						The current CLI can create or update a function alias directly.
-					</p>
-					<div className="rounded-xl border border-primary/20 bg-background/30 p-4">
-						<div className="mb-2 text-sm font-semibold text-primary">
-							Create a function with an alias
-						</div>
-						<pre className="bg-muted p-3 rounded-lg border border-primary/10 overflow-x-auto text-sm mb-2">
-							<code>{`shsf create function --name hello-api --description "HTTP entrypoint" --image python:3.11 --startup-file main.py --namespace-id ns_12345678 --execution-alias hello-api`}</code>
-						</pre>
-						<p className="text-text/75 text-sm">Sets the alias at creation time.</p>
-					</div>
-					<div className="rounded-xl border border-primary/20 bg-background/30 p-4">
-						<div className="mb-2 text-sm font-semibold text-primary">
-							Update an existing alias
-						</div>
-						<pre className="bg-muted p-3 rounded-lg border border-primary/10 overflow-x-auto text-sm mb-2">
-							<code>{`shsf update function func_42a7c1 --execution-alias hello-api`}</code>
-						</pre>
-						<p className="text-text/75 text-sm">
-							Updates the alias without changing your local files.
-						</p>
-					</div>
-					<div className="rounded-xl border border-primary/20 bg-background/30 p-4">
-						<div className="mb-2 text-sm font-semibold text-primary">
-							Debug-run the function itself
-						</div>
-						<pre className="bg-muted p-3 rounded-lg border border-primary/10 overflow-x-auto text-sm mb-2">
-							<code>{`shsf function execute --id func_42a7c1 --payload {"ping":true}`}</code>
-						</pre>
-						<p className="text-text/75 text-sm">
-							The current CLI execution command still targets the function ID directly.
-						</p>
-					</div>
-				</div>
+{ "key": "value" }`}</code>
+			</pre>
+			<CodeCaption>curl example</CodeCaption>
+			<pre>
+				<code>{`curl https://your-shsf-instance/exec/hello-api
+curl -X POST https://your-shsf-instance/exec/hello-api/process \
+  -H "Content-Type: application/json" \
+  -d '{"input": "data"}'`}</code>
+			</pre>
 
-				<h2 className="text-2xl font-bold text-primary mt-6 mb-4">
-					Notes & Warnings
-				</h2>
-				<ul className="list-disc list-inside mb-4 text-text/90">
-					<li>Aliases must be unique and follow the allowed pattern.</li>
-					<li>If no alias is set, you must use the function UUID.</li>
-					<li>Changing an alias may break existing integrations.</li>
-				</ul>
+			<Callout variant="note" title="All other settings still apply">
+				<p>
+					Using an alias does not bypass secure headers, guest user
+					authentication, CORS, or rate limits. The alias is just a friendlier
+					URL — everything else works as normal.
+				</p>
+			</Callout>
 
-				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-					<h2 className="text-xl font-bold text-primary mb-3">
-						🚀 Next Step - FFmpeg Installation
-					</h2>
-					<p className="text-text/90 mb-4">
-						Need to process video or audio files in your functions? Learn how to
-						enable automatic FFmpeg installation for media processing capabilities.
-					</p>
-					<a
-						href="/docs/ffmpeg-install"
-						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
-					>
-						#19 FFmpeg Installation
-						<span className="text-lg">→</span>
-					</a>
-				</div>
+			<h2>Changing an alias</h2>
+			<Callout variant="warning" title="Changing an alias breaks existing integrations">
+				<p>
+					If any clients use the old alias URL, they will receive a 404 after
+					the change. Update all clients before or immediately after renaming.
+				</p>
+			</Callout>
+
+			<NextStep href="/docs/ffmpeg-install" label="#19 FFmpeg Installation">
+				Next: enable automatic FFmpeg installation for video, audio, and
+				media processing inside your functions.
+			</NextStep>
 		</DocsContentShell>
 	);
 };
