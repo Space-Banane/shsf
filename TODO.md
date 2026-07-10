@@ -10,6 +10,7 @@
 - [x] Shift Enter Submits on modals (any modal) (add as a agent rule for the future)
 - [ ] Fix SHSF Global & Redo it
 - [x] Built-in MCP Server & ready to copy Agentic commands ("claude mcp xxxx", "openclaw mcp add xxxxx", and codex ofc) // Seperate Agents Page & usecases for agents using shsf
+- [ ] Add cron and more mcp tools
 
 ## P1 - Priority 1 (High)
 - [x] Replace data transport layer between backend and functions with a more robust and safe solution.
@@ -32,7 +33,7 @@
 
 ## P3 - Priority 3 (Low)
 - [x] Account Wide Environment Variables
-- [ ] Add a way to manage function dependencies (eg. requirements.txt) from the UI
+- [x] Add a way to manage function dependencies (eg. requirements.txt) from the UI
 - [x] Runner & Backend: Implement a Block for interactions on Functions while “Container ready.” not reached (pretty much wait for “[SHSF] Container ready.”). Message would be something like “Function is not ready yet.”
 - [ ] Function Logs Update
     - Investigate (Shows only Errors)

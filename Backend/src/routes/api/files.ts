@@ -12,6 +12,7 @@ import { OpenAPITags } from "../../lib/openapi";
 import { getFunctionAppDir } from "../../lib/StoragePaths";
 import { createLogger } from "../../lib/logger";
 import { listGitAppFiles } from "../../lib/GitOps";
+import { isDependencyFilename } from "../../lib/FunctionDependencies";
 
 const log = createLogger("files");
 
@@ -40,8 +41,9 @@ async function updateContainerDependencies(
 	filename: string,
 	_content: string,
 ) {
-	// Only process dependency files
-	if (filename !== "requirements.txt" && filename !== "package.json") {
+	// Restart the runtime when a manifest changes. Python and Go apply their
+	// manifests during init; .NET picks up the updated project on the next build.
+	if (!isDependencyFilename(filename) && filename !== "package.json") {
 		return;
 	}
 
@@ -212,10 +214,7 @@ export = new fileRouter.Path("/")
 						encoding: "utf-8",
 					});
 					// If this is a dependency file, ensure container dependencies are updated using the replaced content
-					if (
-						data.filename === "requirements.txt" ||
-						data.filename === "package.json"
-					) {
+					if (isDependencyFilename(data.filename) || data.filename === "package.json") {
 						await updateContainerDependencies(
 							functionId,
 							data.filename,
@@ -559,29 +558,41 @@ export = new fileRouter.Path("/")
 				// Handle renames of dependency files, which requires updating files on disk too
 				if (
 					oldFile &&
-					(oldFile.name === "requirements.txt" ||
+					(isDependencyFilename(oldFile.name) ||
 						oldFile.name === "package.json" ||
-						data.newFilename === "requirements.txt" ||
+						isDependencyFilename(data.newFilename) ||
 						data.newFilename === "package.json")
 				) {
 					const funcAppDir = getFunctionAppDir(functionId);
 					try {
-						// If renaming away from a dependency file, create an empty one
-						if (
-							oldFile.name === "requirements.txt" ||
-							oldFile.name === "package.json"
-						) {
+						const oldPath = path.join(funcAppDir, oldFile.name);
+						const newPath = path.join(funcAppDir, data.newFilename);
+						const isLegacyDependency =
+							oldFile.name === "requirements.txt" || oldFile.name === "package.json";
+
+						// Remove the old path before writing the renamed file. Keep the
+						// historical placeholders only for the legacy Python/Node manifests.
+						if (oldFile.name !== data.newFilename) {
+							try {
+								await fs.unlink(oldPath);
+							} catch {
+								// The file may not exist yet for a newly-created database record.
+							}
+						}
+						if (isLegacyDependency) {
 							await fs.writeFile(
-								path.join(funcAppDir, oldFile.name),
+								oldPath,
 								"# File was renamed\n",
 							);
 							log.info({ fileName: oldFile.name }, "Created empty file after rename to prevent broken deployments");
 						}
 
-						// If renaming to a dependency file, write the content and update dependencies
+						// Keep the host app directory synchronized for dependency and
+						// dependency-adjacent renames.
 						if (
-							data.newFilename === "requirements.txt" ||
-							data.newFilename === "package.json"
+							isDependencyFilename(data.newFilename) ||
+							isDependencyFilename(oldFile.name) ||
+							isLegacyDependency
 						) {
 							try {
 								const funcInfo = await getFunctionExecInfo(functionId);
@@ -593,15 +604,15 @@ export = new fileRouter.Path("/")
 										funcInfo.executionId,
 									);
 								}
-								await fs.writeFile(
-									path.join(funcAppDir, data.newFilename),
-									contentToWrite,
-								);
-								await updateContainerDependencies(
-									functionId,
-									data.newFilename,
-									contentToWrite as string,
-								);
+								await fs.mkdir(path.dirname(newPath), { recursive: true });
+								await fs.writeFile(newPath, contentToWrite);
+								if (isDependencyFilename(data.newFilename) || data.newFilename === "package.json") {
+									await updateContainerDependencies(
+										functionId,
+										data.newFilename,
+										contentToWrite as string,
+									);
+								}
 							} catch (err) {
 								log.error({ err, fileName: data.newFilename }, "Error writing renamed dependency file");
 							}

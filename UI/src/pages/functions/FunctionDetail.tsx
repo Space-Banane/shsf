@@ -18,6 +18,7 @@ import LoadDefaultModal from "../../components/modals/functionFiles/LoadDefaultM
 import AIGenerateModal from "../../components/modals/AIGenerateModal";
 import GitVersionControlModal from "../../components/modals/functions/GitVersionControlModal";
 import DependencyModal from "../../components/modals/functionDetail/DependencyModal";
+import DependencyManagerModal from "../../components/modals/functionDetail/DependencyManagerModal";
 import ResultModal from "../../components/modals/functionDetail/ResultModal";
 import HtmlResultModal from "../../components/modals/functionDetail/HtmlResultModal";
 import ImageResultModal from "../../components/modals/functionDetail/ImageResultModal";
@@ -144,6 +145,7 @@ function FunctionDetail() {
 	const [, setShowAllImageHeaders] = useState<boolean>(false);
 	const [serveHtmlOnly, setServeHtmlOnly] = useState<boolean>(false);
 	const [showDepModal, setShowDepModal] = useState(false);
+	const [showDependencyManager, setShowDependencyManager] = useState(false);
 	const [depModalContent, setDepModalContent] = useState<{
 		title: string;
 		message: string;
@@ -439,7 +441,17 @@ function FunctionDetail() {
 			});
 
 			if (data.status === "OK") {
-				setFiles((prev) => [...prev, { ...data.data, content }]);
+				setFiles((prev) => {
+					const alreadyExists = prev.some((file) => file.id === data.data.id);
+					return alreadyExists
+						? prev.map((file) =>
+								file.id === data.data.id ? { ...file, content } : file,
+							)
+						: [...prev, { ...data.data, content }];
+				});
+				if (activeFile?.id === data.data.id) {
+					setCode(content);
+				}
 				return { success: true, name: filename };
 			}
 
@@ -1818,6 +1830,16 @@ function FunctionDetail() {
 							)}
 
 							<div className="flex flex-wrap items-center justify-end gap-2 border-t border-primary/10 pt-4">
+								{!serveHtmlOnly && (isDotnetRuntime || functionData.image.startsWith("python") || functionData.image.startsWith("golang")) && (
+									<button
+										className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+										onClick={() => setShowDependencyManager(true)}
+										disabled={running || saving || Boolean(functionData.git_url)}
+										title={functionData.git_url ? "Dependency files are managed by the linked git repository" : "Edit runtime dependency manifests"}
+									>
+										Manage Dependencies
+									</button>
+								)}
 								{/* Show Pip Install button if requirements.txt exists or if it's a git-based function (since we don't know the files) */}
 								{(files.find((file) => file.name === "requirements.txt") || Boolean(functionData.git_url)) && (
 									<button
@@ -1980,6 +2002,21 @@ function FunctionDetail() {
 
 			{/* Modals */}
 			<div>
+				<DependencyManagerModal
+					isOpen={showDependencyManager}
+					onClose={() => setShowDependencyManager(false)}
+					functionId={functionData?.id ?? 0}
+					image={functionData?.image ?? ""}
+					files={files}
+					onSave={async (filename, content) => {
+						const result = await persistFile(filename, content);
+						if (!result.success) {
+							toast.error(`Error saving ${filename}: ${result.message}`);
+							return false;
+						}
+						return true;
+					}}
+				/>
 				<CreateFileModal
 					isOpen={showCreateModal}
 					onClose={() => setShowCreateModal(false)}
