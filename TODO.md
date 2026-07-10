@@ -9,12 +9,14 @@
 - [x] Remove the entire pip DOWNLOAD cache for shared functions as its a security risk
 - [x] Shift Enter Submits on modals (any modal) (add as a agent rule for the future)
 - [ ] Fix SHSF Global & Redo it
+- [x] Built-in MCP Server & ready to copy Agentic commands ("claude mcp xxxx", "openclaw mcp add xxxxx", and codex ofc) // Seperate Agents Page & usecases for agents using shsf
+- [ ] Add cron and more mcp tools
 
 ## P1 - Priority 1 (High)
 - [x] Replace data transport layer between backend and functions with a more robust and safe solution.
 - [ ] Find a way to speed up function execution more (completly diffrent approach to the current one?)
 - [x] Move system crons to a diffrent approach, move into src/lib(?)
-- [ ] Auto "docker compose pull && docker compose up -d" updates if user enables OR presses manual update. find possible new image with docker image registry api or something idk
+- [x] Auto "docker compose pull && docker compose up -d" updates if user enables OR presses manual update. find possible new image with docker image registry api or something idk
 
 ## P2 - Priority 2 (Medium)
 - [x] Resolve most of the 83 warnings (no-explicit-any) in backend
@@ -31,7 +33,7 @@
 
 ## P3 - Priority 3 (Low)
 - [x] Account Wide Environment Variables
-- [ ] Add a way to manage function dependencies (eg. requirements.txt) from the UI
+- [x] Add a way to manage function dependencies (eg. requirements.txt) from the UI
 - [x] Runner & Backend: Implement a Block for interactions on Functions while “Container ready.” not reached (pretty much wait for “[SHSF] Container ready.”). Message would be something like “Function is not ready yet.”
 - [ ] Function Logs Update
     - Investigate (Shows only Errors)

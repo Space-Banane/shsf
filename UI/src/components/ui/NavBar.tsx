@@ -58,7 +58,7 @@ export function NavBar({
 		.filter((r) => r.show_nav)
 		.filter((r) => r.name !== "Docs")
 		.sort((a, b) => {
-			const order = ["Functions", "Analytics", "Storage", "Cron Jobs", "Guest Users"];
+			const order = ["Functions", "Analytics", "Storage", "Cron Jobs", "Guest Users", "Agents"];
 			return order.indexOf(a.name) - order.indexOf(b.name);
 		})
 		.filter((r) => !r.adminOnly || isAdmin);

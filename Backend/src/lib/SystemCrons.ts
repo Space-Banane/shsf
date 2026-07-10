@@ -34,34 +34,32 @@ const systemCronLog = createLogger("SYSTEM_CRONS");
 const lastGitPullAt = new Map<number, number>();
 
 function scheduleJob(job: ScheduledJob): SystemCronHandle {
-	let running = false;
+	let stopped = false;
+	let timer: ReturnType<typeof setTimeout> | null = null;
 
 	const tick = async () => {
-		if (running) {
-			systemCronLog.warn({ job: job.name }, "Skipping overlapping system cron run");
-			return;
-		}
-
-		running = true;
+		if (stopped) return;
 		try {
 			await job.run();
 		} catch (error) {
 			systemCronLog.error({ err: error, job: job.name }, "System cron failed");
-		} finally {
-			running = false;
+		}
+		if (!stopped) {
+			timer = setTimeout(() => void tick(), job.intervalMs);
 		}
 	};
 
-	const interval = setInterval(() => {
-		void tick();
-	}, job.intervalMs);
-
 	if (job.runOnStart) {
 		void tick();
+	} else {
+		timer = setTimeout(() => void tick(), job.intervalMs);
 	}
 
 	return {
-		stop: () => clearInterval(interval),
+		stop: () => {
+			stopped = true;
+			if (timer !== null) clearTimeout(timer);
+		},
 	};
 }
 
@@ -123,7 +121,6 @@ export async function processCrons({ prisma, executeFunction }: SystemCronDepend
 			function: true,
 		},
 	});
-
 	for (const cron of crons) {
 		let interval;
 		try {
@@ -184,45 +181,48 @@ export async function processCrons({ prisma, executeFunction }: SystemCronDepend
 					}
 				}
 
-				let executionExitCode: number | null = null;
-				try {
-					const executionResult = await executeFunction(
-						cron.functionId,
-						cron.function,
-						files,
-						{
-							enabled: false,
+				const capturedCronId = cron.id;
+				void (async () => {
+					let executionExitCode: number | null = null;
+					try {
+						const executionResult = await executeFunction(
+							cron.functionId,
+							cron.function,
+							files,
+							{
+								enabled: false,
+							},
+							JSON.stringify({
+								ran_by: "cron",
+								triggerId: capturedCronId,
+								...cronExecutionData,
+							}),
+							{ mode: "cron_execute" },
+						);
+						executionExitCode = executionResult?.exit_code ?? null;
+					} catch (executionError) {
+						cronLog.error({ err: executionError, cronId: capturedCronId }, "Function execution failed");
+					}
+
+					let lastRunSuccessful: boolean | null = executionExitCode === 0;
+					if (executionExitCode === null) {
+						lastRunSuccessful = null;
+						cronLog.warn({ cronId: capturedCronId }, "Unknown exit code, marking run result as null");
+					}
+
+					await prisma.functionTrigger.update({
+						where: { id: capturedCronId },
+						data: {
+							lastRunSuccessful,
 						},
-						JSON.stringify({
-							ran_by: "cron",
-							triggerId: cron.id,
-							...cronExecutionData,
-						}),
-						{ mode: "cron_execute" },
-					);
-					executionExitCode = executionResult?.exit_code ?? null;
-				} catch (executionError) {
-					cronLog.error({ err: executionError, cronId: cron.id }, "Function execution failed");
-				}
+					});
 
-				let lastRunSuccessful: boolean | null = executionExitCode === 0;
-				if (executionExitCode === null) {
-					lastRunSuccessful = null;
-					cronLog.warn({ cronId: cron.id }, "Unknown exit code, marking run result as null");
-				}
-
-				await prisma.functionTrigger.update({
-					where: { id: cron.id },
-					data: {
-						lastRunSuccessful,
-					},
-				});
-
-				if (lastRunSuccessful) {
-					cronLog.info({ cronId: cron.id }, "Cron function executed successfully");
-				} else {
-					cronLog.error({ cronId: cron.id, exitCode: executionExitCode ?? "unknown" }, "Cron function failed");
-				}
+					if (lastRunSuccessful) {
+						cronLog.info({ cronId: capturedCronId }, "Cron function executed successfully");
+					} else {
+						cronLog.error({ cronId: capturedCronId, exitCode: executionExitCode ?? "unknown" }, "Cron function failed");
+					}
+				})();
 			} else {
 				const secondsUntilNextRun = Math.round(
 					(next.getTime() - now.getTime()) / 1000,
