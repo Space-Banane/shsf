@@ -997,44 +997,44 @@ function UpdatesTab() {
 	const [restarting, setRestarting] = useState(false);
 
 	const [autoUpdateLoading, setAutoUpdateLoading] = useState(false);
+	const updateBusy = updateStatus !== null && updateStatus.phase !== "idle";
+	const updateError = updateStatus?.error;
 
-	const load = useCallback(async () => {
-		setLoadError(null);
+	const load = useCallback(async (silent = false) => {
+		if (!silent) setLoadError(null);
 		try {
 			const data = await getUpdateStatus();
-			if (data.status === "OK") setUpdateStatus(data);
-			else setLoadError("Failed to load update status.");
+			if (data.status === "OK") {
+				setUpdateStatus(data);
+				setLoadError(null);
+			} else if (!silent) setLoadError("Failed to load update status.");
 		} catch {
-			setLoadError("Failed to load update status.");
+			if (!silent) setLoadError("Failed to load update status.");
 		}
 	}, []);
 
 	useEffect(() => { load(); }, [load]);
 
-	// Poll while checking/applying so UI stays up to date
+	// Poll until the replacement process reports idle. The old process can
+	// still answer /health during the helper delay, so health polling alone is
+	// not sufficient to detect that the restart has actually completed.
 	useEffect(() => {
-		if (!updateStatus || updateStatus.phase === "idle") return;
-		const id = setInterval(load, 2000);
+		if (!restarting && !updateBusy) return;
+		const id = setInterval(() => { void load(true); }, 2000);
 		return () => clearInterval(id);
-	}, [updateStatus, load]);
+	}, [restarting, updateBusy, load]);
 
-	// Once "applying", start polling the health endpoint until the service is back up
 	useEffect(() => {
-		if (!restarting) return;
-		const id = setInterval(async () => {
-			try {
-				const res = await fetch("/health");
-				if (res.ok) {
-					setRestarting(false);
-					setApplyMessage("Service is back online with the new version.");
-					load();
-				}
-			} catch {
-				// still restarting
+		if (restarting && updateStatus?.phase === "idle") {
+			setRestarting(false);
+			if (updateError) {
+				setApplyError(updateError);
+				setApplyMessage(null);
+			} else {
+				setApplyMessage("Service is back online with the new version.");
 			}
-		}, 2000);
-		return () => clearInterval(id);
-	}, [restarting, load]);
+		}
+	}, [restarting, updateStatus?.phase, updateError]);
 
 	const handleCheck = async () => {
 		setChecking(true);
@@ -1063,7 +1063,13 @@ function UpdatesTab() {
 			if (data.status === "OK") {
 				setApplyMessage(data.message + " Waiting for service to restart…");
 				setRestarting(true);
-				setUpdateStatus((prev) => prev ? { ...prev, updateAvailable: false, newImageId: null } : prev);
+				setUpdateStatus((prev) => prev ? {
+					...prev,
+					phase: "applying",
+					updateAvailable: false,
+					newImageId: null,
+					error: null,
+				} : prev);
 			} else {
 				setApplyError(data.message);
 			}

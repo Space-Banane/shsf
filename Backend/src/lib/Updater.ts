@@ -36,6 +36,50 @@ export function hydrateUpdateState(lastCheck: { checkedAt: string; updateAvailab
 	state.newImageId = lastCheck.newImageId;
 }
 
+/**
+ * Reconcile the persisted check result with the image that is actually
+ * running. The updater process is replaced during a successful self-update,
+ * so the in-memory state from before the restart is not available afterwards.
+ */
+export async function reconcileUpdateState(lastCheck: {
+	checkedAt: string;
+	updateAvailable: boolean;
+	currentImageId: string;
+	newImageId: string | null;
+}): Promise<void> {
+	try {
+		const docker = new Docker();
+		const selfId = await getSelfContainerId(docker);
+		if (!selfId) {
+			hydrateUpdateState(lastCheck);
+			return;
+		}
+
+		const selfInfo = await docker.getContainer(selfId).inspect();
+		const image = await docker.getImage(selfInfo.Config.Image).inspect();
+		const runningImageId = image.Id;
+		const updateApplied = lastCheck.newImageId !== null && lastCheck.newImageId === runningImageId;
+
+		if (updateApplied) {
+			const reconciled = {
+				checkedAt: new Date().toISOString(),
+				updateAvailable: false,
+				currentImageId: runningImageId,
+				newImageId: null,
+			};
+			hydrateUpdateState(reconciled);
+			await setUpdateLastCheck(reconciled);
+			return;
+		}
+
+		hydrateUpdateState(lastCheck);
+	} catch (err) {
+		// Startup must remain available if Docker introspection is unavailable.
+		log.warn({ err }, "Could not reconcile persisted update state");
+		hydrateUpdateState(lastCheck);
+	}
+}
+
 async function getSelfContainerId(docker: Docker): Promise<string | null> {
 	try {
 		const cgroup = await readFile("/proc/self/cgroup", "utf-8");
@@ -150,85 +194,92 @@ export async function applyUpdate(): Promise<{ method: "compose" | "raw" }> {
 	const docker = new Docker();
 	const newImageId = state.newImageId;
 
-	const selfId = await getSelfContainerId(docker);
-	if (!selfId) {
-		state.phase = "idle";
-		state.error = "Could not determine own container ID";
-		throw new Error(state.error);
-	}
+	try {
+		const selfId = await getSelfContainerId(docker);
+		if (!selfId) throw new Error("Could not determine own container ID");
 
-	const selfInfo = await docker.getContainer(selfId).inspect();
-	const labels = selfInfo.Config.Labels ?? {};
+		const selfInfo = await docker.getContainer(selfId).inspect();
+		const labels = selfInfo.Config.Labels ?? {};
 
-	const composeConfigFiles = labels["com.docker.compose.project.config_files"];
-	const projectName = labels["com.docker.compose.project"];
-	const serviceName = labels["com.docker.compose.service"];
+		const composeConfigFiles = labels["com.docker.compose.project.config_files"];
+		const projectName = labels["com.docker.compose.project"];
+		const serviceName = labels["com.docker.compose.service"];
 
-	if (composeConfigFiles && projectName && serviceName) {
-		const composePath = composeConfigFiles.split(",")[0].trim();
-		log.info({ composePath, projectName, serviceName }, "Applying update via docker compose helper");
+		if (composeConfigFiles && projectName && serviceName) {
+			const composePath = composeConfigFiles.split(",")[0].trim();
+			log.info({ composePath, projectName, serviceName }, "Applying update via docker compose helper");
 
-		// Spawn a helper container that runs `docker compose up -d --no-pull`
-		// after a brief delay, allowing this response to be flushed first.
-		// The helper mounts the compose file and the Docker socket from the host.
+			// Spawn a helper container that runs `docker compose up -d --no-pull`
+			// after a brief delay, allowing this response to be flushed first.
+			// The helper mounts the compose file and the Docker socket from the host.
+			setImmediate(async () => {
+				try {
+					// Ensure docker:cli is available (pull if necessary)
+					try {
+						const stream = await docker.pull("docker:cli");
+						await new Promise<void>((resolve, reject) => {
+							docker.modem.followProgress(stream, (err: Error | null) => {
+								if (err) reject(err);
+								else resolve();
+							});
+						});
+					} catch (pullErr) {
+						log.warn({ err: pullErr }, "Could not pull docker:cli — attempting with existing local image");
+					}
+
+					const helper = await docker.createContainer({
+						Image: "docker:cli",
+						Cmd: [
+							"sh",
+							"-c",
+							// Wait for the API response to be delivered before recreating
+							`sleep 3 && docker compose -p '${projectName}' -f /compose.yml up -d --no-pull '${serviceName}'`,
+						],
+						HostConfig: {
+							AutoRemove: true,
+							Binds: [
+								"/var/run/docker.sock:/var/run/docker.sock",
+								`${composePath}:/compose.yml:ro`,
+							],
+						},
+					});
+
+					await helper.start();
+					log.info({ helperId: helper.id }, "Compose helper container started");
+					const result = await helper.wait();
+					if (result.StatusCode !== 0) {
+						throw new Error(`Docker Compose update failed with exit code ${result.StatusCode}`);
+					}
+					state.phase = "idle";
+				} catch (err) {
+					state.phase = "idle";
+					state.error = err instanceof Error ? err.message : String(err);
+					log.error({ err }, "Compose update failed");
+				}
+			});
+
+			return { method: "compose" };
+		}
+
+		// Fallback: raw container recreation without compose
+		log.warn("Container not managed by docker compose — using raw recreation");
+
 		setImmediate(async () => {
 			try {
-				// Ensure docker:cli is available (pull if necessary)
-				try {
-					const stream = await docker.pull("docker:cli");
-					await new Promise<void>((resolve, reject) => {
-						docker.modem.followProgress(stream, (err: Error | null) => {
-							if (err) reject(err);
-							else resolve();
-						});
-					});
-				} catch (pullErr) {
-					log.warn({ err: pullErr }, "Could not pull docker:cli — attempting with existing local image");
-				}
-
-				const helper = await docker.createContainer({
-					Image: "docker:cli",
-					Cmd: [
-						"sh",
-						"-c",
-						// Wait for the API response to be delivered before recreating
-						`sleep 3 && docker compose -p '${projectName}' -f /compose.yml up -d --no-pull '${serviceName}'`,
-					],
-					HostConfig: {
-						AutoRemove: true,
-						Binds: [
-							"/var/run/docker.sock:/var/run/docker.sock",
-							`${composePath}:/compose.yml:ro`,
-						],
-					},
-				});
-
-				await helper.start();
-				log.info({ helperId: helper.id }, "Compose helper container started");
+				await rawRecreate(docker, selfId, selfInfo, newImageId);
 			} catch (err) {
 				state.phase = "idle";
 				state.error = err instanceof Error ? err.message : String(err);
-				log.error({ err }, "Failed to start compose helper container");
+				log.error({ err }, "Raw container recreation failed");
 			}
 		});
 
-		return { method: "compose" };
+		return { method: "raw" };
+	} catch (err) {
+		state.phase = "idle";
+		state.error = err instanceof Error ? err.message : String(err);
+		throw err;
 	}
-
-	// Fallback: raw container recreation without compose
-	log.warn("Container not managed by docker compose — using raw recreation");
-
-	setImmediate(async () => {
-		try {
-			await rawRecreate(docker, selfId, selfInfo, newImageId);
-		} catch (err) {
-			state.phase = "idle";
-			state.error = err instanceof Error ? err.message : String(err);
-			log.error({ err }, "Raw container recreation failed");
-		}
-	});
-
-	return { method: "raw" };
 }
 
 async function rawRecreate(

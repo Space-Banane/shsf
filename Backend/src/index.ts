@@ -16,7 +16,7 @@ import { executionMiddleware } from "./lib/middlewares/execution";
 import { makeResponse } from "./lib/response";
 import { ERROR_MESSAGES } from "./lib/errors";
 import { startSystemCrons } from "./lib/SystemCrons";
-import { hydrateUpdateState } from "./lib/Updater";
+import { reconcileUpdateState } from "./lib/Updater";
 import { getUpdateLastCheck } from "./lib/DataManager";
 
 export const VERSION: {
@@ -126,7 +126,7 @@ if (env.NODE_ENV !== "test") {
 
 			// Restore last update-check result into memory so the Admin UI has it immediately
 			const lastCheck = await getUpdateLastCheck();
-			if (lastCheck) hydrateUpdateState(lastCheck);
+			if (lastCheck) await reconcileUpdateState(lastCheck);
 
 			startSystemCrons({ prisma, executeFunction, performGitPull });
 		})
