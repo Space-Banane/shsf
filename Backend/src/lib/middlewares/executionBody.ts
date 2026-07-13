@@ -16,7 +16,8 @@ export async function readRawRequestBodyFromMiddleware(ctr: any): Promise<Buffer
 	requestContext.body.awaiting = true;
 	try {
 		await ctr.rawContext.onBodyChunk((chunk: ArrayBuffer | Uint8Array, isLast: boolean) => {
-			requestContext.body.chunks.push(Buffer.from(chunk));
+			const bufferChunk = chunk instanceof Uint8Array ? Buffer.from(chunk) : Buffer.from(new Uint8Array(chunk));
+			requestContext.body.chunks.push(bufferChunk);
 			if (!isLast) {
 				return;
 			}
