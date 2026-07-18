@@ -193,7 +193,7 @@ export = new fileRouter.Path("/")
 										await print(
 											JSON.stringify({
 												type: "end",
-												exitCode: 0,
+												exitCode: result?.exit_code ?? 0,
 												output: output,
 												result: result?.result,
 												took: result?.tooks,
@@ -229,7 +229,7 @@ export = new fileRouter.Path("/")
 							{ mode: "dev_execute" },
 						);
 
-						if (functionData.cache_enabled && result?.result) {
+						if (functionData.cache_enabled && result?.exit_code === 0 && result?.result) {
 							await setFunctionCache(
 								functionData.id,
 								payloadHash,

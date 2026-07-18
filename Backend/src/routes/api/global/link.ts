@@ -1,4 +1,5 @@
-import { fileRouter, INSTANCE_SECRET, prisma } from "../../..";
+import { API_KEY_HEADER, COOKIE, fileRouter, INSTANCE_SECRET, prisma } from "../../..";
+import { checkAuthentication } from "../../../lib/Authentication";
 import { getLinkLock, getLinkStatus, getUUID, setLinkStatus } from "../../../lib/DataManager";
 import { OpenAPITags } from "../../../lib/openapi";
 
@@ -173,16 +174,27 @@ export = new fileRouter.Path("/")
 	/**
 	 * POST /api/global/unlink
 	 * Removes the link between the external user and this instance.
-	 * Requires the email that was used to link and the instance UUID.
+	 * Requires the email that was used to link and the instance UUID,
+	 * plus either an authenticated local Admin or the instance secret.
 	 */
 	.http("POST", "/api/global/unlink", (http) =>
 		http
 			.ratelimit((limit) => limit.hits(5).window(10000).penalty(500))
 			.document({
 				description:
-					"Unlinks the currently linked remote user from this instance. Requires the linked email and the instance UUID.",
+					"Unlinks the currently linked remote user from this instance. Requires the linked email and the instance UUID, plus either an authenticated local Admin session/API key or the instance secret via the x-shsf-insect header.",
 				tags: ["Global"] as OpenAPITags[],
 				operationId: "unlinkInstance",
+				parameters: [
+					{
+						name: "x-shsf-insect",
+						in: "header",
+						required: false,
+						description:
+							"The instance secret. Alternative to session/API key authentication.",
+						schema: { type: "string" },
+					},
+				],
 				requestBody: {
 					required: true,
 					content: {
@@ -231,6 +243,28 @@ export = new fileRouter.Path("/")
 
 				if (!data)
 					return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
+
+				// 0. The linked email and instance UUID are visible to local admins,
+				// so they are not secrets. Require a real credential: either the
+				// instance secret (used by shsf.dev) or a local Admin session/API key.
+				const secretHeader = ctr.headers.get("x-shsf-insect");
+				const secretOk =
+					typeof secretHeader === "string" && secretHeader === INSTANCE_SECRET;
+
+				if (!secretOk) {
+					const authCheck = await checkAuthentication(
+						ctr.cookies.get(COOKIE),
+						ctr.headers.get(API_KEY_HEADER),
+					);
+
+					if (!authCheck.success || authCheck.user.role !== "Admin") {
+						return ctr.status(ctr.$status.UNAUTHORIZED).print({
+							status: "FAILED",
+							message:
+								"Unlinking requires the instance secret or an authenticated local Admin.",
+						});
+					}
+				}
 
 				// 1. Verify current link status
 				const linkStatus = await getLinkStatus();

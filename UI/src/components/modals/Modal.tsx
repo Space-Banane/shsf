@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { toast } from "react-toastify";
 import { Icon } from "../ui/Icon";
 
 export const inputClass =
@@ -45,6 +46,12 @@ export function ModalFooter({ children }: { children: React.ReactNode }) {
 }
 
 export function ModalError({ message }: { message?: string | null }) {
+	// Modals can be taller than the viewport with the error box rendered at the
+	// top, so a toast makes the failure visible regardless of scroll position.
+	useEffect(() => {
+		if (message) toast.error(message);
+	}, [message]);
+
 	if (!message) return null;
 	return (
 		<div className="px-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { executeLoadedHttpFunction } from "../../lib/HttpExecution";
+import { executeLoadedHttpFunction } from "../lib/HttpExecution";
 
 const baseFunctionData = {
 	id: 10,

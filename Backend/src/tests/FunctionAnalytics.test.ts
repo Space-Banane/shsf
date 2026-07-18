@@ -5,7 +5,7 @@ import {
 	getAnalyticsRangeStart,
 	normalizeAnalyticsRange,
 	parseExecutionAnalyticsLog,
-} from "../../lib/FunctionAnalytics";
+} from "../lib/FunctionAnalytics";
 
 describe("FunctionAnalytics helpers", () => {
 	it("normalizes unknown ranges to 7d", () => {

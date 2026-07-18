@@ -28,6 +28,15 @@ const TriggerLogCard: React.FC<TriggerLogCardProps> = ({ log, expanded, onToggle
 		"bg-background/40 border border-white/[0.07] rounded-lg p-3 overflow-auto";
 	const sectionHeaderCls = "text-xs font-medium text-muted uppercase tracking-wider mb-2";
 
+	let exitCode: number | null = null;
+	try {
+		const parsed = JSON.parse(log.result ?? "");
+		if (typeof parsed?.exit_code === "number") exitCode = parsed.exit_code;
+		else if (typeof parsed?.exitCode === "number") exitCode = parsed.exitCode;
+	} catch {
+		// leave exitCode null when the result is not parseable
+	}
+
 	return (
 		<div className="bg-surface border border-white/[0.07] rounded-lg overflow-hidden hover:border-white/[0.12] transition-colors">
 			<div
@@ -36,9 +45,22 @@ const TriggerLogCard: React.FC<TriggerLogCardProps> = ({ log, expanded, onToggle
 			>
 				<div className="flex items-center justify-between">
 					<div>
-						<p className="text-sm font-medium text-text">
-							{new Date(log.createdAt).toLocaleString()}
-						</p>
+						<div className="flex items-center gap-2">
+							<p className="text-sm font-medium text-text">
+								{new Date(log.createdAt).toLocaleString()}
+							</p>
+							{exitCode !== null && (
+								<span
+									className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+										exitCode === 0
+											? "bg-green-500/10 text-green-400 border border-green-500/20"
+											: "bg-red-500/10 text-red-400 border border-red-500/20"
+									}`}
+								>
+									{exitCode === 0 ? "Success" : `Exit ${exitCode}`}
+								</span>
+							)}
+						</div>
 						<p className="text-xs text-muted">Execution #{log.id}</p>
 					</div>
 					<div className="flex items-center gap-3">
@@ -128,7 +150,7 @@ const TriggerLogCard: React.FC<TriggerLogCardProps> = ({ log, expanded, onToggle
 										className="flex items-center justify-between py-1 border-b border-white/[0.04] last:border-0"
 									>
 										<span className="text-muted text-xs">{took.description}</span>
-										<span className="text-text text-xs font-mono">{took.value} ms</span>
+										<span className="text-text text-xs font-mono">{Math.round(took.value * 1000)} ms</span>
 									</div>
 								)) || (
 									<p className="text-muted text-xs">No timing details available</p>

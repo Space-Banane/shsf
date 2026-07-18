@@ -8,7 +8,7 @@ import {
 	getFunctionExecutionsDir,
 	getGitRepoDir,
 	getShsfDataRoot,
-} from "../../lib/StoragePaths";
+} from "../lib/StoragePaths";
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
 

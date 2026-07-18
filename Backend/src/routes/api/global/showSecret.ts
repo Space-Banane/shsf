@@ -8,6 +8,7 @@ export = new fileRouter.Path("/").http(
 	"/api/global/showSecret",
 	(http) =>
 		http
+			.ratelimit((limit) => limit.hits(3).window(10000).penalty(5000))
 			.onRequest(async (ctr) => {
 				const authCheck = await checkAuthentication(
 					ctr.cookies.get(COOKIE),

@@ -28,7 +28,7 @@ export const VERSION: {
 } = {
 	type: "SHSF API",
 	major: 2,
-	minor: 0,
+	minor: 1,
 	patch: 0,
 	toString() {
 		return `${this.major}.${this.minor}.${this.patch}`;

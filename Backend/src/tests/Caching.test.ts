@@ -5,7 +5,7 @@ import {
     getSanitizedPayload,
     isSHSFBinaryEnvelope,
     SHSF_BINARY_TRANSPORT,
-} from "../../lib/Caching";
+} from "../lib/Caching";
 
 describe("getSanitizedPayload", () => {
     it("returns non-object primitives as-is", async () => {

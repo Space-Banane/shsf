@@ -246,6 +246,27 @@ export async function executeLoadedHttpFunction(
 			payloadHash as string,
 		);
 		if (cached) {
+			// Cache hits are still executions from the caller's perspective —
+			// without this, functions with caching enabled only ever log their
+			// failures (errors are never cached), making the log view look like
+			// the function does nothing but fail.
+			await dependencies.persistFunctionExecutionLog({
+				functionId: functionData.id,
+				functionData,
+				logs: "Result served from response cache — function code was not executed.",
+				output: cached.result,
+				payload: buildHttpLogPayload(identityValues, route),
+				exit_code: 0,
+				tooks: [
+					{
+						description: "Served from response cache",
+						value: 0,
+						timestamp: Date.now(),
+					},
+				],
+				ratelimit: loggedRateLimit,
+			});
+
 			return dependencies.handleFunctionResult(
 				ctr,
 				JSON.parse(cached.result),

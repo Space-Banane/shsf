@@ -8,28 +8,28 @@ import {
 	prepareRunnerTransport,
 	readRunnerResult,
 	revokeLegacyFunctionDbTokens,
-} from "../../lib/RunnerTransport";
+} from "../lib/RunnerTransport";
 import {
 	FunctionStorageService,
 	StorageServiceError,
-} from "../../lib/FunctionStorageService";
+} from "../lib/FunctionStorageService";
 import {
 	DbComScriptCS,
 	DbComScriptGO,
 	DbComScriptPY,
 	ShsfRuntimeScriptCS,
-} from "../../lib/RunnerScripts";
+} from "../lib/RunnerScripts";
 import {
 	generateDotnetRunnerScript,
 	generateGoRunnerWrapperCode,
 	generatePythonRunnerScript,
-} from "../../lib/RunnerRuntimeScripts";
+} from "../lib/RunnerRuntimeScripts";
 
 type TestStorageDb = NonNullable<
 	ConstructorParameters<typeof FunctionStorageService>[0]
 >;
 
-vi.mock("../../index.js", () => ({
+vi.mock("../index.js", () => ({
 	prisma: {
 		accessToken: {
 			deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -209,7 +209,7 @@ describe("generated transport scripts", () => {
 
 describe("legacy function DB token cleanup", () => {
 	it("deletes hidden legacy function DB tokens", async () => {
-		const { prisma } = await import("../../index.js");
+		const { prisma } = await import("../index.js");
 		await revokeLegacyFunctionDbTokens();
 		expect(prisma.accessToken.deleteMany).toHaveBeenCalledWith({
 			where: {

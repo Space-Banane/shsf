@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { readRawRequestBodyFromMiddleware } from "../../lib/middlewares/executionBody";
+import { readRawRequestBodyFromMiddleware } from "../lib/middlewares/executionBody";
 
 function createCtr(method: string, chunks: Array<Buffer | string>) {
 	const bodyState = {

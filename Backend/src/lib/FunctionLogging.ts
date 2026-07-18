@@ -120,6 +120,11 @@ export async function getExitCodeFromLog(triggerLog: TriggerLog): Promise<number
             return null;
         }
         const parsed = JSON.parse(triggerLog.result);
+        // persistFunctionExecutionLog writes "exit_code"; "exitCode" is kept for
+        // older rows written before the key was standardised.
+        if (parsed && typeof parsed === "object" && "exit_code" in parsed) {
+            return parsed.exit_code;
+        }
         if (parsed && typeof parsed === "object" && "exitCode" in parsed) {
             return parsed.exitCode;
         }

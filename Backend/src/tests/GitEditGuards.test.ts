@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { getGitEditBlock } from "../../lib/GitEditGuards";
+import { getGitEditBlock } from "../lib/GitEditGuards";
 
 describe("getGitEditBlock", () => {
 	it("blocks edits when git_url is configured", async () => {
