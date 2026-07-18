@@ -16,9 +16,9 @@ export const VERSION: {
 	patch: number;
 	toString: () => string;
 } = {
-	type: "SHSF API",
+	type: "SHSF UI",
 	major: 2,
-	minor: 0,
+	minor: 1,
 	patch: 0,
 	toString() {
 		return `${this.major}.${this.minor}.${this.patch}`;

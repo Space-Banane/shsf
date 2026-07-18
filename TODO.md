@@ -1,14 +1,14 @@
 # TODO.md
 
 ## P0 - Priority 0 (Critical)
-- [ ] Add UI unit testing / Improve it
-- [ ] Add Backend unit testing / Improve it (eg. rename files, move into seperate testing folder etc etc /src/tests)
+- [x] Add UI unit testing / Improve it
+- [x] Add Backend unit testing / Improve it (eg. rename files, move into seperate testing folder etc etc /src/tests)
 - [x] Migrate env checking to a seperate module using zod
 - [x] Rewrite Runner.ts & split
 - [x] Docker image & Propper compose
 - [x] Remove the entire pip DOWNLOAD cache for shared functions as its a security risk
 - [x] Shift Enter Submits on modals (any modal) (add as a agent rule for the future)
-- [ ] Fix SHSF Global & Redo it
+- [ ] Fix SHSF Global & Redo it (security fixed: link-status/unlink now require admin or instance secret; full redo still open)
 - [x] Built-in MCP Server & ready to copy Agentic commands ("claude mcp xxxx", "openclaw mcp add xxxxx", and codex ofc) // Seperate Agents Page & usecases for agents using shsf
 - [x] Add cron and more mcp tools
 
@@ -35,10 +35,10 @@
 - [x] Add a way to manage function dependencies (eg. requirements.txt) from the UI
 - [x] Runner & Backend: Implement a Block for interactions on Functions while “Container ready.” not reached (pretty much wait for “[SHSF] Container ready.”). Message would be something like “Function is not ready yet.”
 - [ ] Function Logs Update
-    - Investigate (Shows only Errors)
+    - [x] Investigate (Shows only Errors) — cache hits were never logged, dev runs always reported exit 0, exit-code parsing used the wrong key
     - Hide Specifics (regex blur)
     - Toggle to only log Generic Headers
-- [ ] any Modal(???) / function update: Scroll to top on error or move errors to toast (preferred)
+- [x] any Modal(???) / function update: Scroll to top on error or move errors to toast (preferred)
 - [x] Remove "Error fetching files: File edits are disabled while git is configured for this function. Remove git configuration to edit files."
 
 ## P4 - Priority 4 (Trivial)
