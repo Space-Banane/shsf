@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { validateCronExpression } from "../../lib/Cron";
-import { processGitPulls } from "../../lib/SystemCrons";
+import { validateCronExpression } from "../lib/Cron";
+import { processGitPulls } from "../lib/SystemCrons";
 
 describe("validateCronExpression", () => {
     it("returns true for a valid cron expression", async () => {

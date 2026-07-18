@@ -6,8 +6,8 @@ import {
 	listGitAppFiles,
 	removeGitMetadata,
 	stripCredentialsFromUrl,
-} from "../../lib/GitOps";
-import { getFunctionBaseDir, getFunctionAppDir } from "../../lib/StoragePaths";
+} from "../lib/GitOps";
+import { getFunctionBaseDir, getFunctionAppDir } from "../lib/StoragePaths";
 
 const testFunctionIds = new Set<number>();
 

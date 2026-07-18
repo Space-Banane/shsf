@@ -12,7 +12,7 @@ import {
 	hasConfiguredRateLimitBuckets,
 	normalizeFunctionRateLimitConfig,
 	resetFunctionRateLimitState,
-} from "../../lib/FunctionRateLimit";
+} from "../lib/FunctionRateLimit";
 
 const fallbackWindowMs = parseInt(env.RATELIMIT || "0", 10) || 0;
 

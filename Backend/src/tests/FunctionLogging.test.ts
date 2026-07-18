@@ -1,6 +1,6 @@
 import { TriggerLog } from '@prisma/client';
 import { describe, it, expect } from 'vitest';
-import { getExitCodeFromLog, stripHeadersFromPayload } from '../../lib/FunctionLogging';
+import { getExitCodeFromLog, stripHeadersFromPayload } from '../lib/FunctionLogging';
 
 describe('getExitCodeFromLog', () => {
   it('should return the correct exit code',async () => {

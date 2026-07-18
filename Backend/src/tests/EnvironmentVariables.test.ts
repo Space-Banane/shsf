@@ -4,7 +4,7 @@ import {
 	parseStoredEnvironmentVariables,
 	serializeEnvironmentVariables,
 	toDockerEnvironment,
-} from "../../lib/EnvironmentVariables";
+} from "../lib/EnvironmentVariables";
 
 describe("EnvironmentVariables", () => {
 	it("parses stored environment variables and ignores invalid entries", () => {
