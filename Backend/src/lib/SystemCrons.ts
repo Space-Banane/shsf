@@ -106,8 +106,9 @@ export async function processCrons({ prisma, executeFunction }: SystemCronDepend
 		where: {
 			OR: [
 				{
+					// Includes overdue triggers (nextRun in the past): a missed
+					// tick or server downtime must not permanently kill a cron.
 					nextRun: {
-						gte: now,
 						lte: fiveMinutesFromNow,
 					},
 				},
@@ -152,9 +153,9 @@ export async function processCrons({ prisma, executeFunction }: SystemCronDepend
 				continue;
 			}
 
-			const next = interval.next();
-
-			if (next.getTime() <= now.getTime() + 1000) {
+			// Fire based on the stored schedule so overdue triggers run instead
+			// of waiting for (or missing) the next parsed boundary.
+			if (cron.nextRun.getTime() <= now.getTime() + 1000) {
 				const followingRun = interval.next().toDate();
 
 				await prisma.functionTrigger.update({
@@ -225,7 +226,7 @@ export async function processCrons({ prisma, executeFunction }: SystemCronDepend
 				})();
 			} else {
 				const secondsUntilNextRun = Math.round(
-					(next.getTime() - now.getTime()) / 1000,
+					(cron.nextRun.getTime() - now.getTime()) / 1000,
 				);
 
 				if (secondsUntilNextRun <= 5) {
