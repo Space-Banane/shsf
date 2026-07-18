@@ -3,16 +3,27 @@ import { describe, it, expect } from 'vitest';
 import { getExitCodeFromLog, stripHeadersFromPayload } from '../lib/FunctionLogging';
 
 describe('getExitCodeFromLog', () => {
-  it('should return the correct exit code',async () => {
-    const expectedExitCode = 0; // Replace with the expected exit code for your test case
-    const test = {
+  const makeLog = (result: string) =>
+    ({
       createdAt: new Date(),
       functionId: 1,
       id: 1,
-      result: JSON.stringify({ exitCode: expectedExitCode }),
-    } as TriggerLog;
+      result,
+    }) as TriggerLog;
 
-    expect(await getExitCodeFromLog(test)).toBe(expectedExitCode);
+  it('reads the exit_code key written by persistFunctionExecutionLog', async () => {
+    const log = makeLog(JSON.stringify({ exit_code: 137, tooks: [], output: '' }));
+    expect(await getExitCodeFromLog(log)).toBe(137);
+  });
+
+  it('falls back to the legacy exitCode key', async () => {
+    const log = makeLog(JSON.stringify({ exitCode: 0 }));
+    expect(await getExitCodeFromLog(log)).toBe(0);
+  });
+
+  it('returns null when no exit code is present', async () => {
+    const log = makeLog(JSON.stringify({ output: 'hi' }));
+    expect(await getExitCodeFromLog(log)).toBe(null);
   });
 });
 

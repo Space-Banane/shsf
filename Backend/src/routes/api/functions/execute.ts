@@ -193,7 +193,7 @@ export = new fileRouter.Path("/")
 										await print(
 											JSON.stringify({
 												type: "end",
-												exitCode: 0,
+												exitCode: result?.exit_code ?? 0,
 												output: output,
 												result: result?.result,
 												took: result?.tooks,
