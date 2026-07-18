@@ -286,6 +286,22 @@ export async function processStorageCleanup({ prisma }: SystemCronDependencies) 
 	} catch (error) {
 		storageLog.error({ err: error }, "Error during storage cleanup");
 	}
+
+	try {
+		// Expired cache rows are only ever filtered out on read; without this
+		// they accumulate in the table indefinitely.
+		const expiredCache = await prisma.functionCache.deleteMany({
+			where: {
+				expiresAt: { lt: now },
+			},
+		});
+
+		if (expiredCache.count > 0) {
+			storageLog.info({ count: expiredCache.count }, "Expired function cache entries cleaned up");
+		}
+	} catch (error) {
+		storageLog.error({ err: error }, "Error during function cache cleanup");
+	}
 }
 
 const updateLog = createLogger("AUTO_UPDATE");
