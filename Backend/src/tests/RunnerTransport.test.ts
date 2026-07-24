@@ -8,6 +8,7 @@ import {
 	prepareRunnerTransport,
 	readRunnerResult,
 	revokeLegacyFunctionDbTokens,
+	startCallFuncBridge,
 } from "../lib/RunnerTransport";
 import {
 	FunctionStorageService,
@@ -17,6 +18,9 @@ import {
 	DbComScriptGO,
 	DbComScriptPY,
 	DbComScriptJS,
+	CallFuncScriptPY,
+	CallFuncScriptGO,
+	CallFuncScriptJS,
 } from "../lib/RunnerScripts";
 import {
 	generateGoRunnerWrapperCode,
@@ -257,5 +261,185 @@ describe("legacy function DB token cleanup", () => {
 				hidden: true,
 			},
 		});
+	});
+});
+
+describe("callF transport paths", () => {
+	it("includes callfunc request and response dirs", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-callfunc-"));
+		const paths = getRunnerTransportPaths(dir);
+		expect(paths.callFuncRequestDir).toBe(path.join(dir, "callfunc-requests"));
+		expect(paths.callFuncResponseDir).toBe(path.join(dir, "callfunc-responses"));
+	});
+
+	it("prepareRunnerTransport creates callfunc dirs", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-callfunc-"));
+		const paths = getRunnerTransportPaths(dir);
+		await prepareRunnerTransport(paths);
+		await expect(fs.access(paths.callFuncRequestDir)).resolves.toBeUndefined();
+		await expect(fs.access(paths.callFuncResponseDir)).resolves.toBeUndefined();
+	});
+});
+
+describe("callF bridge", () => {
+	it("dispatches a callF request to the executor and writes the response", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-callfunc-"));
+		const reqDir = path.join(dir, "callfunc-requests");
+		const respDir = path.join(dir, "callfunc-responses");
+		await fs.mkdir(reqDir, { recursive: true });
+		await fs.mkdir(respDir, { recursive: true });
+
+		const executor = vi.fn().mockResolvedValue({ hello: "world" });
+		const bridge = startCallFuncBridge({
+			requestDir: reqDir,
+			responseDir: respDir,
+			execute: executor,
+			pollIntervalMs: 10,
+		});
+
+		const requestId = "test-request-123";
+		const requestPath = path.join(reqDir, `${requestId}.json`);
+		const responsePath = path.join(respDir, `${requestId}.json`);
+		await fs.writeFile(
+			requestPath,
+			JSON.stringify({ id: requestId, functionName: "myFunc", args: { key: "val" } }),
+		);
+
+		// Wait for the bridge to process the request
+		const deadline = Date.now() + 2000;
+		while (Date.now() < deadline) {
+			try {
+				await fs.access(responsePath);
+				break;
+			} catch {
+				await new Promise((r) => setTimeout(r, 20));
+			}
+		}
+
+		await bridge.stop();
+
+		const raw = await fs.readFile(responsePath, "utf8");
+		const response = JSON.parse(raw);
+		expect(response.status).toBe("OK");
+		expect(response.data).toEqual({ hello: "world" });
+		expect(executor).toHaveBeenCalledWith("myFunc", { key: "val" });
+	});
+
+	it("writes a FAILED response when the executor throws", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-callfunc-fail-"));
+		const reqDir = path.join(dir, "callfunc-requests");
+		const respDir = path.join(dir, "callfunc-responses");
+		await fs.mkdir(reqDir, { recursive: true });
+		await fs.mkdir(respDir, { recursive: true });
+
+		const executor = vi.fn().mockRejectedValue(new Error("Function not found"));
+		const bridge = startCallFuncBridge({
+			requestDir: reqDir,
+			responseDir: respDir,
+			execute: executor,
+			pollIntervalMs: 10,
+		});
+
+		const requestId = "fail-request-456";
+		const requestPath = path.join(reqDir, `${requestId}.json`);
+		const responsePath = path.join(respDir, `${requestId}.json`);
+		await fs.writeFile(
+			requestPath,
+			JSON.stringify({ id: requestId, functionName: "missing", args: {} }),
+		);
+
+		const deadline = Date.now() + 2000;
+		while (Date.now() < deadline) {
+			try {
+				await fs.access(responsePath);
+				break;
+			} catch {
+				await new Promise((r) => setTimeout(r, 20));
+			}
+		}
+
+		await bridge.stop();
+
+		const raw = await fs.readFile(responsePath, "utf8");
+		const response = JSON.parse(raw);
+		expect(response.status).toBe("FAILED");
+		expect(response.message).toBe("Function not found");
+	});
+
+	it("writes a FAILED response for a request missing functionName", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-callfunc-noname-"));
+		const reqDir = path.join(dir, "callfunc-requests");
+		const respDir = path.join(dir, "callfunc-responses");
+		await fs.mkdir(reqDir, { recursive: true });
+		await fs.mkdir(respDir, { recursive: true });
+
+		const executor = vi.fn();
+		const bridge = startCallFuncBridge({
+			requestDir: reqDir,
+			responseDir: respDir,
+			execute: executor,
+			pollIntervalMs: 10,
+		});
+
+		const requestId = "noname-request-789";
+		await fs.writeFile(
+			path.join(reqDir, `${requestId}.json`),
+			JSON.stringify({ id: requestId, args: {} }),
+		);
+
+		const responsePath = path.join(respDir, `${requestId}.json`);
+		const deadline = Date.now() + 2000;
+		while (Date.now() < deadline) {
+			try {
+				await fs.access(responsePath);
+				break;
+			} catch {
+				await new Promise((r) => setTimeout(r, 20));
+			}
+		}
+
+		await bridge.stop();
+
+		const raw = await fs.readFile(responsePath, "utf8");
+		const response = JSON.parse(raw);
+		expect(response.status).toBe("FAILED");
+		expect(executor).not.toHaveBeenCalled();
+	});
+});
+
+describe("callF client scripts", () => {
+	it("Python script uses SHSF_CALLFUNC env vars for RPC dirs", () => {
+		expect(CallFuncScriptPY).toContain("SHSF_CALLFUNC_REQUEST_DIR");
+		expect(CallFuncScriptPY).toContain("SHSF_CALLFUNC_RESPONSE_DIR");
+		expect(CallFuncScriptPY).toContain("callF");
+		expect(CallFuncScriptPY).toContain("functionName");
+	});
+
+	it("Go script uses SHSF_CALLFUNC env vars for RPC dirs", () => {
+		expect(CallFuncScriptGO).toContain("SHSF_CALLFUNC_REQUEST_DIR");
+		expect(CallFuncScriptGO).toContain("SHSF_CALLFUNC_RESPONSE_DIR");
+		expect(CallFuncScriptGO).toContain("CallF");
+		expect(CallFuncScriptGO).toContain("FunctionName");
+	});
+
+	it("Node.js script uses SHSF_CALLFUNC env vars for RPC dirs", () => {
+		expect(CallFuncScriptJS).toContain("SHSF_CALLFUNC_REQUEST_DIR");
+		expect(CallFuncScriptJS).toContain("SHSF_CALLFUNC_RESPONSE_DIR");
+		expect(CallFuncScriptJS).toContain("callF");
+		expect(CallFuncScriptJS).toContain("functionName");
+	});
+
+	it("client scripts do not embed credentials or API base URLs", () => {
+		for (const script of [CallFuncScriptPY, CallFuncScriptGO, CallFuncScriptJS]) {
+			expect(script).not.toContain("ACCESS_KEY");
+			expect(script).not.toContain("{{AUTHKEY}}");
+			expect(script).not.toContain("{{API}}");
+		}
+	});
+
+	it("client scripts write atomic requests using tmp+rename", () => {
+		expect(CallFuncScriptPY).toContain(".tmp");
+		expect(CallFuncScriptGO).toContain(".tmp");
+		expect(CallFuncScriptJS).toContain(".tmp");
 	});
 });

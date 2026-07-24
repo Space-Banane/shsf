@@ -9,7 +9,7 @@
 ## P1 - Priority 1 (High)
 - [ ] Find a way to speed up function execution more (completly diffrent approach to the current one?)
 - [ ] Make more use of the testing ui for functions
-- [ ] Call other functions within a function via a builtin function into the inject runtime runner (example, `callF("functionName", {args} (args here are passed into the args.body and the who ran param will be "func_"+id of the calling function (embedded in the callF function generated at runtime)))` or something like that)
+- [x] Call other functions within a function via a builtin function into the inject runtime runner (example, `callF("functionName", {args} (args here are passed into the args.body and the who ran param will be "func_"+id of the calling function (embedded in the callF function generated at runtime)))` or something like that)
 - [ ] dev/prod modes for functions.
     > Like you can have a select in the env modal that switches the functions "env_state" to whatever profile you have, by default we have the "prod" profile, but users should also be able to add a "dev" (or custom) profile that can be used to test functions in a different environment. Switching would mean that all requests to that function would be routed to the dev profile for example, which we dont want, thats why on api exec calls we can use a "x-use-env" to use the custom, non "prod" profile for that function, and the default would be prod. This would allow users to test functions in a dev environment without affecting the prod environment.
 - [ ] Relating execution logs
