@@ -2,7 +2,7 @@
 
 ## P0 - Priority 0 (Critical)
 - [x] Remove .NET / C# Entirely
-- [ ] Add NodeJS as runtime
+- [x] Add NodeJS as runtime
 - [ ] Rewrite our function runtime code injector (db, and now the callF stuff) to be simpler to maintain and to add stuff to. Same callable stuff within functions, just a better way for us to add new features like callF
 - [ ] Fix SHSF Global & Redo it (security fixed: link-status/unlink now require admin or instance secret; full redo still open)
 
