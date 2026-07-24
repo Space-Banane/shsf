@@ -286,7 +286,6 @@ export async function executeLoadedHttpFunction(
 		}),
 		{
 			ratelimit: loggedRateLimit,
-			mode: "production_execute",
 		},
 	);
 
