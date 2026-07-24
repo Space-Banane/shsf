@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "crypto";
+import { isIP } from "node:net";
 import { COOKIE, DOMAIN, fileRouter, prisma } from "../../..";
 import { Cookie } from "rjweb-server";
 import * as bcrypt from "bcrypt";
@@ -105,7 +106,7 @@ export = new fileRouter.Path("/").http(
 				if (!user) return;
 
 				let newdomain = "";
-				if (DOMAIN === "localhost") {
+				if (DOMAIN === "localhost" || isIP(DOMAIN)) {
 					newdomain = "localhost";
 				} else {
 					if (DOMAIN.split(".").length > 2) {
