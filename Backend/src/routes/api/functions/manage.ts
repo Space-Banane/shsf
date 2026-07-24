@@ -26,6 +26,10 @@ const Images: string[] = [
 	"golang:1.21",
 	"golang:1.22",
 	"golang:1.23",
+	// Node.js versions
+	"node:20",
+	"node:22",
+	"node:24",
 ];
 const deprecatedImages: string[] = [
 	"python:3.9",

@@ -44,6 +44,7 @@ import {
 import {
 	DbComScriptPY,
 	DbComScriptGO,
+	DbComScriptJS,
 } from "./RunnerScripts";
 
 import {
@@ -60,6 +61,9 @@ import {
 	generateGoRunnerShScript,
 	generatePythonInitBody,
 	generateGoInitBody,
+	generateNodeJsRunnerScript,
+	generateNodeJsRunnerShScript,
+	generateNodeJsInitBody,
 } from "./RunnerRuntimeScripts";
 import {
 	mergeEnvironmentVariables,
@@ -291,6 +295,13 @@ export async function executeFunction(
 			await fs.writeFile(wrapperPath, generateGoRunnerShScript());
 			await fs.chmod(wrapperPath, "755");
 			trace("Go runner script written");  // intermediate — mark fires after init.sh below
+		} else if (runtimeType === "node") {
+			const jsRunnerPath = path.join(funcAppDir, "_shsf_runner.js");
+			await fs.writeFile(jsRunnerPath, generateNodeJsRunnerScript(startupFile ?? "index.js"));
+			const shWrapperPath = path.join(funcAppDir, "_runner.sh");
+			await fs.writeFile(shWrapperPath, generateNodeJsRunnerShScript());
+			await fs.chmod(shWrapperPath, "755");
+			trace("Node.js runner scripts written");
 		} else {
 			log.warn({ runtimeType, functionId: functionData.id }, "Runner script generation skipped: unsupported runtime type");
 		}
@@ -303,11 +314,11 @@ export async function executeFunction(
 			});
 		} else if (runtimeType === "golang") {
 			initScript += generateGoInitBody(functionData.id, { ffmpeg_install: functionData.ffmpeg_install });
+		} else if (runtimeType === "node") {
+			initScript += generateNodeJsInitBody(functionData.id, { ffmpeg_install: functionData.ffmpeg_install });
 		} else {
 			// This was already checked for runner script, but as a safeguard for init.sh:
 			log.warn({ runtimeType, functionId: functionData.id }, "init.sh script generation skipped: unsupported runtime type");
-			// Potentially throw an error if an unsupported runtime should halt execution.
-			// throw new Error(`Unsupported runtime type for init script generation: ${runtimeType}`);
 		}
 
 		initScript +=
@@ -325,6 +336,8 @@ export async function executeFunction(
 				const dbComDir = path.join(funcAppDir, "dbcom");
 				await fs.mkdir(dbComDir, { recursive: true });
 				await fs.writeFile(path.join(dbComDir, "dbcom.go"), DbComScriptGO);
+			} else if (runtimeType === "node") {
+				await fs.writeFile(path.join(funcAppDir, "_db_com.js"), DbComScriptJS);
 			}
 			mark("Storage helper script");
 		}
@@ -338,7 +351,7 @@ export async function executeFunction(
 				trace("Reusing running container");
 			}
 
-			if (runtimeType === "golang") {
+			if (runtimeType === "golang" || runtimeType === "node") {
 				const initExec = await container.exec({
 					Cmd: ["/bin/sh", "/app/init.sh"],
 					AttachStdout: true,
@@ -364,7 +377,7 @@ export async function executeFunction(
 				});
 
 				log.debug({ functionId: functionData.id }, `Init output: ${initOutput.stderr}`);
-				mark("Go init/rebuild");
+				mark(runtimeType === "golang" ? "Go init/rebuild" : "Node.js init/install");
 			}
 		} catch (error: any) {
 			if (error.statusCode === 404) {
@@ -372,9 +385,11 @@ export async function executeFunction(
 
 				const pipCacheHost = getCacheDir("pip");
 				const goCacheHost = getCacheDir("go");
+				const nodeCacheHost = getCacheDir("node");
 				await Promise.all([
 					fs.mkdir(pipCacheHost, { recursive: true }),
 					fs.mkdir(goCacheHost, { recursive: true }),
+					fs.mkdir(nodeCacheHost, { recursive: true }),
 				]);
 
 				// Mount /app and /executions separately instead of the old /function_data
@@ -391,6 +406,8 @@ export async function executeFunction(
 					BINDS.push(`${pipCacheHost}:/pip-cache`);
 				} else if (runtimeType === "golang") {
 					BINDS.push(`${goCacheHost}:/go-cache`);
+				} else if (runtimeType === "node") {
+					BINDS.push(`${nodeCacheHost}:/node-cache`);
 				} else {
 					throw new Error(
 						`Unsupported runtime type for container BIND setup: ${runtimeType}`
@@ -472,6 +489,8 @@ export async function executeFunction(
 		if (runtimeType === "python") {
 			execCmd = ["/bin/sh", "/app/_runner.py", containerPayloadPath, containerResultPath];
 		} else if (runtimeType === "golang") {
+			execCmd = ["/bin/sh", "/app/_runner.sh", containerPayloadPath, containerResultPath];
+		} else if (runtimeType === "node") {
 			execCmd = ["/bin/sh", "/app/_runner.sh", containerPayloadPath, containerResultPath];
 		} else {
 			throw new Error(
@@ -903,6 +922,18 @@ export async function cleanupFunctionContainer(functionId: number) {
 			const pipHashDir = getCacheDir("pip", "hashes", `function-${functionId}`);
 			if (fsSync.existsSync(pipHashDir)) {
 				await fs.rm(pipHashDir, { recursive: true, force: true });
+			}
+
+			// Node.js modules
+			const nodeCacheDir = getCacheDir("node", "modules", `function-${functionId}`);
+			if (fsSync.existsSync(nodeCacheDir)) {
+				await fs.rm(nodeCacheDir, { recursive: true, force: true });
+			}
+
+			// Node.js hash
+			const nodeHashDir = getCacheDir("node", "hashes", `function-${functionId}`);
+			if (fsSync.existsSync(nodeHashDir)) {
+				await fs.rm(nodeHashDir, { recursive: true, force: true });
 			}
 		} catch (cacheError) {
 			log.error({ err: cacheError, functionId }, "Error cleaning up cache directories");

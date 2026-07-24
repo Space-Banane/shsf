@@ -42,6 +42,9 @@ describe("getRuntimeType", () => {
 	it("maps images to runtime types", () => {
 		expect(getRuntimeType("python:3.12")).toBe("python");
 		expect(getRuntimeType("golang:1.22")).toBe("golang");
+		expect(getRuntimeType("node:20")).toBe("node");
+		expect(getRuntimeType("node:22")).toBe("node");
+		expect(getRuntimeType("node:24")).toBe("node");
 	});
 });
 

@@ -1767,7 +1767,7 @@ function FunctionDetail() {
 
 
 							<div className="flex flex-wrap items-center justify-end gap-2 border-t border-primary/10 pt-4">
-								{!serveHtmlOnly && (functionData.image.startsWith("python") || functionData.image.startsWith("golang")) && (
+								{!serveHtmlOnly && (functionData.image.startsWith("python") || functionData.image.startsWith("golang") || functionData.image.startsWith("node:")) && (
 									<button
 										className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 										onClick={() => setShowDependencyManager(true)}

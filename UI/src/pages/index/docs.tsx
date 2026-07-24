@@ -279,6 +279,14 @@ const lessons: {
 		link: "/docs/go-runtime",
 	},
 	{
+		key: "nodejs-runtime",
+		identifier: "#21",
+		title: "Node.js Runtime",
+		description:
+			"npm-backed Node.js functions with package caching, db_com, and full async/await support.",
+		link: "/docs/nodejs-runtime",
+	},
+	{
 		key: "kickoff",
 		identifier: "#22",
 		title: "Kickoff",

@@ -3,6 +3,7 @@ import { checkAuthentication } from "../../lib/Authentication";
 import { OpenAPITags } from "../../lib/openapi";
 import { env } from "../../lib/env";
 import { AIDOC } from "../../lib/aidoc";
+import { getDefaultStartupFile } from "../../lib/LangOps";
 
 const Images: string[] = [
 	"python:3.9",
@@ -16,11 +17,14 @@ const Images: string[] = [
 	"golang:1.21",
 	"golang:1.22",
 	"golang:1.23",
+	"node:20",
+	"node:22",
+	"node:24",
 ];
 
-const DisallowedFiles = ["_runner.py", "_runner.js", "init.sh"];
+const DisallowedFiles = ["_runner.py", "_runner.js", "_shsf_runner.js", "init.sh"];
 
-type RuntimeFamily = "python" | "golang" | "html";
+type RuntimeFamily = "python" | "golang" | "javascript" | "html";
 
 interface RuntimeFilePolicy {
 	runtime: RuntimeFamily;
@@ -39,6 +43,10 @@ function getRuntimeFamily(image: string, startupFile: string): RuntimeFamily {
 
 	if (image.startsWith("golang:")) {
 		return "golang";
+	}
+
+	if (image.startsWith("node:")) {
+		return "javascript";
 	}
 
 	return "python";
@@ -72,6 +80,22 @@ function createRuntimeFilePolicy(image: string, startupFile: string): RuntimeFil
 			docSection: `- Go functions may write root-level files only.
 - Include the startup Go source file and optional \`go.mod\` / \`go.sum\` files.
 - Non-code assets such as templates, JSON fixtures, SQL, or prompt text are allowed when stored at the function root.`,
+		};
+	}
+
+	if (runtime === "javascript") {
+		return {
+			runtime,
+			startupFile,
+			maxFilesKickoff: 5,
+			maxFilesRevision: 3,
+			isAllowedFilename: () => true,
+			systemInstruction: `Always include the startup file "${startupFile}" which must export a \`main\` function via \`module.exports = { main }\`. Keep every file at the function root. Non-code assets are allowed when the function reads them at runtime.`,
+			docSection: `- Node.js functions may write root-level files only.
+- The startup file must export \`async function main(args)\` via \`module.exports = { main }\`.
+- Include an optional \`package.json\` for npm dependencies.
+- Non-code assets such as templates, JSON fixtures, or prompt text are allowed when stored at the function root.
+- Do not use ES module syntax (\`import\`/\`export\`); use CommonJS (\`require\`/\`module.exports\`).`,
 		};
 	}
 
@@ -199,7 +223,7 @@ export = new fileRouter.Path("/")
 Based on the user's description and chosen runtime, suggest:
 1. A concise, professional name for the function (alphanumeric, max 128 chars).
 2. A clear, helpful description.
-3. The most appropriate startup file name (e.g., "main.py" for Python, "main_user.go" for Go, or an empty string for .NET project-based functions).
+3. The most appropriate startup file name (e.g., "main.py" for Python, "main_user.go" for Go, "index.js" for Node.js).
 
 Return ONLY a JSON object with the following structure:
 {
@@ -211,7 +235,7 @@ Return ONLY a JSON object with the following structure:
 Platform Rules:
 - Go functions MUST use "main_user.go" as the startup file.
 - Python functions should typically use "main.py".
-- .NET functions MUST return an empty startup_file string.
+- Node.js functions should typically use "index.js".
 - Available runtimes: ${Images.join(", ")}`,
 							},
 							{
@@ -230,11 +254,7 @@ Platform Rules:
 					const rawContent = typeof content === "string" ? content : JSON.stringify(content);
 					const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
 					const config = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent);
-					const fallbackStartupFile = body.image.startsWith("python")
-						? "main.py"
-						: body.image.startsWith("golang")
-							? "main_user.go"
-							: "";
+					const fallbackStartupFile = getDefaultStartupFile(body.image);
 
 					return ctr.print({
 						status: "OK",

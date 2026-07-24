@@ -321,3 +321,78 @@ func (db *Database) Exists(storageName, key string) bool {
 }
 `;
 
+export const DbComScriptJS = `// Database Communication Script for Node.js
+// GENERATED ON THE FLY - DO NOT EDIT - THIS WILL BE OVERWRITTEN ON THE NEXT RUN
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const REQUEST_DIR = process.env.SHSF_STORAGE_REQUEST_DIR || '/executions/storage-requests';
+const RESPONSE_DIR = process.env.SHSF_STORAGE_RESPONSE_DIR || '/executions/storage-responses';
+
+const _sleepBuf = new Int32Array(new SharedArrayBuffer(4));
+function _sleepMs(ms) {
+  Atomics.wait(_sleepBuf, 0, 0, ms);
+}
+
+class DatabaseError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'DatabaseError';
+  }
+}
+
+class Database {
+  constructor(timeoutMs = 30000) {
+    this.timeoutMs = timeoutMs;
+  }
+
+  _makeRequest(operation, args = {}) {
+    const requestId = crypto.randomBytes(16).toString('hex');
+    const requestPath = path.join(REQUEST_DIR, requestId + '.json');
+    const tmpPath = requestPath + '.tmp';
+    const responsePath = path.join(RESPONSE_DIR, requestId + '.json');
+
+    fs.mkdirSync(REQUEST_DIR, { recursive: true });
+    fs.mkdirSync(RESPONSE_DIR, { recursive: true });
+
+    fs.writeFileSync(tmpPath, JSON.stringify({ id: requestId, operation, args }), 'utf-8');
+    fs.renameSync(tmpPath, requestPath);
+
+    const deadline = Date.now() + this.timeoutMs;
+    while (Date.now() < deadline) {
+      if (fs.existsSync(responsePath)) {
+        const raw = fs.readFileSync(responsePath, 'utf-8');
+        try { fs.unlinkSync(responsePath); } catch (_) {}
+        const response = JSON.parse(raw);
+        if (response.status === 'OK') return response.data;
+        throw new DatabaseError(response.message || 'Unknown storage error');
+      }
+      _sleepMs(10);
+    }
+    throw new DatabaseError('Timed out waiting for storage response');
+  }
+
+  createStorage(name, purpose = '') { return this._makeRequest('create_storage', { name, purpose }); }
+  listStorages() { return this._makeRequest('list_storages'); }
+  deleteStorage(storageName) { return this._makeRequest('delete_storage', { storageName }); }
+  clear(storageName) { return this._makeRequest('clear', { storageName }); }
+  set(storageName, key, value, expiresAt) {
+    const args = { storageName, key, value };
+    if (expiresAt !== undefined) args.expiresAt = expiresAt;
+    return this._makeRequest('set', args);
+  }
+  get(storageName, key) { return this._makeRequest('get', { storageName, key }); }
+  getItem(storageName, key) { return this._makeRequest('get_item', { storageName, key }); }
+  listItems(storageName) { return this._makeRequest('list_items', { storageName }); }
+  deleteItem(storageName, key) { return this._makeRequest('delete_item', { storageName, key }); }
+  exists(storageName, key) { return !!this._makeRequest('exists', { storageName, key }); }
+}
+
+function database() { return new Database(); }
+
+module.exports = { Database, database, DatabaseError };
+`;
+

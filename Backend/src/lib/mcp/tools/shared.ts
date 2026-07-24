@@ -48,6 +48,9 @@ export const VALID_IMAGES = [
 	"python:3.15",
 	"golang:1.22",
 	"golang:1.23",
+	"node:20",
+	"node:22",
+	"node:24",
 ];
 
 export function imageFamily(image: string) {
