@@ -45,6 +45,9 @@ import {
 	DbComScriptPY,
 	DbComScriptGO,
 	DbComScriptJS,
+	CallFuncScriptPY,
+	CallFuncScriptGO,
+	CallFuncScriptJS,
 } from "./RunnerScripts";
 
 import {
@@ -53,6 +56,7 @@ import {
 	readRunnerResult,
 	revokeLegacyFunctionDbTokens,
 	startStorageRpcBridge,
+	startCallFuncBridge,
 } from "./RunnerTransport";
 
 import {
@@ -342,6 +346,19 @@ export async function executeFunction(
 			mark("Storage helper script");
 		}
 
+		// Always inject the callF helper so functions can call each other without
+		// any conditional check — the scripts are small and immediately available.
+		if (runtimeType === "python") {
+			await fs.writeFile(path.join(funcAppDir, "_call_func.py"), CallFuncScriptPY);
+			await fs.chmod(path.join(funcAppDir, "_call_func.py"), "755");
+		} else if (runtimeType === "golang") {
+			const callFuncDir = path.join(funcAppDir, "callfunc");
+			await fs.mkdir(callFuncDir, { recursive: true });
+			await fs.writeFile(path.join(callFuncDir, "callfunc.go"), CallFuncScriptGO);
+		} else if (runtimeType === "node") {
+			await fs.writeFile(path.join(funcAppDir, "_call_func.js"), CallFuncScriptJS);
+		}
+
 		try {
 			const inspectInfo = await container.inspect();
 			if (!inspectInfo.State.Running) {
@@ -507,6 +524,8 @@ export async function executeFunction(
 				`SHSF_TRANSPORT_DIR=/executions/${executionId}`,
 				`SHSF_STORAGE_REQUEST_DIR=/executions/${executionId}/storage-requests`,
 				`SHSF_STORAGE_RESPONSE_DIR=/executions/${executionId}/storage-responses`,
+				`SHSF_CALLFUNC_REQUEST_DIR=/executions/${executionId}/callfunc-requests`,
+				`SHSF_CALLFUNC_RESPONSE_DIR=/executions/${executionId}/callfunc-responses`,
 			],
 			AttachStdout: true,
 			AttachStderr: true,
@@ -518,6 +537,34 @@ export async function executeFunction(
 			userId: functionData.userId,
 			requestDir: transportPaths.storageRequestDir,
 			responseDir: transportPaths.storageResponseDir,
+		});
+		const callFuncBridge = startCallFuncBridge({
+			requestDir: transportPaths.callFuncRequestDir,
+			responseDir: transportPaths.callFuncResponseDir,
+			execute: async (functionName, args) => {
+				const target = await prisma.function.findFirst({
+					where: { name: functionName, userId: functionData.userId },
+					include: { files: true },
+				});
+				if (!target) {
+					throw new Error(`Function "${functionName}" not found`);
+				}
+				const callPayload = JSON.stringify({
+					ran_by: `func_${functionData.id}`,
+					body: args,
+				});
+				const result = await executeFunction(
+					target.id,
+					target,
+					target.files,
+					{ enabled: false },
+					callPayload,
+				);
+				if (result && typeof result.exit_code === "number" && result.exit_code !== 0) {
+					throw new Error(`Function "${functionName}" exited with code ${result.exit_code}`);
+				}
+				return result?.result ?? null;
+			},
 		});
 
 		const execOutput = { stdout: "", stderr: "" };
@@ -621,6 +668,7 @@ export async function executeFunction(
 			func_result = "";
 		} finally {
 			await storageBridge.stop();
+			await callFuncBridge.stop();
 		}
 		mark("Exec finished");
 		// Process result if successful

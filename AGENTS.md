@@ -138,6 +138,9 @@ Session-cookie auth, entirely in-house. No third-party provider. Never add unaut
 
 Every function invocation flows through here. Be conservative with changes and always run the full test suite after edits.
 
+### Inter-function calls (`callF`)
+Functions can call other functions owned by the same user via the `callF` built-in. At runtime a per-execution pair of directories (`callfunc-requests/`, `callfunc-responses/`) under the execution transport dir are used; `Runner.ts` starts a `startCallFuncBridge` alongside the storage bridge to service these requests. The helper scripts (`_call_func.py`, `_call_func.js`, `callfunc/callfunc.go`) are injected unconditionally into every function's app dir. The target function is looked up by name scoped to the same `userId`, and the payload's `ran_by` field is set to `func_<callerFunctionId>`. Do not bypass this scoping — it is the sole authz boundary for cross-function calls.
+
 ### Git-backed storage (`src/lib/GitOps.ts`, `GitEditGuards.ts`)
 Function source files are stored under git version control. All mutations must go through the guard layer — do not write function files directly.
 

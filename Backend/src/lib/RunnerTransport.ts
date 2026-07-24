@@ -13,6 +13,8 @@ export interface RunnerTransportPaths {
 	resultPath: string;
 	storageRequestDir: string;
 	storageResponseDir: string;
+	callFuncRequestDir: string;
+	callFuncResponseDir: string;
 }
 
 export type StorageRpcOperation =
@@ -40,6 +42,8 @@ export function getRunnerTransportPaths(executionDir: string): RunnerTransportPa
 		resultPath: path.join(executionDir, "result.json"),
 		storageRequestDir: path.join(executionDir, "storage-requests"),
 		storageResponseDir: path.join(executionDir, "storage-responses"),
+		callFuncRequestDir: path.join(executionDir, "callfunc-requests"),
+		callFuncResponseDir: path.join(executionDir, "callfunc-responses"),
 	};
 }
 
@@ -48,6 +52,8 @@ export async function prepareRunnerTransport(paths: RunnerTransportPaths) {
 		fs.mkdir(paths.executionDir, { recursive: true }),
 		fs.mkdir(paths.storageRequestDir, { recursive: true }),
 		fs.mkdir(paths.storageResponseDir, { recursive: true }),
+		fs.mkdir(paths.callFuncRequestDir, { recursive: true }),
+		fs.mkdir(paths.callFuncResponseDir, { recursive: true }),
 	]);
 }
 
@@ -254,6 +260,105 @@ export function startStorageRpcBridge(input: {
 					input.requestDir,
 					input.responseDir,
 					fileName,
+				);
+			}
+		} finally {
+			running = false;
+		}
+	};
+
+	timer = setInterval(() => {
+		tick().catch(() => undefined);
+	}, pollIntervalMs);
+	void tick();
+
+	return {
+		async stop() {
+			stopped = true;
+			if (timer) {
+				clearInterval(timer);
+				timer = null;
+			}
+			while (running) {
+				await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+			}
+			await tick().catch(() => undefined);
+		},
+	};
+}
+
+export interface CallFuncRpcRequest {
+	id?: string;
+	functionName?: string;
+	args?: unknown;
+}
+
+export type CallFuncExecutor = (functionName: string, args: unknown) => Promise<unknown>;
+
+async function processCallFuncRequestFile(
+	requestDir: string,
+	responseDir: string,
+	fileName: string,
+	execute: CallFuncExecutor,
+) {
+	const requestPath = path.join(requestDir, fileName);
+	let raw: string;
+	try {
+		raw = await fs.readFile(requestPath, "utf8");
+	} catch {
+		return;
+	}
+
+	await fs.rm(requestPath, { force: true });
+
+	let request: CallFuncRpcRequest;
+	try {
+		request = JSON.parse(raw);
+	} catch {
+		request = {};
+	}
+
+	const id = request.id || path.basename(fileName, ".json");
+	let response: { status: string; data?: unknown; message?: string };
+
+	try {
+		if (!request.functionName || typeof request.functionName !== "string") {
+			throw new Error("Missing or invalid functionName");
+		}
+		const data = await execute(request.functionName, request.args ?? {});
+		response = { status: "OK", data };
+	} catch (error) {
+		response = {
+			status: "FAILED",
+			message: error instanceof Error ? error.message : "callF failed",
+		};
+	}
+
+	await writeJsonAtomic(path.join(responseDir, `${id}.json`), response);
+}
+
+export function startCallFuncBridge(input: {
+	requestDir: string;
+	responseDir: string;
+	execute: CallFuncExecutor;
+	pollIntervalMs?: number;
+}) {
+	let stopped = false;
+	let running = false;
+	let timer: NodeJS.Timeout | null = null;
+	const pollIntervalMs = input.pollIntervalMs ?? 25;
+
+	const tick = async () => {
+		if (stopped || running) return;
+		running = true;
+		try {
+			const files = await fs.readdir(input.requestDir);
+			for (const fileName of files.filter((name) => name.endsWith(".json"))) {
+				await processCallFuncRequestFile(
+					input.requestDir,
+					input.responseDir,
+					fileName,
+					input.execute,
 				);
 			}
 		} finally {

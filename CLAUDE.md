@@ -121,6 +121,9 @@ Changes here affect every function invocation — test thoroughly and be conserv
 ### AI / code generation
 The AI feature generates function code from a prompt or file import. The `ai_kicked_off` flag on a `Function` record tracks whether generation has been triggered. Generation is initiated from the UI and calls the backend which calls the AI provider. Keep the flag lifecycle (`ai_kicked_off`, import/AI gen flags) consistent across schema, API, and UI.
 
+### Inter-function calls (`callF`)
+Functions can call other functions owned by the same user via the `callF` built-in. At runtime a per-execution pair of directories (`callfunc-requests/`, `callfunc-responses/`) under the execution transport dir are used; `Runner.ts` starts a `startCallFuncBridge` alongside the storage bridge to service these requests. The helper scripts (`_call_func.py`, `_call_func.js`, `callfunc/callfunc.go`) are injected unconditionally into every function's app dir. The target function is looked up by name scoped to the same `userId`, and the payload's `ran_by` field is set to `func_<callerFunctionId>`. Do not bypass this scoping — it is the sole authz boundary for cross-function calls.
+
 ### Git-backed storage
 `Backend/src/lib/GitOps.ts` and `GitEditGuards.ts` manage function source files under version control. Treat these as sensitive — mutations must go through the guard layer.
 
