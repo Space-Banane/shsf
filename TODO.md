@@ -1,48 +1,27 @@
 # TODO.md
 
 ## P0 - Priority 0 (Critical)
-- [x] Add UI unit testing / Improve it
-- [x] Add Backend unit testing / Improve it (eg. rename files, move into seperate testing folder etc etc /src/tests)
-- [x] Migrate env checking to a seperate module using zod
-- [x] Rewrite Runner.ts & split
-- [x] Docker image & Propper compose
-- [x] Remove the entire pip DOWNLOAD cache for shared functions as its a security risk
-- [x] Shift Enter Submits on modals (any modal) (add as a agent rule for the future)
+- [ ] Remove .NET / C# Entirely
+- [ ] Add NodeJS as runtime
+- [ ] Rewrite our function runtime code injector (db, and now the callF stuff) to be simpler to maintain and to add stuff to. Same callable stuff within functions, just a better way for us to add new features like callF
 - [ ] Fix SHSF Global & Redo it (security fixed: link-status/unlink now require admin or instance secret; full redo still open)
-- [x] Built-in MCP Server & ready to copy Agentic commands ("claude mcp xxxx", "openclaw mcp add xxxxx", and codex ofc) // Seperate Agents Page & usecases for agents using shsf
-- [x] Add cron and more mcp tools
 
 ## P1 - Priority 1 (High)
-- [x] Replace data transport layer between backend and functions with a more robust and safe solution.
 - [ ] Find a way to speed up function execution more (completly diffrent approach to the current one?)
-- [x] Move system crons to a diffrent approach, move into src/lib(?)
-- [x] Auto "docker compose pull && docker compose up -d" updates if user enables OR presses manual update. find possible new image with docker image registry api or something idk
+- [ ] Make more use of the testing ui for functions
+- [ ] Call other functions within a function via a builtin function into the inject runtime runner (example, `callF("functionName", {args} (args here are passed into the args.body and the who ran param will be "func_"+id of the calling function (embedded in the callF function generated at runtime)))` or something like that)
+- [ ] dev/prod modes for functions.
+    > Like you can have a select in the env modal that switches the functions "env_state" to whatever profile you have, by default we have the "prod" profile, but users should also be able to add a "dev" (or custom) profile that can be used to test functions in a different environment. Switching would mean that all requests to that function would be routed to the dev profile for example, which we dont want, thats why on api exec calls we can use a "x-use-env" to use the custom, non "prod" profile for that function, and the default would be prod. This would allow users to test functions in a dev environment without affecting the prod environment.
+- [ ] Relating execution logs
+    > On an Execution log, the function should be able to call a function from the runtime like this: `makeLog("log message", {level: "info"})` and it will create a log entry in the existing execution logs for that execution. This will allow users to log messages from within their functions and have them show up in the execution logs for that function. So they dont have to keep digging in the print statements and so that agents can work better with this
+- [ ] Keep MCP server up-to-date with the lastest features
 
 ## P2 - Priority 2 (Medium)
-- [x] Resolve most of the 83 warnings (no-explicit-any) in backend
-- [x] Fully rework builtin docs; Format pages, add and update the content based on the actual state code and features of the project. Add simple explainers and better examples, highlight warnings at the top of the page; etc etc
-- [x] Reworked Admin Panel (UI) - Add more features, make it more user friendly
-    - Disable Guest Access
-    - Disable External Access
-    - Manage User Permissions to docker mount
-    - Manage runtimes & images (enable disable)
-    - Manage Users (CRUD)
-    - Execution Statistics (timings and resource usage)
 - [ ] Manage runtimes & images (CRUD) and move hard coded stuff to this. Migration baseline needed tho for existing instances. & pre pulling images on button presses with live ui statuses
 
 ## P3 - Priority 3 (Low)
-- [x] Account Wide Environment Variables
-- [x] Add a way to manage function dependencies (eg. requirements.txt) from the UI
-- [x] Runner & Backend: Implement a Block for interactions on Functions while “Container ready.” not reached (pretty much wait for “[SHSF] Container ready.”). Message would be something like “Function is not ready yet.”
-- [ ] Function Logs Update
-    - [x] Investigate (Shows only Errors) — cache hits were never logged, dev runs always reported exit 0, exit-code parsing used the wrong key
-    - Hide Specifics (regex blur)
-    - Toggle to only log Generic Headers
-- [x] any Modal(???) / function update: Scroll to top on error or move errors to toast (preferred)
-- [x] Remove "Error fetching files: File edits are disabled while git is configured for this function. Remove git configuration to edit files."
 
 ## P4 - Priority 4 (Trivial)
-- [x] Redesign the entire UI to be more user friendly, modern, dark and visually organized. Currently cluttered and not super friendly. Tool tips and such are missing. (eg. add a "?" icon next to each setting that explains what it does)
 
 ## AI Slop
 - [ ] AI Performance Analytics (Code Check)
