@@ -46,11 +46,7 @@ function LoadDefaultModal({
 					const trimmedLanguage = functionLanguage.trim();
 					if (trimmedLanguage !== "") {
 						const lowerLanguage = trimmedLanguage.toLowerCase();
-						const normalizedLanguage = lowerLanguage.startsWith(
-							"mcr.microsoft.com/dotnet/sdk:",
-						)
-							? "dotnet"
-							: lowerLanguage.split(":")[0];
+						const normalizedLanguage = lowerLanguage.split(":")[0];
 						if (normalizedLanguage) {
 							filteredDefaults = response.defaults.filter(
 								(template) => template.language.toLowerCase() === normalizedLanguage,
@@ -90,7 +86,6 @@ function LoadDefaultModal({
 	};
 
 	const getLanguageDisplayName = (language: string): string => {
-		if (language === "dotnet") return ".NET";
 		return language.charAt(0).toUpperCase() + language.slice(1);
 	};
 

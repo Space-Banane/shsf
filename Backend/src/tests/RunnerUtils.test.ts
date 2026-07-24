@@ -4,7 +4,6 @@ import {
 	appendLogOutput,
 	findFileByNameIgnoreCase,
 	getRuntimeType,
-	isDotnetImage,
 	isHtmlStartupFile,
 	parseExecutionPayloadRoute,
 	resolveServeOnlyHtmlFileName,
@@ -39,14 +38,8 @@ describe("appendLogOutput", () => {
 	});
 });
 
-describe("isDotnetImage / getRuntimeType", () => {
-	it("detects dotnet sdk images", () => {
-		expect(isDotnetImage("mcr.microsoft.com/dotnet/sdk:8.0")).toBe(true);
-		expect(isDotnetImage("python:3.12")).toBe(false);
-	});
-
+describe("getRuntimeType", () => {
 	it("maps images to runtime types", () => {
-		expect(getRuntimeType("mcr.microsoft.com/dotnet/sdk:8.0")).toBe("dotnet");
 		expect(getRuntimeType("python:3.12")).toBe("python");
 		expect(getRuntimeType("golang:1.22")).toBe("golang");
 	});

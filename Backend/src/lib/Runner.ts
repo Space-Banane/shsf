@@ -25,17 +25,15 @@ import {
 
 import type {
 	TimingEntry,
-	FunctionExecutionMode,
 	PersistedFunctionExecutionLogInput,
 } from "./RunnerTypes";
-export type { FunctionExecutionMode, PersistedFunctionExecutionLogInput };
+export type { PersistedFunctionExecutionLogInput };
 import {
 	ServeOnlyFileNotFoundHTML,
 } from "./RunnerTypes";
 
 import {
 	truncateDbField,
-	appendLogOutput,
 	getRuntimeType,
 	isHtmlStartupFile,
 	parseExecutionPayloadRoute,
@@ -44,16 +42,8 @@ import {
 } from "./RunnerUtils";
 
 import {
-	resolveDotnetProjectPath,
-	getDotnetProjectDirectory,
-	DotnetProjectResolutionError,
-} from "./DotnetProjectResolver";
-
-import {
 	DbComScriptPY,
 	DbComScriptGO,
-	DbComScriptCS,
-	ShsfRuntimeScriptCS,
 } from "./RunnerScripts";
 
 import {
@@ -68,11 +58,8 @@ import {
 	generateGoRunnerWrapperCode,
 	generatePythonRunnerScript,
 	generateGoRunnerShScript,
-	generateDotnetRunnerScript,
 	generatePythonInitBody,
 	generateGoInitBody,
-	generateDotnetInitBody,
-	generateDotnetBuildInitScript,
 } from "./RunnerRuntimeScripts";
 import {
 	mergeEnvironmentVariables,
@@ -172,7 +159,6 @@ export async function executeFunction(
 	payload: string,
 	options?: {
 		ratelimit?: LoggedExecutionRateLimitData;
-		mode?: FunctionExecutionMode;
 	},
 ) {
 	const starting_time = Date.now();
@@ -238,7 +224,6 @@ export async function executeFunction(
 	const containerName = `shsf_func_${functionIdStr}`;
 	const funcAppDir = getFunctionAppDir(functionIdStr);
 	const runtimeType = getRuntimeType(functionData.image);
-	const executionMode = options?.mode ?? "dev_execute";
 	let exitCode = 0;
 
 	// Generate a unique execution ID for this request to avoid race conditions
@@ -284,12 +269,6 @@ export async function executeFunction(
 			mark(`Skip DB file writes (git_url set)`);
 		}
 
-		let dotnetProjectPath: string | null = null;
-		if (runtimeType === "dotnet") {
-			dotnetProjectPath = await resolveDotnetProjectPath(funcAppDir);
-			log.info({ functionId: functionData.id, dotnetProjectPath }, "Resolved .NET project");
-		}
-
 		// For Go runtime, generate the runner wrapper file and go.mod if needed
 		if (runtimeType === "golang") {
 			await fs.writeFile(path.join(funcAppDir, "shsf_runner.go"), generateGoRunnerWrapperCode());
@@ -312,11 +291,6 @@ export async function executeFunction(
 			await fs.writeFile(wrapperPath, generateGoRunnerShScript());
 			await fs.chmod(wrapperPath, "755");
 			trace("Go runner script written");  // intermediate — mark fires after init.sh below
-		} else if (runtimeType === "dotnet") {
-			const wrapperPath = path.join(funcAppDir, "_runner.sh");
-			await fs.writeFile(wrapperPath, generateDotnetRunnerScript(dotnetProjectPath));
-			await fs.chmod(wrapperPath, "755");
-			trace(".NET runner script written");
 		} else {
 			log.warn({ runtimeType, functionId: functionData.id }, "Runner script generation skipped: unsupported runtime type");
 		}
@@ -329,8 +303,6 @@ export async function executeFunction(
 			});
 		} else if (runtimeType === "golang") {
 			initScript += generateGoInitBody(functionData.id, { ffmpeg_install: functionData.ffmpeg_install });
-		} else if (runtimeType === "dotnet") {
-			initScript += generateDotnetInitBody(functionData.id);
 		} else {
 			// This was already checked for runner script, but as a safeguard for init.sh:
 			log.warn({ runtimeType, functionId: functionData.id }, "init.sh script generation skipped: unsupported runtime type");
@@ -344,21 +316,7 @@ export async function executeFunction(
 		await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
 		mark("Generate scripts"); // runner script(s) + init.sh
 
-		if (runtimeType === "dotnet") {
-			const dotnetProjectPath = await resolveDotnetProjectPath(funcAppDir);
-			const dotnetProjectDir = getDotnetProjectDirectory(
-				funcAppDir,
-				dotnetProjectPath,
-			);
-			await fs.writeFile(
-				path.join(dotnetProjectDir, "SHSF.Runtime.cs"),
-				ShsfRuntimeScriptCS,
-			);
-		}
-
-		const requiresDbCom =
-			runtimeType === "dotnet" ||
-			files.some((f) => f.content.includes("_db_com") || f.content.includes("dbcom"));
+		const requiresDbCom = files.some((f) => f.content.includes("_db_com") || f.content.includes("dbcom"));
 		if (requiresDbCom) {
 			if (runtimeType === "python") {
 				await fs.writeFile(path.join(funcAppDir, "_db_com.py"), DbComScriptPY);
@@ -367,13 +325,6 @@ export async function executeFunction(
 				const dbComDir = path.join(funcAppDir, "dbcom");
 				await fs.mkdir(dbComDir, { recursive: true });
 				await fs.writeFile(path.join(dbComDir, "dbcom.go"), DbComScriptGO);
-			} else if (runtimeType === "dotnet") {
-				const dotnetProjectPath = await resolveDotnetProjectPath(funcAppDir);
-				const dotnetProjectDir = getDotnetProjectDirectory(
-					funcAppDir,
-					dotnetProjectPath,
-				);
-				await fs.writeFile(path.join(dotnetProjectDir, "_db_com.cs"), DbComScriptCS);
 			}
 			mark("Storage helper script");
 		}
@@ -421,11 +372,9 @@ export async function executeFunction(
 
 				const pipCacheHost = getCacheDir("pip");
 				const goCacheHost = getCacheDir("go");
-				const dotnetCacheHost = getCacheDir("dotnet");
 				await Promise.all([
 					fs.mkdir(pipCacheHost, { recursive: true }),
 					fs.mkdir(goCacheHost, { recursive: true }),
-					fs.mkdir(dotnetCacheHost, { recursive: true }),
 				]);
 
 				// Mount /app and /executions separately instead of the old /function_data
@@ -439,11 +388,9 @@ export async function executeFunction(
 				}
 
 				if (runtimeType === "python") {
-					BINDS.push(`${pipCacheHost}:/pip-cache`); // Mount persistent pip cache
+					BINDS.push(`${pipCacheHost}:/pip-cache`);
 				} else if (runtimeType === "golang") {
-					BINDS.push(`${goCacheHost}:/go-cache`); // Mount persistent go cache
-				} else if (runtimeType === "dotnet") {
-					BINDS.push(`${dotnetCacheHost}:/dotnet-cache`);
+					BINDS.push(`${goCacheHost}:/go-cache`);
 				} else {
 					throw new Error(
 						`Unsupported runtime type for container BIND setup: ${runtimeType}`
@@ -516,13 +463,6 @@ export async function executeFunction(
 		// Now, execute the function logic using docker exec
 
 		await fs.writeFile(transportPaths.payloadPath, payload);
-		const dotnetPayloadDir = path.join(funcAppDir, ".shsf-executions");
-		const dotnetPayloadPath = path.join(dotnetPayloadDir, `${executionId}.json`);
-		if (runtimeType === "dotnet") {
-			await fs.mkdir(dotnetPayloadDir, { recursive: true });
-			await fs.writeFile(dotnetPayloadPath, payload);
-		}
-
 		const execEnv = await getRuntimeEnvironment(functionData);
 
 		// Pass the unique payload file path as an argument to the runner script
@@ -533,14 +473,6 @@ export async function executeFunction(
 			execCmd = ["/bin/sh", "/app/_runner.py", containerPayloadPath, containerResultPath];
 		} else if (runtimeType === "golang") {
 			execCmd = ["/bin/sh", "/app/_runner.sh", containerPayloadPath, containerResultPath];
-		} else if (runtimeType === "dotnet") {
-			execCmd = [
-				"/bin/sh",
-				"/app/_runner.sh",
-				`/app/.shsf-executions/${executionId}.json`,
-				`/app/.shsf-executions/${executionId}.result.json`,
-				executionMode,
-			];
 		} else {
 			throw new Error(
 				`Unsupported runtime type for exec command: ${runtimeType}`
@@ -675,11 +607,7 @@ export async function executeFunction(
 		// Process result if successful
 		let parsedResult: any = null;
 		if (exitCode === 0) {
-			const resultPath =
-				runtimeType === "dotnet"
-					? path.join(funcAppDir, ".shsf-executions", `${executionId}.result.json`)
-					: transportPaths.resultPath;
-			const resultState = await readRunnerResult(resultPath);
+			const resultState = await readRunnerResult(transportPaths.resultPath);
 			if (resultState.status === "ok") {
 				func_result = resultState.raw;
 				parsedResult = resultState.result;
@@ -721,16 +649,6 @@ export async function executeFunction(
 	} finally {
 		try {
 			await fs.rm(executionDir, { recursive: true, force: true });
-			if (runtimeType === "dotnet") {
-				await Promise.all([
-					fs.rm(path.join(funcAppDir, ".shsf-executions", `${executionId}.json`), {
-						force: true,
-					}),
-					fs.rm(path.join(funcAppDir, ".shsf-executions", `${executionId}.result.json`), {
-						force: true,
-					}),
-				]);
-			}
 			mark("Cleanup");
 		} catch (cleanupError: any) {
 			if (cleanupError.code !== "ENOENT") {
@@ -901,196 +819,6 @@ export async function installDependencies(
 	} catch (error) {
 		log.error({ err: error }, "Error installing dependencies");
 		return false;
-	}
-}
-
-export async function buildDotnetFunction(
-	functionId: number,
-	functionData: Function,
-	files: FunctionFile[],
-): Promise<
-	| { status: "success" }
-	| { status: "container_missing" }
-	| { status: "build_failed"; message: string; buildLogs?: string }
-> {
-	if (getRuntimeType(functionData.image) !== "dotnet") {
-		return {
-			status: "build_failed",
-			message: ".NET build is only available for .NET SDK functions.",
-		};
-	}
-
-	const docker = new Docker();
-	const functionIdStr = String(functionId);
-	const containerName = `shsf_func_${functionIdStr}`;
-	const funcAppDir = getFunctionAppDir(functionIdStr);
-	const executionDir = getFunctionExecutionsDir(functionIdStr);
-	const dotnetCacheHost = getCacheDir("dotnet");
-
-	try {
-		await fs.mkdir(funcAppDir, { recursive: true });
-		await fs.mkdir(executionDir, { recursive: true });
-		await fs.mkdir(dotnetCacheHost, { recursive: true });
-
-		if (!functionData.git_url) {
-			await Promise.all(
-				files.map(async (file) => {
-					const filePath = path.join(funcAppDir, file.name);
-					await fs.mkdir(path.dirname(filePath), { recursive: true });
-					let content: string | Buffer = file.content as any;
-					if (typeof content === "string") {
-						content = replaceApiBaseInContent(
-							content,
-							functionData.namespaceId,
-							functionData.executionId,
-						);
-					}
-					await fs.writeFile(filePath, content as any);
-				}),
-			);
-		}
-
-		const dotnetProjectPath = await resolveDotnetProjectPath(funcAppDir);
-		const dotnetProjectDir = getDotnetProjectDirectory(
-			funcAppDir,
-			dotnetProjectPath,
-		);
-		await fs.writeFile(path.join(funcAppDir, "init.sh"), generateDotnetBuildInitScript(functionId));
-		await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
-		await fs.writeFile(
-			path.join(dotnetProjectDir, "SHSF.Runtime.cs"),
-			ShsfRuntimeScriptCS,
-		);
-
-		await fs.writeFile(path.join(dotnetProjectDir, "_db_com.cs"), DbComScriptCS);
-
-		let container = docker.getContainer(containerName);
-		try {
-			const inspectInfo = await container.inspect();
-			if (!inspectInfo.State.Running) {
-				await container.start();
-			}
-		} catch (error: any) {
-			if (error.statusCode !== 404) {
-				throw error;
-			}
-
-			const imageExists = await docker.listImages({
-				filters: JSON.stringify({ reference: [functionData.image] }),
-			});
-			if (imageExists.length === 0) {
-				const pullStream = await docker.pull(functionData.image);
-				await new Promise((resolve, reject) => {
-					docker.modem.followProgress(pullStream, (pullError) =>
-						pullError ? reject(pullError) : resolve(null),
-					);
-				});
-			}
-
-			container = await docker.createContainer({
-				Image: functionData.image,
-				name: containerName,
-				Env: await getRuntimeEnvironment(functionData),
-				HostConfig: {
-					Binds: [
-						`${funcAppDir}:/app`,
-						`${executionDir}:/executions`,
-						`${dotnetCacheHost}:/dotnet-cache`,
-						...(functionData.docker_mount
-							? ["/var/run/docker.sock:/var/run/docker.sock"]
-							: []),
-					],
-					AutoRemove: false,
-					Memory: (functionData.max_ram || 128) * 1024 * 1024,
-					...((functionData as any).network_restricted && {
-						NetworkMode: "none",
-					}),
-				},
-				Cmd: [
-					"/bin/sh",
-					"-c",
-					"/app/init.sh && echo '[SHSF] Container ready.' && tail -f /dev/null",
-				],
-				Tty: false,
-			});
-			await container.start();
-		}
-
-		const exec = await container.exec({
-			Cmd: [
-				"/bin/sh",
-				"-c",
-				`cd /app && . /app/.shsf_env && rm -f /app/.shsf_dotnet_entry && dotnet build "${dotnetProjectPath}" && PROJECT_DIR="$(dirname "${dotnetProjectPath}")" && ASSEMBLY_NAME="$(basename "${dotnetProjectPath}" .csproj)" && TARGET_PATH="$(find "/app/$PROJECT_DIR/bin" -type f -name "$ASSEMBLY_NAME.dll" ! -path "*/ref/*" ! -path "*/obj/*" | sort | tail -n 1)" && if [ -z "$TARGET_PATH" ] || [ ! -f "$TARGET_PATH" ]; then echo "Failed to resolve built .NET assembly for ${dotnetProjectPath}" >&2; exit 1; fi && printf '%s' "$TARGET_PATH" > /app/.shsf_dotnet_entry`,
-			],
-			Env: await getRuntimeEnvironment(functionData),
-			AttachStdout: true,
-			AttachStderr: true,
-			Tty: false,
-		});
-
-		const execStream = await exec.start({ hijack: true, stdin: false });
-		const buildOutput = { stdout: "", stderr: "" };
-		const stdoutMultiplex = new PassThrough();
-		const stderrMultiplex = new PassThrough();
-
-		stdoutMultiplex.on("data", (chunk) => {
-			buildOutput.stdout += chunk.toString("utf8");
-		});
-		stderrMultiplex.on("data", (chunk) => {
-			buildOutput.stderr += chunk.toString("utf8");
-		});
-
-		docker.modem.demuxStream(execStream, stdoutMultiplex, stderrMultiplex);
-
-		await new Promise<void>((resolve, reject) => {
-			execStream.on("end", resolve);
-			execStream.on("error", reject);
-		});
-
-		const inspect = await exec.inspect();
-		const buildLogs = [buildOutput.stderr.trim(), buildOutput.stdout.trim()]
-			.filter(Boolean)
-			.join("\n");
-		if (inspect.ExitCode !== 0) {
-			log.error({ functionId, buildLogs }, "dotnet build failed");
-
-			const persistedBuildLogs = appendLogOutput(
-				"[SHSF] .NET build failed.",
-				buildLogs || "dotnet build failed without output",
-			);
-			try {
-				await persistFunctionExecutionLog({
-					functionId,
-					functionData,
-					logs: persistedBuildLogs,
-					output: JSON.stringify(null),
-					exit_code: inspect.ExitCode ?? 1,
-					error_type: "dotnet_build",
-					force: true,
-				});
-			} catch (persistError) {
-				log.error({ err: persistError }, "Error persisting .NET build failure logs");
-			}
-
-			return {
-				status: "build_failed",
-				message: "dotnet build failed.",
-				buildLogs,
-			};
-		}
-		return { status: "success" };
-	} catch (error) {
-		log.error({ err: error, functionId }, "Error building .NET function");
-		if (error instanceof DotnetProjectResolutionError) {
-			return {
-				status: "build_failed",
-				message: error.message,
-			};
-		}
-		return {
-			status: "build_failed",
-			message: "Failed to build .NET function",
-		};
 	}
 }
 

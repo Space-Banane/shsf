@@ -828,7 +828,7 @@ export = new fileRouter.Path("/")
 						func.files,
 						{ enabled: false },
 						payload,
-						{ mode: "production_execute" },
+						{},
 					);
 				} catch (error) {
 					log.error({ err: error, funcId: func.id }, "executeFunction failed for trigger");

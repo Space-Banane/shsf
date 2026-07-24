@@ -287,61 +287,6 @@ fi
 `;
 }
 
-export function generateDotnetRunnerScript(dotnetProjectPath: string | null): string {
-	return `#!/bin/sh
-if [ -f /app/.shsf_env ]; then
-    . /app/.shsf_env
-    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
-else
-    echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
-fi
-
-if [ $# -lt 3 ]; then
-    echo "Error: Missing payload file path, result file path, or execution mode" >&2
-    exit 1
-fi
-
-PAYLOAD_PATH="$1"
-RESULT_PATH="$2"
-EXECUTION_MODE="$3"
-export SHSF_PAYLOAD_PATH="$PAYLOAD_PATH"
-export SHSF_RESULT_PATH="$RESULT_PATH"
-export SHSF_EXECUTION_MODE="$EXECUTION_MODE"
-PROJECT_PATH="${dotnetProjectPath ?? ""}"
-
-if [ -z "$PROJECT_PATH" ]; then
-    echo "Error: No runnable .NET project could be resolved." >&2
-    exit 1
-fi
-
-cd /app
-
-if [ "$EXECUTION_MODE" = "dev_execute" ]; then
-    exec dotnet run --project "$PROJECT_PATH" -- "$PAYLOAD_PATH" "$RESULT_PATH"
-fi
-
-ENTRY_PATH_FILE="/app/.shsf_dotnet_entry"
-BUILT_TARGET=""
-
-if [ -f "$ENTRY_PATH_FILE" ]; then
-    BUILT_TARGET="$(cat "$ENTRY_PATH_FILE" 2>/dev/null)"
-fi
-
-if [ -z "$BUILT_TARGET" ] || [ ! -f "$BUILT_TARGET" ]; then
-    PROJECT_DIR="$(dirname "$PROJECT_PATH")"
-    ASSEMBLY_NAME="$(basename "$PROJECT_PATH" .csproj)"
-    BUILT_TARGET="$(find "/app/$PROJECT_DIR/bin" -type f -name "$ASSEMBLY_NAME.dll" ! -path "*/ref/*" ! -path "*/obj/*" | sort | tail -n 1)"
-fi
-
-if [ -z "$BUILT_TARGET" ] || [ ! -f "$BUILT_TARGET" ]; then
-    echo "Error: No built .NET assembly found for $PROJECT_PATH. Run .NET Build before using production execution routes." >&2
-    exit 1
-fi
-
-exec dotnet "$BUILT_TARGET" "$PAYLOAD_PATH" "$RESULT_PATH"
-`;
-}
-
 export function generatePythonInitBody(
 	functionId: number,
 	opts: { ffmpeg_install?: boolean | null; opencv_install?: boolean | null },
@@ -504,33 +449,3 @@ echo "[SHSF INIT] Go setup complete."
 	return body;
 }
 
-export function generateDotnetInitBody(functionId: number): string {
-	return `
-echo "[SHSF INIT] Setting up .NET environment for function ${functionId}"
-DOTNET_CACHE_DIR="/dotnet-cache/function-${functionId}"
-NUGET_PACKAGES_DIR="$DOTNET_CACHE_DIR/nuget"
-DOTNET_CLI_HOME_DIR="$DOTNET_CACHE_DIR/cli-home"
-mkdir -p "$NUGET_PACKAGES_DIR" "$DOTNET_CLI_HOME_DIR"
-echo "export NUGET_PACKAGES=$NUGET_PACKAGES_DIR" > /app/.shsf_env
-echo "export DOTNET_CLI_HOME=$DOTNET_CLI_HOME_DIR" >> /app/.shsf_env
-echo "export PATH=/app:$PATH" >> /app/.shsf_env
-echo "[SHSF INIT] .NET setup complete."
-`;
-}
-
-// Standalone init script used by buildDotnetFunction (has its own shebang + set -e).
-// Differs from generateDotnetInitBody in structure: complete script vs. appended fragment.
-export function generateDotnetBuildInitScript(functionId: number): string {
-	return `#!/bin/sh
-set -e
-echo "[SHSF INIT] Setting up .NET environment..."
-DOTNET_CACHE_DIR="/dotnet-cache/function-${functionId}"
-NUGET_PACKAGES_DIR="$DOTNET_CACHE_DIR/nuget"
-DOTNET_CLI_HOME_DIR="$DOTNET_CACHE_DIR/cli-home"
-mkdir -p "$NUGET_PACKAGES_DIR" "$DOTNET_CLI_HOME_DIR"
-echo "export NUGET_PACKAGES=$NUGET_PACKAGES_DIR" > /app/.shsf_env
-echo "export DOTNET_CLI_HOME=$DOTNET_CLI_HOME_DIR" >> /app/.shsf_env
-echo "export PATH=/app:\\$PATH" >> /app/.shsf_env
-echo "[SHSF INIT] .NET environment ready."
-`;
-}

@@ -30,18 +30,6 @@ func main_user(args interface{}) (interface{}, error) {
 • Dependencies go in a \`go.mod\` file (auto-downloaded by the runtime).
 • Supported Go versions: 1.20 / 1.21 / 1.22 / 1.23
 
-**.NET / C#** (project-based runtime)
-\`\`\`csharp
-using SHSF;
-
-var args = Runtime.LoadPayloadJson<Dictionary<string, JsonElement?>>();
-Runtime.Return(new { hello = "world" });
-\`\`\`
-• .NET functions are project-based: include a runnable \`.csproj\` and C# source files.
-• Do NOT use \`func.startup_file\` for .NET. The startup file should be an empty string.
-• Your code can use \`Runtime.LoadPayload()\`, \`Runtime.LoadPayloadJson<T>()\`, and \`Runtime.Return(object)\` from the auto-provisioned \`SHSF.Runtime.cs\` helper.
-• Supported .NET SDK images: 8.0 / 9.0 / 10.0
-
 ---
 
 ### 2. The \`args\` object
@@ -85,20 +73,6 @@ func main_user(args interface{}) (interface{}, error) {
     if name == "" { name = "stranger" }
     return map[string]string{"greeting": "Hello, " + name + "!"}, nil
 }
-\`\`\`
-
-C# example:
-\`\`\`csharp
-using System.Text.Json;
-using SHSF;
-
-var payload = Runtime.LoadPayloadJson<Dictionary<string, JsonElement?>>() ?? new();
-var body = payload.TryGetValue("body", out var rawBody) && rawBody is JsonElement value && value.ValueKind == JsonValueKind.String
-    ? JsonSerializer.Deserialize<Dictionary<string, string>>(value.GetString() ?? "{}") ?? new()
-    : new Dictionary<string, string>();
-
-var name = body.TryGetValue("name", out var providedName) ? providedName : "stranger";
-Runtime.Return(new { greeting = $"Hello {name}" });
 \`\`\`
 
 ---
@@ -186,11 +160,6 @@ Go:
 \`\`\`go
 import "os"
 apiKey := os.Getenv("MY_API_KEY")
-\`\`\`
-
-C#:
-\`\`\`csharp
-var apiKey = Environment.GetEnvironmentVariable("MY_API_KEY") ?? "";
 \`\`\`
 
 ---
@@ -399,7 +368,6 @@ def main(args):
 |---------|-----------------|-------------------------------------------|
 | Python  | requirements.txt | pip-installed before first run            |
 | Go      | go.mod + go.sum | module dependencies, auto-downloaded      |
-| .NET    | .csproj         | NuGet restore/build handled by dotnet CLI |
 
 Python requirements.txt example:
 \`\`\`
@@ -425,13 +393,12 @@ require (
 
 - When the image is set to python, don't create go files, and vice versa
 - Only create files allowed by the runtime file policy appended below.
-- If no packages are needed, don't create a requirements.txt or go.mod file — these are optional and only needed if you have dependencies; .NET functions still need a runnable .csproj.
+- If no packages are needed, don't create a requirements.txt or go.mod file — these are optional and only needed if you have dependencies.
 - FORBIDDEN filenames: _runner.py, _runner.js, init.sh  (reserved by the SHSF runtime)
 - Filenames must NEVER contain / or \\\\ (no subdirectories)
 - Never write partial files or placeholder comments like "# ... rest of code"
 - Never hard-code secrets — always use environment variables (§5)
 - Go entry-point is main_user(), never main()
-- .NET functions must include a runnable .csproj and return results via Runtime.Return(...)
 - Never invent SHSF-specific APIs that are not documented in this reference
 - **Always \`import json\` and call \`json.loads(args.get("body", "{}"))\` in Python before accessing body fields**
 `;

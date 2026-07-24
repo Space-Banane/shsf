@@ -69,6 +69,6 @@ describe("StoragePaths", () => {
 		expect(getGitRepoDir("18")).toBe(
 			path.join(expectedRoot, "functions", "18", "git_repo"),
 		);
-		expect(getCacheDir("dotnet")).toBe(path.join(expectedRoot, "cache", "dotnet"));
+		expect(getCacheDir("pip")).toBe(path.join(expectedRoot, "cache", "pip"));
 	});
 });

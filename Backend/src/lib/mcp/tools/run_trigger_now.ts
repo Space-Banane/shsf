@@ -48,9 +48,7 @@ const tool: McpToolDef = {
 		let result: Awaited<ReturnType<typeof executeFunction>> | null = null;
 
 		try {
-			result = await executeFunction(func.id, func, func.files, { enabled: false }, payload, {
-				mode: "production_execute",
-			});
+			result = await executeFunction(func.id, func, func.files, { enabled: false }, payload, {});
 		} catch (error) {
 			log.error({ err: error, funcId: func.id }, "executeFunction failed for trigger");
 			return errResult("Failed to execute function");

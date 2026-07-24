@@ -216,7 +216,6 @@ describe("executeLoadedHttpFunction", () => {
 					configured: false,
 					blocked: false,
 				}),
-				mode: "production_execute",
 			}),
 		);
 		expect(setFunctionCache).toHaveBeenCalledWith(

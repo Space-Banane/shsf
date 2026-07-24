@@ -27,7 +27,6 @@ import {
 	getImageFamily,
 	Image,
 	ImagesAsArray,
-	isDotnetImage,
 	TriggerLog,
 	XFunction,
 	Namespace,
@@ -132,7 +131,6 @@ function UpdateFunctionModal({
 
 	const corsOriginsArray = corsOrigins.split(",").map((o) => o.trim()).filter((o) => o.length > 0);
 	const namespaceSelectValue = namespaces.length > 0 ? (selectedNamespaceId ?? "") : "";
-	const isDotnetRuntime = isDotnetImage(image);
 	const hasSourceFlags = sourceFlags.imported || sourceFlags.ai_kicked_off;
 
 	const addCorsOrigin = () => {
@@ -169,7 +167,7 @@ function UpdateFunctionModal({
 				name: name.trim() || undefined,
 				description: description.trim() || undefined,
 				image,
-				startup_file: isDotnetRuntime ? "" : startupFile?.trim() || undefined,
+				startup_file: startupFile?.trim() || undefined,
 				docker_mount: dockerMount,
 				network_restricted: networkRestricted,
 				ffmpeg_install: ffmpegInstall,
@@ -362,17 +360,12 @@ function UpdateFunctionModal({
 							<label className={labelClass}>Startup File</label>
 							<input
 								type="text"
-								placeholder={isDotnetRuntime ? ".NET functions auto-detect the runnable project" : "main.py, index.js, etc."}
+								placeholder="main.py, index.js, etc."
 								value={startupFile || ""}
 								onChange={(e) => setStartupFile(e.target.value)}
-								className={`${inputClass} ${isLoading || isDotnetRuntime ? "opacity-50 cursor-not-allowed" : ""}`}
-								disabled={isLoading || isDotnetRuntime}
+								className={`${inputClass} ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+								disabled={isLoading}
 							/>
-							{isDotnetRuntime && (
-								<p className="text-xs text-cyan-300 mt-1">
-									.NET functions keep this empty and resolve the runnable project from your <code>.csproj</code> and <code>.sln</code> files.
-								</p>
-							)}
 						</div>
 					</div>
 					<div>

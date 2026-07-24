@@ -25,7 +25,6 @@ import ImageResultModal from "../../components/modals/functionDetail/ImageResult
 import {
 	FunctionFile,
 	getImageDisplayName,
-	isDotnetImage,
 	XFunction,
 	Trigger,
 	Namespace,
@@ -39,7 +38,6 @@ import {
 	updateFunction,
 	getLogsByFuncId,
 	installDependencies,
-	buildDotnetFunction,
 } from "../../services/backend.functions";
 import {
 	getFiles,
@@ -128,7 +126,6 @@ function FunctionDetail() {
 	const [showTriggersDetails, setShowTriggersDetails] = useState<boolean>(false);
 	const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
 	const [pipRunning, setPipRunning] = useState<boolean>(false);
-	const [dotnetBuildRunning, setDotnetBuildRunning] = useState<boolean>(false);
 	const [showPopup, setShowPopup] = useState<boolean>(false);
 	const [popupContent, setPopupContent] = useState<{
 		headers: Record<string, string>;
@@ -189,7 +186,6 @@ function FunctionDetail() {
 				.replace(/[^a-z0-9]+/g, "-")
 				.replace(/^-+|-+$/g, "") || "my-func"} --force`
 		: "";
-	const isDotnetRuntime = Boolean(functionData && isDotnetImage(functionData.image));
 	const isHtmlFilename = (filename: string) =>
 		filename.toLowerCase().endsWith(".html");
 
@@ -303,11 +299,8 @@ function FunctionDetail() {
 			".md": "markdown",
 			".go": "go",
 			".mod": "go",
-			".cs": "csharp",
-			".csproj": "xml",
 			".props": "xml",
 			".targets": "xml",
-			".sln": "plaintext",
 			".rs": "rust",
 			".lua": "lua",
 		};
@@ -830,47 +823,6 @@ function FunctionDetail() {
 		} finally {
 			fetchLogs();
 			setPipRunning(false);
-		}
-	};
-
-	const handleDotnetBuild = async () => {
-		if (!id) return;
-
-		setDotnetBuildRunning(true);
-		try {
-			const response = await buildDotnetFunction(parseInt(id));
-			if (
-				response &&
-				typeof response === "object" &&
-				"status" in response &&
-				response.status === "OK"
-			) {
-				setDepModalContent({
-					title: ".NET Build Completed",
-					message:
-						"Build finished successfully. HTTP routes and cron triggers can now run the compiled assembly.",
-					success: true,
-				});
-				setShowDepModal(true);
-			} else {
-				setDepModalContent({
-					title: ".NET Build Failed",
-					message: "Build failed: " + String(response),
-					success: false,
-				});
-				setShowDepModal(true);
-			}
-		} catch (error) {
-			console.error("Error building .NET function:", error);
-			setDepModalContent({
-				title: ".NET Build Failed",
-				message: "An error occurred while building the .NET function.",
-				success: false,
-			});
-			setShowDepModal(true);
-		} finally {
-			fetchLogs();
-			setDotnetBuildRunning(false);
 		}
 	};
 
@@ -1813,24 +1765,9 @@ function FunctionDetail() {
 								</button>
 							</div>
 
-							{isDotnetRuntime && (
-								<div className="rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-3 text-sm text-cyan-100">
-									Development UI runs use <code>dotnet run</code> and can be much
-									slower. HTTP routes and cron triggers use{" "}
-									<code>dotnet run --no-build</code>, so run <code>.NET Build</code>
-									after changing project files before production-style execution.
-									Use <code>SHSF.Runtime.LoadPayload()</code> or{" "}
-									<code>SHSF.Runtime.LoadPayloadJson&lt;T&gt;()</code> to read the
-									payload file, and use <code>SHSF.Runtime.Return(...)</code> for
-									the response. SHSF only treats text between{" "}
-									<code>SHSF_FUNCTION_RESULT_START</code> and{" "}
-									<code>SHSF_FUNCTION_RESULT_END</code> as the response. Everything
-									else is logged.
-								</div>
-							)}
 
 							<div className="flex flex-wrap items-center justify-end gap-2 border-t border-primary/10 pt-4">
-								{!serveHtmlOnly && (isDotnetRuntime || functionData.image.startsWith("python") || functionData.image.startsWith("golang")) && (
+								{!serveHtmlOnly && (functionData.image.startsWith("python") || functionData.image.startsWith("golang")) && (
 									<button
 										className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 										onClick={() => setShowDependencyManager(true)}
@@ -1848,15 +1785,6 @@ function FunctionDetail() {
 										disabled={pipRunning || running || saving}
 									>
 										{pipRunning ? "Installing..." : "Install requirements.txt"}
-									</button>
-								)}
-								{isDotnetRuntime && (
-									<button
-										className="h-9 px-3 text-sm rounded-lg bg-cyan-600/90 text-white hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-										onClick={handleDotnetBuild}
-										disabled={dotnetBuildRunning || running || saving}
-									>
-										{dotnetBuildRunning ? "Building..." : ".NET Build"}
 									</button>
 								)}
 								<button

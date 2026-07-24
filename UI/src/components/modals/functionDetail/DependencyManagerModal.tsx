@@ -10,7 +10,7 @@ import {
 	textareaClass,
 } from "../Modal";
 import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
-import { FunctionFile, isDotnetImage } from "../../../types/Prisma";
+import { FunctionFile } from "../../../types/Prisma";
 
 interface DependencyManagerModalProps {
 	isOpen: boolean;
@@ -21,10 +21,9 @@ interface DependencyManagerModalProps {
 	onSave: (filename: string, content: string) => Promise<boolean>;
 }
 
-type DependencyRuntime = "python" | "golang" | "dotnet";
+type DependencyRuntime = "python" | "golang";
 
 function getRuntime(image: string): DependencyRuntime | null {
-	if (isDotnetImage(image)) return "dotnet";
 	if (image.startsWith("python")) return "python";
 	if (image.startsWith("golang")) return "golang";
 	return null;
@@ -45,18 +44,6 @@ function getDefaultContent(
 	if (filename === "go.sum") {
 		return "";
 	}
-	if (runtime === "dotnet" && filename.endsWith(".csproj")) {
-		const targetFramework = image.split(":").pop() || "8.0";
-		return `<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net${targetFramework}</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-</Project>
-`;
-	}
 	return "";
 }
 
@@ -69,9 +56,6 @@ function getManifestDescription(runtime: DependencyRuntime, filename: string): s
 	}
 	if (filename === "go.sum") {
 		return "Go module checksums. It is normally generated and maintained by the Go toolchain.";
-	}
-	if (runtime === "dotnet") {
-		return "The .NET project file. Add NuGet PackageReference entries here, then run .NET Build.";
 	}
 	return "Runtime dependency manifest.";
 }
@@ -94,12 +78,8 @@ function DependencyManagerModal({
 		if (runtime === "golang") {
 			return ["go.mod", "go.sum"];
 		}
-
-		const projectFiles = files
-			.map((file) => file.name)
-			.filter((filename) => filename.toLowerCase().endsWith(".csproj"));
-		return projectFiles.length > 0 ? projectFiles : ["project.csproj"];
-	}, [files, runtime]);
+		return [];
+	}, [runtime]);
 
 	const [selectedFilename, setSelectedFilename] = useState("");
 	const [draft, setDraft] = useState("");
@@ -146,7 +126,7 @@ function DependencyManagerModal({
 
 	if (!runtime) return null;
 
-	const runtimeLabel = runtime === "golang" ? "Go" : runtime === "dotnet" ? ".NET" : "Python";
+	const runtimeLabel = runtime === "golang" ? "Go" : "Python";
 
 	return (
 		<Modal
@@ -164,16 +144,14 @@ function DependencyManagerModal({
 					<p className="mt-1 text-xs text-muted">
 						{runtime === "python"
 							? "Use requirements.txt for pip packages."
-							: runtime === "golang"
-								? "Use go.mod for modules; go.sum is kept for checksums."
-								: "Use the .csproj file for NuGet PackageReference entries."}
+							: "Use go.mod for modules; go.sum is kept for checksums."}
 					</p>
 				</div>
 
 				<ModalError message={error} />
 				{saved && (
 					<div className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
-						{selectedFilename} saved. {runtime === "python" ? "Use Install requirements.txt to apply it now." : runtime === "dotnet" ? "Run .NET Build to apply project changes." : "The next function run will resolve the module changes."}
+						{selectedFilename} saved. {runtime === "python" ? "Use Install requirements.txt to apply it now." : "The next function run will resolve the module changes."}
 					</div>
 				)}
 

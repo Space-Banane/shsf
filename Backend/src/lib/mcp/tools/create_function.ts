@@ -7,7 +7,6 @@ import {
 	json,
 	errResult,
 	VALID_IMAGES,
-	isDotnetImage,
 	imageFamily,
 } from "./shared";
 
@@ -30,7 +29,7 @@ const tool: McpToolDef = {
 			startup_file: {
 				type: "string",
 				description:
-					"Entry-point filename (e.g. 'main.py', 'main.go'). Required for all runtimes except .NET.",
+					"Entry-point filename (e.g. 'main.py', 'main.go'). Required.",
 			},
 			execution_alias: {
 				type: "string",
@@ -63,8 +62,8 @@ const tool: McpToolDef = {
 		if (disabledImages.includes(image))
 			return errResult(`Image ${image} has been disabled by the administrator`);
 
-		if (!isDotnetImage(image) && !startupFile.trim())
-			return errResult("startup_file is required for this runtime");
+		if (!startupFile.trim())
+			return errResult("startup_file is required");
 
 		const ns = await prisma.namespace.findFirst({
 			where: { name: namespaceName, userId },
@@ -81,7 +80,7 @@ const tool: McpToolDef = {
 			if (aliasConflict) return errResult(`Execution alias "${alias}" is already in use`);
 		}
 
-		const normalizedStartupFile = isDotnetImage(image) ? "" : startupFile.trim();
+		const normalizedStartupFile = startupFile.trim();
 		const executionId = randomUUID();
 
 		const created = await prisma.function.create({

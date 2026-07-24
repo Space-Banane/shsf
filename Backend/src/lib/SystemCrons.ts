@@ -198,7 +198,7 @@ export async function processCrons({ prisma, executeFunction }: SystemCronDepend
 								triggerId: capturedCronId,
 								...cronExecutionData,
 							}),
-							{ mode: "cron_execute" },
+							{},
 						);
 						executionExitCode = executionResult?.exit_code ?? null;
 					} catch (executionError) {

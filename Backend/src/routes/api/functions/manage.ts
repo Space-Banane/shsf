@@ -26,9 +26,6 @@ const Images: string[] = [
 	"golang:1.21",
 	"golang:1.22",
 	"golang:1.23",
-	"mcr.microsoft.com/dotnet/sdk:8.0",
-	"mcr.microsoft.com/dotnet/sdk:9.0",
-	"mcr.microsoft.com/dotnet/sdk:10.0",
 ];
 const deprecatedImages: string[] = [
 	"python:3.9",
@@ -37,12 +34,8 @@ const deprecatedImages: string[] = [
 	"golang:1.21",
 ];
 
-function isDotnetImage(image: string): boolean {
-	return image.startsWith("mcr.microsoft.com/dotnet/sdk:");
-}
-
 function getImageFamily(image: string): string {
-	return isDotnetImage(image) ? "dotnet" : image.split(":")[0];
+	return image.split(":")[0];
 }
 
 // Create Docker client instance for container management
@@ -297,16 +290,14 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				if (!isDotnetImage(data.image) && !data.startup_file.trim()) {
+				if (!data.startup_file.trim()) {
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						status: 400,
-						message: "Startup file is required for this runtime",
+						message: "Startup file is required",
 					});
 				}
 
-				const normalizedStartupFile = isDotnetImage(data.image)
-					? ""
-					: data.startup_file.trim();
+				const normalizedStartupFile = data.startup_file.trim();
 
 				const authCheck = await checkAuthentication(
 					ctr.cookies.get(COOKIE),
@@ -965,8 +956,6 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				const nextImage = data.image ?? existingFunction.image;
-
 				if (data.image !== undefined) {
 					const disabledImages = await getDisabledImages();
 					if (disabledImages.includes(data.image)) {
@@ -984,14 +973,10 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				if (
-					data.startup_file !== undefined &&
-					!isDotnetImage(nextImage) &&
-					!data.startup_file.trim()
-				) {
+				if (data.startup_file !== undefined && !data.startup_file.trim()) {
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						status: 400,
-						message: "Startup file is required for this runtime",
+						message: "Startup file is required",
 					});
 				}
 
@@ -1046,11 +1031,7 @@ export = new fileRouter.Path("/")
 				}
 
 				const normalizedStartupFile =
-					data.startup_file !== undefined
-						? isDotnetImage(nextImage)
-							? ""
-							: data.startup_file.trim()
-						: undefined;
+					data.startup_file !== undefined ? data.startup_file.trim() : undefined;
 
 				const updatedData: any = {
 					...(data.name && { name: data.name }),
