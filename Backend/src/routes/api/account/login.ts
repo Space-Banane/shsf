@@ -67,7 +67,7 @@ export = new fileRouter.Path("/").http("POST", "/api/account/login", (http) =>
 
 			let newdomain = "";
 			if (DOMAIN === "localhost" || isIP(DOMAIN)) {
-				newdomain = "localhost";
+				newdomain = DOMAIN;
 			} else {
 				if (DOMAIN.split(".").length > 2) {
 					// we are on a subdomain
