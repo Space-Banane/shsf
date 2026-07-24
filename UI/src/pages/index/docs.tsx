@@ -318,4 +318,12 @@ const lessons: {
 			"Auto-install python3-opencv on first init via a marker file — computer vision in Python functions.",
 		link: "/docs/opencv-install",
 	},
+	{
+		key: "call-functions",
+		identifier: "#26",
+		title: "Calling Functions",
+		description:
+			"Invoke another function you own with the built-in callF helper — Python, Node.js, and Go included.",
+		link: "/docs/call-functions",
+	},
 ];

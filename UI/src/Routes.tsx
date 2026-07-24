@@ -38,6 +38,7 @@ import { DOCSKICKOFF } from "./pages/docs/kickoff";
 import { DocsVersionControl } from "./pages/docs/version-control";
 import { DocsCloneFunction } from "./pages/docs/clone-function";
 import { OpencvInstallPage } from "./pages/docs/opencv-install";
+import { CallFunctionsDocPage } from "./pages/docs/call-functions";
 import { AdminPage } from "./pages/Admin";
 import FunctionAnalyticsPage from "./pages/FunctionAnalytics";
 import AgentsPage from "./pages/Agents";
@@ -236,6 +237,12 @@ export const routes: AppRoute[] = [
 		path: "/docs/opencv-install",
 		component: OpencvInstallPage,
 		name: "OpenCV Installation",
+		requireAuth: false,
+	},
+	{
+		path: "/docs/call-functions",
+		component: CallFunctionsDocPage,
+		name: "Calling Functions",
 		requireAuth: false,
 	},
 
