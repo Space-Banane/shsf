@@ -20,6 +20,7 @@
 - [ ] Manage runtimes & images (CRUD) and move hard coded stuff to this. Migration baseline needed tho for existing instances. & pre pulling images on button presses with live ui statuses
 
 ## P3 - Priority 3 (Low)
+- [ ] Better way to have the "Next Step" dynamic and not hardcoded in the documentation UI part. IF i remove a doc i need to update the last doc before that, i dont want to do that.
 
 ## P4 - Priority 4 (Trivial)
 
