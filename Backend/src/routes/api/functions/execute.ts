@@ -187,8 +187,7 @@ export = new fileRouter.Path("/")
 										ran_by: "user",
 										...runPayload,
 									}),
-									{ mode: "dev_execute" },
-								)
+																	)
 									.then(async (result) => {
 										await print(
 											JSON.stringify({
@@ -226,8 +225,7 @@ export = new fileRouter.Path("/")
 								ran_by: "user",
 								...runPayload,
 							}),
-							{ mode: "dev_execute" },
-						);
+													);
 
 						if (functionData.cache_enabled && result?.exit_code === 0 && result?.result) {
 							await setFunctionCache(

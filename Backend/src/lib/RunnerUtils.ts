@@ -21,15 +21,7 @@ export function appendLogOutput(existing: string, next: string): string {
 	return `${existing.trimEnd()}\n${next.trim()}`;
 }
 
-export function isDotnetImage(image: string): boolean {
-	return image.startsWith("mcr.microsoft.com/dotnet/sdk:");
-}
-
-export function getRuntimeType(image: string): "python" | "golang" | "dotnet" | string {
-	if (isDotnetImage(image)) {
-		return "dotnet";
-	}
-
+export function getRuntimeType(image: string): "python" | "golang" | string {
 	return image.split(":")[0];
 }
 

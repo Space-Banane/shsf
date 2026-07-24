@@ -42,7 +42,7 @@ async function updateContainerDependencies(
 	_content: string,
 ) {
 	// Restart the runtime when a manifest changes. Python and Go apply their
-	// manifests during init; .NET picks up the updated project on the next build.
+	// manifests during init.
 	if (!isDependencyFilename(filename) && filename !== "package.json") {
 		return;
 	}
@@ -763,14 +763,6 @@ export = new fileRouter.Path("/")
 					go_custom_responses: "../fill_examples/custom_responses.go",
 					go_routing: "../fill_examples/routing.go",
 					go_redirects: "../fill_examples/redirects.go",
-					dotnet_project: "../fill_examples/project.csproj",
-					dotnet_default: "../fill_examples/default.cs",
-					dotnet_data_passing: "../fill_examples/data_passing.cs",
-					dotnet_custom_responses: "../fill_examples/custom_responses.cs",
-					dotnet_routing: "../fill_examples/routing.cs",
-					dotnet_redirects: "../fill_examples/redirects.cs",
-					dotnet_database_communication:
-						"../fill_examples/database_communication.cs",
 				};
 
 				const filePath = defaultFileMap[data.defaultToLoad];
@@ -784,11 +776,7 @@ export = new fileRouter.Path("/")
 				// Validate runtime matches the template
 				const templateLanguage = data.defaultToLoad.split("_")[0]; // Extract language prefix (e.g., "python" from "python_default")
 				const functionRuntime = func.image.toLowerCase(); // e.g., "python:3.11"
-				const functionRuntimeLanguage = functionRuntime.startsWith(
-					"mcr.microsoft.com/dotnet/sdk:",
-				)
-					? "dotnet"
-					: functionRuntime.split(":")[0];
+				const functionRuntimeLanguage = functionRuntime.split(":")[0];
 
 				// Check if the runtime matches the template language
 				if (functionRuntimeLanguage !== templateLanguage) {
@@ -885,9 +873,7 @@ export = new fileRouter.Path("/")
 								file.endsWith(".py") ||
 								file.endsWith(".js") ||
 								file.endsWith(".ts") ||
-								file.endsWith(".go") ||
-								file.endsWith(".cs") ||
-								file.endsWith(".csproj"),
+								file.endsWith(".go"),
 						)
 						.map((file) => {
 							const nameWithoutExt = file.replace(/\.[^.]+$/, "");
@@ -909,7 +895,6 @@ export = new fileRouter.Path("/")
 								routing: "Handle multiple routes in a single function",
 								discord_webhook: "Send messages to Discord (great for scheduled tasks)",
 								api_client: "Make authenticated requests to external APIs",
-								project: "Minimal runnable .NET project file",
 							};
 
 							if (file.endsWith(".py")) {
@@ -924,9 +909,6 @@ export = new fileRouter.Path("/")
 							} else if (file.endsWith(".go")) {
 								language = "go";
 								id = `go_${nameWithoutExt}`;
-							} else if (file.endsWith(".cs") || file.endsWith(".csproj")) {
-								language = "dotnet";
-								id = `dotnet_${nameWithoutExt}`;
 							}
 
 							const name = nameWithoutExt

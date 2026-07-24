@@ -279,14 +279,6 @@ const lessons: {
 		link: "/docs/go-runtime",
 	},
 	{
-		key: "dotnet-runtime",
-		identifier: "#21",
-		title: ".NET Runtime",
-		description:
-			"Build C# functions with SHSF.Runtime payload helpers and SHSF.Database storage access.",
-		link: "/docs/dotnet-runtime",
-	},
-	{
 		key: "kickoff",
 		identifier: "#22",
 		title: "Kickoff",

@@ -135,10 +135,7 @@ type Image =
 	| "golang:1.20"
 	| "golang:1.21"
 	| "golang:1.22"
-	| "golang:1.23"
-	| "mcr.microsoft.com/dotnet/sdk:8.0"
-	| "mcr.microsoft.com/dotnet/sdk:9.0"
-	| "mcr.microsoft.com/dotnet/sdk:10.0";
+	| "golang:1.23";
 
 const ImagesAsArray: Image[] = [
 	"python:3.9",
@@ -152,34 +149,14 @@ const ImagesAsArray: Image[] = [
 	"golang:1.21",
 	"golang:1.22",
 	"golang:1.23",
-	"mcr.microsoft.com/dotnet/sdk:8.0",
-	"mcr.microsoft.com/dotnet/sdk:9.0",
-	"mcr.microsoft.com/dotnet/sdk:10.0",
 ];
 const ImagesAsArraySet = new Set(ImagesAsArray);
 
 function getImageDisplayName(image: string): string {
-	switch (image) {
-		case "mcr.microsoft.com/dotnet/sdk:8.0":
-			return ".NET 8";
-		case "mcr.microsoft.com/dotnet/sdk:9.0":
-			return ".NET 9";
-		case "mcr.microsoft.com/dotnet/sdk:10.0":
-			return ".NET 10";
-		default:
-			return image;
-	}
-}
-
-function isDotnetImage(image: string): boolean {
-	return image.startsWith("mcr.microsoft.com/dotnet/sdk:");
+	return image;
 }
 
 function getImageFamily(image: string): string {
-	if (isDotnetImage(image)) {
-		return "dotnet";
-	}
-
 	return image.split(":")[0];
 }
 
@@ -211,7 +188,6 @@ export {
 	ImagesAsArraySet,
 	getImageDisplayName,
 	getImageFamily,
-	isDotnetImage,
 };
 interface FunctionStorage {
 	id: number;

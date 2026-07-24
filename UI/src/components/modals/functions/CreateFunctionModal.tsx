@@ -18,7 +18,6 @@ import {
 	getImageDisplayName,
 	Image,
 	ImagesAsArray,
-	isDotnetImage,
 	Namespace,
 } from "../../../types/Prisma";
 import { useNavigate } from "react-router-dom";
@@ -55,7 +54,6 @@ function CreateFunctionModal({
 	const [corsOrigins, setCorsOrigins] = useState<string>("");
 	const [corsOriginInput, setCorsOriginInput] = useState<string>("");
 	const [deprecatedImages, setDeprecatedImages] = useState<string[]>([]);
-	const isDotnetRuntime = isDotnetImage(image);
 
 	useEffect(() => {
 		getDeprecatedImages().then(setDeprecatedImages).catch(() => {});
@@ -101,7 +99,7 @@ function CreateFunctionModal({
 		try {
 			const response = await createFunction({
 				name, description, image, namespaceId,
-				startup_file: isDotnetRuntime ? "" : startupFile,
+				startup_file: startupFile,
 				docker_mount: dockerMount,
 				network_restricted: networkRestricted,
 				ffmpeg_install: ffmpegInstall,
@@ -214,17 +212,12 @@ function CreateFunctionModal({
 						<label className={labelClass}>Startup File</label>
 						<input
 							type="text"
-							placeholder={isDotnetRuntime ? ".NET functions auto-detect the runnable project" : "main.py, index.js, etc."}
+							placeholder="main.py, index.js, etc."
 							value={startupFile || ""}
 							onChange={(e) => setStartupFile(e.target.value)}
-							className={`${inputClass} ${isLoading || isDotnetRuntime ? "opacity-50 cursor-not-allowed" : ""}`}
-							disabled={isLoading || isDotnetRuntime}
+							className={`${inputClass} ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+							disabled={isLoading}
 						/>
-						{isDotnetRuntime && (
-							<p className="text-xs text-cyan-300 mt-1">
-								.NET functions resolve the runnable project from your <code>.csproj</code> and <code>.sln</code> files.
-							</p>
-						)}
 					</div>
 				</ModalSection>
 

@@ -48,17 +48,10 @@ export const VALID_IMAGES = [
 	"python:3.15",
 	"golang:1.22",
 	"golang:1.23",
-	"mcr.microsoft.com/dotnet/sdk:8.0",
-	"mcr.microsoft.com/dotnet/sdk:9.0",
-	"mcr.microsoft.com/dotnet/sdk:10.0",
 ];
 
-export function isDotnetImage(image: string) {
-	return image.startsWith("mcr.microsoft.com/dotnet/sdk:");
-}
-
 export function imageFamily(image: string) {
-	return isDotnetImage(image) ? "dotnet" : image.split(":")[0];
+	return image.split(":")[0];
 }
 
 // ── function lookup ───────────────────────────────────────────────────────────

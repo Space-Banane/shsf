@@ -50,9 +50,6 @@ const ALL_IMAGES = [
 	{ image: "golang:1.23", family: "Go", deprecated: false },
 	{ image: "golang:1.20", family: "Go", deprecated: true },
 	{ image: "golang:1.21", family: "Go", deprecated: true },
-	{ image: "mcr.microsoft.com/dotnet/sdk:8.0", family: ".NET", deprecated: false },
-	{ image: "mcr.microsoft.com/dotnet/sdk:9.0", family: ".NET", deprecated: false },
-	{ image: "mcr.microsoft.com/dotnet/sdk:10.0", family: ".NET", deprecated: false },
 ];
 
 // ─── Shared UI helpers ─────────────────────────────────────────────────────────

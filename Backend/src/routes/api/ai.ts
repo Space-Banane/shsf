@@ -16,14 +16,11 @@ const Images: string[] = [
 	"golang:1.21",
 	"golang:1.22",
 	"golang:1.23",
-	"mcr.microsoft.com/dotnet/sdk:8.0",
-	"mcr.microsoft.com/dotnet/sdk:9.0",
-	"mcr.microsoft.com/dotnet/sdk:10.0",
 ];
 
 const DisallowedFiles = ["_runner.py", "_runner.js", "init.sh"];
 
-type RuntimeFamily = "python" | "golang" | "dotnet" | "html";
+type RuntimeFamily = "python" | "golang" | "html";
 
 interface RuntimeFilePolicy {
 	runtime: RuntimeFamily;
@@ -35,17 +32,9 @@ interface RuntimeFilePolicy {
 	docSection: string;
 }
 
-function isDotnetImage(image: string): boolean {
-	return image.startsWith("mcr.microsoft.com/dotnet/sdk:");
-}
-
 function getRuntimeFamily(image: string, startupFile: string): RuntimeFamily {
 	if (startupFile.toLowerCase().endsWith(".html")) {
 		return "html";
-	}
-
-	if (isDotnetImage(image)) {
-		return "dotnet";
 	}
 
 	if (image.startsWith("golang:")) {
@@ -69,22 +58,6 @@ function createRuntimeFilePolicy(image: string, startupFile: string): RuntimeFil
 			docSection: `- Serve-only HTML functions may write root-level \`.html\` files only.
 - The default page is \`${startupFile}\`; routed pages may use additional HTML files such as \`about.html\` or \`docs.html\`.
 - Do not create CSS, JS, helper, or dependency files for HTML-only functions.`,
-		};
-	}
-
-	if (runtime === "dotnet") {
-		return {
-			runtime,
-			startupFile,
-			maxFilesKickoff: 5,
-			maxFilesRevision: 3,
-			isAllowedFilename: (filename) =>
-				filename.endsWith(".cs") || filename.endsWith(".csproj") || filename.endsWith(".sln"),
-			systemInstruction:
-				'Do NOT rely on func.startup_file for .NET. Instead, always include a runnable .csproj and the C# source files it needs.',
-			docSection: `- .NET functions may write \`.cs\`, \`.csproj\`, and \`.sln\` files only.
-- Keep all .NET files at the function root.
-- The startup file field must remain empty; the runnable project comes from the .csproj.`,
 		};
 	}
 
@@ -421,7 +394,6 @@ Function context:
 Entry-point conventions:
   Python  → def main(args): ...  return result
   Go      → func main_user(args interface{}) (interface{}, error) { ... }
-  .NET    → use a runnable .csproj; read input via SHSF.Runtime.cs and finish with Runtime.Return(...)
 
 Rules you MUST follow:
 1. Use the write_file tool for EVERY file you produce. Do NOT just describe code.

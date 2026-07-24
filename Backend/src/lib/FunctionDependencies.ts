@@ -1,9 +1,8 @@
-export type FunctionRuntime = "python" | "golang" | "dotnet" | "unsupported";
+export type FunctionRuntime = "python" | "golang" | "unsupported";
 
 export function getFunctionRuntime(image: string): FunctionRuntime {
 	if (image.startsWith("python")) return "python";
 	if (image.startsWith("golang")) return "golang";
-	if (image.startsWith("mcr.microsoft.com/dotnet/sdk:")) return "dotnet";
 	return "unsupported";
 }
 export function isDependencyFilename(filename: string): boolean {
@@ -13,7 +12,6 @@ export function isDependencyFilename(filename: string): boolean {
 	return (
 		basename === "requirements.txt" ||
 		basename === "go.mod" ||
-		basename === "go.sum" ||
-		basename.endsWith(".csproj")
+		basename === "go.sum"
 	);
 }

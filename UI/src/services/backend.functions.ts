@@ -248,31 +248,6 @@ async function installDependencies(
 	}
 }
 
-async function buildDotnetFunction(
-	id: number,
-): Promise<OKResponse | string | undefined> {
-	try {
-		const response = await fetch(`${BASE_URL}/api/function/${id}/dotnet-build`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			credentials: "include",
-		});
-		const data = await response.json();
-		if (data.status !== "OK") {
-			const message = data.message || "Failed to build .NET function";
-			if (typeof data.build_logs === "string" && data.build_logs.trim()) {
-				return `${message}\n\n${data.build_logs.trim()}`;
-			}
-			return message;
-		}
-		return data;
-	} catch (error) {
-		console.error("Error building .NET function:", error);
-	}
-}
-
 async function reinstallFfmpeg(
 	id: number,
 ): Promise<OKResponse | string | undefined> {
@@ -651,7 +626,6 @@ export {
 	executeFunctionStreaming,
 	getLogsByFuncId,
 	installDependencies,
-	buildDotnetFunction,
 	reinstallFfmpeg,
 	reinstallOpencv,
 	getFunctionCorsOrigins,

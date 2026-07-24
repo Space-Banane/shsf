@@ -63,8 +63,8 @@ export const DOCSKICKOFF = () => {
 			<p>
 				Starts with a blank slate. The AI creates <strong>up to 5 files</strong>{" "}
 				— source code plus the dependency files that match your runtime:{" "}
-				<code>requirements.txt</code>, <code>go.mod</code>/<code>go.sum</code>,
-				or a <code>.csproj</code>. Best for new functions.
+				<code>requirements.txt</code> or <code>go.mod</code>/<code>go.sum</code>.
+				Best for new functions.
 			</p>
 
 			<h3>✏️ REVISION — improve existing files</h3>
@@ -118,7 +118,7 @@ HTTP status code. Handle network errors gracefully.`}</code>
 			</pre>
 			<h3>Tips</h3>
 			<ul>
-				<li>Specify the language (Python, Go, or .NET) if you have a preference.</li>
+				<li>Specify the language (Python or Go) if you have a preference.</li>
 				<li>
 					Mention third-party libraries you want — the AI will add them to the
 					right dependency file.
@@ -137,7 +137,7 @@ HTTP status code. Handle network errors gracefully.`}</code>
 			<ul>
 				<li>
 					Entry points: <code>def main(args)</code> (Python),{" "}
-					<code>func main_user</code> (Go), .NET project-based structure
+					<code>func main_user</code> (Go)
 				</li>
 				<li>
 					All <code>args</code> fields: <code>body</code>, <code>queries</code>,{" "}

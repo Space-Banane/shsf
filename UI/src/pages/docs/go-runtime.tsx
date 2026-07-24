@@ -193,9 +193,9 @@ func main_user(args interface{}) (interface{}, error) {
 				</li>
 			</ul>
 
-			<NextStep href="/docs/dotnet-runtime" label="#21 .NET Runtime">
-				Next: build C# functions with SHSF's generated runtime helpers for
-				payload loading, responses, and persistent storage.
+			<NextStep href="/docs/kickoff" label="#22 Kickoff">
+				Next: use AI-powered code generation to build production-ready function
+				files from a single prompt.
 			</NextStep>
 		</DocsContentShell>
 	);

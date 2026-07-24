@@ -14,13 +14,10 @@ import {
 	StorageServiceError,
 } from "../lib/FunctionStorageService";
 import {
-	DbComScriptCS,
 	DbComScriptGO,
 	DbComScriptPY,
-	ShsfRuntimeScriptCS,
 } from "../lib/RunnerScripts";
 import {
-	generateDotnetRunnerScript,
 	generateGoRunnerWrapperCode,
 	generatePythonRunnerScript,
 } from "../lib/RunnerRuntimeScripts";
@@ -184,8 +181,6 @@ describe("generated transport scripts", () => {
 		const scripts = [
 			generatePythonRunnerScript("main.py"),
 			generateGoRunnerWrapperCode(),
-			generateDotnetRunnerScript("app.csproj"),
-			ShsfRuntimeScriptCS,
 		];
 
 		for (const script of scripts) {
@@ -196,7 +191,7 @@ describe("generated transport scripts", () => {
 	});
 
 	it("storage helpers use the filesystem bridge and do not embed API credentials", () => {
-		for (const script of [DbComScriptPY, DbComScriptGO, DbComScriptCS]) {
+		for (const script of [DbComScriptPY, DbComScriptGO]) {
 			expect(script).toContain("SHSF_STORAGE_REQUEST_DIR");
 			expect(script).toContain("SHSF_STORAGE_RESPONSE_DIR");
 			expect(script).not.toContain("ACCESS_KEY");
