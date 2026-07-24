@@ -16,6 +16,13 @@ export async function getFirstFileByLanguage(
 			'    fmt.Println("Hello, World!")',
 			"}",
 		].join("\n"),
+		javascript: [
+			"async function main(args) {",
+			"    return { hello: 'from Node.js' };",
+			"}",
+			"",
+			"module.exports = { main };",
+		].join("\n"),
 		html: [
 			"<!DOCTYPE html>",
 			'<html lang="en">',
@@ -34,6 +41,9 @@ export async function getFirstFileByLanguage(
 	const extensionLanguageMap: Record<string, string> = {
 		py: "python",
 		go: "go",
+		js: "javascript",
+		mjs: "javascript",
+		cjs: "javascript",
 		html: "html",
 		htm: "html",
 	};

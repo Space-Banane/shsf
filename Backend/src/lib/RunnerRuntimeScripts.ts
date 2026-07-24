@@ -356,6 +356,171 @@ echo "[SHSF INIT] Python setup complete."
 	return body;
 }
 
+export function generateNodeJsRunnerScript(startupFile: string): string {
+	return `#!/usr/bin/env node
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const payloadPath = process.argv[2];
+const resultPath = process.argv[3];
+
+if (!payloadPath || !resultPath) {
+  process.stderr.write('Error: Payload or result file path not provided\\n');
+  process.exit(1);
+}
+
+// Redirect stdout to stderr; function results are written to result.json.
+const _origStdoutWrite = process.stdout.write.bind(process.stdout);
+process.stdout.write = process.stderr.write.bind(process.stderr);
+
+const SHSF_BINARY_TRANSPORT = 'base64-bytes-v1';
+
+function normalizeForTransport(value) {
+  if (value === null || value === undefined) return value;
+  if (Buffer.isBuffer(value)) {
+    return { __shsf_transport: SHSF_BINARY_TRANSPORT, data: value.toString('base64'), length: value.length };
+  }
+  if (Array.isArray(value)) return value.map(normalizeForTransport);
+  if (typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = normalizeForTransport(v);
+    return out;
+  }
+  return value;
+}
+
+function writeResultFile(rPath, value) {
+  const dir = path.dirname(rPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const tmp = rPath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(value), 'utf-8');
+  fs.renameSync(tmp, rPath);
+}
+
+async function run() {
+  let payload = null;
+  try {
+    const raw = fs.readFileSync(payloadPath, 'utf-8');
+    if (raw.trim()) payload = JSON.parse(raw);
+  } catch (e) {
+    if (e.code !== 'ENOENT') {
+      process.stderr.write('Error reading payload: ' + e.message + '\\n');
+      process.exit(1);
+    }
+  }
+
+  let userModule;
+  try {
+    userModule = require('/app/${startupFile}');
+  } catch (e) {
+    process.stderr.write('Error loading module ${startupFile}: ' + e.message + '\\n' + (e.stack || '') + '\\n');
+    process.exit(1);
+  }
+
+  const mainFn = userModule.main || (userModule.default && userModule.default.main);
+  if (typeof mainFn !== 'function') {
+    process.stderr.write('No exported "main" function found in ${startupFile}\\n');
+    process.exit(1);
+  }
+
+  try {
+    const result = await mainFn(payload);
+    writeResultFile(resultPath, normalizeForTransport(result));
+  } catch (e) {
+    process.stderr.write('Error in main: ' + e.message + '\\n' + (e.stack || '') + '\\n');
+    process.exit(1);
+  }
+}
+
+run().catch(e => {
+  process.stderr.write('Fatal: ' + e.message + '\\n');
+  process.exit(1);
+});
+`;
+}
+
+export function generateNodeJsRunnerShScript(): string {
+	return `#!/bin/sh
+# Source environment variables if the file exists
+if [ -f /app/.shsf_env ]; then
+    . /app/.shsf_env
+    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
+else
+    echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
+fi
+
+# Execute the Node.js runner with payload and result file paths as arguments
+exec node /app/_shsf_runner.js "$@"
+`;
+}
+
+export function generateNodeJsInitBody(
+	functionId: number,
+	opts?: { ffmpeg_install?: boolean | null },
+): string {
+	let body = "";
+
+	if (opts?.ffmpeg_install) {
+		body += `
+      echo "[SHSF INIT] Checking ffmpeg installation..."
+      if [ ! -f ".already_installed_ffmpeg" ]; then
+          command -v ffmpeg >/dev/null 2>&1 || (apt update && apt-get install -y ffmpeg && touch /app/.already_installed_ffmpeg)
+      else
+          echo "[SHSF INIT] ffmpeg already installed (marker file present)."
+      fi
+      echo "[SHSF INIT] ffmpeg check complete."
+      `;
+	}
+
+	body += `
+echo "[SHSF INIT] Setting up Node.js environment for function ${functionId}"
+NODE_CACHE_DIR="/node-cache/modules/function-${functionId}"
+HASH_FILE="/node-cache/hashes/function-${functionId}/pkg.hash"
+mkdir -p "$NODE_CACHE_DIR" "$(dirname "$HASH_FILE")"
+
+if [ -f "package.json" ]; then
+    if [ -f "package-lock.json" ]; then
+        PACKAGE_HASH=$(cat package.json package-lock.json | md5sum | awk '{print $1}')
+    else
+        PACKAGE_HASH=$(md5sum package.json | awk '{print $1}')
+    fi
+
+    NEEDS_INSTALL=0
+    if [ ! -d "$NODE_CACHE_DIR/node_modules" ]; then NEEDS_INSTALL=1; echo "[SHSF INIT] No node_modules. Installing."; fi
+    if [ ! -f "$HASH_FILE" ] || [ "$(cat "$HASH_FILE" 2>/dev/null)" != "$PACKAGE_HASH" ]; then NEEDS_INSTALL=1; echo "[SHSF INIT] Hash mismatch. Reinstalling."; fi
+
+    if [ $NEEDS_INSTALL -eq 1 ]; then
+        rm -rf "$NODE_CACHE_DIR"
+        mkdir -p "$NODE_CACHE_DIR"
+        cp package.json "$NODE_CACHE_DIR/"
+        if [ -f "package-lock.json" ]; then cp package-lock.json "$NODE_CACHE_DIR/"; fi
+        cd "$NODE_CACHE_DIR"
+        if npm install --no-audit --no-fund; then
+            echo "$PACKAGE_HASH" > "$HASH_FILE"
+            echo "[SHSF INIT] Node.js dependencies installed."
+        else
+            echo "[SHSF INIT] Error installing Node.js dependencies." >&2
+            exit 1
+        fi
+        cd /app
+    else
+        echo "[SHSF INIT] Node.js dependencies up-to-date."
+    fi
+
+    # Symlink node_modules into /app so standard require() resolution works
+    ln -sfn "$NODE_CACHE_DIR/node_modules" /app/node_modules
+fi
+
+# Create a persistent environment file that can be sourced during execution
+echo "export NODE_PATH=/app/node_modules" > /app/.shsf_env
+echo "[SHSF INIT] Node.js setup complete."
+`;
+
+	return body;
+}
+
 export function generateGoInitBody(
 	functionId: number,
 	opts?: { ffmpeg_install?: boolean | null },

@@ -16,10 +16,14 @@ import {
 import {
 	DbComScriptGO,
 	DbComScriptPY,
+	DbComScriptJS,
 } from "../lib/RunnerScripts";
 import {
 	generateGoRunnerWrapperCode,
 	generatePythonRunnerScript,
+	generateNodeJsRunnerScript,
+	generateNodeJsRunnerShScript,
+	generateNodeJsInitBody,
 } from "../lib/RunnerRuntimeScripts";
 
 type TestStorageDb = NonNullable<
@@ -181,6 +185,7 @@ describe("generated transport scripts", () => {
 		const scripts = [
 			generatePythonRunnerScript("main.py"),
 			generateGoRunnerWrapperCode(),
+			generateNodeJsRunnerScript("index.js"),
 		];
 
 		for (const script of scripts) {
@@ -191,7 +196,7 @@ describe("generated transport scripts", () => {
 	});
 
 	it("storage helpers use the filesystem bridge and do not embed API credentials", () => {
-		for (const script of [DbComScriptPY, DbComScriptGO]) {
+		for (const script of [DbComScriptPY, DbComScriptGO, DbComScriptJS]) {
 			expect(script).toContain("SHSF_STORAGE_REQUEST_DIR");
 			expect(script).toContain("SHSF_STORAGE_RESPONSE_DIR");
 			expect(script).not.toContain("ACCESS_KEY");
@@ -199,6 +204,46 @@ describe("generated transport scripts", () => {
 			expect(script).not.toContain("{{API}}");
 		}
 		expect(DbComScriptPY).not.toContain("import requests");
+		expect(DbComScriptJS).not.toContain("require('http')");
+	});
+});
+
+describe("Node.js runtime scripts", () => {
+	it("runner script embeds the startup file", () => {
+		const script = generateNodeJsRunnerScript("handler.js");
+		expect(script).toContain("handler.js");
+		expect(script).toContain("require('/app/handler.js')");
+	});
+
+	it("runner script handles binary transport normalization", () => {
+		const script = generateNodeJsRunnerScript("index.js");
+		expect(script).toContain("base64-bytes-v1");
+		expect(script).toContain("normalizeForTransport");
+		expect(script).toContain("Buffer.isBuffer");
+	});
+
+	it("shell wrapper sources the env file and delegates to node", () => {
+		const sh = generateNodeJsRunnerShScript();
+		expect(sh).toContain(".shsf_env");
+		expect(sh).toContain("node /app/_shsf_runner.js");
+	});
+
+	it("init body installs npm packages and creates node_modules symlink", () => {
+		const body = generateNodeJsInitBody(42);
+		expect(body).toContain("npm install");
+		expect(body).toContain("function-42");
+		expect(body).toContain("node_modules");
+		expect(body).toContain("package.json");
+	});
+
+	it("init body includes ffmpeg installation when requested", () => {
+		const body = generateNodeJsInitBody(1, { ffmpeg_install: true });
+		expect(body).toContain("ffmpeg");
+	});
+
+	it("init body skips ffmpeg installation when not requested", () => {
+		const body = generateNodeJsInitBody(1, { ffmpeg_install: false });
+		expect(body).not.toContain("ffmpeg");
 	});
 });
 
