@@ -1,4 +1,15 @@
 /**
+ * Returns the default startup filename for a given runtime image.
+ * Used as a fallback when AI generation does not return a startup file.
+ */
+export function getDefaultStartupFile(image: string): string {
+	if (image.startsWith("python")) return "main.py";
+	if (image.startsWith("golang")) return "main_user.go";
+	if (image.startsWith("node:")) return "index.js";
+	return "";
+}
+
+/**
  * Returns the content of the first file for a supported programming language.
  */
 export async function getFirstFileByLanguage(

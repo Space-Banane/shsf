@@ -21,11 +21,12 @@ interface DependencyManagerModalProps {
 	onSave: (filename: string, content: string) => Promise<boolean>;
 }
 
-type DependencyRuntime = "python" | "golang";
+type DependencyRuntime = "python" | "golang" | "node";
 
 function getRuntime(image: string): DependencyRuntime | null {
 	if (image.startsWith("python")) return "python";
 	if (image.startsWith("golang")) return "golang";
+	if (image.startsWith("node:")) return "node";
 	return null;
 }
 
@@ -44,6 +45,9 @@ function getDefaultContent(
 	if (filename === "go.sum") {
 		return "";
 	}
+	if (filename === "package.json") {
+		return `{\n  "name": "shsf-function-${functionId}",\n  "version": "1.0.0",\n  "dependencies": {}\n}\n`;
+	}
 	return "";
 }
 
@@ -56,6 +60,9 @@ function getManifestDescription(runtime: DependencyRuntime, filename: string): s
 	}
 	if (filename === "go.sum") {
 		return "Go module checksums. It is normally generated and maintained by the Go toolchain.";
+	}
+	if (filename === "package.json") {
+		return "npm package manifest. SHSF runs npm install before executing the function when this file is present.";
 	}
 	return "Runtime dependency manifest.";
 }
@@ -77,6 +84,9 @@ function DependencyManagerModal({
 		}
 		if (runtime === "golang") {
 			return ["go.mod", "go.sum"];
+		}
+		if (runtime === "node") {
+			return ["package.json"];
 		}
 		return [];
 	}, [runtime]);
@@ -126,7 +136,7 @@ function DependencyManagerModal({
 
 	if (!runtime) return null;
 
-	const runtimeLabel = runtime === "golang" ? "Go" : "Python";
+	const runtimeLabel = runtime === "golang" ? "Go" : runtime === "node" ? "Node.js" : "Python";
 
 	return (
 		<Modal
@@ -144,14 +154,21 @@ function DependencyManagerModal({
 					<p className="mt-1 text-xs text-muted">
 						{runtime === "python"
 							? "Use requirements.txt for pip packages."
-							: "Use go.mod for modules; go.sum is kept for checksums."}
+							: runtime === "node"
+								? "Use package.json to declare npm dependencies."
+								: "Use go.mod for modules; go.sum is kept for checksums."}
 					</p>
 				</div>
 
 				<ModalError message={error} />
 				{saved && (
 					<div className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
-						{selectedFilename} saved. {runtime === "python" ? "Use Install requirements.txt to apply it now." : "The next function run will resolve the module changes."}
+						{selectedFilename} saved.{" "}
+						{runtime === "python"
+							? "Use Install requirements.txt to apply it now."
+							: runtime === "node"
+								? "The next function run will install the declared packages."
+								: "The next function run will resolve the module changes."}
 					</div>
 				)}
 

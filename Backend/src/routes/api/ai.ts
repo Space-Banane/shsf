@@ -3,6 +3,7 @@ import { checkAuthentication } from "../../lib/Authentication";
 import { OpenAPITags } from "../../lib/openapi";
 import { env } from "../../lib/env";
 import { AIDOC } from "../../lib/aidoc";
+import { getDefaultStartupFile } from "../../lib/LangOps";
 
 const Images: string[] = [
 	"python:3.9",
@@ -222,7 +223,7 @@ export = new fileRouter.Path("/")
 Based on the user's description and chosen runtime, suggest:
 1. A concise, professional name for the function (alphanumeric, max 128 chars).
 2. A clear, helpful description.
-3. The most appropriate startup file name (e.g., "main.py" for Python, "main_user.go" for Go, or an empty string for .NET project-based functions).
+3. The most appropriate startup file name (e.g., "main.py" for Python, "main_user.go" for Go, "index.js" for Node.js).
 
 Return ONLY a JSON object with the following structure:
 {
@@ -234,7 +235,7 @@ Return ONLY a JSON object with the following structure:
 Platform Rules:
 - Go functions MUST use "main_user.go" as the startup file.
 - Python functions should typically use "main.py".
-- .NET functions MUST return an empty startup_file string.
+- Node.js functions should typically use "index.js".
 - Available runtimes: ${Images.join(", ")}`,
 							},
 							{
@@ -253,11 +254,7 @@ Platform Rules:
 					const rawContent = typeof content === "string" ? content : JSON.stringify(content);
 					const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
 					const config = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent);
-					const fallbackStartupFile = body.image.startsWith("python")
-						? "main.py"
-						: body.image.startsWith("golang")
-							? "main_user.go"
-							: "";
+					const fallbackStartupFile = getDefaultStartupFile(body.image);
 
 					return ctr.print({
 						status: "OK",
