@@ -135,7 +135,10 @@ type Image =
 	| "golang:1.20"
 	| "golang:1.21"
 	| "golang:1.22"
-	| "golang:1.23";
+	| "golang:1.23"
+	| "node:20"
+	| "node:22"
+	| "node:24";
 
 const ImagesAsArray: Image[] = [
 	"python:3.9",
@@ -149,10 +152,22 @@ const ImagesAsArray: Image[] = [
 	"golang:1.21",
 	"golang:1.22",
 	"golang:1.23",
+	"node:20",
+	"node:22",
+	"node:24",
 ];
 const ImagesAsArraySet = new Set(ImagesAsArray);
 
 function getImageDisplayName(image: string): string {
+	if (image.startsWith("node:")) {
+		return `Node.js ${image.split(":")[1]}`;
+	}
+	if (image.startsWith("python:")) {
+		return `Python ${image.split(":")[1]}`;
+	}
+	if (image.startsWith("golang:")) {
+		return `Go ${image.split(":")[1]}`;
+	}
 	return image;
 }
 

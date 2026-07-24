@@ -15,8 +15,9 @@ export const DatabaseComDocPage = () => {
 				<p>
 					The helper is injected automatically into every function container.
 					For Python, import <code>_db_com</code>. For Go, import{" "}
-					<code>myfunction/dbcom</code>. No <code>pip install</code> or{" "}
-					<code>go get</code> needed.
+					<code>myfunction/dbcom</code>. For Node.js, require{" "}
+					<code>./_db_com</code>. No <code>pip install</code>,{" "}
+					<code>go get</code>, or <code>npm install</code> needed.
 				</p>
 			</Callout>
 
@@ -148,6 +149,47 @@ item, err  := db.GetItem("hits", "home")          // full item record
 items, err := db.ListItems("hits")                 // all items in storage
 err         = db.DeleteItem("hits", "home")        // remove one key
 exists     := db.Exists("hits", "home")            // bool, no error return`}</code>
+			</pre>
+
+			<h2>Node.js API</h2>
+			<CodeCaption>index.js — import and initialise</CodeCaption>
+			<pre>
+				<code>{`const { database } = require('./_db_com');
+
+const db = database();`}</code>
+			</pre>
+
+			<h3>createStorage / set / get</h3>
+			<CodeCaption>Node.js</CodeCaption>
+			<pre>
+				<code>{`const { database } = require('./_db_com');
+
+async function main(args) {
+    const db = database();
+
+    // Create storage (idempotent)
+    db.createStorage('hits', 'Page hit counter');
+
+    // Increment a counter
+    const prev = db.get('hits', 'home');
+    const count = (typeof prev === 'number' ? prev : 0) + 1;
+    db.set('hits', 'home', count);
+
+    return { hits: count };
+}
+
+module.exports = { main };`}</code>
+			</pre>
+
+			<h3>getItem / listItems / deleteItem / exists</h3>
+			<CodeCaption>Node.js — full reference</CodeCaption>
+			<pre>
+				<code>{`const db = database();
+
+const item   = db.getItem('hits', 'home');       // full item record
+const items  = db.listItems('hits');              // all items in storage
+db.deleteItem('hits', 'home');                    // remove one key
+const exists = db.exists('hits', 'home');         // boolean`}</code>
 			</pre>
 
 			<h2>Best practices</h2>
