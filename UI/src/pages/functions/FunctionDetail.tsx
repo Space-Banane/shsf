@@ -929,14 +929,15 @@ function FunctionDetail() {
 		return true;
 	};
 
-	const refreshExplorer = async () => {
-		if (!id) return;
+	const refreshExplorer = async (): Promise<FunctionFile[] | null> => {
+		if (!id) return null;
 		const [filesData, foldersData] = await Promise.all([
 			getFiles(parseInt(id)),
 			getFolders(parseInt(id)),
 		]);
 		if (filesData.status === "OK") setFiles(filesData.data);
 		if (foldersData.status === "OK") setFolders(foldersData.data);
+		return filesData.status === "OK" ? filesData.data : null;
 	};
 
 	const handleFolderSubmit = async (leafName: string): Promise<boolean> => {
@@ -964,7 +965,21 @@ function FunctionDetail() {
 				);
 				return false;
 			}
-			await refreshExplorer();
+			const refreshedFiles = await refreshExplorer();
+			if (
+				folderModalMode === "rename" &&
+				activeFile?.name.startsWith(`${folderTargetPath}/`)
+			) {
+				const renamedActiveFile = refreshedFiles?.find(
+					(file) => file.id === activeFile.id,
+				);
+				if (renamedActiveFile) {
+					setActiveFile(renamedActiveFile);
+					if (selectedFile?.id === renamedActiveFile.id) {
+						setSelectedFile(renamedActiveFile);
+					}
+				}
+			}
 			return true;
 		} catch (error) {
 			console.error("Error updating folder:", error);

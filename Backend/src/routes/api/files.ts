@@ -57,6 +57,30 @@ async function createParentFolders(functionId: number, filename: string) {
 	}
 }
 
+async function findFilePathCollision(
+	functionId: number,
+	filename: string,
+	excludeFileId?: number,
+) {
+	const parentPaths = getParentFolderPaths(filename);
+	const fileWhere = {
+		functionId,
+		...(excludeFileId ? { NOT: { id: excludeFileId } } : {}),
+	};
+	const [parentFile, folderAtFilename] = await Promise.all([
+		parentPaths.length
+			? prisma.functionFile.findFirst({
+					where: { ...fileWhere, name: { in: parentPaths } },
+				})
+			: null,
+		prisma.functionFolder.findFirst({
+			where: { functionId, name: filename },
+		}),
+	]);
+
+	return parentFile || folderAtFilename;
+}
+
 // Helper function to update container dependencies when key files change
 async function updateContainerDependencies(
 	functionId: number,
@@ -214,6 +238,18 @@ export = new fileRouter.Path("/")
 						name: data.filename,
 					},
 				});
+				const pathCollision = await findFilePathCollision(
+					functionId,
+					data.filename,
+					existingFile?.id,
+				);
+				if (pathCollision) {
+					return ctr.status(ctr.$status.CONFLICT).print({
+						status: 409,
+						message:
+							"A file cannot replace a folder or be created inside another file",
+					});
+				}
 
 				let out;
 				if (existingFile) {
@@ -436,12 +472,18 @@ export = new fileRouter.Path("/")
 			const gitBlock = await getGitEditBlock(functionId, prisma);
 			if (gitBlock) return ctr.status(gitBlock.status).print(gitBlock);
 			const conflictingFile = await prisma.functionFile.findFirst({
-				where: { functionId, name: data.name },
+				where: {
+					functionId,
+					name: {
+						in: [...getParentFolderPaths(data.name), data.name],
+					},
+				},
 			});
 			if (conflictingFile)
 				return ctr.status(ctr.$status.CONFLICT).print({
 					status: 409,
-					message: "A file already uses this folder name",
+					message:
+						"A folder cannot replace a file or be created inside another file",
 				});
 			await createParentFolders(functionId, data.name);
 			const folder = await prisma.functionFolder.upsert({
@@ -519,59 +561,112 @@ export = new fileRouter.Path("/")
 				return ctr
 					.status(ctr.$status.NOT_FOUND)
 					.print({ status: 404, message: "Folder not found" });
-			const [targetFileConflict, targetFolderConflict] = await Promise.all([
-				prisma.functionFile.findFirst({
-					where: {
-						functionId,
-						OR: [
-							{ name: data.newName },
-							{ name: { startsWith: `${data.newName}/` } },
-						],
-					},
-				}),
-				prisma.functionFolder.findFirst({
-					where: {
-						functionId,
-						OR: [
-							{ name: data.newName },
-							{ name: { startsWith: `${data.newName}/` } },
-						],
-					},
-				}),
-			]);
-			if (targetFileConflict || targetFolderConflict)
+			const [targetFileConflict, targetFolderConflict, targetParentFile] =
+				await Promise.all([
+					prisma.functionFile.findFirst({
+						where: {
+							functionId,
+							OR: [
+								{ name: data.newName },
+								{ name: { startsWith: `${data.newName}/` } },
+							],
+						},
+					}),
+					prisma.functionFolder.findFirst({
+						where: {
+							functionId,
+							OR: [
+								{ name: data.newName },
+								{ name: { startsWith: `${data.newName}/` } },
+							],
+						},
+					}),
+					getParentFolderPaths(data.newName).length
+						? prisma.functionFile.findFirst({
+								where: {
+									functionId,
+									name: {
+										in: getParentFolderPaths(data.newName),
+									},
+								},
+							})
+						: null,
+				]);
+			if (targetFileConflict || targetFolderConflict || targetParentFile)
 				return ctr.status(ctr.$status.CONFLICT).print({
 					status: 409,
-					message: "A file or folder already exists at the destination",
+					message:
+						"A file or folder already exists at the destination",
 				});
-			await prisma.$transaction([
-				...folders.map((folder) =>
-					prisma.functionFolder.update({
-						where: { id: folder.id },
-						data: {
-							name: `${data.newName}${folder.name.slice(data.name.length)}`,
-						},
-					}),
-				),
-				...files.map((file) =>
-					prisma.functionFile.update({
-						where: { id: file.id },
-						data: {
-							name: `${data.newName}${file.name.slice(data.name.length)}`,
-						},
-					}),
-				),
-			]);
 			const appDir = getFunctionAppDir(functionId);
 			const oldPath = getFunctionFilePath(appDir, data.name);
 			const newPath = getFunctionFilePath(appDir, data.newName);
+			let movedDirectory = false;
+			let createdDirectory = false;
 			try {
 				await fs.mkdir(path.dirname(newPath), { recursive: true });
 				await fs.rename(oldPath, newPath);
+				movedDirectory = true;
 			} catch (err: unknown) {
-				if ((err as NodeJS.ErrnoException).code === "ENOENT")
-					await fs.mkdir(newPath, { recursive: true });
-				else throw err;
+				if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+					const createdPath = await fs.mkdir(newPath, {
+						recursive: true,
+					});
+					createdDirectory = createdPath !== undefined;
+				} else {
+					log.error(
+						{ err, oldPath, newPath },
+						"Failed to rename folder on disk",
+					);
+					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+						status: 500,
+						message: "Failed to rename folder on disk",
+					});
+				}
+			}
+			try {
+				await prisma.$transaction([
+					...folders.map((folder) =>
+						prisma.functionFolder.update({
+							where: { id: folder.id },
+							data: {
+								name: `${data.newName}${folder.name.slice(data.name.length)}`,
+							},
+						}),
+					),
+					...files.map((file) =>
+						prisma.functionFile.update({
+							where: { id: file.id },
+							data: {
+								name: `${data.newName}${file.name.slice(data.name.length)}`,
+							},
+						}),
+					),
+				]);
+			} catch (err) {
+				try {
+					if (movedDirectory) await fs.rename(newPath, oldPath);
+					if (createdDirectory)
+						await fs.rm(newPath, { recursive: true, force: true });
+				} catch (rollbackError) {
+					log.error(
+						{ err: rollbackError, oldPath, newPath },
+						"Failed to roll back folder rename on disk",
+					);
+				}
+				log.error(
+					{
+						err,
+						functionId,
+						oldName: data.name,
+						newName: data.newName,
+					},
+					"Failed to rename folder in database",
+				);
+				return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+					status: 500,
+					message: "Failed to rename folder",
+				});
 			}
 			return ctr.print({ status: "OK" });
 		}),
@@ -709,11 +804,27 @@ export = new fileRouter.Path("/")
 						message: "Invalid function id or file id",
 					});
 				}
+				if (!(await getOwnedFunction(functionId, authCheck.user.id))) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "Function not found",
+					});
+				}
 
 				const gitBlock = await getGitEditBlock(functionId, prisma);
 				if (gitBlock) {
 					return ctr.status(gitBlock.status).print({
 						...gitBlock,
+					});
+				}
+
+				const fileToDelete = await prisma.functionFile.findFirst({
+					where: { id: fileIdInt, functionId },
+				});
+				if (!fileToDelete) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "File not found",
 					});
 				}
 
@@ -729,10 +840,6 @@ export = new fileRouter.Path("/")
 						message: "Cannot delete the only file in the function",
 					});
 				}
-
-				const fileToDelete = await prisma.functionFile.findUnique({
-					where: { id: fileIdInt },
-				});
 
 				await prisma.functionFile.delete({
 					where: {
@@ -752,7 +859,7 @@ export = new fileRouter.Path("/")
 					const funcAppDir = getFunctionAppDir(functionId);
 					try {
 						await fs.unlink(
-							path.join(funcAppDir, fileToDelete.name),
+							getFunctionFilePath(funcAppDir, fileToDelete.name),
 						);
 					} catch (err) {
 						log.error(
@@ -764,7 +871,10 @@ export = new fileRouter.Path("/")
 					if (dependencyPlaceholder !== null) {
 						try {
 							await fs.writeFile(
-								path.join(funcAppDir, fileToDelete.name),
+								getFunctionFilePath(
+									funcAppDir,
+									fileToDelete.name,
+								),
 								dependencyPlaceholder,
 							);
 							log.info(
@@ -860,6 +970,13 @@ export = new fileRouter.Path("/")
 						message: error.toString(),
 					});
 				}
+				if (!isValidFunctionFilePath(data.newFilename)) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message:
+							"Filename must be a relative path without empty, . or .. segments",
+					});
+				}
 
 				const functionId = parseInt(id);
 				const fileIdInt = parseInt(fileId);
@@ -868,6 +985,12 @@ export = new fileRouter.Path("/")
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						status: 400,
 						message: "Invalid function id or file id",
+					});
+				}
+				if (!(await getOwnedFunction(functionId, authCheck.user.id))) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "Function not found",
 					});
 				}
 
@@ -887,9 +1010,36 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				const oldFile = await prisma.functionFile.findUnique({
-					where: { id: fileIdInt },
+				const oldFile = await prisma.functionFile.findFirst({
+					where: { id: fileIdInt, functionId },
 				});
+				if (!oldFile) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "File not found",
+					});
+				}
+				const [pathCollision, targetFile] = await Promise.all([
+					findFilePathCollision(
+						functionId,
+						data.newFilename,
+						fileIdInt,
+					),
+					prisma.functionFile.findFirst({
+						where: {
+							functionId,
+							name: data.newFilename,
+							NOT: { id: fileIdInt },
+						},
+					}),
+				]);
+				if (pathCollision || targetFile) {
+					return ctr.status(ctr.$status.CONFLICT).print({
+						status: 409,
+						message:
+							"A file cannot replace a folder, another file, or be created inside another file",
+					});
+				}
 
 				const updatedFile = await prisma.functionFile.update({
 					where: {
@@ -910,8 +1060,14 @@ export = new fileRouter.Path("/")
 				) {
 					const funcAppDir = getFunctionAppDir(functionId);
 					try {
-						const oldPath = path.join(funcAppDir, oldFile.name);
-						const newPath = path.join(funcAppDir, data.newFilename);
+						const oldPath = getFunctionFilePath(
+							funcAppDir,
+							oldFile.name,
+						);
+						const newPath = getFunctionFilePath(
+							funcAppDir,
+							data.newFilename,
+						);
 						const isLegacyDependency =
 							oldFile.name === "requirements.txt" ||
 							oldFile.name === "package.json";
