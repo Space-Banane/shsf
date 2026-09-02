@@ -156,7 +156,7 @@ export = new fileRouter.Path("/")
 						method: result.method,
 						message:
 							result.method === "compose"
-								? "Recreating container via docker compose — the service will be briefly unavailable."
+								? "Pulling and force-recreating the Docker Compose project — the service will be briefly unavailable."
 								: "Recreating container directly — the service will be briefly unavailable.",
 					});
 				} catch (err) {
