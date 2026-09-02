@@ -113,7 +113,7 @@ function createRuntimeFilePolicy(image: string, startupFile: string): RuntimeFil
 }
 
 // ─── SHSF platform knowledge ─────────────────────────────────────────────────
-// Imported from lib/aidoc.ts — single source of truth shared with MCP get_docs.
+// Imported from lib/aidoc.ts — single source of truth for AI generation guidance.
 
 // (removed inline AIDOC block)
 // Define the write_file tool spec for OpenRouter

@@ -114,6 +114,10 @@ export default function AccessTokensPage() {
 			<div className="mb-6">
 				<h1 className="text-2xl font-semibold text-text">Access Tokens</h1>
 				<p className="text-sm text-muted mt-0.5">Manage API tokens for programmatic access to your account</p>
+				<p className="text-sm text-muted mt-2">
+					Use the <a href="/docs/cli" className="text-primary hover:underline">SHSF CLI</a> for
+					terminal-based function management and execution.
+				</p>
 			</div>
 
 			{/* Generate Token */}
