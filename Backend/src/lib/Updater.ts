@@ -1,5 +1,6 @@
 import Docker from "dockerode";
 import { readFile } from "node:fs/promises";
+import { dirname, isAbsolute, relative } from "node:path";
 import { createLogger } from "./logger";
 import { setUpdateLastCheck } from "./DataManager";
 
@@ -25,8 +26,65 @@ const state: UpdateState = {
 	error: null,
 };
 
+const HELPER_PROJECT_DIRECTORY = "/compose-project";
+
+type ComposeProject = {
+	projectName: string;
+	projectDirectory: string;
+	configFiles: string[];
+};
+
+function shellQuote(value: string): string {
+	return `'${value.replace(/'/g, "'\"'\"'")}'`;
+}
+
+/**
+ * Builds the commands executed by the short-lived updater container. The
+ * complete project is deliberately pulled and recreated: updating only this
+ * service can leave linked services on an incompatible image version.
+ */
+export function buildComposeUpdateCommand(project: ComposeProject): string {
+	const composeFiles = project.configFiles.map((configFile) => {
+		const pathFromProject = relative(project.projectDirectory, configFile);
+		if (pathFromProject === "" || pathFromProject.startsWith("..") || isAbsolute(pathFromProject)) {
+			throw new Error("Docker Compose config file is outside the Compose project directory");
+		}
+		return `-f ${shellQuote(`${HELPER_PROJECT_DIRECTORY}/${pathFromProject}`)}`;
+	});
+
+	const compose = [
+		"docker compose",
+		`-p ${shellQuote(project.projectName)}`,
+		`--project-directory ${shellQuote(HELPER_PROJECT_DIRECTORY)}`,
+		...composeFiles,
+	].join(" ");
+
+	return `${compose} pull && ${compose} up -d --force-recreate`;
+}
+
+function getComposeProject(labels: Record<string, string>): ComposeProject | null {
+	const projectName = labels["com.docker.compose.project"];
+	const configFiles = labels["com.docker.compose.project.config_files"]
+		?.split(",")
+		.map((path) => path.trim())
+		.filter(Boolean);
+	if (!projectName || !configFiles?.length) return null;
+
+	// Compose v2 provides this label. Deriving it keeps updates working for
+	// containers created by older Compose releases.
+	const projectDirectory = labels["com.docker.compose.project.working_dir"] || dirname(configFiles[0]);
+	return { projectName, projectDirectory, configFiles };
+}
+
 export function getUpdateState(): Readonly<UpdateState> {
 	return { ...state };
+}
+
+export function updateWasApplied(
+	lastCheck: Pick<UpdateState, "updateAvailable" | "currentImageId">,
+	runningImageId: string,
+): boolean {
+	return lastCheck.updateAvailable === true && runningImageId !== lastCheck.currentImageId;
 }
 
 export function hydrateUpdateState(lastCheck: { checkedAt: string; updateAvailable: boolean; currentImageId: string; newImageId: string | null }): void {
@@ -56,9 +114,15 @@ export async function reconcileUpdateState(lastCheck: {
 		}
 
 		const selfInfo = await docker.getContainer(selfId).inspect();
-		const image = await docker.getImage(selfInfo.Config.Image).inspect();
-		const runningImageId = image.Id;
-		const updateApplied = lastCheck.newImageId !== null && lastCheck.newImageId === runningImageId;
+		// As in checkForUpdate, use the container's immutable image ID instead
+		// of resolving its mutable image tag in the local image cache.
+		const runningImageId = selfInfo.Image;
+		if (!runningImageId) throw new Error("Could not determine the running container image ID");
+		// The helper pulls again immediately before recreation, so the selected
+		// tag can advance between Check and Update Now. Any image different from
+		// the one that was running when an update was found is therefore a
+		// successful update, even if it is newer than the originally observed SHA.
+		const updateApplied = updateWasApplied(lastCheck, runningImageId);
 
 		if (updateApplied) {
 			const reconciled = {
@@ -129,14 +193,12 @@ export async function checkForUpdate(): Promise<{ updateAvailable: boolean; curr
 
 		log.info({ imageName }, "Checking for update");
 
-		// Record current image ID before pull
-		let currentImageId = "";
-		try {
-			const img = await docker.getImage(imageName).inspect();
-			currentImageId = img.Id;
-		} catch {
-			// Image not found locally
-		}
+		// Container.Image is immutable for the lifetime of a container. Looking
+		// up imageName here is incorrect because its mutable tag may already have
+		// been moved by a previous pull while this container still runs the old
+		// SHA.
+		const currentImageId = selfInfo.Image;
+		if (!currentImageId) throw new Error("Could not determine the running container image ID");
 
 		// Pull — uses host Docker daemon credentials; fast if nothing changed
 		const pullStream = await docker.pull(imageName);
@@ -150,12 +212,12 @@ export async function checkForUpdate(): Promise<{ updateAvailable: boolean; curr
 		const newImg = await docker.getImage(imageName).inspect();
 		const newImageId = newImg.Id;
 
-		const updateAvailable = currentImageId !== "" && currentImageId !== newImageId;
+		const updateAvailable = currentImageId !== newImageId;
 
 		state.phase = "idle";
 		state.lastCheckedAt = new Date();
 		state.updateAvailable = updateAvailable;
-		state.currentImageId = currentImageId || newImageId;
+		state.currentImageId = currentImageId;
 		state.newImageId = updateAvailable ? newImageId : null;
 
 		await setUpdateLastCheck({
@@ -201,17 +263,18 @@ export async function applyUpdate(): Promise<{ method: "compose" | "raw" }> {
 		const selfInfo = await docker.getContainer(selfId).inspect();
 		const labels = selfInfo.Config.Labels ?? {};
 
-		const composeConfigFiles = labels["com.docker.compose.project.config_files"];
-		const projectName = labels["com.docker.compose.project"];
-		const serviceName = labels["com.docker.compose.service"];
+		const composeProject = getComposeProject(labels);
 
-		if (composeConfigFiles && projectName && serviceName) {
-			const composePath = composeConfigFiles.split(",")[0].trim();
-			log.info({ composePath, projectName, serviceName }, "Applying update via docker compose helper");
+		if (composeProject) {
+			const composeCommand = buildComposeUpdateCommand(composeProject);
+			log.info(
+				{ projectDirectory: composeProject.projectDirectory, projectName: composeProject.projectName },
+				"Applying update via docker compose helper",
+			);
 
-			// Spawn a helper container that runs `docker compose up -d --no-pull`
-			// after a brief delay, allowing this response to be flushed first.
-			// The helper mounts the compose file and the Docker socket from the host.
+			// Run Compose outside of the container it recreates. Mounting the whole
+			// project, rather than just the YAML file, also makes env_file and
+			// secondary Compose files available to the helper.
 			setImmediate(async () => {
 				try {
 					// Ensure docker:cli is available (pull if necessary)
@@ -233,15 +296,16 @@ export async function applyUpdate(): Promise<{ method: "compose" | "raw" }> {
 							"sh",
 							"-c",
 							// Wait for the API response to be delivered before recreating
-							`sleep 3 && docker compose -p '${projectName}' -f /compose.yml up -d --no-pull '${serviceName}'`,
+							`sleep 3 && ${composeCommand}`,
 						],
 						HostConfig: {
 							AutoRemove: true,
 							Binds: [
 								"/var/run/docker.sock:/var/run/docker.sock",
-								`${composePath}:/compose.yml:ro`,
+								`${composeProject.projectDirectory}:${HELPER_PROJECT_DIRECTORY}:ro`,
 							],
 						},
+						WorkingDir: HELPER_PROJECT_DIRECTORY,
 					});
 
 					await helper.start();

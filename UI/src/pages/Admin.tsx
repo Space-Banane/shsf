@@ -1169,7 +1169,7 @@ function UpdatesTab() {
 			<div className={cardClass}>
 				<h2 className="text-base font-semibold text-primary mb-1">Update Actions</h2>
 				<p className="text-text/60 text-sm mb-4">
-					"Check" pulls the latest image and detects if a new version is available. "Apply" recreates the container — the service will be briefly unavailable.
+					"Check" compares the running image with the selected tag in the registry. "Update Now" pulls and force-recreates the Docker Compose project — the service will be briefly unavailable.
 				</p>
 
 				{checkError && <p className="text-sm text-red-400 mb-3">{checkError}</p>}
@@ -1190,7 +1190,7 @@ function UpdatesTab() {
 							disabled={isBusy}
 							className="px-3 py-1.5 bg-yellow-500/20 border border-yellow-500/30 hover:bg-yellow-500/30 disabled:opacity-50 text-yellow-400 rounded-lg text-sm font-medium transition-all duration-200"
 						>
-							{applying || (!isIdle && updateStatus.phase === "applying") ? "Applying…" : "Apply Update"}
+							{applying || (!isIdle && updateStatus.phase === "applying") ? "Applying…" : "Update Now"}
 						</button>
 					)}
 				</div>
@@ -1200,7 +1200,7 @@ function UpdatesTab() {
 			<div className={cardClass}>
 				<h2 className="text-base font-semibold text-primary mb-1 flex items-center gap-2">
 					Auto-Update
-					<HelpTooltip content="When enabled, SHSF checks for a new image every 6 hours and automatically recreates the container if one is found." placement="right" />
+					<HelpTooltip content="When enabled, SHSF checks for a new image every 6 hours and force-recreates the Docker Compose project if one is found." placement="right" />
 				</h2>
 				<p className="text-text/60 text-sm mb-3">Automatically pull and apply new images every 6 hours.</p>
 				{updateStatus === null ? (
