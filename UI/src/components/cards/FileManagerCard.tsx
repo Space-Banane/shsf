@@ -1,491 +1,62 @@
-import {
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-	type ChangeEvent,
-	type DragEvent,
-} from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import { FunctionFile } from "../../types/Prisma";
-import { ActionButton } from "../buttons/ActionButton";
 
-function SelectionToggle({
-	checked,
-	indeterminate = false,
-	disabled = false,
-	onClick,
-}: {
-	checked: boolean;
-	indeterminate?: boolean;
-	disabled?: boolean;
-	onClick: () => void;
-}) {
-	return (
-		<button
-			type="button"
-			aria-pressed={checked}
-			aria-label={indeterminate ? "Partially selected" : checked ? "Selected" : "Select"}
-			disabled={disabled}
-			onClick={(event) => {
-				event.stopPropagation();
-				if (!disabled) onClick();
-			}}
-			className={`flex h-5 w-5 items-center justify-center rounded-md border transition-all duration-200 ${
-				disabled
-					? "cursor-not-allowed border-white/10 bg-white/5 opacity-40"
-					: checked || indeterminate
-						? "border-primary/60 bg-primary text-white shadow-[0_0_0_1px_rgba(34,211,238,0.25)]"
-						: "border-white/15 bg-white/5 text-white/30 hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
-			}`}
-		>
-			{indeterminate ? (
-				<span className="h-0.5 w-2.5 rounded-full bg-current" />
-			) : checked ? (
-				<svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5">
-					<path
-						d="M4.5 10.5L8.2 14.2L15.5 5.8"
-						stroke="currentColor"
-						strokeWidth="2.2"
-						strokeLinecap="round"
-						strokeLinejoin="round"
-					/>
-				</svg>
-			) : null}
-		</button>
-	);
+type ContextMenu = { x: number; y: number; file?: FunctionFile };
+
+function Icon({ children, className = "h-4 w-4" }: { children: ReactNode; className?: string }) {
+	return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>;
 }
 
-export function FileManagerCard({
-	files,
-	activeFile,
-	onFileSelect,
-	onCreateFile,
-	onDownloadFile,
-	onRenameFile,
-	onDeleteFile,
-	onDeleteSelectedFiles,
-	nonSelectableOnSelectAllFileNames = [],
-	onDropFiles,
-	onAIGenerate,
-	aiDisabled = false,
-	aiDisabledReason,
-	disabled = false,
-	disabledReason,
-	autoUnzipFiles,
-	onAutoUnzipFilesChange,
-}: {
-	files: FunctionFile[];
-	activeFile: FunctionFile | null;
-	onFileSelect: (file: FunctionFile) => void;
-	onCreateFile: () => void;
-	onDownloadFile: (file: FunctionFile) => void;
-	onRenameFile: (file: FunctionFile) => void;
-	onDeleteFile: (file: FunctionFile) => void;
-	onDeleteSelectedFiles?: (files: FunctionFile[]) => boolean | Promise<boolean>;
-	nonSelectableOnSelectAllFileNames?: string[];
-	onDropFiles?: (
-		files: File[],
-		options?: { unzipArchives?: boolean },
-	) => void | Promise<void>;
-	onAIGenerate?: () => void;
-	aiDisabled?: boolean;
-	aiDisabledReason?: string;
-	disabled?: boolean;
-	disabledReason?: string;
-	autoUnzipFiles: boolean;
-	onAutoUnzipFilesChange: (enabled: boolean) => void;
+function FileIcon({ name }: { name: string }) {
+	const extension = name.split(".").pop()?.toLowerCase();
+	const color = ["js", "ts", "tsx", "json"].includes(extension ?? "") ? "text-yellow-300" : extension === "py" ? "text-blue-300" : extension === "go" ? "text-cyan-300" : ["html", "css"].includes(extension ?? "") ? "text-orange-300" : "text-text/65";
+	return <Icon className={`h-4 w-4 shrink-0 ${color}`}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h5" /></Icon>;
+}
+
+export function FileManagerCard({ files, activeFile, onFileSelect, onCreateFile, onDownloadFile, onRenameFile, onDeleteFile, onDeleteSelectedFiles, onDropFiles, onAIGenerate, aiDisabled = false, aiDisabledReason, disabled = false, disabledReason, autoUnzipFiles, onAutoUnzipFilesChange }: {
+	files: FunctionFile[]; activeFile: FunctionFile | null; onFileSelect: (file: FunctionFile) => void; onCreateFile: () => void; onDownloadFile: (file: FunctionFile) => void; onRenameFile: (file: FunctionFile) => void; onDeleteFile: (file: FunctionFile) => void; onDeleteSelectedFiles?: (files: FunctionFile[]) => boolean | Promise<boolean>; nonSelectableOnSelectAllFileNames?: string[]; onDropFiles?: (files: File[], options?: { unzipArchives?: boolean }) => void | Promise<void>; onAIGenerate?: () => void; aiDisabled?: boolean; aiDisabledReason?: string; disabled?: boolean; disabledReason?: string; autoUnzipFiles: boolean; onAutoUnzipFilesChange: (enabled: boolean) => void;
 }) {
 	const [isDragOver, setIsDragOver] = useState(false);
 	const [selectedFileIds, setSelectedFileIds] = useState<Set<number>>(new Set());
+	const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 	const uploadInputRef = useRef<HTMLInputElement>(null);
 	const zipUploadInputRef = useRef<HTMLInputElement>(null);
-	const selectAllExcludedFileNames = useMemo(
-		() => new Set(nonSelectableOnSelectAllFileNames),
-		[nonSelectableOnSelectAllFileNames],
-	);
+	const selectedFiles = files.filter((file) => selectedFileIds.has(file.id));
 
-	const selectableFiles = useMemo(
-		() => files.filter((file) => !selectAllExcludedFileNames.has(file.name)),
-		[files, selectAllExcludedFileNames],
-	);
-	const selectableFileIds = useMemo(
-		() => selectableFiles.map((file) => file.id),
-		[selectableFiles],
-	);
-
-	const selectedFiles = useMemo(
-		() => files.filter((file) => selectedFileIds.has(file.id)),
-		[files, selectedFileIds],
-	);
-	const selectedSelectableCount = selectedFiles.filter((file) =>
-		selectableFileIds.includes(file.id),
-	).length;
-	const allSelectableFilesSelected =
-		selectableFileIds.length > 0 && selectedSelectableCount === selectableFileIds.length;
-	const hasPartialSelection =
-		selectedSelectableCount > 0 && selectedSelectableCount < selectableFileIds.length;
-	const hasSelectedFiles = selectedFiles.length > 0;
-
+	useEffect(() => setSelectedFileIds((previous) => new Set([...previous].filter((id) => files.some((file) => file.id === id)))), [files]);
 	useEffect(() => {
-		setSelectedFileIds((prev) => {
-			const availableIds = new Set(files.map((file) => file.id));
-			const next = new Set(Array.from(prev).filter((id) => availableIds.has(id)));
-			if (
-				next.size === prev.size &&
-				Array.from(next).every((id) => prev.has(id))
-			) {
-				return prev;
-			}
-			return next;
-		});
-	}, [files]);
+		const closeMenu = () => setContextMenu(null);
+		const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") closeMenu(); };
+		window.addEventListener("click", closeMenu); window.addEventListener("keydown", closeOnEscape);
+		return () => { window.removeEventListener("click", closeMenu); window.removeEventListener("keydown", closeOnEscape); };
+	}, []);
 
-	const toggleFileSelection = (fileId: number) => {
-		setSelectedFileIds((prev) => {
-			const next = new Set(prev);
-			if (next.has(fileId)) {
-				next.delete(fileId);
-			} else {
-				next.add(fileId);
-			}
-			return next;
-		});
-	};
+	const toggleFileSelection = (id: number) => setSelectedFileIds((previous) => { const next = new Set(previous); next.has(id) ? next.delete(id) : next.add(id); return next; });
+	const openMenu = (event: MouseEvent, file?: FunctionFile) => { event.preventDefault(); event.stopPropagation(); setContextMenu({ x: Math.min(event.clientX, window.innerWidth - 210), y: Math.min(event.clientY, window.innerHeight - 250), file }); };
+	const uploadFiles = (event: ChangeEvent<HTMLInputElement>, unzipArchives = autoUnzipFiles) => { const uploaded = Array.from(event.target.files || []); event.target.value = ""; if (uploaded.length) void onDropFiles?.(uploaded, { unzipArchives }); };
+	const handleDrop = (event: DragEvent<HTMLDivElement>) => { if (!onDropFiles) return; event.preventDefault(); setIsDragOver(false); const dropped = Array.from(event.dataTransfer.files || []); if (dropped.length) void onDropFiles(dropped, { unzipArchives: autoUnzipFiles }); };
+	const runMenuAction = (action: () => void) => { setContextMenu(null); action(); };
 
-	const handleSelectAll = () => {
-		setSelectedFileIds((prev) => {
-			const next = new Set(prev);
-			if (allSelectableFilesSelected) {
-				selectableFileIds.forEach((id) => next.delete(id));
-			} else {
-				selectableFileIds.forEach((id) => next.add(id));
-			}
-			return next;
-		});
-	};
-
-	const clearSelection = () => {
-		setSelectedFileIds(new Set());
-	};
-
-	const handleUploadClick = () => {
-		uploadInputRef.current?.click();
-	};
-
-	const handleZipUploadClick = () => {
-		zipUploadInputRef.current?.click();
-	};
-
-	const handleUploadChange = (event: ChangeEvent<HTMLInputElement>) => {
-		if (!onDropFiles) return;
-		const uploadedFiles = Array.from(event.target.files || []);
-		event.target.value = "";
-		if (uploadedFiles.length === 0) {
-			return;
-		}
-		void onDropFiles(uploadedFiles, { unzipArchives: autoUnzipFiles });
-	};
-
-	const handleZipUploadChange = (event: ChangeEvent<HTMLInputElement>) => {
-		if (!onDropFiles) return;
-		const uploadedFiles = Array.from(event.target.files || []);
-		event.target.value = "";
-		if (uploadedFiles.length === 0) {
-			return;
-		}
-		void onDropFiles(uploadedFiles, { unzipArchives: true });
-	};
-
-	const handleDeleteSelected = async () => {
-		if (!onDeleteSelectedFiles || !hasSelectedFiles) return;
-		const shouldDelete = await onDeleteSelectedFiles(selectedFiles);
-		if (shouldDelete) {
-			clearSelection();
-		}
-	};
-
-	const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
-		if (!onDropFiles) return;
-		event.preventDefault();
-		setIsDragOver(true);
-	};
-
-	const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
-		if (!onDropFiles) return;
-		event.preventDefault();
-		event.dataTransfer.dropEffect = "copy";
-		if (!isDragOver) {
-			setIsDragOver(true);
-		}
-	};
-
-	const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
-		if (!onDropFiles) return;
-		if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
-			return;
-		}
-		setIsDragOver(false);
-	};
-
-	const handleDrop = (event: DragEvent<HTMLDivElement>) => {
-		if (!onDropFiles) return;
-		event.preventDefault();
-		setIsDragOver(false);
-		const droppedFiles = Array.from(event.dataTransfer.files || []);
-		if (droppedFiles.length === 0) {
-			return;
-		}
-		void onDropFiles(droppedFiles, { unzipArchives: autoUnzipFiles });
-	};
-
-	return (
-		<div
-			className={`bg-gradient-to-br from-gray-900/50 to-gray-800/50 border rounded-lg p-4 relative transition-all duration-200 ${
-				isDragOver
-					? "border-primary shadow-[0_0_0_1px_rgba(34,211,238,0.5),0_0_24px_rgba(34,211,238,0.18)] bg-primary/5"
-					: "border-primary/20"
-			} ${
-				disabled ? "opacity-50 pointer-events-none select-none grayscale" : ""
-			}`}
-			onDragEnter={handleDragEnter}
-			onDragOver={handleDragOver}
-			onDragLeave={handleDragLeave}
-			onDrop={handleDrop}
-		>
-			<h2 className="text-lg font-bold text-primary mb-3 flex items-center gap-2">
-				<span>📁</span>
-				Files
-			</h2>
-			{disabled && disabledReason && (
-				<div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-2 mb-3">
-					<p className="text-yellow-300/80 text-xs">{disabledReason}</p>
-				</div>
-			)}
-
-			<div className="mb-3 flex items-center justify-between gap-3 text-xs text-text/60">
-				{files.length > 0 ? (
-					<div className="flex items-center gap-2 select-none">
-						<SelectionToggle
-							checked={allSelectableFilesSelected}
-							indeterminate={hasPartialSelection}
-							disabled={selectableFileIds.length === 0}
-							onClick={handleSelectAll}
-						/>
-						<button
-							type="button"
-							disabled={selectableFileIds.length === 0}
-							onClick={handleSelectAll}
-							className={`text-left transition-colors ${
-								selectableFileIds.length === 0
-									? "cursor-not-allowed text-text/35"
-									: "text-text/70 hover:text-text"
-							}`}
-						>
-							Select all
-						</button>
-					</div>
-				) : (
-					<span />
-				)}
-				{hasSelectedFiles ? (
-					<button
-						type="button"
-						onClick={clearSelection}
-						className="text-primary hover:text-primary/80 transition-colors"
-					>
-						Clear {selectedFiles.length}
-					</button>
-				) : (
-					<span />
-				)}
-			</div>
-
-			<div className="space-y-1 mb-3 max-h-64 overflow-y-auto scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-primary/30">
-				{files.length > 0 ? (
-					files.map((file) => (
-						<div
-							key={file.id}
-							className={`bg-background/30 border rounded-lg p-2 cursor-pointer transition-all duration-200 ${
-								selectedFileIds.has(file.id)
-									? "border-primary/50 bg-primary/10"
-									: activeFile?.id === file.id
-										? "border-primary/40 bg-primary/5"
-										: "border-primary/10 hover:border-primary/30 hover:bg-primary/5"
-							}`}
-							onClick={() => onFileSelect(file)}
-						>
-							<div className="flex items-center justify-between gap-2">
-								<div className="flex min-w-0 flex-1 items-center gap-2">
-									<SelectionToggle
-										checked={selectedFileIds.has(file.id)}
-										onClick={() => {
-											toggleFileSelection(file.id);
-										}}
-									/>
-									<span className="text-text text-sm truncate flex-1">
-										{file.name}
-									</span>
-								</div>
-								<div className="flex items-center gap-0.5 ml-2 flex-shrink-0">
-									<button
-										className="p-1 text-blue-400 hover:bg-blue-400/10 rounded transition-all duration-200 text-xs"
-										onClick={(e) => {
-											e.stopPropagation();
-											onDownloadFile(file);
-										}}
-									>
-										⬇️
-									</button>
-									<button
-										className="p-1 text-yellow-400 hover:bg-yellow-400/10 rounded transition-all duration-200 text-xs"
-										onClick={(e) => {
-											e.stopPropagation();
-											onRenameFile(file);
-										}}
-									>
-										✏️
-									</button>
-									<button
-										className="p-1 text-red-400 hover:bg-red-400/10 rounded transition-all duration-200 text-xs"
-										onClick={(e) => {
-											e.stopPropagation();
-											onDeleteFile(file);
-										}}
-									>
-										🗑️
-									</button>
-								</div>
-							</div>
-						</div>
-					))
-				) : (
-					<div className="text-center py-4">
-						<div className="text-3xl mb-1">📦</div>
-						<p className="text-text/60 text-xs">No files</p>
-					</div>
-				)}
-			</div>
-
-			{onDropFiles && (
-				<div
-					className={`mb-3 rounded-lg border border-dashed px-3 py-2 text-center text-xs transition-all duration-200 ${
-						isDragOver
-							? "border-primary/60 bg-primary/10 text-primary"
-							: "border-primary/20 bg-background/20 text-text/60"
-					}`}
-				>
-					{isDragOver ? "Drop files to create them here" : "Drag files here to add them"}
-				</div>
-			)}
-
-			<ActionButton
-				icon="➕"
-				label="New File"
-				variant="primary"
-				onClick={onCreateFile}
-			/>
-			{onDropFiles && (
-				<>
-					<input
-						ref={uploadInputRef}
-						type="file"
-						multiple
-						className="hidden"
-						onChange={handleUploadChange}
-					/>
-					<button
-						type="button"
-						onClick={handleUploadClick}
-						className="w-full mt-2 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-widest transition-all duration-200 bg-background/50 border border-primary/20 text-primary hover:border-primary/40 hover:bg-primary/5"
-					>
-						📤 Upload Files
-					</button>
-					<input
-						ref={zipUploadInputRef}
-						type="file"
-						accept=".zip,application/zip"
-						className="hidden"
-						onChange={handleZipUploadChange}
-					/>
-					<button
-						type="button"
-						onClick={handleZipUploadClick}
-						className="w-full mt-2 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-widest transition-all duration-200 bg-background/50 border border-primary/20 text-primary hover:border-primary/40 hover:bg-primary/5"
-					>
-						🗜️ Upload From Zip
-					</button>
-				</>
-			)}
-			{onDropFiles && (
-				<div className="mt-2 rounded-lg border border-primary/20 bg-background/30 px-3 py-2">
-					<button
-						type="button"
-						aria-pressed={autoUnzipFiles}
-						onClick={() => onAutoUnzipFilesChange(!autoUnzipFiles)}
-						className="flex w-full items-center justify-between gap-3 text-left"
-					>
-						<span className="text-xs font-bold uppercase tracking-widest text-text/75">
-							Auto Unzip Files
-						</span>
-						<span
-							className={`flex h-5 w-9 items-center rounded-full p-0.5 transition-colors ${
-								autoUnzipFiles ? "bg-primary" : "bg-white/10"
-							}`}
-						>
-							<span
-								className={`h-4 w-4 rounded-full bg-white transition-transform ${
-									autoUnzipFiles ? "translate-x-4" : "translate-x-0"
-								}`}
-							/>
-						</span>
-					</button>
-				</div>
-			)}
-			{onDeleteSelectedFiles && hasSelectedFiles && (
-				<button
-					type="button"
-					onClick={() => {
-						void handleDeleteSelected();
-					}}
-					className="w-full mt-2 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-widest transition-all duration-200 bg-red-600/20 border border-red-500/30 text-red-300 hover:bg-red-500/20 hover:border-red-400/40"
-				>
-					🗑️ Delete Selected ({selectedFiles.length})
-				</button>
-			)}
-			{onAIGenerate && (
-				<button
-					disabled={aiDisabled}
-					onClick={onAIGenerate}
-					className={`w-full mt-2 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold uppercase tracking-widest transition-all duration-200 ${
-						aiDisabled ? "opacity-50 cursor-not-allowed" : ""
-					}`}
-					style={{
-						background:
-							"linear-gradient(135deg,rgba(99,102,241,0.18),rgba(139,92,246,0.12))",
-						border: "1px solid rgba(99,102,241,0.3)",
-						color: "#a5b4fc",
-					}}
-					onMouseEnter={(e) => {
-						(e.currentTarget as HTMLButtonElement).style.boxShadow =
-							"0 0 14px rgba(99,102,241,0.3)";
-						(e.currentTarget as HTMLButtonElement).style.borderColor =
-							"rgba(99,102,241,0.55)";
-					}}
-					onMouseLeave={(e) => {
-						(e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
-						(e.currentTarget as HTMLButtonElement).style.borderColor =
-							"rgba(99,102,241,0.3)";
-					}}
-					>
-						<svg className="w-3.5 h-3.5 text-orange-400 fill-orange-400" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-							<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-						</svg>
-						KICKOFF
-					</button>
-				)}
-			{aiDisabled && aiDisabledReason && (
-				<p className="mt-2 text-xs text-yellow-300/80">{aiDisabledReason}</p>
-			)}
+	return <div className={`relative overflow-hidden rounded-lg border border-primary/20 bg-[#181818] ${disabled ? "pointer-events-none select-none opacity-50 grayscale" : ""}`} onContextMenu={(event) => openMenu(event)} onDragEnter={(event) => { if (onDropFiles) { event.preventDefault(); setIsDragOver(true); } }} onDragOver={(event) => { if (onDropFiles) event.preventDefault(); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsDragOver(false); }} onDrop={handleDrop}>
+		<div className="flex h-9 items-center justify-between border-b border-white/10 px-3 text-[11px] font-semibold tracking-[0.08em] text-text/70"><span>EXPLORER</span><div className="flex items-center gap-1 text-text/60">
+			<button type="button" title="New File" aria-label="New File" onClick={onCreateFile} className="rounded p-1 hover:bg-white/10 hover:text-text"><Icon><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6M12 18v-6M9 15h6" /></Icon></button>
+			<button type="button" title="Folder support is coming soon" aria-label="New Folder (coming soon)" disabled className="cursor-not-allowed rounded p-1 opacity-35"><Icon><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /><path d="M12 11v5M9.5 13.5h5" /></Icon></button>
+			{onDropFiles && <button type="button" title="Upload Files" aria-label="Upload Files" onClick={() => uploadInputRef.current?.click()} className="rounded p-1 hover:bg-white/10 hover:text-text"><Icon><path d="M12 16V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" /></Icon></button>}
+		</div></div>
+		<div className="flex h-8 items-center gap-1 border-b border-white/5 bg-[#202020] px-3 text-xs font-semibold text-text/80"><span className="text-[10px]">⌄</span><Icon className="h-3.5 w-3.5 text-primary"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></Icon><span>FILES</span><span className="ml-auto text-text/40">{files.length}</span></div>
+		{disabled && disabledReason && <p className="border-b border-yellow-500/20 bg-yellow-900/10 px-3 py-2 text-xs text-yellow-300/80">{disabledReason}</p>}
+		<div className={`min-h-28 max-h-64 overflow-y-auto py-1 ${isDragOver ? "bg-primary/10 outline outline-1 outline-primary/60 outline-inset" : ""}`}>
+			{files.length ? files.map((file) => <div key={file.id} role="button" tabIndex={0} onClick={() => onFileSelect(file)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onFileSelect(file); }} onContextMenu={(event) => openMenu(event, file)} className={`group flex h-7 cursor-pointer items-center gap-2 px-3 text-sm transition-colors ${activeFile?.id === file.id ? "bg-[#37373d] text-white" : "text-text/75 hover:bg-[#2a2d2e] hover:text-text"}`}>
+				<input type="checkbox" aria-label={`Select ${file.name}`} checked={selectedFileIds.has(file.id)} onClick={(event) => event.stopPropagation()} onChange={() => toggleFileSelection(file.id)} className="h-3.5 w-3.5 accent-primary" /><FileIcon name={file.name} /><span className="min-w-0 flex-1 truncate">{file.name}</span>
+				<button type="button" aria-label={`More actions for ${file.name}`} title="More actions" onClick={(event) => openMenu(event, file)} className="hidden rounded p-0.5 text-text/60 hover:bg-white/10 hover:text-text group-hover:block"><Icon className="h-4 w-4"><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></Icon></button>
+			</div>) : <div className="px-3 py-5 text-center text-xs text-text/45">{isDragOver ? "Drop files to add them" : "No files yet"}</div>}
 		</div>
-	);
+		<div className="border-t border-white/10 p-2"><button type="button" onClick={onCreateFile} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs text-text/75 hover:bg-white/10 hover:text-text"><Icon className="h-3.5 w-3.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6M12 18v-6M9 15h6" /></Icon>New File</button>
+			{selectedFiles.length > 0 && onDeleteSelectedFiles && <button type="button" onClick={() => { void onDeleteSelectedFiles(selectedFiles).then((didDelete) => { if (didDelete) setSelectedFileIds(new Set()); }); }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs text-red-300 hover:bg-red-500/10"><Icon className="h-3.5 w-3.5"><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 10v7M14 10v7" /></Icon>Delete Selected ({selectedFiles.length})</button>}
+			{onAIGenerate && <button type="button" disabled={aiDisabled} title={aiDisabled ? aiDisabledReason : undefined} onClick={onAIGenerate} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs text-indigo-300 hover:bg-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-50"><span>⚡</span>KICKOFF</button>}
+			{onDropFiles && <button type="button" onClick={() => onAutoUnzipFilesChange(!autoUnzipFiles)} className="flex w-full items-center justify-between rounded px-2 py-1.5 text-xs text-text/60 hover:bg-white/10"><span>Auto unzip</span><span className={autoUnzipFiles ? "text-primary" : "text-text/40"}>{autoUnzipFiles ? "On" : "Off"}</span></button>}</div>
+		{onDropFiles && <><input ref={uploadInputRef} type="file" multiple className="hidden" onChange={uploadFiles} /><input ref={zipUploadInputRef} type="file" accept=".zip,application/zip" className="hidden" onChange={(event) => uploadFiles(event, true)} /></>}
+		{contextMenu && <div role="menu" className="fixed z-50 w-48 rounded border border-white/15 bg-[#252526] py-1 text-sm shadow-2xl" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>{contextMenu.file ? <><button role="menuitem" type="button" onClick={() => runMenuAction(() => onFileSelect(contextMenu.file!))}>Open</button><button role="menuitem" type="button" onClick={() => runMenuAction(() => onRenameFile(contextMenu.file!))}>Rename</button><button role="menuitem" type="button" onClick={() => runMenuAction(() => onDownloadFile(contextMenu.file!))}>Download</button><div className="my-1 border-t border-white/10" /><button role="menuitem" type="button" className="text-red-300" onClick={() => runMenuAction(() => onDeleteFile(contextMenu.file!))}>Delete</button></> : <><button role="menuitem" type="button" onClick={() => runMenuAction(onCreateFile)}>New File</button>{onDropFiles && <><button role="menuitem" type="button" onClick={() => runMenuAction(() => uploadInputRef.current?.click())}>Upload Files</button><button role="menuitem" type="button" onClick={() => runMenuAction(() => zipUploadInputRef.current?.click())}>Upload from ZIP</button></>}<button role="menuitem" type="button" disabled title="Folder support is coming soon">New Folder <span className="ml-auto text-[10px] text-text/40">Soon</span></button></>}</div>}
+		<style>{`[role="menuitem"] { display: flex; width: 100%; padding: 0.4rem 0.75rem; text-align: left; color: rgba(255,255,255,.8); } [role="menuitem"]:not(:disabled):hover { background: #094771; color: white; } [role="menuitem"]:disabled { cursor: not-allowed; opacity: .5; }`}</style>
+	</div>;
 }
