@@ -5,7 +5,7 @@ export const useShiftEnterSubmit = (onSubmit: () => void, enabled = true) => {
 		if (!enabled) return;
 
 		const handleKeyDown = (e: KeyboardEvent) => {
-			if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+			if (!e.repeat && (e.ctrlKey || e.metaKey) && e.key === "Enter") {
 				e.preventDefault();
 				onSubmit();
 			}

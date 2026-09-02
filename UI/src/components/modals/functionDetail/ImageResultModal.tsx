@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 
 interface ImageResultModalProps {
 	isOpen: boolean;
@@ -16,6 +17,8 @@ const ImageResultModal: React.FC<ImageResultModalProps> = ({
 	onClose,
 	content,
 }) => {
+	useShiftEnterSubmit(onClose, isOpen);
+
 	const [showAllHeaders, setShowAllHeaders] = useState(false);
 
 	useEffect(() => {

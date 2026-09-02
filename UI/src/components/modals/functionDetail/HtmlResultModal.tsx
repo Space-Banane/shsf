@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 
 interface HtmlResultModalProps {
 	isOpen: boolean;
@@ -15,6 +16,8 @@ const HtmlResultModal: React.FC<HtmlResultModalProps> = ({
 	onClose,
 	content,
 }) => {
+	useShiftEnterSubmit(onClose, isOpen);
+
 	useEffect(() => {
 		if (!isOpen) return;
 

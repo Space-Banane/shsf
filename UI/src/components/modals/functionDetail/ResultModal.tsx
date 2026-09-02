@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { toast } from "react-toastify";
 import { Icon } from "../../ui/Icon";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 
 interface ResultModalProps {
 	isOpen: boolean;
@@ -19,6 +20,8 @@ const ResultModal: React.FC<ResultModalProps> = ({
 	content,
 	cacheEnabled = false,
 }) => {
+	useShiftEnterSubmit(onClose, isOpen);
+
 	useEffect(() => {
 		if (!isOpen) return;
 		const handleEscape = (event: KeyboardEvent) => {

@@ -11,6 +11,7 @@ import {
 	ToggleRow,
 } from "../Modal";
 import { useConfirm } from "../ConfirmModal";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 import {
 	getGitConfig,
 	gitClone,
@@ -317,6 +318,17 @@ function GitVersionControlModal({
 
 	const sectionInputClass = `${inputClass} text-sm`;
 	const sectionSelectClass = `${selectClass} text-sm`;
+
+	useShiftEnterSubmit(
+		() => {
+			if (inputHasContent && (!hasUrl || isDirty)) {
+				void handleClone();
+			} else if (hasUrl && !isDirty) {
+				void handlePull();
+			}
+		},
+		isOpen && !loading && !isBusy,
+	);
 
 	return (
 		<Modal isOpen={isOpen} onClose={handleClose} title="Git Integration" maxWidth="lg" isLoading={loading}>
