@@ -12,12 +12,20 @@ import AddStorageItemModal from "../components/modals/storage/AddStorageItemModa
 import DeleteStorageItemModal from "../components/modals/storage/DeleteStorageItemModal";
 import GetStorageItemModal from "../components/modals/storage/GetStorageItemModal";
 import { Icon } from "../components/ui/Icon";
+import { useLocation, useNavigate } from "react-router-dom";
+
+interface StorageExplorerLocationState {
+	storageExplorer?: {
+		selectedStorageId?: number;
+	};
+}
 
 function StoragePage() {
+	const location = useLocation();
+	const navigate = useNavigate();
 	const [storages, setStorages] = useState<Storage[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
-	const [selectedStorage, setSelectedStorage] = useState<Storage | null>(null);
 	const [items, setItems] = useState<StorageItem[]>([]);
 	const [itemLoading, setItemLoading] = useState(false);
 	const [itemError, setItemError] = useState("");
@@ -30,6 +38,11 @@ function StoragePage() {
 	const [deleteItemKey, setDeleteItemKey] = useState<string | null>(null);
 	const [showGetItemModal, setShowGetItemModal] = useState(false);
 	const [editingItem, setEditingItem] = useState<StorageItem | null>(null);
+	const selectedStorageId = (location.state as StorageExplorerLocationState | null)
+		?.storageExplorer?.selectedStorageId;
+	const selectedStorage = typeof selectedStorageId === "number"
+		? storages.find((storage) => storage.id === selectedStorageId) ?? null
+		: null;
 
 	const loadStorages = async () => {
 		setLoading(true);
@@ -59,6 +72,12 @@ function StoragePage() {
 		else setItems([]);
 	}, [selectedStorage]);
 
+	const selectStorage = (storage: Storage) => {
+		navigate(`${location.pathname}${location.search}${location.hash}`, {
+			state: { storageExplorer: { selectedStorageId: storage.id } },
+		});
+	};
+
 	const btnSecondary = "px-3 py-1.5 border border-white/[0.07] text-text/70 text-sm font-medium rounded-lg hover:bg-surface-raised hover:text-text hover:border-primary/20 transition-colors";
 	const btnPrimary = "px-3 py-1.5 bg-primary text-background text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors";
 
@@ -69,8 +88,10 @@ function StoragePage() {
 					{/* Storage detail view */}
 					<div className="flex items-center gap-3 mb-6">
 						<button
-							onClick={() => setSelectedStorage(null)}
+							onClick={() => navigate(-1)}
 							className="p-1.5 text-muted hover:text-text hover:bg-surface rounded-lg transition-colors"
+							aria-label="Back to storages"
+							title="Back to storages"
 						>
 							<Icon name="chevron-left" className="w-4 h-4" />
 						</button>
@@ -187,25 +208,27 @@ function StoragePage() {
 						) : (
 							<ul className="divide-y divide-white/[0.04]">
 								{storages.map((storage) => (
-									<li key={storage.id}>
-										<button
-											className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-white/[0.03] transition-colors group text-left"
-											onClick={() => setSelectedStorage(storage)}
-										>
-											<Icon name="circle-stack" className="w-4 h-4 text-primary/50 shrink-0" />
-											<div className="flex-1 min-w-0">
-												<p className="text-sm font-medium text-text group-hover:text-primary transition-colors">{storage.name}</p>
-												{storage.purpose && <p className="text-xs text-muted truncate">{storage.purpose}</p>}
-											</div>
+									<li key={storage.id} className="group">
+										<div className="flex items-center gap-3 px-5 py-3.5 hover:bg-white/[0.03] transition-colors">
+											<button
+												className="flex flex-1 min-w-0 items-center gap-3 text-left"
+												onClick={() => selectStorage(storage)}
+											>
+												<Icon name="circle-stack" className="w-4 h-4 text-primary/50 shrink-0" />
+												<div className="flex-1 min-w-0">
+													<p className="text-sm font-medium text-text group-hover:text-primary transition-colors">{storage.name}</p>
+													{storage.purpose && <p className="text-xs text-muted truncate">{storage.purpose}</p>}
+												</div>
+												<Icon name="chevron-right" className="w-4 h-4 text-muted/40 shrink-0" />
+											</button>
 											<button
 												className="p-1.5 text-muted hover:text-red-400 hover:bg-red-500/10 rounded transition-colors opacity-0 group-hover:opacity-100"
 												title="Delete"
-												onClick={(e) => { e.stopPropagation(); setDeleteTarget(storage); setShowDeleteModal(true); }}
+												onClick={() => { setDeleteTarget(storage); setShowDeleteModal(true); }}
 											>
 												<Icon name="trash" className="w-3.5 h-3.5" />
 											</button>
-											<Icon name="chevron-right" className="w-4 h-4 text-muted/40 shrink-0" />
-										</button>
+										</div>
 									</li>
 								))}
 							</ul>
@@ -218,7 +241,10 @@ function StoragePage() {
 			<DeleteStorageModal
 				isOpen={showDeleteModal}
 				onClose={() => { setShowDeleteModal(false); setDeleteTarget(null); }}
-				onSuccess={() => { if (selectedStorage?.id === deleteTarget?.id) setSelectedStorage(null); loadStorages(); }}
+				onSuccess={() => {
+					if (selectedStorage?.id === deleteTarget?.id) navigate("/storage", { replace: true });
+					loadStorages();
+				}}
 				target={deleteTarget}
 			/>
 			<ClearStorageModal isOpen={showClearModal} onClose={() => setShowClearModal(false)} onSuccess={() => selectedStorage && loadItems(selectedStorage)} selectedStorage={selectedStorage} />
