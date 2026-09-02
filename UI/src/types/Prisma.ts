@@ -70,6 +70,15 @@ interface FunctionFile {
 	updatedAt: Date;
 }
 
+interface FunctionFolder {
+	id: number;
+	name: string;
+	functionId: number;
+
+	createdAt: Date;
+	updatedAt: Date;
+}
+
 interface User {
 	id: number;
 	displayName: string;
@@ -191,6 +200,7 @@ export type {
 	Session,
 	XFunction,
 	FunctionFile,
+	FunctionFolder,
 	UserRole,
 	Namespace,
 	Image,
@@ -198,12 +208,7 @@ export type {
 	TriggerLog,
 	Token,
 };
-export {
-	ImagesAsArray,
-	ImagesAsArraySet,
-	getImageDisplayName,
-	getImageFamily,
-};
+export { ImagesAsArray, ImagesAsArraySet, getImageDisplayName, getImageFamily };
 interface FunctionStorage {
 	id: number;
 	name: string;

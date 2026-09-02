@@ -5,6 +5,7 @@ import { useContext, useEffect, useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import JSZip from "jszip";
 import CreateFileModal from "../../components/modals/functionFiles/CreateFileModal";
+import FolderModal from "../../components/modals/functionFiles/FolderModal";
 import RenameFileModal from "../../components/modals/functionFiles/RenameFileModal";
 import DeleteFileModal from "../../components/modals/functionFiles/DeleteFileModal";
 import UpdateFunctionModal from "../../components/modals/functions/UpdateFunctionModal";
@@ -24,6 +25,7 @@ import HtmlResultModal from "../../components/modals/functionDetail/HtmlResultMo
 import ImageResultModal from "../../components/modals/functionDetail/ImageResultModal";
 import {
 	FunctionFile,
+	FunctionFolder,
 	getImageDisplayName,
 	XFunction,
 	Trigger,
@@ -41,9 +43,13 @@ import {
 } from "../../services/backend.functions";
 import {
 	getFiles,
+	getFolders,
 	createOrUpdateFile,
+	createFolder,
 	deleteFile,
+	deleteFolder,
 	renameFile,
+	renameFolder,
 	loadDefaultContent,
 } from "../../services/backend.files";
 import {
@@ -80,8 +86,16 @@ function FunctionDetail() {
 	const [nameSpace, setNamespace] = useState<Namespace | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [files, setFiles] = useState<FunctionFile[]>([]);
+	const [folders, setFolders] = useState<FunctionFolder[]>([]);
 	const [triggers, setTriggers] = useState<Trigger[]>([]);
 	const [showCreateModal, setShowCreateModal] = useState(false);
+	const [createFileParentPath, setCreateFileParentPath] = useState("");
+	const [showFolderModal, setShowFolderModal] = useState(false);
+	const [folderModalMode, setFolderModalMode] = useState<"create" | "rename">(
+		"create",
+	);
+	const [folderParentPath, setFolderParentPath] = useState("");
+	const [folderTargetPath, setFolderTargetPath] = useState("");
 	const [showRenameModal, setShowRenameModal] = useState(false);
 	const [showDeleteModal, setShowDeleteModal] = useState(false);
 	const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -90,7 +104,9 @@ function FunctionDetail() {
 	const [showDeleteTriggerModal, setShowDeleteTriggerModal] = useState(false);
 	const [showEnvModal, setShowEnvModal] = useState(false);
 	const [selectedFile, setSelectedFile] = useState<FunctionFile | null>(null);
-	const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(null);
+	const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(
+		null,
+	);
 	const [activeFile, setActiveFile] = useState<FunctionFile | null>(null);
 	const [code, setCode] = useState<string | null>(null); // Updated to allow null
 	const editorRef = useRef<any>(null);
@@ -115,7 +131,8 @@ function FunctionDetail() {
 		"Copy URL to Clipboard",
 	);
 	const [copyAliasURL, setCopyAliasURL] = useState<string>("Copy Alias URL");
-	const [paramInputColor, setParamInputColor] = useState<string>("text-white");
+	const [paramInputColor, setParamInputColor] =
+		useState<string>("text-white");
 	const [realTimeTaken, setRealTimeTaken] = useState<number | null>(null);
 	const [tooks, setTooks] = useState<TimingEntry[]>([]);
 	const [showTimingDetails, setShowTimingDetails] = useState<boolean>(false);
@@ -123,7 +140,8 @@ function FunctionDetail() {
 	const [showLogsDetails, setShowLogsDetails] = useState<boolean>(false);
 	const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(false);
 	const logPollingRef = useRef<NodeJS.Timeout | null>(null);
-	const [showTriggersDetails, setShowTriggersDetails] = useState<boolean>(false);
+	const [showTriggersDetails, setShowTriggersDetails] =
+		useState<boolean>(false);
 	const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
 	const [pipRunning, setPipRunning] = useState<boolean>(false);
 	const [showPopup, setShowPopup] = useState<boolean>(false);
@@ -165,26 +183,30 @@ function FunctionDetail() {
 	const saveShortcutRef = useRef<() => void>(() => {});
 	const resultModalsEnabled = !stopShowingResult;
 	const aiEnabled = Boolean(user?.apiKeyConfigured);
-	const isZipFilename = (filename: string) => filename.toLowerCase().endsWith(".zip");
+	const isZipFilename = (filename: string) =>
+		filename.toLowerCase().endsWith(".zip");
 
-	const savedActiveFile =
-		activeFile ? files.find((file) => file.id === activeFile.id) ?? activeFile : null;
+	const savedActiveFile = activeFile
+		? (files.find((file) => file.id === activeFile.id) ?? activeFile)
+		: null;
 	const hasUnsavedChanges = Boolean(
 		activeFile && code !== (savedActiveFile?.content ?? ""),
 	);
 	const canSaveFile = Boolean(
 		activeFile &&
-			hasUnsavedChanges &&
-			!saving &&
-			!running &&
-			!functionData?.git_url,
+		hasUnsavedChanges &&
+		!saving &&
+		!running &&
+		!functionData?.git_url,
 	);
 	const cliPullCommand = functionData
-		? `shsf remote pull --id ${functionData.id} --into ./${functionData.name
-				.trim()
-				.toLowerCase()
-				.replace(/[^a-z0-9]+/g, "-")
-				.replace(/^-+|-+$/g, "") || "my-func"} --force`
+		? `shsf remote pull --id ${functionData.id} --into ./${
+				functionData.name
+					.trim()
+					.toLowerCase()
+					.replace(/[^a-z0-9]+/g, "-")
+					.replace(/^-+|-+$/g, "") || "my-func"
+			} --force`
 		: "";
 	const isHtmlFilename = (filename: string) =>
 		filename.toLowerCase().endsWith(".html");
@@ -210,7 +232,9 @@ function FunctionDetail() {
 		}
 
 		requestAnimationFrame(() => {
-			const savedViewState = editorViewStatesRef.current.get(activeFile.id);
+			const savedViewState = editorViewStatesRef.current.get(
+				activeFile.id,
+			);
 			if (savedViewState) {
 				editorRef.current.restoreViewState(savedViewState);
 			}
@@ -229,7 +253,10 @@ function FunctionDetail() {
 	}, [resultModalsEnabled]);
 
 	useEffect(() => {
-		if (navigationBlocker.state !== "blocked" || navigationPromptOpenRef.current) {
+		if (
+			navigationBlocker.state !== "blocked" ||
+			navigationPromptOpenRef.current
+		) {
 			return;
 		}
 
@@ -258,13 +285,15 @@ function FunctionDetail() {
 	// Handle console auto-scrolling
 	useEffect(() => {
 		if (autoScroll && consoleOutputRef.current) {
-			consoleOutputRef.current.scrollTop = consoleOutputRef.current.scrollHeight;
+			consoleOutputRef.current.scrollTop =
+				consoleOutputRef.current.scrollHeight;
 		}
 	}, [consoleOutput, autoScroll]);
 
 	const handleConsoleScroll = () => {
 		if (consoleOutputRef.current) {
-			const { scrollTop, scrollHeight, clientHeight } = consoleOutputRef.current;
+			const { scrollTop, scrollHeight, clientHeight } =
+				consoleOutputRef.current;
 			// If user scrolls up, disable auto-scrolling
 			// If user scrolls to bottom, re-enable auto-scrolling
 			const isScrolledToBottom =
@@ -349,7 +378,9 @@ function FunctionDetail() {
 	};
 
 	const handleDownloadFile = (file: FunctionFile) => {
-		const blob = new Blob([file.content], { type: "text/plain;charset=utf-8" });
+		const blob = new Blob([file.content], {
+			type: "text/plain;charset=utf-8",
+		});
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a");
 		a.href = url;
@@ -365,15 +396,25 @@ function FunctionDetail() {
 	};
 
 	const normalizeZipEntryName = (entryName: string) => {
-		const normalized = entryName.replace(/\\/g, "/").trim().replace(/^\/+/, "");
-		if (!normalized || normalized.startsWith("/") || /^[a-zA-Z]:/.test(normalized)) {
+		const normalized = entryName
+			.replace(/\\/g, "/")
+			.trim()
+			.replace(/^\/+/, "");
+		if (
+			!normalized ||
+			normalized.startsWith("/") ||
+			/^[a-zA-Z]:/.test(normalized)
+		) {
 			return null;
 		}
 
 		const segments = normalized
 			.split("/")
 			.filter((segment) => segment.length > 0 && segment !== ".");
-		if (segments.length === 0 || segments.some((segment) => segment === "..")) {
+		if (
+			segments.length === 0 ||
+			segments.some((segment) => segment === "..")
+		) {
 			return null;
 		}
 
@@ -413,8 +454,7 @@ function FunctionDetail() {
 		filename: string,
 		content: string,
 	): Promise<
-		| { success: true; name: string }
-		| { success: false; message: string }
+		{ success: true; name: string } | { success: false; message: string }
 	> => {
 		if (!id) {
 			return { success: false, message: "Function ID is missing." };
@@ -435,10 +475,14 @@ function FunctionDetail() {
 
 			if (data.status === "OK") {
 				setFiles((prev) => {
-					const alreadyExists = prev.some((file) => file.id === data.data.id);
+					const alreadyExists = prev.some(
+						(file) => file.id === data.data.id,
+					);
 					return alreadyExists
 						? prev.map((file) =>
-								file.id === data.data.id ? { ...file, content } : file,
+								file.id === data.data.id
+									? { ...file, content }
+									: file,
 							)
 						: [...prev, { ...data.data, content }];
 				});
@@ -451,7 +495,10 @@ function FunctionDetail() {
 			return { success: false, message: data.message };
 		} catch (error) {
 			console.error("Error creating file:", error);
-			return { success: false, message: "An error occurred while creating the file." };
+			return {
+				success: false,
+				message: "An error occurred while creating the file.",
+			};
 		}
 	};
 
@@ -468,60 +515,87 @@ function FunctionDetail() {
 			Promise.all([
 				getFunctionById(parseInt(id)),
 				getFiles(parseInt(id)),
+				getFolders(parseInt(id)),
 				getTriggers(parseInt(id)),
 			])
-				.then(([functionData, filesData, triggersData]) => {
-					if (functionData.status === "OK") {
-						setFunctionData(functionData.data);
-						setServeHtmlOnly(
-							(functionData.data.startup_file || "")
-								.toLowerCase()
-								.endsWith(".html"),
-						);
+				.then(
+					([functionData, filesData, foldersData, triggersData]) => {
+						if (functionData.status === "OK") {
+							setFunctionData(functionData.data);
+							setServeHtmlOnly(
+								(functionData.data.startup_file || "")
+									.toLowerCase()
+									.endsWith(".html"),
+							);
 
-						getNamespace(functionData.data.namespaceId).then((namespaceData) => {
-							if (namespaceData.status === "OK") {
-								setNamespace(namespaceData.data);
+							getNamespace(functionData.data.namespaceId).then(
+								(namespaceData) => {
+									if (namespaceData.status === "OK") {
+										setNamespace(namespaceData.data);
+									}
+								},
+							);
+						} else {
+							toast.error(
+								"Error fetching function: " +
+									functionData.message,
+							);
+							return;
+						}
+
+						if (filesData.status === "OK") {
+							setFiles(filesData.data);
+							if (functionData.data.allow_http) {
+								setFunctionURL(
+									`${PUBLIC_BASE_URL}/api/exec/${functionData.data.namespaceId}/${functionData.data.executionId}`,
+								);
+							} else {
+								setFunctionURL(`No HTTP Access 🚫`);
 							}
-						});
-					} else {
-						toast.error("Error fetching function: " + functionData.message);
-						return;
-					}
+							if (filesData.data.length > 0) {
+								// Select the startup file if it exists, otherwise select the first file
+								const startupFile = filesData.data.find(
+									(file) =>
+										file.name ===
+										functionData.data.startup_file,
+								);
+								const initialFile =
+									startupFile || filesData.data[0];
+								// setActiveFile(initialFile);
+								setCode(initialFile.content || "");
+							} else {
+								// Reset when no files exist
+								setActiveFile(null);
+								setCode(null);
+							}
+						} else if (!functionData.data.git_url) {
+							toast.error(
+								"Error fetching files: " + filesData.message,
+							);
+						}
 
-					if (filesData.status === "OK") {
-						setFiles(filesData.data);
-						if (functionData.data.allow_http) {
-							setFunctionURL(
-								`${PUBLIC_BASE_URL}/api/exec/${functionData.data.namespaceId}/${functionData.data.executionId}`,
+						if (foldersData.status === "OK") {
+							setFolders(foldersData.data);
+						} else if (!functionData.data.git_url) {
+							toast.error(
+								"Error fetching folders: " +
+									foldersData.message,
+							);
+						}
+
+						if (triggersData.status === "OK") {
+							setTriggers(triggersData.data);
+							setShowTriggersDetails(
+								triggersData.data.length > 0,
 							);
 						} else {
-							setFunctionURL(`No HTTP Access 🚫`);
-						}
-						if (filesData.data.length > 0) {
-							// Select the startup file if it exists, otherwise select the first file
-							const startupFile = filesData.data.find(
-								(file) => file.name === functionData.data.startup_file,
+							console.error(
+								"Error fetching triggers:",
+								triggersData.message,
 							);
-							const initialFile = startupFile || filesData.data[0];
-							// setActiveFile(initialFile);
-							setCode(initialFile.content || "");
-						} else {
-							// Reset when no files exist
-							setActiveFile(null);
-							setCode(null);
 						}
-					} else if (!functionData.data.git_url) {
-						toast.error("Error fetching files: " + filesData.message);
-					}
-
-					if (triggersData.status === "OK") {
-						setTriggers(triggersData.data);
-						setShowTriggersDetails(triggersData.data.length > 0);
-					} else {
-						console.error("Error fetching triggers:", triggersData.message);
-					}
-				})
+					},
+				)
 				.catch((error) => {
 					console.error("Error fetching data:", error);
 					toast.error("An error occurred while fetching data.");
@@ -545,7 +619,9 @@ function FunctionDetail() {
 			if (data.status === "OK") {
 				setFiles((prev) =>
 					prev.map((file) =>
-						file.id === activeFile.id ? { ...file, content: code || "" } : file,
+						file.id === activeFile.id
+							? { ...file, content: code || "" }
+							: file,
 					),
 				);
 			} else {
@@ -606,7 +682,10 @@ function FunctionDetail() {
 				return value;
 			};
 
-			const getHeader = (headers: Record<string, string>, name: string) => {
+			const getHeader = (
+				headers: Record<string, string>,
+				name: string,
+			) => {
 				const target = name.toLowerCase();
 				for (const [key, value] of Object.entries(headers || {})) {
 					if (key.toLowerCase() === target) return value;
@@ -688,7 +767,8 @@ function FunctionDetail() {
 						return;
 					}
 					setConsoleOutput(
-						result.data.output || "Execution completed with no output.",
+						result.data.output ||
+							"Execution completed with no output.",
 					);
 					setExitCode(result.data.exitCode);
 					// Handle both old took and new tooks data
@@ -696,7 +776,8 @@ function FunctionDetail() {
 						setTooks(result.data.took);
 						// Find the total execution time entry
 						const totalExecution = result.data.took.find(
-							(entry: TimingEntry) => entry.description === "Total execution time",
+							(entry: TimingEntry) =>
+								entry.description === "Total execution time",
 						);
 						if (totalExecution) {
 							setRealTimeTaken(totalExecution.value);
@@ -750,7 +831,9 @@ function FunctionDetail() {
 								setTooks(data.took);
 								// Find the total execution time entry
 								const totalExecution = data.took.find(
-									(entry: TimingEntry) => entry.description === "Total execution time",
+									(entry: TimingEntry) =>
+										entry.description ===
+										"Total execution time",
 								);
 								if (totalExecution) {
 									setRealTimeTaken(totalExecution.value);
@@ -768,7 +851,9 @@ function FunctionDetail() {
 							}
 						} else if (data.type === "error") {
 							setConsoleOutput(
-								(prev) => prev + `\nError: ${data.error || "No additional details."}`,
+								(prev) =>
+									prev +
+									`\nError: ${data.error || "No additional details."}`,
 							);
 						}
 					},
@@ -777,7 +862,8 @@ function FunctionDetail() {
 			} catch (error) {
 				console.error("Error streaming execution:", error);
 				setConsoleOutput(
-					(prev) => prev + "\nConnection error: Failed to stream output.",
+					(prev) =>
+						prev + "\nConnection error: Failed to stream output.",
 				);
 			} finally {
 				stopTimer();
@@ -807,7 +893,8 @@ function FunctionDetail() {
 			} else {
 				setDepModalContent({
 					title: "Install Error",
-					message: "Error installing dependencies: " + String(response),
+					message:
+						"Error installing dependencies: " + String(response),
 					success: false,
 				});
 				setShowDepModal(true);
@@ -842,6 +929,79 @@ function FunctionDetail() {
 		return true;
 	};
 
+	const refreshExplorer = async () => {
+		if (!id) return;
+		const [filesData, foldersData] = await Promise.all([
+			getFiles(parseInt(id)),
+			getFolders(parseInt(id)),
+		]);
+		if (filesData.status === "OK") setFiles(filesData.data);
+		if (foldersData.status === "OK") setFolders(foldersData.data);
+	};
+
+	const handleFolderSubmit = async (leafName: string): Promise<boolean> => {
+		if (!id) return false;
+		const fullName =
+			folderModalMode === "create"
+				? folderParentPath
+					? `${folderParentPath}/${leafName}`
+					: leafName
+				: folderTargetPath.includes("/")
+					? `${folderTargetPath.slice(0, folderTargetPath.lastIndexOf("/"))}/${leafName}`
+					: leafName;
+		try {
+			const response =
+				folderModalMode === "create"
+					? await createFolder(parseInt(id), fullName)
+					: await renameFolder(
+							parseInt(id),
+							folderTargetPath,
+							fullName,
+						);
+			if (response.status !== "OK") {
+				toast.error(
+					`Error ${folderModalMode === "create" ? "creating" : "renaming"} folder: ${response.message}`,
+				);
+				return false;
+			}
+			await refreshExplorer();
+			return true;
+		} catch (error) {
+			console.error("Error updating folder:", error);
+			toast.error("An error occurred while updating the folder.");
+			return false;
+		}
+	};
+
+	const handleDeleteFolder = async (folderName: string) => {
+		if (!id) return;
+		const shouldDelete = await confirm({
+			title: "Delete Folder",
+			message: `This will permanently delete "${folderName}" and every file inside it.`,
+			confirmText: "Delete Folder",
+			cancelText: "Cancel",
+			variant: "delete",
+		});
+		if (!shouldDelete) return;
+		try {
+			const response = await deleteFolder(parseInt(id), folderName);
+			if (response.status !== "OK") {
+				toast.error(`Error deleting folder: ${response.message}`);
+				return;
+			}
+			await refreshExplorer();
+			if (activeFile?.name.startsWith(`${folderName}/`)) {
+				setActiveFile(null);
+				setSelectedFile(null);
+				setCode(null);
+			}
+			toast.success(`Deleted ${folderName}.`);
+		} catch (error) {
+			console.error("Error deleting folder:", error);
+			toast.error("An error occurred while deleting the folder.");
+		}
+	};
+
 	const handleDropFiles = async (
 		droppedFiles: File[],
 		options?: { unzipArchives?: boolean },
@@ -863,18 +1023,26 @@ function FunctionDetail() {
 			try {
 				let uploadedEntries: Array<{ name: string; content: string }>;
 				if (isZipFilename(droppedFile.name) && shouldUnzipArchives) {
-					const { extracted, skippedEntries } = await extractZipFiles(droppedFile);
+					const { extracted, skippedEntries } =
+						await extractZipFiles(droppedFile);
 					uploadedEntries = extracted;
 					skippedZipEntries.push(...skippedEntries);
 					if (uploadedEntries.length === 0) {
-						toast.error(`${droppedFile.name} did not contain any files to upload.`);
+						toast.error(
+							`${droppedFile.name} did not contain any files to upload.`,
+						);
 						continue;
 					}
 				} else if (isZipFilename(droppedFile.name)) {
 					skippedZipFiles.push(droppedFile.name);
 					continue;
 				} else {
-					uploadedEntries = [{ name: droppedFile.name, content: await droppedFile.text() }];
+					uploadedEntries = [
+						{
+							name: droppedFile.name,
+							content: await droppedFile.text(),
+						},
+					];
 				}
 
 				for (const uploadedFile of uploadedEntries) {
@@ -888,12 +1056,17 @@ function FunctionDetail() {
 						continue;
 					}
 
-					const result = await persistFile(uploadedFile.name, uploadedFile.content);
+					const result = await persistFile(
+						uploadedFile.name,
+						uploadedFile.content,
+					);
 					if (result.success) {
 						existingNames.add(uploadedFile.name);
 						createdNames.push(uploadedFile.name);
 					} else {
-						toast.error(`Failed to create ${uploadedFile.name}: ${result.message}`);
+						toast.error(
+							`Failed to create ${uploadedFile.name}: ${result.message}`,
+						);
 					}
 				}
 			} catch (error) {
@@ -956,11 +1129,17 @@ function FunctionDetail() {
 		}
 
 		try {
-			const data = await renameFile(parseInt(id), selectedFile.id, newFilename);
+			const data = await renameFile(
+				parseInt(id),
+				selectedFile.id,
+				newFilename,
+			);
 			if (data.status === "OK") {
 				setFiles((prev) =>
 					prev.map((file) =>
-						file.id === selectedFile.id ? { ...file, name: newFilename } : file,
+						file.id === selectedFile.id
+							? { ...file, name: newFilename }
+							: file,
 					),
 				);
 				return true;
@@ -1085,7 +1264,9 @@ function FunctionDetail() {
 				}
 				return true;
 			} else {
-				toast.error("Error creating trigger: " + (response as any).message);
+				toast.error(
+					"Error creating trigger: " + (response as any).message,
+				);
 				return false;
 			}
 		} catch (error) {
@@ -1105,24 +1286,32 @@ function FunctionDetail() {
 		if (!id || !selectedTrigger) return false;
 
 		try {
-			const response = await updateTrigger(parseInt(id), selectedTrigger.id, {
-				name,
-				description,
-				cron,
-				data,
-				enabled,
-			});
+			const response = await updateTrigger(
+				parseInt(id),
+				selectedTrigger.id,
+				{
+					name,
+					description,
+					cron,
+					data,
+					enabled,
+				},
+			);
 
 			if (response.status === "OK") {
 				// Update triggers list
 				setTriggers((prev) =>
 					prev.map((trigger) =>
-						trigger.id === selectedTrigger.id ? response.data : trigger,
+						trigger.id === selectedTrigger.id
+							? response.data
+							: trigger,
 					),
 				);
 				return true;
 			} else {
-				toast.error("Error updating trigger: " + (response as any).message);
+				toast.error(
+					"Error updating trigger: " + (response as any).message,
+				);
 				return false;
 			}
 		} catch (error) {
@@ -1136,7 +1325,10 @@ function FunctionDetail() {
 		if (!id || !selectedTrigger) return false;
 
 		try {
-			const response = await deleteTrigger(parseInt(id), selectedTrigger.id);
+			const response = await deleteTrigger(
+				parseInt(id),
+				selectedTrigger.id,
+			);
 
 			if (response.status === "OK") {
 				// Remove trigger from list
@@ -1165,7 +1357,9 @@ function FunctionDetail() {
 				await fetchLogs();
 				return true;
 			} else {
-				toast.error("Error running trigger: " + (response as any).message);
+				toast.error(
+					"Error running trigger: " + (response as any).message,
+				);
 				return false;
 			}
 		} catch (error) {
@@ -1193,12 +1387,16 @@ function FunctionDetail() {
 				});
 				return true;
 			} else {
-				toast.error("Error updating environment variables: " + response.message);
+				toast.error(
+					"Error updating environment variables: " + response.message,
+				);
 				return false;
 			}
 		} catch (error) {
 			console.error("Error updating environment variables:", error);
-			toast.error("An error occurred while updating environment variables.");
+			toast.error(
+				"An error occurred while updating environment variables.",
+			);
 			return false;
 		}
 	};
@@ -1258,9 +1456,7 @@ function FunctionDetail() {
 					? JSON.parse(functionData.env)
 					: functionData.env;
 			if (Array.isArray(envRaw)) {
-				envKeys = envRaw
-					.map((e: any) => e?.name)
-					.filter(Boolean);
+				envKeys = envRaw.map((e: any) => e?.name).filter(Boolean);
 			}
 		} catch {
 			// ignore parse errors
@@ -1341,7 +1537,9 @@ function FunctionDetail() {
 				setCode(updatedContent);
 				setFiles((prev) =>
 					prev.map((file) =>
-						file.id === activeFile.id ? { ...file, content: updatedContent } : file,
+						file.id === activeFile.id
+							? { ...file, content: updatedContent }
+							: file,
 					),
 				);
 				return true;
@@ -1351,7 +1549,9 @@ function FunctionDetail() {
 			}
 		} catch (error) {
 			console.error("Error loading default content:", error);
-			toast.error("An error occurred while loading the default template.");
+			toast.error(
+				"An error occurred while loading the default template.",
+			);
 			return false;
 		} finally {
 			setSaving(false);
@@ -1398,7 +1598,9 @@ function FunctionDetail() {
 		// Clean up query params from URL after handling
 		return () => {
 			params.delete("preopen");
-			const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+			const newUrl =
+				window.location.pathname +
+				(params.toString() ? "?" + params.toString() : "");
 			window.history.replaceState({}, "", newUrl);
 		};
 	}, []);
@@ -1414,8 +1616,12 @@ function FunctionDetail() {
 	if (!functionData) {
 		return (
 			<div className="flex flex-col items-center py-24 text-center">
-				<h2 className="text-xl font-semibold text-text mb-2">Function Not Found</h2>
-				<p className="text-sm text-muted">The requested function could not be loaded.</p>
+				<h2 className="text-xl font-semibold text-text mb-2">
+					Function Not Found
+				</h2>
+				<p className="text-sm text-muted">
+					The requested function could not be loaded.
+				</p>
 			</div>
 		);
 	}
@@ -1426,14 +1632,22 @@ function FunctionDetail() {
 			<DependencyModal
 				isOpen={showDepModal}
 				onClose={() => setShowDepModal(false)}
-				content={depModalContent || { success: false, title: "", message: "" }}
+				content={
+					depModalContent || {
+						success: false,
+						title: "",
+						message: "",
+					}
+				}
 			/>
 
 			{/* Result Modal */}
 			<ResultModal
 				isOpen={showResultModal}
 				onClose={() => setShowResultModal(false)}
-				content={resultModalContent || { title: "", value: "", type: "" }}
+				content={
+					resultModalContent || { title: "", value: "", type: "" }
+				}
 				cacheEnabled={functionData?.cache_enabled}
 			/>
 
@@ -1448,7 +1662,14 @@ function FunctionDetail() {
 			<ImageResultModal
 				isOpen={showImagePopup}
 				onClose={() => setShowImagePopup(false)}
-				content={imagePopupContent || { code: 0, contentType: "", headers: {}, src: "" }}
+				content={
+					imagePopupContent || {
+						code: 0,
+						contentType: "",
+						headers: {},
+						src: "",
+					}
+				}
 			/>
 
 			{/* Page header */}
@@ -1457,12 +1678,23 @@ function FunctionDetail() {
 					<div className="flex items-center gap-2 text-sm">
 						<span className="text-muted">{nameSpace?.name}</span>
 						<span className="text-muted/40">/</span>
-						<span className="text-text font-semibold">{functionData.name}</span>
+						<span className="text-text font-semibold">
+							{functionData.name}
+						</span>
 					</div>
 					<div className="flex items-center gap-4 text-xs text-muted">
-						<span>{files.length} {files.length === 1 ? "file" : "files"}</span>
+						<span>
+							{files.length}{" "}
+							{files.length === 1 ? "file" : "files"}
+						</span>
 						<span>{triggers.length} triggers</span>
-						<span className={functionData.allow_http ? "text-green-400" : "text-muted/50"}>
+						<span
+							className={
+								functionData.allow_http
+									? "text-green-400"
+									: "text-muted/50"
+							}
+						>
 							{functionData.allow_http ? "HTTP on" : "HTTP off"}
 						</span>
 					</div>
@@ -1503,7 +1735,11 @@ function FunctionDetail() {
 								<ActionButton
 									icon="🔀"
 									label="Version Control"
-									variant={functionData.git_url ? "primary" : "secondary"}
+									variant={
+										functionData.git_url
+											? "primary"
+											: "secondary"
+									}
 									onClick={() => setShowGitModal(true)}
 								/>
 							</div>
@@ -1522,7 +1758,9 @@ function FunctionDetail() {
 										value={functionURL}
 										readOnly
 										className="w-full bg-transparent text-text text-xs outline-none"
-										onClick={(e) => e.currentTarget.select()}
+										onClick={(e) =>
+											e.currentTarget.select()
+										}
 									/>
 								</div>
 								<ActionButton
@@ -1530,7 +1768,9 @@ function FunctionDetail() {
 									label={copyUrltext}
 									variant="primary"
 									onClick={() => {
-										navigator.clipboard.writeText(functionURL);
+										navigator.clipboard.writeText(
+											functionURL,
+										);
 										setCopyUrlColor("text-green-400");
 										setCopyUrlText("✅ Copied!");
 										setTimeout(() => {
@@ -1540,47 +1780,75 @@ function FunctionDetail() {
 									}}
 								/>
 							</div>
-							{functionData.executionAlias && functionData.allow_http && (
-								<div className="space-y-2">
-									<h2 className="text-sm font-medium text-primary mt-4">Alias URL</h2>
-									<div className="bg-background/30 border border-primary/10 rounded-lg p-2">
-										<input
-											type="text"
-											value={
-												functionURL.split("/api/")[0] +
-												"/exec/" +
-												functionData.executionAlias
-											}
-											readOnly
-											className="w-full bg-transparent text-text text-xs outline-none"
-											onClick={(e) => e.currentTarget.select()}
+							{functionData.executionAlias &&
+								functionData.allow_http && (
+									<div className="space-y-2">
+										<h2 className="text-sm font-medium text-primary mt-4">
+											Alias URL
+										</h2>
+										<div className="bg-background/30 border border-primary/10 rounded-lg p-2">
+											<input
+												type="text"
+												value={
+													functionURL.split(
+														"/api/",
+													)[0] +
+													"/exec/" +
+													functionData.executionAlias
+												}
+												readOnly
+												className="w-full bg-transparent text-text text-xs outline-none"
+												onClick={(e) =>
+													e.currentTarget.select()
+												}
+											/>
+										</div>
+										<ActionButton
+											icon="📋"
+											label={copyAliasURL}
+											variant="primary"
+											onClick={() => {
+												navigator.clipboard.writeText(
+													functionURL.split(
+														"/api/",
+													)[0] +
+														"/exec/" +
+														functionData.executionAlias,
+												);
+												setCopyAliasURL(
+													"✅ Copied Alias!",
+												);
+												setTimeout(() => {
+													setCopyAliasURL(
+														"Copy Alias📎",
+													);
+												}, 2000);
+											}}
 										/>
 									</div>
-									<ActionButton
-										icon="📋"
-										label={copyAliasURL}
-										variant="primary"
-										onClick={() => {
-											navigator.clipboard.writeText(
-												functionURL.split("/api/")[0] +
-													"/exec/" +
-													functionData.executionAlias,
-											);
-											setCopyAliasURL("✅ Copied Alias!");
-											setTimeout(() => {
-												setCopyAliasURL("Copy Alias📎");
-											}, 2000);
-										}}
-									/>
-								</div>
-							)}
+								)}
 						</div>
 
 						<FileManagerCard
 							files={files}
+							folders={folders}
 							activeFile={activeFile}
 							onFileSelect={handleFileSelect}
-							onCreateFile={() => setShowCreateModal(true)}
+							onCreateFile={(parentPath) => {
+								setCreateFileParentPath(parentPath ?? "");
+								setShowCreateModal(true);
+							}}
+							onCreateFolder={(parentPath) => {
+								setFolderModalMode("create");
+								setFolderParentPath(parentPath ?? "");
+								setShowFolderModal(true);
+							}}
+							onRenameFolder={(folderPath) => {
+								setFolderModalMode("rename");
+								setFolderTargetPath(folderPath);
+								setShowFolderModal(true);
+							}}
+							onDeleteFolder={handleDeleteFolder}
 							onDownloadFile={handleDownloadFile}
 							onRenameFile={(file) => {
 								setSelectedFile(file);
@@ -1592,7 +1860,9 @@ function FunctionDetail() {
 							}}
 							onDeleteSelectedFiles={handleDeleteSelectedFiles}
 							nonSelectableOnSelectAllFileNames={
-								functionData.startup_file ? [functionData.startup_file] : []
+								functionData.startup_file
+									? [functionData.startup_file]
+									: []
 							}
 							onDropFiles={handleDropFiles}
 							autoUnzipFiles={autoUnzipFiles}
@@ -1609,8 +1879,12 @@ function FunctionDetail() {
 							disabled={serveHtmlOnly}
 							disabledReason="This function is set to only serve an .html file"
 							showDetails={showTriggersDetails}
-							onToggleDetails={() => setShowTriggersDetails(!showTriggersDetails)}
-							onCreateTrigger={() => setShowCreateTriggerModal(true)}
+							onToggleDetails={() =>
+								setShowTriggersDetails(!showTriggersDetails)
+							}
+							onCreateTrigger={() =>
+								setShowCreateTriggerModal(true)
+							}
 							onEditTrigger={(trigger) => {
 								setSelectedTrigger(trigger);
 								setShowEditTriggerModal(true);
@@ -1627,7 +1901,9 @@ function FunctionDetail() {
 						<TimingCard
 							tooks={tooks}
 							showDetails={showTimingDetails}
-							onToggleDetails={() => setShowTimingDetails(!showTimingDetails)}
+							onToggleDetails={() =>
+								setShowTimingDetails(!showTimingDetails)
+							}
 							disabled={serveHtmlOnly}
 							disabledReason="This function is set to only serve an .html file"
 						/>
@@ -1636,7 +1912,9 @@ function FunctionDetail() {
 							logs={logs}
 							isLoadingLogs={isLoadingLogs}
 							showDetails={showLogsDetails}
-							onToggleDetails={() => setShowLogsDetails(!showLogsDetails)}
+							onToggleDetails={() =>
+								setShowLogsDetails(!showLogsDetails)
+							}
 							onRefreshLogs={fetchLogs}
 							onViewLogs={() => setShowLogsModal(true)}
 							functionId={functionData?.id ?? 0}
@@ -1663,7 +1941,9 @@ function FunctionDetail() {
 									<div className="min-w-0 space-y-1">
 										<div className="flex flex-wrap items-center gap-2">
 											<h2 className="text-lg font-semibold text-primary truncate">
-												{activeFile ? activeFile.name : "No file selected"}
+												{activeFile
+													? activeFile.name
+													: "No file selected"}
 											</h2>
 											{activeFile && (
 												<span
@@ -1673,7 +1953,9 @@ function FunctionDetail() {
 															: "border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
 													}`}
 												>
-													{hasUnsavedChanges ? "Unsaved" : "Saved"}
+													{hasUnsavedChanges
+														? "Unsaved"
+														: "Saved"}
 												</span>
 											)}
 										</div>
@@ -1684,7 +1966,10 @@ function FunctionDetail() {
 										</p>
 										{functionData && (
 											<p className="text-xs text-text/45">
-												Runtime: {getImageDisplayName(functionData.image)}
+												Runtime:{" "}
+												{getImageDisplayName(
+													functionData.image,
+												)}
 											</p>
 										)}
 									</div>
@@ -1699,11 +1984,18 @@ function FunctionDetail() {
 										}`}
 										value={runningMode}
 										onChange={(e) =>
-											setRunningMode(e.target.value as "classic" | "streaming")
+											setRunningMode(
+												e.target.value as
+													"classic" | "streaming",
+											)
 										}
-										disabled={running || saving || serveHtmlOnly}
+										disabled={
+											running || saving || serveHtmlOnly
+										}
 									>
-										<option value="streaming">Stream</option>
+										<option value="streaming">
+											Stream
+										</option>
 										<option value="classic">Classic</option>
 									</select>
 									<button
@@ -1717,10 +2009,16 @@ function FunctionDetail() {
 												: "",
 										].join(" ")}
 										style={{
-											cursor: serveHtmlOnly ? "not-allowed" : "pointer",
+											cursor: serveHtmlOnly
+												? "not-allowed"
+												: "pointer",
 										}}
-										onClick={() => setShowRunParams(!showRunParams)}
-										disabled={running || saving || serveHtmlOnly}
+										onClick={() =>
+											setShowRunParams(!showRunParams)
+										}
+										disabled={
+											running || saving || serveHtmlOnly
+										}
 									>
 										Run Params
 									</button>
@@ -1730,14 +2028,20 @@ function FunctionDetail() {
 												? "bg-emerald-500/10 border-emerald-400/30 text-emerald-300 hover:border-emerald-300/40"
 												: "bg-red-500/10 border-red-400/30 text-red-300 hover:border-red-300/40"
 										}`}
-										onClick={() => setStopShowingResult(!stopShowingResult)}
+										onClick={() =>
+											setStopShowingResult(
+												!stopShowingResult,
+											)
+										}
 										title={
 											resultModalsEnabled
 												? "Result modals are enabled"
 												: "Result modals are disabled"
 										}
 									>
-										{resultModalsEnabled ? "Modals On" : "Modals Off"}
+										{resultModalsEnabled
+											? "Modals On"
+											: "Modals Off"}
 									</button>
 								</div>
 							</div>
@@ -1757,7 +2061,9 @@ function FunctionDetail() {
 								<button
 									className="h-9 shrink-0 rounded-lg border border-primary/20 bg-background/45 px-3 text-sm text-primary transition-all duration-300 hover:border-primary/40"
 									onClick={() => {
-										navigator.clipboard.writeText(cliPullCommand);
+										navigator.clipboard.writeText(
+											cliPullCommand,
+										);
 										toast.success("CLI command copied");
 									}}
 								>
@@ -1765,32 +2071,60 @@ function FunctionDetail() {
 								</button>
 							</div>
 
-
 							<div className="flex flex-wrap items-center justify-end gap-2 border-t border-primary/10 pt-4">
-								{!serveHtmlOnly && (functionData.image.startsWith("python") || functionData.image.startsWith("golang") || functionData.image.startsWith("node:")) && (
-									<button
-										className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-										onClick={() => setShowDependencyManager(true)}
-										disabled={running || saving || Boolean(functionData.git_url)}
-										title={functionData.git_url ? "Dependency files are managed by the linked git repository" : "Edit runtime dependency manifests"}
-									>
-										Manage Dependencies
-									</button>
-								)}
+								{!serveHtmlOnly &&
+									(functionData.image.startsWith("python") ||
+										functionData.image.startsWith(
+											"golang",
+										) ||
+										functionData.image.startsWith(
+											"node:",
+										)) && (
+										<button
+											className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+											onClick={() =>
+												setShowDependencyManager(true)
+											}
+											disabled={
+												running ||
+												saving ||
+												Boolean(functionData.git_url)
+											}
+											title={
+												functionData.git_url
+													? "Dependency files are managed by the linked git repository"
+													: "Edit runtime dependency manifests"
+											}
+										>
+											Manage Dependencies
+										</button>
+									)}
 								{/* Show Pip Install button if requirements.txt exists or if it's a git-based function (since we don't know the files) */}
-								{(files.find((file) => file.name === "requirements.txt") || Boolean(functionData.git_url)) && (
+								{(files.find(
+									(file) => file.name === "requirements.txt",
+								) ||
+									Boolean(functionData.git_url)) && (
 									<button
 										className="h-9 px-3 text-sm rounded-lg bg-blue-600/90 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 										onClick={handlePipInstall}
-										disabled={pipRunning || running || saving}
+										disabled={
+											pipRunning || running || saving
+										}
 									>
-										{pipRunning ? "Installing..." : "Install requirements.txt"}
+										{pipRunning
+											? "Installing..."
+											: "Install requirements.txt"}
 									</button>
 								)}
 								<button
 									className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 									onClick={handleLoadDefault}
-									disabled={!activeFile || saving || running || Boolean(functionData.git_url)}
+									disabled={
+										!activeFile ||
+										saving ||
+										running ||
+										Boolean(functionData.git_url)
+									}
 								>
 									{saving ? "Loading..." : "Load Defaults"}
 								</button>
@@ -1803,9 +2137,9 @@ function FunctionDetail() {
 											? "Save file (Ctrl/Cmd+S)"
 											: "No unsaved changes"
 									}
-									>
-										{saving ? "Saving..." : "Save"}
-									</button>
+								>
+									{saving ? "Saving..." : "Save"}
+								</button>
 								<button
 									className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 									onClick={() => {
@@ -1836,7 +2170,9 @@ function FunctionDetail() {
 												JSON.parse(e.target.value);
 												setParamInputColor("text-text");
 											} catch {
-												setParamInputColor("text-red-400");
+												setParamInputColor(
+													"text-red-400",
+												);
 											}
 										}}
 										spellCheck={false}
@@ -1856,11 +2192,14 @@ function FunctionDetail() {
 												Editor Disabled
 											</h3>
 											<p className="text-text/70 text-sm max-w-xs">
-												This function uses a git repository as its source. Manage
+												This function uses a git
+												repository as its source. Manage
 												files through version control.
 											</p>
 											<button
-												onClick={() => setShowGitModal(true)}
+												onClick={() =>
+													setShowGitModal(true)
+												}
 												className="mt-1 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-background hover:bg-primary/90 transition-all duration-300"
 											>
 												Open Version Control
@@ -1871,7 +2210,9 @@ function FunctionDetail() {
 									<div className="absolute inset-0 flex items-center justify-center bg-background/50 text-center">
 										<div className="space-y-3">
 											<div className="text-5xl">📝</div>
-											<h3 className="text-lg font-bold text-primary">No File Selected</h3>
+											<h3 className="text-lg font-bold text-primary">
+												No File Selected
+											</h3>
 											<p className="text-text/70 text-sm">
 												Select a file from the sidebar
 											</p>
@@ -1887,7 +2228,9 @@ function FunctionDetail() {
 										onChange={handleEditorChange}
 										onMount={handleEditorDidMount}
 										options={{
-											readOnly: Boolean(functionData.git_url),
+											readOnly: Boolean(
+												functionData.git_url,
+											),
 											minimap: { enabled: true },
 											scrollBeyondLastLine: false,
 											fontSize: 13,
@@ -1939,7 +2282,9 @@ function FunctionDetail() {
 					onSave={async (filename, content) => {
 						const result = await persistFile(filename, content);
 						if (!result.success) {
-							toast.error(`Error saving ${filename}: ${result.message}`);
+							toast.error(
+								`Error saving ${filename}: ${result.message}`,
+							);
 							return false;
 						}
 						return true;
@@ -1947,9 +2292,32 @@ function FunctionDetail() {
 				/>
 				<CreateFileModal
 					isOpen={showCreateModal}
-					onClose={() => setShowCreateModal(false)}
-					onCreate={handleCreateFile}
+					onClose={() => {
+						setShowCreateModal(false);
+						setCreateFileParentPath("");
+					}}
+					onCreate={(filename, content) =>
+						handleCreateFile(
+							createFileParentPath
+								? `${createFileParentPath}/${filename}`
+								: filename,
+							content,
+						)
+					}
 					allowedFileTypes={serveHtmlOnly ? [".html"] : undefined}
+				/>
+
+				<FolderModal
+					isOpen={showFolderModal}
+					mode={folderModalMode}
+					parentPath={folderParentPath}
+					currentName={folderTargetPath}
+					onClose={() => {
+						setShowFolderModal(false);
+						setFolderParentPath("");
+						setFolderTargetPath("");
+					}}
+					onSubmit={handleFolderSubmit}
 				/>
 
 				<RenameFileModal
@@ -2054,7 +2422,6 @@ function FunctionDetail() {
 						}
 					}}
 				/>
-
 			</div>
 		</div>
 	);

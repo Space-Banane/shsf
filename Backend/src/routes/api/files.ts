@@ -13,6 +13,11 @@ import { getFunctionAppDir } from "../../lib/StoragePaths";
 import { createLogger } from "../../lib/logger";
 import { listGitAppFiles } from "../../lib/GitOps";
 import { isDependencyFilename } from "../../lib/FunctionDependencies";
+import {
+	getFunctionFilePath,
+	getParentFolderPaths,
+	isValidFunctionFilePath,
+} from "../../lib/FunctionFilePaths";
 
 const log = createLogger("files");
 
@@ -35,6 +40,23 @@ async function isHtmlOnlyFunction(functionId: number): Promise<boolean> {
 		.endsWith(HTML_FILE_EXTENSION);
 }
 
+async function getOwnedFunction(functionId: number, userId: number) {
+	return prisma.function.findFirst({
+		where: { id: functionId, userId },
+		select: { id: true },
+	});
+}
+
+async function createParentFolders(functionId: number, filename: string) {
+	const parentFolders = getParentFolderPaths(filename);
+	if (parentFolders.length) {
+		await prisma.functionFolder.createMany({
+			data: parentFolders.map((name) => ({ functionId, name })),
+			skipDuplicates: true,
+		});
+	}
+}
+
 // Helper function to update container dependencies when key files change
 async function updateContainerDependencies(
 	functionId: number,
@@ -51,7 +73,10 @@ async function updateContainerDependencies(
 	try {
 		const container = docker.getContainer(containerName);
 		await container.restart();
-		log.info({ containerName, filename }, "Container restarted due to file change");
+		log.info(
+			{ containerName, filename },
+			"Container restarted due to file change",
+		);
 		return true;
 	} catch (err) {
 		log.error({ err, containerName }, "Failed to restart container");
@@ -75,7 +100,8 @@ export = new fileRouter.Path("/")
 								properties: {
 									filename: {
 										type: "string",
-										description: "Name of the file to create or update",
+										description:
+											"Name of the file to create or update",
 									},
 									code: {
 										type: "string",
@@ -129,6 +155,13 @@ export = new fileRouter.Path("/")
 						message: error.toString(),
 					});
 				}
+				if (!isValidFunctionFilePath(data.filename)) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message:
+							"Filename must be a relative path without empty, . or .. segments",
+					});
+				}
 
 				const DisallowedFiles = ["_runner.py", "_runner.js", "init.sh"];
 				if (DisallowedFiles.includes(data.filename)) {
@@ -150,6 +183,12 @@ export = new fileRouter.Path("/")
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						status: 400,
 						message: "Invalid function id",
+					});
+				}
+				if (!(await getOwnedFunction(functionId, authCheck.user.id))) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "Function not found",
 					});
 				}
 
@@ -195,6 +234,7 @@ export = new fileRouter.Path("/")
 						},
 					});
 				}
+				await createParentFolders(functionId, data.filename);
 
 				// Also write the file to the host function app directory so persistent containers
 				// that use a bind mount will see the changes. Replace {{API_BASE}} at write time.
@@ -210,18 +250,29 @@ export = new fileRouter.Path("/")
 							funcInfo.executionId,
 						);
 					}
-					await fs.writeFile(path.join(funcAppDir, data.filename), contentToWrite, {
+					const filePath = getFunctionFilePath(
+						funcAppDir,
+						data.filename,
+					);
+					await fs.mkdir(path.dirname(filePath), { recursive: true });
+					await fs.writeFile(filePath, contentToWrite, {
 						encoding: "utf-8",
 					});
 					// If this is a dependency file, ensure container dependencies are updated using the replaced content
-					if (isDependencyFilename(data.filename) || data.filename === "package.json") {
+					if (
+						isDependencyFilename(data.filename) ||
+						data.filename === "package.json"
+					) {
 						await updateContainerDependencies(
 							functionId,
 							data.filename,
 							contentToWrite as string,
 						);
 					}
-					log.info({ filePath: path.join(funcAppDir, data.filename) }, "Wrote updated file to host app dir");
+					log.info(
+						{ filePath },
+						"Wrote updated file to host app dir",
+					);
 				} catch (err) {
 					log.error({ err }, "Failed to write updated file to host");
 				}
@@ -249,7 +300,10 @@ export = new fileRouter.Path("/")
 									type: "object",
 									properties: {
 										status: { type: "string" },
-										data: { type: "array", items: { type: "object" } },
+										data: {
+											type: "array",
+											items: { type: "object" },
+										},
 									},
 								},
 							},
@@ -319,6 +373,286 @@ export = new fileRouter.Path("/")
 					data: files,
 				});
 			}),
+	)
+	.http("GET", "/api/function/{id}/folders", (http) =>
+		http.onRequest(async (ctr) => {
+			const authCheck = await checkAuthentication(
+				ctr.cookies.get(COOKIE),
+				ctr.headers.get(API_KEY_HEADER),
+			);
+			if (!authCheck.success) {
+				return ctr.print({ status: 401, message: authCheck.message });
+			}
+
+			const functionId = Number(ctr.params.get("id"));
+			if (!Number.isInteger(functionId) || functionId <= 0) {
+				return ctr
+					.status(ctr.$status.BAD_REQUEST)
+					.print({ status: 400, message: "Invalid function id" });
+			}
+			if (!(await getOwnedFunction(functionId, authCheck.user.id))) {
+				return ctr
+					.status(ctr.$status.NOT_FOUND)
+					.print({ status: 404, message: "Function not found" });
+			}
+
+			return ctr.print({
+				status: "OK",
+				data: await prisma.functionFolder.findMany({
+					where: { functionId },
+					orderBy: { name: "asc" },
+				}),
+			});
+		}),
+	)
+	.http("POST", "/api/function/{id}/folder", (http) =>
+		http.onRequest(async (ctr) => {
+			const authCheck = await checkAuthentication(
+				ctr.cookies.get(COOKIE),
+				ctr.headers.get(API_KEY_HEADER),
+			);
+			if (!authCheck.success)
+				return ctr.print({ status: 401, message: authCheck.message });
+			const [data, error] = await ctr.bindBody((z) =>
+				z.object({ name: z.string().min(1).max(256) }),
+			);
+			if (!data || !isValidFunctionFilePath(data.name)) {
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: data
+						? "Folder name must be a relative path without empty, . or .. segments"
+						: error.toString(),
+				});
+			}
+			const functionId = Number(ctr.params.get("id"));
+			if (!Number.isInteger(functionId) || functionId <= 0)
+				return ctr
+					.status(ctr.$status.BAD_REQUEST)
+					.print({ status: 400, message: "Invalid function id" });
+			if (!(await getOwnedFunction(functionId, authCheck.user.id)))
+				return ctr
+					.status(ctr.$status.NOT_FOUND)
+					.print({ status: 404, message: "Function not found" });
+			const gitBlock = await getGitEditBlock(functionId, prisma);
+			if (gitBlock) return ctr.status(gitBlock.status).print(gitBlock);
+			const conflictingFile = await prisma.functionFile.findFirst({
+				where: { functionId, name: data.name },
+			});
+			if (conflictingFile)
+				return ctr.status(ctr.$status.CONFLICT).print({
+					status: 409,
+					message: "A file already uses this folder name",
+				});
+			await createParentFolders(functionId, data.name);
+			const folder = await prisma.functionFolder.upsert({
+				where: { functionId_name: { functionId, name: data.name } },
+				create: { functionId, name: data.name },
+				update: {},
+			});
+			await fs.mkdir(
+				getFunctionFilePath(getFunctionAppDir(functionId), data.name),
+				{ recursive: true },
+			);
+			return ctr.print({ status: "OK", data: folder });
+		}),
+	)
+	.http("PATCH", "/api/function/{id}/folder", (http) =>
+		http.onRequest(async (ctr) => {
+			const authCheck = await checkAuthentication(
+				ctr.cookies.get(COOKIE),
+				ctr.headers.get(API_KEY_HEADER),
+			);
+			if (!authCheck.success)
+				return ctr.print({ status: 401, message: authCheck.message });
+			const [data, error] = await ctr.bindBody((z) =>
+				z.object({
+					name: z.string().min(1).max(256),
+					newName: z.string().min(1).max(256),
+				}),
+			);
+			if (
+				!data ||
+				!isValidFunctionFilePath(data.name) ||
+				!isValidFunctionFilePath(data.newName)
+			)
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: data
+						? "Folder names must be relative paths without empty, . or .. segments"
+						: error.toString(),
+				});
+			const functionId = Number(ctr.params.get("id"));
+			if (!Number.isInteger(functionId) || functionId <= 0)
+				return ctr
+					.status(ctr.$status.BAD_REQUEST)
+					.print({ status: 400, message: "Invalid function id" });
+			if (!(await getOwnedFunction(functionId, authCheck.user.id)))
+				return ctr
+					.status(ctr.$status.NOT_FOUND)
+					.print({ status: 404, message: "Function not found" });
+			const gitBlock = await getGitEditBlock(functionId, prisma);
+			if (gitBlock) return ctr.status(gitBlock.status).print(gitBlock);
+			if (data.name === data.newName) return ctr.print({ status: "OK" });
+			if (data.newName.startsWith(`${data.name}/`))
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "A folder cannot be moved into itself",
+				});
+			const [folders, files] = await Promise.all([
+				prisma.functionFolder.findMany({
+					where: {
+						functionId,
+						OR: [
+							{ name: data.name },
+							{ name: { startsWith: `${data.name}/` } },
+						],
+					},
+				}),
+				prisma.functionFile.findMany({
+					where: {
+						functionId,
+						name: { startsWith: `${data.name}/` },
+					},
+				}),
+			]);
+			if (!folders.length && !files.length)
+				return ctr
+					.status(ctr.$status.NOT_FOUND)
+					.print({ status: 404, message: "Folder not found" });
+			const [targetFileConflict, targetFolderConflict] = await Promise.all([
+				prisma.functionFile.findFirst({
+					where: {
+						functionId,
+						OR: [
+							{ name: data.newName },
+							{ name: { startsWith: `${data.newName}/` } },
+						],
+					},
+				}),
+				prisma.functionFolder.findFirst({
+					where: {
+						functionId,
+						OR: [
+							{ name: data.newName },
+							{ name: { startsWith: `${data.newName}/` } },
+						],
+					},
+				}),
+			]);
+			if (targetFileConflict || targetFolderConflict)
+				return ctr.status(ctr.$status.CONFLICT).print({
+					status: 409,
+					message: "A file or folder already exists at the destination",
+				});
+			await prisma.$transaction([
+				...folders.map((folder) =>
+					prisma.functionFolder.update({
+						where: { id: folder.id },
+						data: {
+							name: `${data.newName}${folder.name.slice(data.name.length)}`,
+						},
+					}),
+				),
+				...files.map((file) =>
+					prisma.functionFile.update({
+						where: { id: file.id },
+						data: {
+							name: `${data.newName}${file.name.slice(data.name.length)}`,
+						},
+					}),
+				),
+			]);
+			const appDir = getFunctionAppDir(functionId);
+			const oldPath = getFunctionFilePath(appDir, data.name);
+			const newPath = getFunctionFilePath(appDir, data.newName);
+			try {
+				await fs.mkdir(path.dirname(newPath), { recursive: true });
+				await fs.rename(oldPath, newPath);
+			} catch (err: unknown) {
+				if ((err as NodeJS.ErrnoException).code === "ENOENT")
+					await fs.mkdir(newPath, { recursive: true });
+				else throw err;
+			}
+			return ctr.print({ status: "OK" });
+		}),
+	)
+	.http("DELETE", "/api/function/{id}/folder", (http) =>
+		http.onRequest(async (ctr) => {
+			const authCheck = await checkAuthentication(
+				ctr.cookies.get(COOKIE),
+				ctr.headers.get(API_KEY_HEADER),
+			);
+			if (!authCheck.success)
+				return ctr.print({ status: 401, message: authCheck.message });
+			const [data, error] = await ctr.bindBody((z) =>
+				z.object({ name: z.string().min(1).max(256) }),
+			);
+			if (!data || !isValidFunctionFilePath(data.name))
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: data
+						? "Folder name must be a relative path without empty, . or .. segments"
+						: error.toString(),
+				});
+			const functionId = Number(ctr.params.get("id"));
+			if (!Number.isInteger(functionId) || functionId <= 0)
+				return ctr
+					.status(ctr.$status.BAD_REQUEST)
+					.print({ status: 400, message: "Invalid function id" });
+			if (!(await getOwnedFunction(functionId, authCheck.user.id)))
+				return ctr
+					.status(ctr.$status.NOT_FOUND)
+					.print({ status: 404, message: "Function not found" });
+			const gitBlock = await getGitEditBlock(functionId, prisma);
+			if (gitBlock) return ctr.status(gitBlock.status).print(gitBlock);
+			const files = await prisma.functionFile.findMany({
+				where: { functionId, name: { startsWith: `${data.name}/` } },
+			});
+			const folders = await prisma.functionFolder.findMany({
+				where: {
+					functionId,
+					OR: [
+						{ name: data.name },
+						{ name: { startsWith: `${data.name}/` } },
+					],
+				},
+			});
+			if (!folders.length && !files.length)
+				return ctr
+					.status(ctr.$status.NOT_FOUND)
+					.print({ status: 404, message: "Folder not found" });
+			const totalFiles = await prisma.functionFile.count({
+				where: { functionId },
+			});
+			if (files.length && totalFiles <= files.length)
+				return ctr.status(ctr.$status.BAD_REQUEST).print({
+					status: 400,
+					message: "Cannot delete the only file in the function",
+				});
+			await prisma.$transaction([
+				...files.map((file) =>
+					prisma.functionFile.delete({ where: { id: file.id } }),
+				),
+				...folders.map((folder) =>
+					prisma.functionFolder.delete({ where: { id: folder.id } }),
+				),
+			]);
+			try {
+				await fs.rm(
+					getFunctionFilePath(
+						getFunctionAppDir(functionId),
+						data.name,
+					),
+					{ recursive: true, force: true },
+				);
+			} catch (err) {
+				log.error(
+					{ err, folderName: data.name },
+					"Failed to delete folder from disk",
+				);
+			}
+			return ctr.print({ status: "OK", deletedFileCount: files.length });
+		}),
 	)
 	.http("DELETE", "/api/function/{id}/file/{fileId}", (http) =>
 		http
@@ -417,9 +751,14 @@ export = new fileRouter.Path("/")
 				if (fileToDelete) {
 					const funcAppDir = getFunctionAppDir(functionId);
 					try {
-						await fs.unlink(path.join(funcAppDir, fileToDelete.name));
+						await fs.unlink(
+							path.join(funcAppDir, fileToDelete.name),
+						);
 					} catch (err) {
-						log.error({ err, fileName: fileToDelete.name }, "Failed to delete file from disk");
+						log.error(
+							{ err, fileName: fileToDelete.name },
+							"Failed to delete file from disk",
+						);
 					}
 
 					if (dependencyPlaceholder !== null) {
@@ -428,9 +767,15 @@ export = new fileRouter.Path("/")
 								path.join(funcAppDir, fileToDelete.name),
 								dependencyPlaceholder,
 							);
-							log.info({ fileName: fileToDelete.name }, "Created empty file after deletion to prevent broken deployments");
+							log.info(
+								{ fileName: fileToDelete.name },
+								"Created empty file after deletion to prevent broken deployments",
+							);
 						} catch (err) {
-							log.error({ err, fileName: fileToDelete.name }, "Error creating empty file after deletion");
+							log.error(
+								{ err, fileName: fileToDelete.name },
+								"Error creating empty file after deletion",
+							);
 						}
 					}
 				}
@@ -568,7 +913,8 @@ export = new fileRouter.Path("/")
 						const oldPath = path.join(funcAppDir, oldFile.name);
 						const newPath = path.join(funcAppDir, data.newFilename);
 						const isLegacyDependency =
-							oldFile.name === "requirements.txt" || oldFile.name === "package.json";
+							oldFile.name === "requirements.txt" ||
+							oldFile.name === "package.json";
 
 						// Remove the old path before writing the renamed file. Keep the
 						// historical placeholders only for the legacy Python/Node manifests.
@@ -580,11 +926,11 @@ export = new fileRouter.Path("/")
 							}
 						}
 						if (isLegacyDependency) {
-							await fs.writeFile(
-								oldPath,
-								"# File was renamed\n",
+							await fs.writeFile(oldPath, "# File was renamed\n");
+							log.info(
+								{ fileName: oldFile.name },
+								"Created empty file after rename to prevent broken deployments",
 							);
-							log.info({ fileName: oldFile.name }, "Created empty file after rename to prevent broken deployments");
 						}
 
 						// Keep the host app directory synchronized for dependency and
@@ -595,18 +941,28 @@ export = new fileRouter.Path("/")
 							isLegacyDependency
 						) {
 							try {
-								const funcInfo = await getFunctionExecInfo(functionId);
-								let contentToWrite: string | Buffer = updatedFile.content;
-								if (funcInfo && typeof contentToWrite === "string") {
+								const funcInfo =
+									await getFunctionExecInfo(functionId);
+								let contentToWrite: string | Buffer =
+									updatedFile.content;
+								if (
+									funcInfo &&
+									typeof contentToWrite === "string"
+								) {
 									contentToWrite = replaceApiBaseInContent(
 										contentToWrite,
 										funcInfo.namespaceId,
 										funcInfo.executionId,
 									);
 								}
-								await fs.mkdir(path.dirname(newPath), { recursive: true });
+								await fs.mkdir(path.dirname(newPath), {
+									recursive: true,
+								});
 								await fs.writeFile(newPath, contentToWrite);
-								if (isDependencyFilename(data.newFilename) || data.newFilename === "package.json") {
+								if (
+									isDependencyFilename(data.newFilename) ||
+									data.newFilename === "package.json"
+								) {
 									await updateContainerDependencies(
 										functionId,
 										data.newFilename,
@@ -614,11 +970,17 @@ export = new fileRouter.Path("/")
 									);
 								}
 							} catch (err) {
-								log.error({ err, fileName: data.newFilename }, "Error writing renamed dependency file");
+								log.error(
+									{ err, fileName: data.newFilename },
+									"Error writing renamed dependency file",
+								);
 							}
 						}
 					} catch (err) {
-						log.error({ err }, "Error handling rename of dependency file");
+						log.error(
+							{ err },
+							"Error handling rename of dependency file",
+						);
 					}
 				}
 
@@ -628,190 +990,209 @@ export = new fileRouter.Path("/")
 				});
 			}),
 	)
-	.http("POST", "/api/function/{id}/file/{fileId}/load-fill_default", (http) =>
-		http
-			.document({
-				description: "Fill a function file with a default template",
-				tags: ["Function Files"] as OpenAPITags[],
-				operationId: "loadFillDefault",
-				requestBody: {
-					content: {
-						"application/json": {
-							schema: {
-								type: "object",
-								required: ["defaultToLoad"],
-								properties: {
-									defaultToLoad: {
-										type: "string",
-										description: "Template identifier (e.g. python_default, go_routing)",
-									},
-								},
-							},
-						},
-					},
-				},
-				responses: {
-					200: {
-						description: "File filled with default template successfully",
+	.http(
+		"POST",
+		"/api/function/{id}/file/{fileId}/load-fill_default",
+		(http) =>
+			http
+				.document({
+					description: "Fill a function file with a default template",
+					tags: ["Function Files"] as OpenAPITags[],
+					operationId: "loadFillDefault",
+					requestBody: {
 						content: {
 							"application/json": {
 								schema: {
 									type: "object",
+									required: ["defaultToLoad"],
 									properties: {
-										status: { type: "string" },
-										data: { type: "object" },
+										defaultToLoad: {
+											type: "string",
+											description:
+												"Template identifier (e.g. python_default, go_routing)",
+										},
 									},
 								},
 							},
 						},
 					},
-				},
-			})
-			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+					responses: {
+						200: {
+							description:
+								"File filled with default template successfully",
+							content: {
+								"application/json": {
+									schema: {
+										type: "object",
+										properties: {
+											status: { type: "string" },
+											data: { type: "object" },
+										},
+									},
+								},
+							},
+						},
+					},
+				})
+				.onRequest(async (ctr) => {
+					const authCheck = await checkAuthentication(
+						ctr.cookies.get(COOKIE),
+						ctr.headers.get(API_KEY_HEADER),
+					);
 
-				if (!authCheck.success) {
+					if (!authCheck.success) {
+						return ctr.print({
+							status: 401,
+							message: authCheck.message,
+						});
+					}
+
+					const [data, error] = await ctr.bindBody((z) =>
+						z.object({
+							defaultToLoad: z.string(),
+						}),
+					);
+
+					if (!data) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: error.toString(),
+						});
+					}
+
+					const id = ctr.params.get("id");
+					const fileId = ctr.params.get("fileId");
+
+					if (!id || !fileId) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: "Missing function id or file id",
+						});
+					}
+
+					const functionId = parseInt(id);
+					const fileIdInt = parseInt(fileId);
+
+					if (isNaN(functionId) || isNaN(fileIdInt)) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: "Invalid function id or file id",
+						});
+					}
+
+					const gitBlock = await getGitEditBlock(functionId, prisma);
+					if (gitBlock) {
+						return ctr.status(gitBlock.status).print({
+							...gitBlock,
+						});
+					}
+
+					const fileToFill = await prisma.functionFile.findUnique({
+						where: { id: fileIdInt },
+					});
+
+					if (!fileToFill) {
+						return ctr.status(ctr.$status.NOT_FOUND).print({
+							status: 404,
+							message: "File not found",
+						});
+					}
+
+					// Get the function to check its runtime
+					const func = await prisma.function.findUnique({
+						where: { id: functionId },
+						select: { image: true },
+					});
+
+					if (!func) {
+						return ctr.status(ctr.$status.NOT_FOUND).print({
+							status: 404,
+							message: "Function not found",
+						});
+					}
+
+					// Map the defaultToLoad to actual file path
+					const defaultFileMap: Record<string, string> = {
+						python_default: "../fill_examples/default.py",
+						python_data_passing: "../fill_examples/data_passing.py",
+						python_custom_responses:
+							"../fill_examples/custom_responses.py",
+						python_environment_variables:
+							"../fill_examples/environment_variables.py",
+						python_persistent_data:
+							"../fill_examples/persistent_data.py",
+						python_redirects: "../fill_examples/redirects.py",
+						python_secure_headers:
+							"../fill_examples/secure_headers.py",
+						python_database_communication:
+							"../fill_examples/database_communication.py",
+						python_routing: "../fill_examples/routing.py",
+						python_discord_webhook:
+							"../fill_examples/discord_webhook.py",
+						python_api_client: "../fill_examples/api_client.py",
+						go_default: "../fill_examples/default.go",
+						go_data_passing: "../fill_examples/data_passing.go",
+						go_custom_responses:
+							"../fill_examples/custom_responses.go",
+						go_routing: "../fill_examples/routing.go",
+						go_redirects: "../fill_examples/redirects.go",
+					};
+
+					const filePath = defaultFileMap[data.defaultToLoad];
+					if (!filePath) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: `Unknown default template: ${data.defaultToLoad}`,
+						});
+					}
+
+					// Validate runtime matches the template
+					const templateLanguage = data.defaultToLoad.split("_")[0]; // Extract language prefix (e.g., "python" from "python_default")
+					const functionRuntime = func.image.toLowerCase(); // e.g., "python:3.11"
+					const functionRuntimeLanguage =
+						functionRuntime.split(":")[0];
+
+					// Check if the runtime matches the template language
+					if (functionRuntimeLanguage !== templateLanguage) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: `Cannot load ${templateLanguage} template into a ${functionRuntimeLanguage} function`,
+						});
+					}
+
+					// Actually filling it
+					let loadedContent: string;
+					try {
+						loadedContent = await fs.readFile(filePath, {
+							encoding: "utf-8",
+						});
+					} catch (err) {
+						log.error(
+							{ err, filePath },
+							"Error reading default file",
+						);
+						return ctr
+							.status(ctr.$status.INTERNAL_SERVER_ERROR)
+							.print({
+								status: 500,
+								message: "Failed to load default template",
+							});
+					}
+
+					const updatedFile = await prisma.functionFile.update({
+						where: {
+							id: fileIdInt,
+						},
+						data: {
+							content: loadedContent,
+						},
+					});
+
 					return ctr.print({
-						status: 401,
-						message: authCheck.message,
+						status: "OK",
+						data: updatedFile,
 					});
-				}
-
-				const [data, error] = await ctr.bindBody((z) =>
-					z.object({
-						defaultToLoad: z.string(),
-					}),
-				);
-
-				if (!data) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: error.toString(),
-					});
-				}
-
-				const id = ctr.params.get("id");
-				const fileId = ctr.params.get("fileId");
-
-				if (!id || !fileId) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: "Missing function id or file id",
-					});
-				}
-
-				const functionId = parseInt(id);
-				const fileIdInt = parseInt(fileId);
-
-				if (isNaN(functionId) || isNaN(fileIdInt)) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: "Invalid function id or file id",
-					});
-				}
-
-				const gitBlock = await getGitEditBlock(functionId, prisma);
-				if (gitBlock) {
-					return ctr.status(gitBlock.status).print({
-						...gitBlock,
-					});
-				}
-
-				const fileToFill = await prisma.functionFile.findUnique({
-					where: { id: fileIdInt },
-				});
-
-				if (!fileToFill) {
-					return ctr.status(ctr.$status.NOT_FOUND).print({
-						status: 404,
-						message: "File not found",
-					});
-				}
-
-				// Get the function to check its runtime
-				const func = await prisma.function.findUnique({
-					where: { id: functionId },
-					select: { image: true },
-				});
-
-				if (!func) {
-					return ctr.status(ctr.$status.NOT_FOUND).print({
-						status: 404,
-						message: "Function not found",
-					});
-				}
-
-				// Map the defaultToLoad to actual file path
-				const defaultFileMap: Record<string, string> = {
-					python_default: "../fill_examples/default.py",
-					python_data_passing: "../fill_examples/data_passing.py",
-					python_custom_responses: "../fill_examples/custom_responses.py",
-					python_environment_variables: "../fill_examples/environment_variables.py",
-					python_persistent_data: "../fill_examples/persistent_data.py",
-					python_redirects: "../fill_examples/redirects.py",
-					python_secure_headers: "../fill_examples/secure_headers.py",
-					python_database_communication:
-						"../fill_examples/database_communication.py",
-					python_routing: "../fill_examples/routing.py",
-					python_discord_webhook: "../fill_examples/discord_webhook.py",
-					python_api_client: "../fill_examples/api_client.py",
-					go_default: "../fill_examples/default.go",
-					go_data_passing: "../fill_examples/data_passing.go",
-					go_custom_responses: "../fill_examples/custom_responses.go",
-					go_routing: "../fill_examples/routing.go",
-					go_redirects: "../fill_examples/redirects.go",
-				};
-
-				const filePath = defaultFileMap[data.defaultToLoad];
-				if (!filePath) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: `Unknown default template: ${data.defaultToLoad}`,
-					});
-				}
-
-				// Validate runtime matches the template
-				const templateLanguage = data.defaultToLoad.split("_")[0]; // Extract language prefix (e.g., "python" from "python_default")
-				const functionRuntime = func.image.toLowerCase(); // e.g., "python:3.11"
-				const functionRuntimeLanguage = functionRuntime.split(":")[0];
-
-				// Check if the runtime matches the template language
-				if (functionRuntimeLanguage !== templateLanguage) {
-					return ctr.status(ctr.$status.BAD_REQUEST).print({
-						status: 400,
-						message: `Cannot load ${templateLanguage} template into a ${functionRuntimeLanguage} function`,
-					});
-				}
-
-				// Actually filling it
-				let loadedContent: string;
-				try {
-					loadedContent = await fs.readFile(filePath, { encoding: "utf-8" });
-				} catch (err) {
-					log.error({ err, filePath }, "Error reading default file");
-					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
-						status: 500,
-						message: "Failed to load default template",
-					});
-				}
-
-				const updatedFile = await prisma.functionFile.update({
-					where: {
-						id: fileIdInt,
-					},
-					data: {
-						content: loadedContent,
-					},
-				});
-
-				return ctr.print({
-					status: "OK",
-					data: updatedFile,
-				});
-			}),
+				}),
 	)
 	.http("GET", "/api/function-fill-defaults", (http) =>
 		http
@@ -835,8 +1216,12 @@ export = new fileRouter.Path("/")
 												properties: {
 													id: { type: "string" },
 													name: { type: "string" },
-													language: { type: "string" },
-													description: { type: "string" },
+													language: {
+														type: "string",
+													},
+													description: {
+														type: "string",
+													},
 												},
 											},
 										},
@@ -884,17 +1269,23 @@ export = new fileRouter.Path("/")
 								default: "Basic function template",
 								data_passing:
 									"Receive and process JSON data from triggers or HTTP requests",
-								custom_responses: "Return custom HTTP status codes and responses",
+								custom_responses:
+									"Return custom HTTP status codes and responses",
 								environment_variables:
 									"Securely use API keys via environment variables",
 								persistent_data:
 									"Store data that persists between function invocations",
 								redirects: "Implement HTTP redirects (301/302)",
-								secure_headers: "Validate x-secure-header for additional security",
-								database_communication: "Use SHSF's built-in database interface",
-								routing: "Handle multiple routes in a single function",
-								discord_webhook: "Send messages to Discord (great for scheduled tasks)",
-								api_client: "Make authenticated requests to external APIs",
+								secure_headers:
+									"Validate x-secure-header for additional security",
+								database_communication:
+									"Use SHSF's built-in database interface",
+								routing:
+									"Handle multiple routes in a single function",
+								discord_webhook:
+									"Send messages to Discord (great for scheduled tasks)",
+								api_client:
+									"Make authenticated requests to external APIs",
 							};
 
 							if (file.endsWith(".py")) {
@@ -913,14 +1304,20 @@ export = new fileRouter.Path("/")
 
 							const name = nameWithoutExt
 								.split("_")
-								.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+								.map(
+									(word) =>
+										word.charAt(0).toUpperCase() +
+										word.slice(1),
+								)
 								.join(" ");
 
 							return {
 								id,
 								name,
 								language,
-								description: descriptions[nameWithoutExt] || "No description available",
+								description:
+									descriptions[nameWithoutExt] ||
+									"No description available",
 							};
 						});
 
