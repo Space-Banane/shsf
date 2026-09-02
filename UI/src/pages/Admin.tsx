@@ -50,6 +50,9 @@ const ALL_IMAGES = [
 	{ image: "golang:1.23", family: "Go", deprecated: false },
 	{ image: "golang:1.20", family: "Go", deprecated: true },
 	{ image: "golang:1.21", family: "Go", deprecated: true },
+	{ image: "node:20", family: "Node.js", deprecated: false },
+	{ image: "node:22", family: "Node.js", deprecated: false },
+	{ image: "node:24", family: "Node.js", deprecated: false },
 ];
 
 // ─── Shared UI helpers ─────────────────────────────────────────────────────────
