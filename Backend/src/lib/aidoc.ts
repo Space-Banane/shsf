@@ -1,6 +1,6 @@
 /**
  * SHSF platform reference injected into AI generation prompts and exposed
- * via the MCP get_docs tool. Keep this as the single source of truth.
+ * via the AI generation route. Keep this as the single source of truth.
  */
 export const AIDOC = `
 ## SHSF Platform Reference — read this carefully before writing any code

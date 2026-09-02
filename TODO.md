@@ -14,7 +14,6 @@
     > Like you can have a select in the env modal that switches the functions "env_state" to whatever profile you have, by default we have the "prod" profile, but users should also be able to add a "dev" (or custom) profile that can be used to test functions in a different environment. Switching would mean that all requests to that function would be routed to the dev profile for example, which we dont want, thats why on api exec calls we can use a "x-use-env" to use the custom, non "prod" profile for that function, and the default would be prod. This would allow users to test functions in a dev environment without affecting the prod environment.
 - [ ] Relating execution logs
     > On an Execution log, the function should be able to call a function from the runtime like this: `makeLog("log message", {level: "info"})` and it will create a log entry in the existing execution logs for that execution. This will allow users to log messages from within their functions and have them show up in the execution logs for that function. So they dont have to keep digging in the print statements and so that agents can work better with this
-- [ ] Keep MCP server up-to-date with the lastest features
 
 ## P2 - Priority 2 (Medium)
 - [ ] Manage runtimes & images (CRUD) and move hard coded stuff to this. Migration baseline needed tho for existing instances. & pre pulling images on button presses with live ui statuses

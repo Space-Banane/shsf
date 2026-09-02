@@ -41,7 +41,6 @@ import { OpencvInstallPage } from "./pages/docs/opencv-install";
 import { CallFunctionsDocPage } from "./pages/docs/call-functions";
 import { AdminPage } from "./pages/Admin";
 import FunctionAnalyticsPage from "./pages/FunctionAnalytics";
-import AgentsPage from "./pages/Agents";
 // Added back the routes array
 export interface AppRoute {
 	path: string;
@@ -293,13 +292,6 @@ export const routes: AppRoute[] = [
 		name: "Access Tokens",
 		component: AccessTokensPage,
 		requireAuth: true,
-	},
-	{
-		path: "/agents",
-		name: "Agents",
-		component: AgentsPage,
-		requireAuth: true,
-		show_nav: true,
 	},
 	{
 		path: "/guest-users",
