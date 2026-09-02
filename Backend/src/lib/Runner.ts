@@ -74,6 +74,7 @@ import {
 	parseStoredEnvironmentVariables,
 	toDockerEnvironment,
 } from "./EnvironmentVariables";
+import { getRuntimeImageStatus } from "./RunnerImagePulls";
 
 async function getRuntimeEnvironment(functionData: Pick<Function, "env" | "userId">) {
 	const accountData = await prisma.user.findUnique({
@@ -431,23 +432,36 @@ export async function executeFunction(
 					);
 				}
 
-				try {
-					const imageExists = await docker.listImages({
-						filters: JSON.stringify({ reference: [functionData.image] }),
-					});
-					if (imageExists.length === 0) {
-						log.info({ functionId: functionData.id, image: functionData.image }, "Pulling image");
-						const pullStream = await docker.pull(functionData.image);
-						await new Promise((resolve, reject) => {
+				const imageStatus = await getRuntimeImageStatus(functionData.image, {
+					listImages: (image) =>
+						docker.listImages({
+							filters: JSON.stringify({ reference: [image] }),
+						}),
+					pullImage: async (image) => {
+						const pullStream = await docker.pull(image);
+						await new Promise<void>((resolve, reject) => {
 							docker.modem.followProgress(pullStream, (err) =>
-								err ? reject(err) : resolve(null)
+								err ? reject(err) : resolve(),
 							);
 						});
-						mark("Image pull");
-					}
-				} catch (imgError) {
-					log.error({ err: imgError }, "Error checking or pulling image");
-					throw imgError;
+					},
+				});
+				if (imageStatus === "pulling") {
+					const message = `Runtime image ${functionData.image} is being prepared. Please retry in a few moments.`;
+					containerNotReady = true;
+					exitCode = -10;
+					return {
+						logs: message,
+						result: { _shsf: "v2" as const, _code: 503, _res: message },
+						tooks: [
+							{
+								description: "Runtime image is being prepared",
+								value: (Date.now() - starting_time) / 1000,
+								timestamp: Date.now(),
+							},
+						],
+						exit_code: exitCode,
+					};
 				}
 
 				const runtimeEnv = await getRuntimeEnvironment(functionData);
