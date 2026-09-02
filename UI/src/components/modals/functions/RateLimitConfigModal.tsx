@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import Modal from "../Modal";
 import { cancelBtnClass, primaryBtnClass } from "../Modal";
+import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 import {
 	ExecutionRateLimitIdentity,
 	getRateLimitConfig,
@@ -582,6 +583,13 @@ function RateLimitConfigModal({
 			setIsSaving(false);
 		}
 	};
+
+	useShiftEnterSubmit(
+		() => {
+			void handleSave();
+		},
+		isOpen && !isLoading && !isSaving,
+	);
 
 	return (
 		<Modal

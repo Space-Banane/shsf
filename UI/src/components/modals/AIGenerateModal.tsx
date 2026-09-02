@@ -8,6 +8,7 @@ import {
 } from "../../types/Prisma";
 import { generateWithAI, generateConfigWithAI, type AIMode } from "../../services/backend.ai";
 import { createFunction } from "../../services/backend.functions";
+import { useShiftEnterSubmit } from "../../hooks/useShiftEnterSubmit";
 import Modal from "./Modal";
 import { cancelBtnClass, primaryBtnClass, selectClass, textareaClass, labelClass } from "./Modal";
 
@@ -150,6 +151,19 @@ function AIGenerateModal({
 		onClose();
 		if (result) window.location.reload();
 	};
+
+	useShiftEnterSubmit(
+		() => {
+			if (functionId) {
+				void handleSubmit();
+			} else if (stage === "intake") {
+				void handleNextToReview();
+			} else if (stage === "review") {
+				void handleConfirmKickoff();
+			}
+		},
+		isOpen && !disabled && !isLoading && !result && (Boolean(functionId) || stage !== "generating"),
+	);
 
 	if (!isOpen) return null;
 

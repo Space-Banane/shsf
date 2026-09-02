@@ -6,6 +6,7 @@ import {
 } from "../services/backend.accesstokens";
 import { Token } from "../types/Prisma";
 import { Icon } from "../components/ui/Icon";
+import { useShiftEnterSubmit } from "../hooks/useShiftEnterSubmit";
 
 const AGENT_KEY_NAME = "SHSF Agents";
 
@@ -30,6 +31,8 @@ function CommandModal({ label, sublabel, content, onClose }: CommandModalProps) 
 		setCopied(true);
 		setTimeout(() => setCopied(false), 1500);
 	};
+
+	useShiftEnterSubmit(handleCopy, true);
 
 	return (
 		<div

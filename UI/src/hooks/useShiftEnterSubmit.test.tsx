@@ -27,6 +27,14 @@ describe("useShiftEnterSubmit", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it("does not re-submit while Ctrl+Enter is held", () => {
+		const onSubmit = jest.fn();
+		renderHook(() => useShiftEnterSubmit(onSubmit));
+
+		fireEvent.keyDown(document, { key: "Enter", ctrlKey: true, repeat: true });
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("does not fire when disabled", () => {
 		const onSubmit = jest.fn();
 		renderHook(() => useShiftEnterSubmit(onSubmit, false));

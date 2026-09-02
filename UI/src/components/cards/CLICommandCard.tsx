@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useShiftEnterSubmit } from "../../hooks/useShiftEnterSubmit";
 
 interface CLICommandCardProps {
 	command: string;
@@ -20,6 +21,8 @@ const CLICommandCard: React.FC<CLICommandCardProps> = ({
 		setCopied(true);
 		setTimeout(() => setCopied(false), 1500);
 	};
+
+	useShiftEnterSubmit(handleCopy, modalOpen);
 
 	return (
 		<>
