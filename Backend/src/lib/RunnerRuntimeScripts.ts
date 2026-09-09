@@ -356,6 +356,38 @@ echo "[SHSF INIT] Python setup complete."
 	return body;
 }
 
+/**
+ * Generates the explicit dependency-install action used by the UI. This is
+ * deliberately independent from init.sh: an existing container can have an
+ * older init script, while the manual action must always install the current
+ * requirements into the venv used by the runner.
+ */
+export function generatePythonDependencyInstallScript(functionId: number): string {
+	return `#!/bin/sh
+set -eu
+cd /app
+
+if [ ! -f requirements.txt ]; then
+	echo "[SHSF PIP] No requirements.txt found." >&2
+	exit 2
+fi
+
+VENV_DIR="/pip-cache/venv/function-${functionId}"
+HASH_FILE="/pip-cache/hashes/function-${functionId}/req.hash"
+mkdir -p "$(dirname "$VENV_DIR")" "$(dirname "$HASH_FILE")"
+rm -rf "$VENV_DIR"
+python3 -m venv "$VENV_DIR"
+"$VENV_DIR/bin/python" -m pip install --upgrade pip
+"$VENV_DIR/bin/python" -m pip install --no-cache-dir -r requirements.txt
+
+md5sum requirements.txt | awk '{print $1}' > "$HASH_FILE"
+echo "export PATH=$VENV_DIR/bin:$PATH" > /app/.shsf_env
+echo "export PYTHONPATH=/app:$PYTHONPATH" >> /app/.shsf_env
+echo "export VIRTUAL_ENV=$VENV_DIR" >> /app/.shsf_env
+echo "[SHSF PIP] Python dependencies installed."
+`;
+}
+
 export function generateNodeJsRunnerScript(startupFile: string): string {
 	return `#!/usr/bin/env node
 'use strict';
@@ -613,4 +645,3 @@ echo "[SHSF INIT] Go setup complete."
 
 	return body;
 }
-

@@ -28,6 +28,7 @@ import {
 	generateNodeJsRunnerScript,
 	generateNodeJsRunnerShScript,
 	generateNodeJsInitBody,
+	generatePythonDependencyInstallScript,
 	generatePythonInitBody,
 } from "../lib/RunnerRuntimeScripts";
 
@@ -261,6 +262,15 @@ describe("Python runtime scripts", () => {
 		expect(body).toContain('VENV_DIR="/pip-cache/venv/function-42"');
 		expect(body).toContain("pip install --no-cache-dir -r requirements.txt");
 		expect(body).toContain("req.hash");
+	});
+
+	it("manual install recreates the runner's virtual environment", () => {
+		const script = generatePythonDependencyInstallScript(42);
+		expect(script).toContain('VENV_DIR="/pip-cache/venv/function-42"');
+		expect(script).toContain('rm -rf "$VENV_DIR"');
+		expect(script).toContain('"$VENV_DIR/bin/python" -m pip install --no-cache-dir -r requirements.txt');
+		expect(script).toContain("req.hash");
+		expect(script).toContain(".shsf_env");
 	});
 });
 

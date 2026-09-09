@@ -64,6 +64,7 @@ import {
 	generatePythonRunnerScript,
 	generateGoRunnerShScript,
 	generatePythonInitBody,
+	generatePythonDependencyInstallScript,
 	generateGoInitBody,
 	generateNodeJsRunnerScript,
 	generateNodeJsRunnerShScript,
@@ -851,7 +852,7 @@ export async function installDependencies(
 	try {
 		const container = docker.getContainer(containerName);
 		const requirementsFile = files.find(
-			(file) => file.name.toLowerCase() === "requirements.txt",
+			(file) => file.name === "requirements.txt",
 		);
 
 		// Function files are normally synced immediately before execution. The
@@ -887,7 +888,7 @@ export async function installDependencies(
 			Cmd: [
 				"/bin/sh",
 				"-c",
-				"cd /app && /bin/sh ./init.sh",
+				generatePythonDependencyInstallScript(functionId),
 			],
 			Env: execEnv,
 			AttachStdout: true,

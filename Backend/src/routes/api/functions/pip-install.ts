@@ -102,11 +102,7 @@ export = new fileRouter.Path("/").http(
 
 				const hasRequirements = functionData.git_url
 					? fsSync.existsSync(path.join(getFunctionAppDir(functionId), "requirements.txt"))
-					: files.some(
-							(file) =>
-								file.name.toLowerCase() === "requirements.txt" ||
-								file.name.toLowerCase().endsWith("/requirements.txt"),
-						);
+					: files.some((file) => file.name === "requirements.txt");
 				if (!hasRequirements) {
 					return ctr.status(ctr.$status.NOT_FOUND).print({
 						status: 404,
