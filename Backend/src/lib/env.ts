@@ -22,6 +22,12 @@ const baseSchema = z.object({
 	RATELIMIT: z.coerce.number().int().nonnegative().default(0),
 	LOG_LEVEL: z.string().default("info"),
 	OPENROUTER_API_KEY: z.string().optional(),
+	// Demo mode is deliberately opt-in. It creates a public, disposable account
+	// and sample function data, so it must never be enabled for a real instance.
+	IS_DEMO: z
+		.string()
+		.default("false")
+		.transform((v) => v === "true"),
 	REQUEST_DEBUGGING: z
 		.enum(["true", "false"])
 		.transform((v) => v === "true")

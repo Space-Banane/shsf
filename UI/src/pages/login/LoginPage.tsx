@@ -23,6 +23,7 @@ function LoginPage() {
 	const [password, setPassword] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
+	const [isDemo, setIsDemo] = useState(false);
 	const navigate = useNavigate();
 	const location = useLocation();
 	const { user, refreshUser } = useContext(UserContext);
@@ -32,6 +33,13 @@ function LoginPage() {
 	useEffect(() => {
 		if (user) navigate(redirectPath, { replace: true });
 	}, [user, navigate, redirectPath]);
+
+	useEffect(() => {
+		fetch(BASE_URL + "/api/config")
+			.then((response) => response.json())
+			.then((config: { isDemo?: boolean }) => setIsDemo(config.isDemo === true))
+			.catch(() => setIsDemo(false));
+	}, []);
 
 	const handleLogin = async () => {
 		setError("");
@@ -70,6 +78,12 @@ function LoginPage() {
 				</div>
 
 				<div className="bg-surface border border-white/[0.07] rounded-xl p-6 shadow-2xl space-y-4">
+					{isDemo && (
+						<div className="px-3 py-2.5 bg-primary/10 border border-primary/20 rounded-lg text-sm text-text">
+							<p className="font-medium">Public demo instance</p>
+							<p className="text-muted mt-1">Sign in with <span className="font-mono text-text">demo@shsf.local</span> / <span className="font-mono text-text">demo-password</span>.</p>
+						</div>
+					)}
 					{successMessage && (
 						<div className="px-3 py-2.5 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">
 							{successMessage}

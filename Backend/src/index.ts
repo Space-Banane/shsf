@@ -18,6 +18,7 @@ import { ERROR_MESSAGES } from "./lib/errors";
 import { startSystemCrons } from "./lib/SystemCrons";
 import { reconcileUpdateState } from "./lib/Updater";
 import { getUpdateLastCheck } from "./lib/DataManager";
+import { ensureDemoData, DEMO_EMAIL } from "./lib/Demo";
 
 export const VERSION: {
 	type: "SHSF API" | "SHSF UI";
@@ -120,6 +121,10 @@ if (env.NODE_ENV !== "test") {
 		.start()
 		.then(async (port) => {
 			await prisma.$connect();
+			const demo = await ensureDemoData();
+			if (demo) {
+				logger.warn({ email: DEMO_EMAIL, functions: demo.functions }, "IS_DEMO enabled; public demo data seeded");
+			}
 			const uuid = await getUUID();
 
 			logger.info({ port, uuid }, "SHSF API running");

@@ -75,6 +75,7 @@ Edit `.env` and set the required variables:
 | `REACT_APP_API_URL` | Full URL to the backend API |
 | `CORS_URLS` | Additional comma-separated CORS origins |
 | `INSTANCE_SECRET` | Random secret — **change the default in production** |
+| `IS_DEMO` | Set to `true` only for a disposable public demo; seeds `demo@shsf.local` / `demo-password` and an example function |
 
 An optional MariaDB service block is included (commented out) in `docker-compose.yml` if you do not have an external database.
 
