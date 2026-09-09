@@ -28,6 +28,7 @@ import {
 	generateNodeJsRunnerScript,
 	generateNodeJsRunnerShScript,
 	generateNodeJsInitBody,
+	generatePythonInitBody,
 } from "../lib/RunnerRuntimeScripts";
 
 type TestStorageDb = NonNullable<
@@ -248,6 +249,18 @@ describe("Node.js runtime scripts", () => {
 	it("init body skips ffmpeg installation when not requested", () => {
 		const body = generateNodeJsInitBody(1, { ffmpeg_install: false });
 		expect(body).not.toContain("ffmpeg");
+	});
+});
+
+describe("Python runtime scripts", () => {
+	it("installs requirements in the function virtual environment", () => {
+		const body = generatePythonInitBody(42, {
+			ffmpeg_install: false,
+			opencv_install: false,
+		});
+		expect(body).toContain('VENV_DIR="/pip-cache/venv/function-42"');
+		expect(body).toContain("pip install --no-cache-dir -r requirements.txt");
+		expect(body).toContain("req.hash");
 	});
 });
 

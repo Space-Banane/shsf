@@ -369,7 +369,13 @@ export async function executeFunction(
 				trace("Reusing running container");
 			}
 
-			if (runtimeType === "golang" || runtimeType === "node") {
+			// Python dependencies are kept in a per-function venv. Re-run init for
+			// existing containers so a changed requirements.txt is detected by its hash.
+			if (
+				runtimeType === "python" ||
+				runtimeType === "golang" ||
+				runtimeType === "node"
+			) {
 				const initExec = await container.exec({
 					Cmd: ["/bin/sh", "/app/init.sh"],
 					AttachStdout: true,
@@ -395,7 +401,13 @@ export async function executeFunction(
 				});
 
 				log.debug({ functionId: functionData.id }, `Init output: ${initOutput.stderr}`);
-				mark(runtimeType === "golang" ? "Go init/rebuild" : "Node.js init/install");
+				mark(
+					runtimeType === "python"
+						? "Python init/install"
+						: runtimeType === "golang"
+							? "Go init/rebuild"
+							: "Node.js init/install",
+				);
 			}
 		} catch (error: any) {
 			if (error.statusCode === 404) {
@@ -830,7 +842,7 @@ export async function buildPayloadFromPOST(
 export async function installDependencies(
 	functionId: number,
 	functionData: any,
-	_files: any[]
+	files: any[]
 ): Promise<boolean | 404> {
 	const docker = new Docker();
 	const functionIdStr = String(functionId);
@@ -838,6 +850,21 @@ export async function installDependencies(
 
 	try {
 		const container = docker.getContainer(containerName);
+		const requirementsFile = files.find(
+			(file) => file.name.toLowerCase() === "requirements.txt",
+		);
+
+		// Function files are normally synced immediately before execution. The
+		// explicit install action must do the same, otherwise it can silently
+		// install the previous version of requirements.txt from /app.
+		if (requirementsFile && !functionData.git_url) {
+			const requirementsPath = path.join(
+				getFunctionAppDir(functionId),
+				requirementsFile.name,
+			);
+			await fs.mkdir(path.dirname(requirementsPath), { recursive: true });
+			await fs.writeFile(requirementsPath, requirementsFile.content);
+		}
 
 		try {
 			const inspectInfo = await container.inspect();
@@ -860,7 +887,7 @@ export async function installDependencies(
 			Cmd: [
 				"/bin/sh",
 				"-c",
-				"cd /app && if [ -f requirements.txt ]; then pip install --user -r requirements.txt; else echo 'No requirements.txt found.'; fi",
+				"cd /app && /bin/sh ./init.sh",
 			],
 			Env: execEnv,
 			AttachStdout: true,
