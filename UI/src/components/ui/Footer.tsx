@@ -86,7 +86,7 @@ export function Footer() {
 	return (
 		<footer className="bg-footer border-t border-white/[0.07] text-base">
 			{/* Main grid */}
-			<div className="w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 pt-10 pb-6">
+			<div className="w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:w-11/12 xl:px-0 2xl:w-5/6 2xl:px-0 pt-10 pb-6">
 				<div className="grid grid-cols-1 gap-8 md:grid-cols-[2fr_1fr_1fr]">
 					{/* Brand column */}
 					<div className="flex flex-col gap-3 max-w-xs">

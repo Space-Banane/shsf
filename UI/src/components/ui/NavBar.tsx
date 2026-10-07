@@ -79,7 +79,7 @@ export function NavBar({
 
 	return (
 		<header className="relative z-40 bg-navbar border-b border-white/[0.07]">
-			<div className="w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
+			<div className="w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:w-11/12 xl:px-0 2xl:w-5/6 2xl:px-0">
 				<div className="flex h-16 items-center justify-between">
 					{/* Logo */}
 					<a href="/" className="flex items-center gap-2 shrink-0 group">

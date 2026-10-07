@@ -45,7 +45,7 @@ function AppLayout() {
 		<div className="min-h-screen flex flex-col bg-background">
 			<NavBar user={user} loading={loading} refreshUser={refreshUser} />
 			<ToastContainer theme="dark" autoClose={3500} limit={15} />
-			<main className="flex-grow w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-6">
+			<main className="flex-grow w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:w-11/12 xl:px-0 2xl:w-5/6 2xl:px-0 py-6">
 				<Outlet />
 			</main>
 			<Footer />
