@@ -326,7 +326,7 @@ def main(args):
 For a fully static page: set an .html file as the startup file. SHSF auto-detects this
 "Serve Only HTML" mode and serves the startup file for the default route without spinning
 up Python/Go. Additional .html files may be served by matching route names, such as
-`/about` for `about.html`; routes remain static file lookups.
+\`/about\` for \`about.html\`; routes remain static file lookups.
 
 ---
 
