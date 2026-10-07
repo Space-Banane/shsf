@@ -1688,7 +1688,7 @@ function FunctionDetail() {
 			/>
 
 			{/* Page header */}
-			<div className="w-full border-b border-white/[0.07] mb-6 px-8 pb-4 pt-2">
+			<div className="w-full border-b border-white/[0.07] mb-6 pb-4 pt-2">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2 text-sm">
 						<span className="text-muted">{nameSpace?.name}</span>
@@ -1716,10 +1716,10 @@ function FunctionDetail() {
 				</div>
 			</div>
 
-			<div className="w-full px-0">
-				<div className="flex gap-6 w-full px-8">
+			<div className="w-full">
+				<div className="flex flex-col xl:flex-row gap-6 w-full">
 					{/* Sidebar */}
-					<div className="w-72 shrink-0 space-y-4">
+					<div className="w-full xl:w-72 shrink-0 space-y-4">
 						{/* Quick Actions */}
 						<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
 							<h2 className="text-lg font-bold text-primary mb-3 flex items-center gap-2">
