@@ -2,7 +2,7 @@ import { DocsContentShell } from "./DocsContentShell";
 
 const setupConfig = `# ~/.shsf_config
 SHSF_INSTANCE=https://api.your-shsf-instance.com
-SHSF_TOKEN=shsf_pat_your_token_here`;
+SHSF_TOKEN=your_access_token_here`;
 
 const mappingFile = `{
   "default": {

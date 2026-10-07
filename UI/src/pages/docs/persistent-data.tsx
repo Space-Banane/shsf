@@ -64,8 +64,7 @@ export const PersistentDataPage = () => {
 db = database()
 
 def main(args):
-    # Create a storage bucket once (safe to call multiple times)
-    db.create_storage("cache", purpose="Function cache")
+    # Create the "cache" storage once in Storage before invoking this function.
 
     # Write a value (optional TTL via expires_at)
     db.set("cache", "last_run", "2024-07-10T00:00:00")

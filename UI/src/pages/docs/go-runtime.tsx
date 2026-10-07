@@ -135,10 +135,8 @@ import "myfunction/dbcom"
 func main_user(args interface{}) (interface{}, error) {
     db := dbcom.New()
 
-    _, err := db.CreateStorage("cache", "")
-    if err != nil { return nil, err }
-
-    _, err = db.Set("cache", "key", "hello", nil)
+    // Create the "cache" storage once before invoking this function.
+    _, err := db.Set("cache", "key", "hello", nil)
     if err != nil { return nil, err }
 
     value, err := db.Get("cache", "key")

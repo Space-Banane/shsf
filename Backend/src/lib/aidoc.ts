@@ -213,8 +213,7 @@ from _db_com import database
 db = database()
 
 def main(args):
-    # Create a storage bucket (idempotent — safe to call every invocation)
-    db.create_storage("my_app", purpose="application data")
+    # Create the "my_app" storage once before invoking this function.
 
     # Write a value
     db.set("my_app", "username", "alice")
@@ -324,9 +323,10 @@ def main(args):
     }
 \`\`\`
 
-For a fully static page: have exactly ONE .html file set as the startup file and zero
-other files. SHSF auto-detects this "Serve Only HTML" mode and serves the file directly
-without spinning up Python/Go.
+For a fully static page: set an .html file as the startup file. SHSF auto-detects this
+"Serve Only HTML" mode and serves the startup file for the default route without spinning
+up Python/Go. Additional .html files may be served by matching route names, such as
+`/about` for `about.html`; routes remain static file lookups.
 
 ---
 

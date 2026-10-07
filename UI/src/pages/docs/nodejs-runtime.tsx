@@ -136,7 +136,7 @@ module.exports = { main };`}</code>
 async function main(args) {
     const db = database();
 
-    db.createStorage('cache', '');
+    // Create the "cache" storage once before invoking this function.
     db.set('cache', 'key', 'hello');
     const value = db.get('cache', 'key');
 

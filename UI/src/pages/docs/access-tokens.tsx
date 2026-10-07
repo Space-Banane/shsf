@@ -13,9 +13,9 @@ export const AccessTokensDocPage = () => {
 
 			<Callout variant="danger" title="Tokens are shown only once">
 				<p>
-					Copy your token immediately after creating it. SHSF stores only a
-					hashed version — the plaintext is never shown again. If you lose it,
-					revoke it and generate a new one.
+					Copy your token immediately after creating it. The complete value is
+					returned only when it is created; later token lists show a masked value.
+					If you lose it, revoke it and generate a new one.
 				</p>
 			</Callout>
 

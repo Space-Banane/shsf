@@ -43,13 +43,19 @@ module.exports = { main };`}</code></pre>
 
 		<h2>Go</h2>
 		<CodeCaption>main.go</CodeCaption>
-		<pre><code>{`import "shsf_function_N/callfunc"
+		<pre><code>{`import "myfunction/callfunc"
 
-func main(args map[string]any) (any, error) {
-    return callfunc.CallF("create-invoice", map[string]any{
+func main_user(args interface{}) (interface{}, error) {
+    result, err := callfunc.CallF("create-invoice", map[string]any{
         "amount": 499,
     }, 0)
+    if err != nil { return nil, err }
+    return map[string]any{"invoice": result}, nil
 }`}</code></pre>
+		<p>
+			Use your Go module path in the import. For the generated default module,
+			that path is <code>shsf_function_&lt;function-id&gt;/callfunc</code>.
+		</p>
 
 		<h2>Arguments and result</h2>
 		<p>

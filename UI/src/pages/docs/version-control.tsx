@@ -31,8 +31,8 @@ export const DocsVersionControl = () => {
 			<h3>1. Enter a repository URL</h3>
 			<p>
 				Paste the HTTPS or SSH URL of your repository into the{" "}
-				<em>Repository URL</em> field. Both public and private repos are
-				supported.
+				<em>Repository URL</em> field. Use HTTPS for token credentials; SSH URLs
+				require credentials already configured on the SHSF host.
 			</p>
 			<CodeCaption>Example</CodeCaption>
 			<pre>
