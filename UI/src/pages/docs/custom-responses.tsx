@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const CustomResponsesPage = () => {
 	return (
@@ -131,10 +131,6 @@ export const CustomResponsesPage = () => {
 				</p>
 			</Callout>
 
-			<NextStep href="/docs/environment-variables" label="#4 Environment Variables">
-				Your function can now shape its response. Next: store secrets and
-				configuration outside your code using environment variables.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

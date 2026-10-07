@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const RedirectsPage = () => {
 	return (
@@ -98,10 +98,6 @@ def main(args):
 				</li>
 			</ul>
 
-			<NextStep href="/docs/raw-body" label="#8 Raw Body Handling">
-				Next: how to handle binary request bodies — file uploads, audio, and
-				custom data formats via <code>args.raw_body</code>.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

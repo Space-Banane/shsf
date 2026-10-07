@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const DOCSKICKOFF = () => {
 	return (
@@ -181,10 +181,6 @@ HTTP status code. Handle network errors gracefully.`}</code>
 				</li>
 			</ul>
 
-			<NextStep href="/docs/version-control" label="#23 VERSION // CONTROL">
-				Next: connect functions to a Git repository and deploy directly from
-				source — with manual or automatic pulls on a schedule.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

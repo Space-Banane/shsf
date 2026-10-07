@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const RawBodyPage = () => {
 	return (
@@ -99,10 +99,6 @@ def main(args):
 				<li>Receiving raw bytes from IoT devices or sensors</li>
 			</ul>
 
-			<NextStep href="/docs/user-interfaces" label="#9 User Interfaces">
-				Next: serve full HTML pages from your functions — dashboards, forms,
-				and static sites.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const DataPassingPage = () => {
 	return (
@@ -127,10 +127,6 @@ def main(args):
     print(f"Triggered by: {event}")`}</code>
 			</pre>
 
-			<NextStep href="/docs/custom-responses" label="#3 Custom Responses">
-				Now you know how data flows in. Next up: controlling what flows back
-				out — custom HTTP status codes, headers, and response bodies.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

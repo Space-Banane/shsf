@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const DocsVersionControl = () => {
 	return (
@@ -31,8 +31,8 @@ export const DocsVersionControl = () => {
 			<h3>1. Enter a repository URL</h3>
 			<p>
 				Paste the HTTPS or SSH URL of your repository into the{" "}
-				<em>Repository URL</em> field. Both public and private repos are
-				supported.
+				<em>Repository URL</em> field. Use HTTPS for token credentials; SSH URLs
+				require credentials already configured on the SHSF host.
 			</p>
 			<CodeCaption>Example</CodeCaption>
 			<pre>
@@ -172,10 +172,6 @@ export const DocsVersionControl = () => {
 				</table>
 			</div>
 
-			<NextStep href="/docs/clone-function" label="#24 Clone Function">
-				Next: duplicate an existing function — all files, settings, and
-				environment variables — with a single click.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

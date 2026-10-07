@@ -1,8 +1,8 @@
-import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
+import { DocsContentShell } from "./DocsContentShell";
 
 const setupConfig = `# ~/.shsf_config
 SHSF_INSTANCE=https://api.your-shsf-instance.com
-SHSF_TOKEN=shsf_pat_your_token_here`;
+SHSF_TOKEN=your_access_token_here`;
 
 const mappingFile = `{
   "default": {
@@ -159,16 +159,8 @@ function SectionCard({ title, description, examples }: Section) {
 
 export function CLIDocPage() {
 	return (
-		<div className="min-h-screen bg-background text-text p-8">
-			<div className="max-w-5xl mx-auto">
-				<div className="mb-6">
-					<a href="/docs" className="text-sm text-blue-500 hover:underline">
-						← Back to docs
-					</a>
-				</div>
-
-				<ScrollProgressbar />
-
+		<DocsContentShell>
+			<div>
 				<div className="mb-8 rounded-2xl border border-primary/20 bg-gradient-to-r from-blue-900/20 to-purple-900/20 p-6">
 					<h1 className="text-3xl font-bold text-primary mb-2">
 						SHSF CLI: Command Line Interface Guide
@@ -228,23 +220,7 @@ export function CLIDocPage() {
 					</ul>
 				</div>
 
-				<div className="mt-12 p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-primary/30 rounded-xl">
-					<h2 className="text-xl font-bold text-primary mb-3">
-						🚀 Next Step - Database Communication
-					</h2>
-					<p className="text-text/90 mb-4">
-						Learn how to use the Python database communication interface for fast
-						persistent storage and retrieval.
-					</p>
-					<a
-						href="/docs/db-com"
-						className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
-					>
-						#14 Database Communication
-						<span className="text-lg">→</span>
-					</a>
-				</div>
 			</div>
-		</div>
+		</DocsContentShell>
 	);
 }

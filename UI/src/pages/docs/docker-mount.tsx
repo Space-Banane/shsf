@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const DockerMountPage = () => {
 	return (
@@ -93,10 +93,6 @@ export const DockerMountPage = () => {
 				</li>
 			</ul>
 
-			<NextStep href="/docs/serve-only" label="#11 Serve Only HTML">
-				Next: an even simpler mode — serve a single static HTML file without
-				any runtime at all.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

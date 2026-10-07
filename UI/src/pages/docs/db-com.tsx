@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const DatabaseComDocPage = () => {
 	return (
@@ -11,9 +11,9 @@ export const DatabaseComDocPage = () => {
 				in SHSF's database and persists across function invocations.
 			</DocHeader>
 
-			<Callout variant="note" title="No setup required">
+			<Callout variant="note" title="No extra dependencies">
 				<p>
-					The helper is injected automatically into every function container.
+					SHSF injects the helper when your function refers to it.
 					For Python, import <code>_db_com</code>. For Go, import{" "}
 					<code>myfunction/dbcom</code>. For Node.js, require{" "}
 					<code>./_db_com</code>. No <code>pip install</code>,{" "}
@@ -32,7 +32,10 @@ db = database()`}</code>
 			</pre>
 
 			<h3>create_storage</h3>
-			<p>Create a named storage bucket. Safe to call on every invocation.</p>
+			<p>
+				Create a named storage bucket. Create it once from the Storage UI or setup
+					code; creating an existing name returns an error.
+			</p>
 			<pre>
 				<code>{`db.create_storage("my-bucket", purpose="Cache for processed results")`}</code>
 			</pre>
@@ -122,9 +125,7 @@ import (
 func main_user(args interface{}) (interface{}, error) {
     db := dbcom.New()
 
-    // Create storage (idempotent)
-    _, err := db.CreateStorage("hits", "Page hit counter")
-    if err != nil { return nil, err }
+    // Create the "hits" storage once before invoking this function.
 
     // Increment a counter
     prev, _ := db.Get("hits", "home")
@@ -167,8 +168,7 @@ const db = database();`}</code>
 async function main(args) {
     const db = database();
 
-    // Create storage (idempotent)
-    db.createStorage('hits', 'Page hit counter');
+    // Create the "hits" storage once before invoking this function.
 
     // Increment a counter
     const prev = db.get('hits', 'home');
@@ -206,16 +206,11 @@ const exists = db.exists('hits', 'home');         // boolean`}</code>
 					and any data with a known lifetime.
 				</li>
 				<li>
-					Call <code>create_storage</code> / <code>CreateStorage</code> at the
-					top of your function — it's idempotent and won't overwrite existing
-					data.
+					Create a storage once, then use it from your functions. Creating a name
+					that already exists fails and leaves its data unchanged.
 				</li>
 			</ul>
 
-			<NextStep href="/docs/routing" label="#15 Routing">
-				Next: handle multiple endpoints with a single function using SHSF's
-				deep-path routing system.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

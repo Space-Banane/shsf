@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const CustomCorsDocPage = () => {
 	return (
@@ -77,10 +77,6 @@ shsf cors list --id func_42a7c1`}</code>
 				</p>
 			</Callout>
 
-			<NextStep href="/docs/guest-users" label="#17 Guest Users">
-				Next: create guest user credentials to grant controlled access to
-				specific functions without sharing your main account.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

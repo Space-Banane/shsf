@@ -1,12 +1,12 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const ServeOnlyHtmlPage = () => {
 	return (
 		<DocsContentShell>
 			<DocHeader title="Serve Only HTML">
-				SHSF can serve a single <code>.html</code> file directly, bypassing
-				all runtime machinery. There is no Python/Go process, no{" "}
+				SHSF can serve static <code>.html</code> files directly, bypassing all
+				runtime machinery. The startup file is the default page; there is no Python/Go process, no{" "}
 				<code>main(args)</code> entrypoint — just the file, streamed to the
 				browser on every request.
 			</DocHeader>
@@ -28,6 +28,11 @@ export const ServeOnlyHtmlPage = () => {
 				</li>
 				<li>
 					Upload your HTML file to the function via the file manager.
+				</li>
+				<li>
+					Optionally upload more <code>.html</code> files. A request to a route
+					uses the matching file: for example, <code>/exec/site/about</code>{" "}
+					serves <code>about.html</code>.
 				</li>
 				<li>
 					That's it. SHSF detects the <code>.html</code> extension and serves
@@ -60,7 +65,10 @@ export const ServeOnlyHtmlPage = () => {
 			<ul>
 				<li>No <code>main(args)</code> entrypoint — function code is not executed</li>
 				<li>No environment variable injection at runtime</li>
-				<li>No <code>args</code> object, routes, or query parameters handling</li>
+				<li>
+					No <code>args</code> object or dynamic request handling; routes only
+					select static <code>.html</code> files and query parameters are ignored
+				</li>
 				<li>No dependency installation (<code>requirements.txt</code>, <code>go.mod</code>)</li>
 				<li>No custom response envelope (<code>_shsf v2</code>)</li>
 				<li>No db_com storage access</li>
@@ -93,10 +101,6 @@ export const ServeOnlyHtmlPage = () => {
 				</p>
 			</Callout>
 
-			<NextStep href="/docs/access-tokens" label="#12 Access Tokens">
-				Next: generate API access tokens to authenticate scripts and
-				third-party integrations without using your password.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

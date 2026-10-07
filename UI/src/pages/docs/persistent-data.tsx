@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const PersistentDataPage = () => {
 	return (
@@ -64,8 +64,7 @@ export const PersistentDataPage = () => {
 db = database()
 
 def main(args):
-    # Create a storage bucket once (safe to call multiple times)
-    db.create_storage("cache", purpose="Function cache")
+    # Create the "cache" storage once in Storage before invoking this function.
 
     # Write a value (optional TTL via expires_at)
     db.set("cache", "last_run", "2024-07-10T00:00:00")
@@ -101,10 +100,6 @@ def main(args):
 				state.
 			</p>
 
-			<NextStep href="/docs/redirects" label="#7 Redirects">
-				Data is stored. Next: how to send the caller to a different URL using
-				HTTP redirects.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

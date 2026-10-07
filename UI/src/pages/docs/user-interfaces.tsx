@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const UserInterfacesPage = () => {
 	return (
@@ -99,10 +99,6 @@ export const UserInterfacesPage = () => {
 				<li>Lightweight single-page apps with a serverless backend</li>
 			</ul>
 
-			<NextStep href="/docs/docker-mount" label="#10 Docker Mount">
-				Next: mount the Docker socket to let your function manage other
-				containers on the host — a powerful but high-risk feature.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

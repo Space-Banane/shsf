@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const DocsGoRuntime = () => {
 	return (
@@ -135,10 +135,8 @@ import "myfunction/dbcom"
 func main_user(args interface{}) (interface{}, error) {
     db := dbcom.New()
 
-    _, err := db.CreateStorage("cache", "")
-    if err != nil { return nil, err }
-
-    _, err = db.Set("cache", "key", "hello", nil)
+    // Create the "cache" storage once before invoking this function.
+    _, err := db.Set("cache", "key", "hello", nil)
     if err != nil { return nil, err }
 
     value, err := db.Get("cache", "key")
@@ -193,10 +191,6 @@ func main_user(args interface{}) (interface{}, error) {
 				</li>
 			</ul>
 
-			<NextStep href="/docs/kickoff" label="#22 Kickoff">
-				Next: use AI-powered code generation to build production-ready function
-				files from a single prompt.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

@@ -105,26 +105,3 @@ type CodeCaptionProps = {
 export function CodeCaption({ children }: CodeCaptionProps) {
 	return <label className="mb-2 block">{children}</label>;
 }
-
-type NextStepProps = {
-	href: string;
-	label: ReactNode;
-	children: ReactNode;
-};
-
-/** The "Next Step" call-to-action card at the bottom of a doc page. */
-export function NextStep({ href, label, children }: NextStepProps) {
-	return (
-		<div className="mt-12 rounded-xl border border-primary/30 bg-gradient-to-r from-blue-900/20 to-purple-900/20 p-6">
-			<div className="mb-3 text-xl font-bold text-primary">🚀 Next Step</div>
-			<p className="mb-4 text-text/90">{children}</p>
-			<a
-				href={href}
-				className="inline-flex items-center gap-2 font-medium text-blue-400 transition-colors hover:text-blue-300"
-			>
-				{label}
-				<span className="text-lg">→</span>
-			</a>
-		</div>
-	);
-}

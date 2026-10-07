@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const AccessTokensDocPage = () => {
 	return (
@@ -13,9 +13,9 @@ export const AccessTokensDocPage = () => {
 
 			<Callout variant="danger" title="Tokens are shown only once">
 				<p>
-					Copy your token immediately after creating it. SHSF stores only a
-					hashed version — the plaintext is never shown again. If you lose it,
-					revoke it and generate a new one.
+					Copy your token immediately after creating it. The complete value is
+					returned only when it is created; later token lists show a masked value.
+					If you lose it, revoke it and generate a new one.
 				</p>
 			</Callout>
 
@@ -114,11 +114,6 @@ const data = await resp.json();`}</code>
 				<li>Set an expiry date for tokens used in temporary scripts.</li>
 			</ul>
 
-			<NextStep href="/docs/cli" label="#13 CLI Usage">
-				Next: use the <code>shsf-cli</code> to sync files, update metadata,
-				and run functions from your terminal — with access token authentication
-				built in.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

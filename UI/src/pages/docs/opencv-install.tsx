@@ -105,20 +105,6 @@ def main(args):
 				<strong>OpenCV</strong> button on the function detail page.
 			</p>
 
-			<div className="mt-12 rounded-xl border border-primary/30 bg-gradient-to-r from-blue-900/20 to-purple-900/20 p-6">
-				<div className="mb-3 text-xl font-bold text-primary">📚 End of docs</div>
-				<p className="mb-4 text-text/90">
-					You've reached the last documentation page. Keep your SHSF instance
-					updated to get access to new features and improvements.
-				</p>
-				<a
-					href="/docs"
-					className="inline-flex items-center gap-2 font-medium text-blue-400 transition-colors hover:text-blue-300"
-				>
-					← Back to docs index
-					<span className="text-lg"></span>
-				</a>
-			</div>
 		</DocsContentShell>
 	);
 };

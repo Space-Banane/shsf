@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const ExecutionAliasPage = () => {
 	return (
@@ -73,10 +73,6 @@ curl -X POST https://your-shsf-instance/exec/hello-api/process \
 				</p>
 			</Callout>
 
-			<NextStep href="/docs/ffmpeg-install" label="#19 FFmpeg Installation">
-				Next: enable automatic FFmpeg installation for video, audio, and
-				media processing inside your functions.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

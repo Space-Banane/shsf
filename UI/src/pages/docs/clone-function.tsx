@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const DocsCloneFunction = () => {
 	return (
@@ -48,12 +48,12 @@ export const DocsCloneFunction = () => {
 							["Runtime image", "✅ Yes", "e.g. python:3.12, golang:1.23"],
 							["Startup file", "✅ Yes", ""],
 							["All function files", "✅ Yes", "Full file contents duplicated"],
-							["Environment variables", "✅ Yes", "Encrypted vars copied as-is"],
-							["Settings (RAM, timeout, tags…)", "✅ Yes", ""],
+							["Environment variables", "✅ Yes", "Copied as configured; review environment-specific values"],
+							["Settings (RAM, timeout, tags…)", "✅ Yes", "Includes HTTP access, secure header, retry settings, and network restriction"],
 							["CORS origins", "✅ Yes", ""],
-							["Docker mount / FFmpeg / OpenCV", "✅ Yes", ""],
-							["Secure header", "✅ Yes", ""],
-							["Retry settings", "✅ Yes", ""],
+							["Docker mount / FFmpeg", "✅ Yes", ""],
+							["OpenCV installation", "❌ No", "Configure it again on the clone if needed"],
+							["Response cache, rate limits, and logging", "❌ No", "The clone uses the default configuration"],
 							["Execution alias", "❌ No", "Aliases must be globally unique — assign a new one after cloning"],
 							["Git configuration", "❌ No", "VERSION // CONTROL settings are not transferred"],
 							["Execution logs", "❌ No", "Clone starts with a clean log history"],
@@ -138,10 +138,6 @@ my-function-copy-1 → ✅ used`}</code>
 				</p>
 			</Callout>
 
-			<NextStep href="/docs/opencv-install" label="#25 OpenCV Installation">
-				Next: enable automatic OpenCV installation for computer vision
-				workloads in your Python functions.
-			</NextStep>
 		</DocsContentShell>
 	);
 };
