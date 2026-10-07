@@ -71,6 +71,9 @@ jobs:
             - name: UI ESLint
               run: cd UI && pnpm lint
 
+            - name: UI tests
+              run: cd UI && pnpm test --watchAll=false
+
     generate_openapi_release:
         name: Generate OpenAPI Release
         needs: [build, test-and-lint]
