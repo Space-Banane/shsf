@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const DocsGoRuntime = () => {
 	return (
@@ -193,10 +193,6 @@ func main_user(args interface{}) (interface{}, error) {
 				</li>
 			</ul>
 
-			<NextStep href="/docs/kickoff" label="#22 Kickoff">
-				Next: use AI-powered code generation to build production-ready function
-				files from a single prompt.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const DocsGettingStarted = () => {
 	return (
@@ -157,10 +157,6 @@ docker compose up -d`}</code>
 				</p>
 			</Callout>
 
-			<NextStep href="/docs/my-first-function" label="#1 My First Function">
-				SHSF is running — now let's build something. Next up: a function that
-				posts "Happy Monday" to a Discord webhook every Monday at midnight.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

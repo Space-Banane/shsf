@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const DocsVersionControl = () => {
 	return (
@@ -172,10 +172,6 @@ export const DocsVersionControl = () => {
 				</table>
 			</div>
 
-			<NextStep href="/docs/clone-function" label="#24 Clone Function">
-				Next: duplicate an existing function — all files, settings, and
-				environment variables — with a single click.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

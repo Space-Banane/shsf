@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const FfmpegInstallPage = () => {
 	return (
@@ -130,10 +130,6 @@ def main(args):
 				</li>
 			</ul>
 
-			<NextStep href="/docs/go-runtime" label="#20 Go Runtime">
-				Next: build high-performance functions in Go — compiled, cached, and
-				running in the same SHSF environment.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const ServeOnlyHtmlPage = () => {
 	return (
@@ -93,10 +93,6 @@ export const ServeOnlyHtmlPage = () => {
 				</p>
 			</Callout>
 
-			<NextStep href="/docs/access-tokens" label="#12 Access Tokens">
-				Next: generate API access tokens to authenticate scripts and
-				third-party integrations without using your password.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

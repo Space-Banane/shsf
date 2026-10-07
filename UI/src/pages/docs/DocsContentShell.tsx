@@ -1,11 +1,16 @@
 import type { ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { ScrollProgressbar } from "../../components/motion/ScrollProgressbar";
+import { getDocumentationNavigation } from "./docsRegistry";
 
 type DocsContentShellProps = {
 	children: ReactNode;
 };
 
 export function DocsContentShell({ children }: DocsContentShellProps) {
+	const { pathname } = useLocation();
+	const { previous, next, related } = getDocumentationNavigation(pathname);
+
 	return (
 		<div className="min-h-screen bg-background px-6 py-8 text-text sm:px-8">
 			<div className="mx-auto max-w-5xl">
@@ -80,6 +85,37 @@ export function DocsContentShell({ children }: DocsContentShellProps) {
 				>
 					{children}
 				</article>
+
+				<nav className="mt-12 border-t border-primary/20 pt-6" aria-label="Documentation navigation">
+					<div className="grid gap-3 sm:grid-cols-2">
+						{previous ? (
+							<a href={previous.path} className="rounded-lg border border-primary/20 p-4 text-left transition-colors hover:border-primary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+								<span className="block text-xs text-muted">Previous</span>
+								<span className="mt-1 block font-medium text-text">← {previous.title}</span>
+							</a>
+						) : <span />}
+						{next ? (
+							<a href={next.path} className="rounded-lg border border-primary/20 p-4 text-right transition-colors hover:border-primary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+								<span className="block text-xs text-muted">Next</span>
+								<span className="mt-1 block font-medium text-text">{next.title} →</span>
+							</a>
+						) : <span />}
+					</div>
+					{related.length > 0 && (
+						<div className="mt-6">
+							<h2 className="text-sm font-semibold text-muted">Related guides</h2>
+							<ul className="mt-3 flex flex-wrap gap-2">
+								{related.map((entry) => (
+									<li key={entry.key}>
+										<a href={entry.path} className="inline-flex rounded-full border border-primary/20 px-3 py-1.5 text-sm text-blue-400 transition-colors hover:border-primary/60 hover:text-blue-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+											{entry.title}
+										</a>
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
+				</nav>
 			</div>
 		</div>
 	);

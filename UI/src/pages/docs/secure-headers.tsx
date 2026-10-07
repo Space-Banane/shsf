@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const SecureHeadersPage = () => {
 	return (
@@ -98,10 +98,6 @@ resp = requests.post(
 				</li>
 			</ul>
 
-			<NextStep href="/docs/persistent-data" label="#6 Persistent Data">
-				Endpoint is secured. Next: how to read and write data that persists
-				between function invocations.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

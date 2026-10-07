@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const EnvironmentVariablesPage = () => {
 	return (
@@ -101,10 +101,6 @@ func main_user(args interface{}) (interface{}, error) {
 				</li>
 			</ul>
 
-			<NextStep href="/docs/secure-headers" label="#5 Secure Headers">
-				Secrets are in variables. Next: protect your HTTP endpoint so only
-				authorised callers can invoke the function at all.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const CallFunctionsDocPage = () => (
 	<DocsContentShell>
@@ -65,8 +65,5 @@ func main(args map[string]any) (any, error) {
 			</p>
 		</Callout>
 
-		<NextStep href="/docs/nodejs-runtime" label="#21 Node.js Runtime">
-			Learn more about writing and packaging Node.js functions.
-		</NextStep>
 	</DocsContentShell>
 );

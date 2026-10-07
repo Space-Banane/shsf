@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, DocHeader, NextStep } from "./_components";
+import { Callout, DocHeader } from "./_components";
 
 export const GuestUsersDocPage = () => {
 	return (
@@ -104,10 +104,6 @@ export const GuestUsersDocPage = () => {
 				</li>
 			</ul>
 
-			<NextStep href="/docs/execution-alias" label="#18 Execution Alias">
-				Next: replace the UUID in your function's invocation URL with a
-				human-readable alias.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

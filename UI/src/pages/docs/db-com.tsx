@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const DatabaseComDocPage = () => {
 	return (
@@ -212,10 +212,6 @@ const exists = db.exists('hits', 'home');         // boolean`}</code>
 				</li>
 			</ul>
 
-			<NextStep href="/docs/routing" label="#15 Routing">
-				Next: handle multiple endpoints with a single function using SHSF's
-				deep-path routing system.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

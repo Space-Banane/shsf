@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const AccessTokensDocPage = () => {
 	return (
@@ -114,11 +114,6 @@ const data = await resp.json();`}</code>
 				<li>Set an expiry date for tokens used in temporary scripts.</li>
 			</ul>
 
-			<NextStep href="/docs/cli" label="#13 CLI Usage">
-				Next: use the <code>shsf-cli</code> to sync files, update metadata,
-				and run functions from your terminal — with access token authentication
-				built in.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

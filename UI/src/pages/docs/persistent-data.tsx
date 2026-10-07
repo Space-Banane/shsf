@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const PersistentDataPage = () => {
 	return (
@@ -101,10 +101,6 @@ def main(args):
 				state.
 			</p>
 
-			<NextStep href="/docs/redirects" label="#7 Redirects">
-				Data is stored. Next: how to send the caller to a different URL using
-				HTTP redirects.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

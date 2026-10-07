@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const DocsCloneFunction = () => {
 	return (
@@ -138,10 +138,6 @@ my-function-copy-1 → ✅ used`}</code>
 				</p>
 			</Callout>
 
-			<NextStep href="/docs/opencv-install" label="#25 OpenCV Installation">
-				Next: enable automatic OpenCV installation for computer vision
-				workloads in your Python functions.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

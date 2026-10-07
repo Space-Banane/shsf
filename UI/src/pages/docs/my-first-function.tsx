@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const MyFirstFunctionDoc = () => {
 	return (
@@ -116,11 +116,6 @@ def main(args):
 				</p>
 			</Callout>
 
-			<NextStep href="/docs/data-passing" label="#2 Data Passing">
-				Now that your first function is running, learn how HTTP requests and
-				trigger payloads pass data into your function code via the{" "}
-				<code>args</code> object.
-			</NextStep>
 		</DocsContentShell>
 	);
 };

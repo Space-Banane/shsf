@@ -1,4 +1,3 @@
-import { DatabaseComDocPage } from "./pages/docs/db-com";
 import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import IndexPage from "./pages/index/index";
@@ -6,39 +5,14 @@ import LoginPage from "./pages/login/LoginPage";
 import RegisterPage from "./pages/register/RegisterPage";
 import FunctionsList from "./pages/functions/FunctionsList";
 import { DocsPage } from "./pages/index/docs";
-import { DocsGettingStarted } from "./pages/docs/getting-started";
-import { MyFirstFunctionDoc } from "./pages/docs/my-first-function";
-import { DataPassingPage } from "./pages/docs/data-passing";
-import { CustomResponsesPage } from "./pages/docs/custom-responses";
-import { EnvironmentVariablesPage } from "./pages/docs/environment-variables";
+import { documentationRoutes } from "./pages/docs/docsRegistry";
 import { AccountPage } from "./pages/Account";
 import FunctionDetail from "./pages/functions/FunctionDetail";
-import { SecureHeadersPage } from "./pages/docs/secure-headers";
-import { PersistentDataPage } from "./pages/docs/persistent-data";
-import { RedirectsPage } from "./pages/docs/redirects";
-import { RawBodyPage } from "./pages/docs/raw-body";
-import ExecutionAliasPage from "./pages/docs/execution-alias";
-import { UserInterfacesPage } from "./pages/docs/user-interfaces";
-import { DockerMountPage } from "./pages/docs/docker-mount";
-import { ServeOnlyHtmlPage } from "./pages/docs/serve-only";
-import { AccessTokensDocPage } from "./pages/docs/access-tokens";
 import AccessTokensPage from "./pages/AccessTokens";
-import { CLIDocPage } from "./pages/docs/cli";
 import StoragePage from "./pages/Storage";
 import CronJobsPage from "./pages/CronJobs";
-import { RoutingDocPage } from "./pages/docs/routing";
-import { CustomCorsDocPage } from "./pages/docs/custom-cors";
-import { GuestUsersDocPage } from "./pages/docs/guest-users";
 import GuestUsersPage from "./pages/GuestUsers";
 import GuestAccessPage from "./pages/Guest-Access";
-import { FfmpegInstallPage } from "./pages/docs/ffmpeg-install";
-import { DocsGoRuntime } from "./pages/docs/go-runtime";
-import { DocsNodeJsRuntime } from "./pages/docs/nodejs-runtime";
-import { DOCSKICKOFF } from "./pages/docs/kickoff";
-import { DocsVersionControl } from "./pages/docs/version-control";
-import { DocsCloneFunction } from "./pages/docs/clone-function";
-import { OpencvInstallPage } from "./pages/docs/opencv-install";
-import { CallFunctionsDocPage } from "./pages/docs/call-functions";
 import { AdminPage } from "./pages/Admin";
 import FunctionAnalyticsPage from "./pages/FunctionAnalytics";
 // Added back the routes array
@@ -81,169 +55,7 @@ export const routes: AppRoute[] = [
 		show_nav: true,
 	},
 
-	// More docs
-	{
-		path: "/docs/getting-started",
-		component: DocsGettingStarted,
-		name: "Getting Started",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/my-first-function",
-		component: MyFirstFunctionDoc,
-		name: "My First Function",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/data-passing",
-		component: DataPassingPage,
-		name: "Data Passing",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/custom-responses",
-		component: CustomResponsesPage,
-		name: "Custom Responses",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/environment-variables",
-		component: EnvironmentVariablesPage,
-		name: "Environment Variables",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/secure-headers",
-		component: SecureHeadersPage,
-		name: "Secure Headers",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/persistent-data",
-		component: PersistentDataPage,
-		name: "Persistent Data",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/redirects",
-		component: RedirectsPage,
-		name: "Redirects",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/execution-alias",
-		component: ExecutionAliasPage,
-		name: "Execution Alias",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/docker-mount",
-		component: DockerMountPage,
-		name: "Docker Mount",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/serve-only",
-		component: ServeOnlyHtmlPage,
-		name: "Serve Only HTML",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/access-tokens",
-		component: AccessTokensDocPage,
-		name: "Access Tokens Doc",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/raw-body",
-		component: RawBodyPage,
-		name: "Raw Body",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/user-interfaces",
-		component: UserInterfacesPage,
-		name: "User Interfaces",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/cli",
-		component: CLIDocPage,
-		name: "CLI Usage",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/db-com",
-		component: DatabaseComDocPage,
-		name: "Database Communication",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/routing",
-		component: RoutingDocPage,
-		name: "Routing",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/custom-cors",
-		component: CustomCorsDocPage,
-		name: "Custom CORS",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/guest-users",
-		component: GuestUsersDocPage,
-		name: "Guest Users Doc",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/ffmpeg-install",
-		component: FfmpegInstallPage,
-		name: "FFmpeg Installation",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/go-runtime",
-		component: DocsGoRuntime,
-		name: "Go Runtime",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/nodejs-runtime",
-		component: DocsNodeJsRuntime,
-		name: "Node.js Runtime",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/kickoff",
-		component: DOCSKICKOFF,
-		name: "Kickoff",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/version-control",
-		component: DocsVersionControl,
-		name: "Version Control",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/clone-function",
-		component: DocsCloneFunction,
-		name: "Clone Function",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/opencv-install",
-		component: OpencvInstallPage,
-		name: "OpenCV Installation",
-		requireAuth: false,
-	},
-	{
-		path: "/docs/call-functions",
-		component: CallFunctionsDocPage,
-		name: "Calling Functions",
-		requireAuth: false,
-	},
+	...documentationRoutes,
 
 	{ path: "/login", component: LoginPage, name: "Login", requireAuth: false },
 	{

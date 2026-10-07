@@ -1,5 +1,5 @@
 import { DocsContentShell } from "./DocsContentShell";
-import { Callout, CodeCaption, DocHeader, NextStep } from "./_components";
+import { Callout, CodeCaption, DocHeader } from "./_components";
 
 export const RoutingDocPage = () => {
 	return (
@@ -149,10 +149,6 @@ def main(args):
 				</li>
 			</ul>
 
-			<NextStep href="/docs/custom-cors" label="#16 Custom CORS">
-				Next: control which origins can call your function — useful when
-				building browser-based apps.
-			</NextStep>
 		</DocsContentShell>
 	);
 };
