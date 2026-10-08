@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
+import { copyTextToClipboard } from "../../../utils/clipboard";
 import Modal from "../Modal";
 import { cancelBtnClass, primaryBtnClass } from "../Modal";
 import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
@@ -546,10 +547,10 @@ function RateLimitConfigModal({
 
 	const handleCopyJson = async () => {
 		try {
-			await navigator.clipboard.writeText(JSON.stringify(savePayload, null, 2));
+			await copyTextToClipboard(JSON.stringify(savePayload, null, 2));
 			toast.success("Rate limit JSON copied");
 		} catch {
-			toast.error("Failed to copy JSON");
+			toast.error("The JSON could not be copied. Select it and copy it manually.");
 		}
 	};
 

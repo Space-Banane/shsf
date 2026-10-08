@@ -71,6 +71,7 @@ import { TriggersCard } from "../../components/cards/TriggersCard";
 import { FileManagerCard } from "../../components/cards/FileManagerCard";
 import { ActionButton } from "../../components/buttons/ActionButton";
 import { useConfirm } from "../../components/modals/ConfirmModal";
+import { copyTextToClipboard } from "../../utils/clipboard";
 
 const fetch = apiFetch;
 
@@ -129,7 +130,6 @@ function FunctionDetail() {
 	const [activeFileLanguage, setActiveFileLanguage] = useState<string>("");
 	const consoleOutputRef = useRef<HTMLDivElement>(null!);
 	const [autoScroll, setAutoScroll] = useState<boolean>(true);
-	const [, setCopyUrlColor] = useState<string>("text-stone-300");
 	const [copyUrltext, setCopyUrlText] = useState<string>(
 		"Copy URL to Clipboard",
 	);
@@ -1783,16 +1783,19 @@ function FunctionDetail() {
 									icon="📋"
 									label={copyUrltext}
 									variant="primary"
-									onClick={() => {
-										navigator.clipboard.writeText(
-											functionURL,
-										);
-										setCopyUrlColor("text-green-400");
-										setCopyUrlText("✅ Copied!");
-										setTimeout(() => {
-											setCopyUrlColor("text-stone-300");
-											setCopyUrlText("Copy📎");
-										}, 2000);
+									onClick={async () => {
+										try {
+											await copyTextToClipboard(functionURL);
+											setCopyUrlText("✅ Copied!");
+											setTimeout(
+												() => setCopyUrlText("Copy📎"),
+												2000,
+											);
+										} catch {
+											toast.error(
+												"The URL could not be copied. Select it and copy it manually.",
+											);
+										}
 									}}
 								/>
 							</div>
@@ -1823,22 +1826,23 @@ function FunctionDetail() {
 											icon="📋"
 											label={copyAliasURL}
 											variant="primary"
-											onClick={() => {
-												navigator.clipboard.writeText(
-													functionURL.split(
-														"/api/",
-													)[0] +
-														"/exec/" +
-														functionData.executionAlias,
-												);
-												setCopyAliasURL(
-													"✅ Copied Alias!",
-												);
-												setTimeout(() => {
-													setCopyAliasURL(
-														"Copy Alias📎",
+											onClick={async () => {
+												try {
+													await copyTextToClipboard(
+														functionURL.split("/api/")[0] +
+															"/exec/" +
+															functionData.executionAlias,
 													);
-												}, 2000);
+													setCopyAliasURL("✅ Copied Alias!");
+													setTimeout(
+														() => setCopyAliasURL("Copy Alias📎"),
+														2000,
+													);
+												} catch {
+													toast.error(
+														"The alias URL could not be copied. Select it and copy it manually.",
+													);
+												}
 											}}
 										/>
 									</div>
@@ -2076,11 +2080,13 @@ function FunctionDetail() {
 								/>
 								<button
 									className="h-9 shrink-0 rounded-lg border border-primary/20 bg-background/45 px-3 text-sm text-primary transition-all duration-300 hover:border-primary/40"
-									onClick={() => {
-										navigator.clipboard.writeText(
-											cliPullCommand,
-										);
-										toast.success("CLI command copied");
+									onClick={async () => {
+										try {
+											await copyTextToClipboard(cliPullCommand);
+											toast.success("CLI command copied");
+										} catch {
+											toast.error("The command could not be copied. Select it and copy it manually.");
+										}
 									}}
 								>
 									Copy
