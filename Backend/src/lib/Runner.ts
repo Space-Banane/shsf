@@ -70,6 +70,7 @@ import {
 	generateNodeJsRunnerScript,
 	generateNodeJsRunnerShScript,
 	generateNodeJsInitBody,
+	generateExecutionCommand,
 } from "./RunnerRuntimeScripts";
 import {
 	mergeEnvironmentVariables,
@@ -77,8 +78,6 @@ import {
 	toDockerEnvironment,
 } from "./EnvironmentVariables";
 import { getRuntimeImageStatus } from "./RunnerImagePulls";
-
-class FunctionExecutionTimeoutError extends Error {}
 
 async function getRuntimeEnvironment(functionData: Pick<Function, "env" | "userId">) {
 	const accountData = await prisma.user.findUnique({
@@ -172,6 +171,7 @@ export async function executeFunction(
 	payload: string,
 	options?: {
 		ratelimit?: LoggedExecutionRateLimitData;
+		signal?: AbortSignal;
 	},
 ) {
 	const starting_time = Date.now();
@@ -533,18 +533,26 @@ export async function executeFunction(
 		// Pass the unique payload file path as an argument to the runner script
 		const containerPayloadPath = `/executions/${executionId}/payload.json`;
 		const containerResultPath = `/executions/${executionId}/result.json`;
-		let execCmd: string[];
+		let runnerCmd: string[];
 		if (runtimeType === "python") {
-			execCmd = ["/bin/sh", "/app/_runner.py", containerPayloadPath, containerResultPath];
+			runnerCmd = ["/bin/sh", "/app/_runner.py", containerPayloadPath, containerResultPath];
 		} else if (runtimeType === "golang") {
-			execCmd = ["/bin/sh", "/app/_runner.sh", containerPayloadPath, containerResultPath];
+			runnerCmd = ["/bin/sh", "/app/_runner.sh", containerPayloadPath, containerResultPath];
 		} else if (runtimeType === "node") {
-			execCmd = ["/bin/sh", "/app/_runner.sh", containerPayloadPath, containerResultPath];
+			runnerCmd = ["/bin/sh", "/app/_runner.sh", containerPayloadPath, containerResultPath];
 		} else {
 			throw new Error(
 				`Unsupported runtime type for exec command: ${runtimeType}`
 			);
 		}
+		const execTimeoutSeconds = functionData.timeout || 15;
+		const execTimeoutMs = execTimeoutSeconds * 1000;
+		const execCmd = generateExecutionCommand(
+			runnerCmd,
+			execTimeoutSeconds,
+			Boolean(options?.signal),
+			`/executions/${executionId}`,
+		);
 
 		const exec = await container.exec({
 			Cmd: execCmd,
@@ -658,8 +666,6 @@ export async function executeFunction(
 
 		docker.modem.demuxStream(execStream, stdoutMultiplex, stderrMultiplex);
 
-		const execTimeoutMs = (functionData.timeout || 15) * 1000; // functionData.timeout is in seconds
-
 		const execPromise = new Promise<Docker.ExecInspectInfo>((resolve, reject) => {
 			execStream.on("end", () => {
 				exec.inspect().then(resolve).catch(reject);
@@ -667,21 +673,30 @@ export async function executeFunction(
 			execStream.on("error", reject);
 		});
 
-		let execTimeout: ReturnType<typeof setTimeout> | undefined;
-		const timeoutPromise = new Promise<Docker.ExecInspectInfo>((_, reject) => {
-			execTimeout = setTimeout(
-				() =>
-					reject(new FunctionExecutionTimeoutError(`Execution timed out after ${execTimeoutMs / 1000}s`)),
-				execTimeoutMs
-			);
-		});
+		let cancellationReason: "client" | undefined;
+		const requestCancellation = async (reason: "client") => {
+			if (cancellationReason) return;
+			cancellationReason = reason;
+			await fs.writeFile(transportPaths.cancellationPath, reason);
+			log.warn({ functionId: id, reason }, "Cancelling active function exec");
+		};
+		const onAbort = () => void requestCancellation("client").catch((error) =>
+			log.error({ err: error, functionId: id }, "Failed to cancel active function exec"),
+		);
+		options?.signal?.addEventListener("abort", onAbort, { once: true });
+		if (options?.signal?.aborted) onAbort();
 
 		let execResultDetails: Docker.ExecInspectInfo;
 		try {
-			execResultDetails = await Promise.race([execPromise, timeoutPromise]);
+			execResultDetails = await execPromise;
 			exitCode = execResultDetails.ExitCode ?? 1; // Default to 1 if null/undefined
 			logs = [execOutput.stderr, execOutput.stdout].filter(Boolean).join("\n");
-			if (exitCode === 0 && execOutput.stdout) {
+			if (exitCode === 124) {
+				executionErrorType = "function_timeout";
+				exitCode = -1;
+				logs = `${logs}\nExecution timed out after ${execTimeoutMs / 1000}s; the invocation process was terminated.`;
+				log.warn({ functionId: id, timeoutSeconds: execTimeoutMs / 1000 }, "Function execution timed out and was terminated");
+			} else if (exitCode === 0 && execOutput.stdout) {
 				func_result = "";
 			} else if (exitCode !== 0) {
 				executionErrorType = "execution_failed";
@@ -695,15 +710,13 @@ export async function executeFunction(
 				log.error({ exitCode }, "Exec failed, logs truncated due to size");
 			}
 		} catch (execError: any) {
-			log.error({ err: execError.message }, "Exec failed or timed out");
+			log.error({ err: execError.message }, "Exec failed");
 			logs = `${execOutput.stderr}\nExecution Error: ${execError.message}`;
-			executionErrorType = execError instanceof FunctionExecutionTimeoutError
-				? "function_timeout"
-				: "execution_failed";
+			executionErrorType = "execution_failed";
 			exitCode = -1;
 			func_result = "";
 		} finally {
-			if (execTimeout) clearTimeout(execTimeout);
+			options?.signal?.removeEventListener("abort", onAbort);
 			await storageBridge.stop();
 			await callFuncBridge.stop();
 		}

@@ -15,6 +15,7 @@ export interface RunnerTransportPaths {
 	storageResponseDir: string;
 	callFuncRequestDir: string;
 	callFuncResponseDir: string;
+	cancellationPath: string;
 }
 
 export type StorageRpcOperation =
@@ -44,6 +45,7 @@ export function getRunnerTransportPaths(executionDir: string): RunnerTransportPa
 		storageResponseDir: path.join(executionDir, "storage-responses"),
 		callFuncRequestDir: path.join(executionDir, "callfunc-requests"),
 		callFuncResponseDir: path.join(executionDir, "callfunc-responses"),
+		cancellationPath: path.join(executionDir, "cancel"),
 	};
 }
 

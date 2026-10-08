@@ -1,6 +1,64 @@
 // Pure generator functions for per-runtime runner and init scripts.
 // No I/O, no imports — all functions return strings for callers to write to disk.
 
+/** Runs one invocation in its own process session and watches its private transport directory. */
+export function generateExecutionSupervisorScript(): string {
+	return `set -eu
+cancel_path="$1"
+timeout_seconds="$2"
+shift 2
+
+cancel_pending=0
+if ! mkfifo "$cancel_path" 2>/dev/null; then
+	if [ ! -p "$cancel_path" ]; then
+		cancel_pending=1
+	fi
+fi
+
+if [ "$cancel_pending" -eq 1 ]; then
+	exit 125
+fi
+
+setsid timeout --signal=TERM --kill-after=1s "$timeout_seconds" "$@" &
+child="$!"
+(
+	read -r _ < "$cancel_path" || true
+	kill -TERM "-$child" 2>/dev/null || true
+	sleep 1
+	kill -KILL "-$child" 2>/dev/null || true
+) &
+cancel_watcher="$!"
+
+wait "$child" || status="$?"
+status="\${status:-0}"
+kill "$cancel_watcher" 2>/dev/null || true
+wait "$cancel_watcher" 2>/dev/null || true
+rm -f "$cancel_path"
+exit "$status"
+`;
+}
+
+export function generateExecutionCommand(
+	runnerCommand: string[],
+	timeoutSeconds: number,
+	withCancellation: boolean,
+	executionDir = "/executions/$SHSF_EXECUTION_ID",
+): string[] {
+	if (!withCancellation) {
+		return ["timeout", "--signal=TERM", "--kill-after=1s", String(timeoutSeconds), ...runnerCommand];
+	}
+
+	return [
+		"/bin/sh",
+		"-c",
+		generateExecutionSupervisorScript(),
+		"--",
+		`${executionDir}/cancel`,
+		String(timeoutSeconds),
+		...runnerCommand,
+	];
+}
+
 export function generateGoRunnerWrapperCode(): string {
 	return `package main
 

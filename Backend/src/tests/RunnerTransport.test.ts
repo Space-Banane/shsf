@@ -1,6 +1,7 @@
 import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
+import { spawn } from "child_process";
 import { describe, expect, it, vi } from "vitest";
 import {
 	getRunnerTransportPaths,
@@ -30,6 +31,8 @@ import {
 	generateNodeJsInitBody,
 	generatePythonDependencyInstallScript,
 	generatePythonInitBody,
+	generateExecutionCommand,
+	generateExecutionSupervisorScript,
 } from "../lib/RunnerRuntimeScripts";
 
 type TestStorageDb = NonNullable<
@@ -187,6 +190,96 @@ describe("FunctionStorageService", () => {
 });
 
 describe("generated transport scripts", () => {
+	it("supervises each execution with a private cancellation FIFO and timeout", () => {
+		const script = generateExecutionSupervisorScript();
+		expect(script).toContain("setsid");
+		expect(script).toContain("cancel_path");
+		expect(script).toContain("mkfifo");
+		expect(script).toContain("timeout --signal=TERM --kill-after=1s");
+		expect(script).toContain("kill -KILL");
+	});
+
+	it("uses native timeout for non-streaming executions", () => {
+		expect(generateExecutionCommand(["/app/_runner.py"], 15, false)).toEqual([
+			"timeout",
+			"--signal=TERM",
+			"--kill-after=1s",
+			"15",
+			"/app/_runner.py",
+		]);
+	});
+
+	it("keeps the isolated supervisor for cancellable executions", () => {
+		expect(generateExecutionCommand(["/app/_runner.py"], 15, true)).toEqual([
+			"/bin/sh",
+			"-c",
+			generateExecutionSupervisorScript(),
+			"--",
+			"/executions/$SHSF_EXECUTION_ID/cancel",
+			"15",
+			"/app/_runner.py",
+		]);
+	});
+
+	it("terminates a timed-out process while a completion before the deadline succeeds", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-supervisor-"));
+		const paths = getRunnerTransportPaths(dir);
+		const run = (timeoutSeconds: string, command: string[]) =>
+			new Promise<number | null>((resolve, reject) => {
+				const child = spawn("/bin/sh", [
+					"-c",
+					generateExecutionSupervisorScript(),
+					"--",
+					paths.cancellationPath,
+					timeoutSeconds,
+					...command,
+				]);
+				child.on("error", reject);
+				child.on("exit", resolve);
+			});
+
+		await expect(run("1", ["/bin/sh", "-c", "sleep 0.02"])).resolves.toBe(0);
+		await expect(run("0.1", ["/bin/sh", "-c", "sleep 5"])).resolves.toBe(124);
+		await fs.rm(dir, { recursive: true, force: true });
+		await expect(fs.access(dir)).rejects.toThrow();
+	});
+
+	it("cancels only the execution with the cancellation marker", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-supervisor-"));
+		const first = getRunnerTransportPaths(path.join(dir, "first"));
+		const second = getRunnerTransportPaths(path.join(dir, "second"));
+		await Promise.all([prepareRunnerTransport(first), prepareRunnerTransport(second)]);
+		const run = (paths: ReturnType<typeof getRunnerTransportPaths>, command: string) =>
+			new Promise<number | null>((resolve, reject) => {
+				const child = spawn("/bin/sh", [
+					"-c", generateExecutionSupervisorScript(), "--", paths.cancellationPath,
+					"5", "/bin/sh", "-c", command,
+				]);
+				child.on("error", reject);
+				child.on("exit", resolve);
+			});
+		const waitForFifo = async (fifoPath: string) => {
+				const deadline = Date.now() + 1000;
+				while (Date.now() < deadline) {
+					try {
+						if ((await fs.stat(fifoPath)).isFIFO()) return;
+					} catch {
+						// The supervisor has not created its cancellation FIFO yet.
+					}
+					await new Promise((resolve) => setTimeout(resolve, 5));
+				}
+				throw new Error(`Timed out waiting for cancellation FIFO: ${fifoPath}`);
+			};
+
+		const cancelled = run(first, "sleep 5");
+		const completed = run(second, "sleep 0.02");
+		await waitForFifo(first.cancellationPath);
+		await fs.writeFile(first.cancellationPath, "client");
+		await expect(cancelled).resolves.not.toBe(0);
+		await expect(completed).resolves.toBe(0);
+		await fs.rm(dir, { recursive: true, force: true });
+	});
+
 	it("use result files instead of stdout result markers", () => {
 		const scripts = [
 			generatePythonRunnerScript("main.py"),
@@ -293,6 +386,7 @@ describe("callF transport paths", () => {
 		const paths = getRunnerTransportPaths(dir);
 		expect(paths.callFuncRequestDir).toBe(path.join(dir, "callfunc-requests"));
 		expect(paths.callFuncResponseDir).toBe(path.join(dir, "callfunc-responses"));
+		expect(paths.cancellationPath).toBe(path.join(dir, "cancel"));
 	});
 
 	it("prepareRunnerTransport creates callfunc dirs", async () => {

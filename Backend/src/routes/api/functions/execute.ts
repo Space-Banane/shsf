@@ -168,6 +168,7 @@ export = new fileRouter.Path("/")
 						return ctr.printChunked((print) =>
 							new Promise<void>((end) => {
 								let output = "";
+								const abortController = new AbortController();
 								executeFunction(
 									functionId,
 									functionData,
@@ -188,6 +189,7 @@ export = new fileRouter.Path("/")
 										ran_by: "user",
 										...runPayload,
 									}),
+									{ signal: abortController.signal },
 								)
 									.then(async (result) => {
 										if (result?.error_type === "function_timeout") {
@@ -240,6 +242,7 @@ export = new fileRouter.Path("/")
 									});
 
 								ctr.$abort(() => {
+									abortController.abort();
 									end();
 								});
 							})
