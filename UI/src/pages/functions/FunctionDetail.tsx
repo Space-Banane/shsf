@@ -1368,13 +1368,13 @@ function FunctionDetail() {
 
 		try {
 			const response = await runTrigger(parseInt(id), trigger.id);
-			if ((response as any).status === "OK") {
+			if (response.status === "OK") {
 				toast.success("Trigger executed");
 				await fetchLogs();
 				return true;
 			} else {
 				toast.error(
-					"Error running trigger: " + (response as any).message,
+					"Error running trigger: " + response.message,
 				);
 				return false;
 			}

@@ -45,7 +45,7 @@ const ERROR_CODES = new Set<ApiErrorCode>([
 	"UNKNOWN_ERROR",
 ]);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
 
@@ -186,6 +186,16 @@ export function normalizeApiFailure(
 		...(retryAfter !== undefined ? { retry_after_ms: retryAfter } : {}),
 		...(penalty !== undefined ? { penalty_ms: penalty } : {}),
 	};
+}
+
+export function isApiFailure(value: unknown): value is ApiFailure {
+	return (
+		isRecord(value) &&
+		value.status === "FAILED" &&
+		typeof value.code === "string" &&
+		ERROR_CODES.has(value.code as ApiErrorCode) &&
+		typeof value.message === "string"
+	);
 }
 
 function jsonResponse(body: ApiFailure, status = statusForCode(body.code)): Response {

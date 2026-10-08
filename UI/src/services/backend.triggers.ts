@@ -1,6 +1,12 @@
 import { BASE_URL } from "..";
 import { Trigger } from "../types/Prisma";
-import { apiFetch, type ApiFailure } from "./api";
+import {
+	apiFetch,
+	isApiFailure,
+	isRecord,
+	normalizeApiFailure,
+	type ApiFailure,
+} from "./api";
 
 const fetch = apiFetch;
 
@@ -9,6 +15,15 @@ interface OKResponse {
 	message: string;
 }
 type ErrorResponse = ApiFailure;
+
+export interface RunTriggerResponse {
+	status: "OK";
+	data: {
+		result?: unknown;
+		exit_code?: number;
+		logs?: string;
+	};
+}
 
 interface CreateTriggerResponse {
 	status: "OK";
@@ -142,6 +157,33 @@ async function listAllTriggers() {
 	return data;
 }
 
+export function parseRunTriggerResponse(
+	payload: unknown,
+): RunTriggerResponse | ErrorResponse {
+	if (isApiFailure(payload)) return payload;
+
+	if (
+		isRecord(payload) &&
+		payload.status === "OK" &&
+		isRecord(payload.data) &&
+		(payload.data.exit_code === undefined || typeof payload.data.exit_code === "number") &&
+		(payload.data.logs === undefined || typeof payload.data.logs === "string")
+	) {
+		return {
+			status: "OK",
+			data: {
+				...("result" in payload.data ? { result: payload.data.result } : {}),
+				...(typeof payload.data.exit_code === "number"
+					? { exit_code: payload.data.exit_code }
+					: {}),
+				...(typeof payload.data.logs === "string" ? { logs: payload.data.logs } : {}),
+			},
+		};
+	}
+
+	return normalizeApiFailure(502, undefined, "SERVER_ERROR");
+}
+
 async function runTrigger(functionId: number, triggerId: number) {
 	const response = await fetch(
 		`${BASE_URL}/api/functions/${functionId}/triggers/${triggerId}/run`,
@@ -154,10 +196,7 @@ async function runTrigger(functionId: number, triggerId: number) {
 		},
 	);
 
-	const data = (await response.json()) as
-		| { status: "OK"; data: { result?: any; exit_code?: number; logs?: string } }
-		| ErrorResponse;
-	return data;
+	return parseRunTriggerResponse(await response.json());
 }
 
 export {
