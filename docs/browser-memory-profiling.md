@@ -19,8 +19,6 @@ The source-level lifecycle audit found a confirmed retention path in `UI/src/pag
 
 `@monaco-editor/react` owns the editor/model disposal on unmount; this page now drops its remaining editor reference and saved view states at the same boundary. Existing file contents and logs are unchanged.
 
-The Monaco-backed detail page is now loaded as a separate route chunk, so ordinary pages do not parse or initialize the editor. Within the editor, the minimap, semantic highlighting, and CodeLens are disabled because they are optional decorations that retain additional layout and language-service data. Editing, syntax highlighting, file contents, and logs are unchanged.
-
 ## Evidence and follow-up measurement
 
 The cancellation signal is covered by `UI/src/services/backend.functions.test.ts`. This task environment could not collect browser heap snapshots: T3's shared browser failed to start because the host blocks its sandbox with AppArmor, and no backend fixture was available. This is an environment limitation, not a claim about production browser memory.

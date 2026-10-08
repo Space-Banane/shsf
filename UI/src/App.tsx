@@ -1,4 +1,4 @@
-import { Suspense, useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import {
 	Navigate,
 	Outlet,
@@ -89,14 +89,10 @@ const router = createBrowserRouter(
 					element={
 						route.requireAuth ? (
 							<ProtectedRoute>
-								<Suspense fallback={null}>
-									<route.component />
-								</Suspense>
+								<route.component />
 							</ProtectedRoute>
 						) : (
-							<Suspense fallback={null}>
-								<route.component />
-							</Suspense>
+							<route.component />
 						)
 					}
 				/>

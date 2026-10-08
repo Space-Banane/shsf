@@ -7,6 +7,7 @@ import FunctionsList from "./pages/functions/FunctionsList";
 import { DocsPage } from "./pages/index/docs";
 import { documentationRoutes } from "./pages/docs/docsRegistry";
 import { AccountPage } from "./pages/Account";
+import FunctionDetail from "./pages/functions/FunctionDetail";
 import AccessTokensPage from "./pages/AccessTokens";
 import StoragePage from "./pages/Storage";
 import CronJobsPage from "./pages/CronJobs";
@@ -14,8 +15,6 @@ import GuestUsersPage from "./pages/GuestUsers";
 import GuestAccessPage from "./pages/Guest-Access";
 import { AdminPage } from "./pages/Admin";
 import FunctionAnalyticsPage from "./pages/FunctionAnalytics";
-
-const FunctionDetail = React.lazy(() => import("./pages/functions/FunctionDetail"));
 // Added back the routes array
 export interface AppRoute {
 	path: string;
@@ -162,14 +161,10 @@ const AppRoutes = ({
 					element={
 						route.requireAuth ? (
 							<ProtectedRoute user={user}>
-								<React.Suspense fallback={null}>
-									<route.component user={user} refreshUser={refreshUser} />
-								</React.Suspense>
+								<route.component user={user} refreshUser={refreshUser} />
 							</ProtectedRoute>
 						) : (
-							<React.Suspense fallback={null}>
-								<route.component user={user} refreshUser={refreshUser} />
-							</React.Suspense>
+							<route.component user={user} refreshUser={refreshUser} />
 						)
 					}
 				/>
