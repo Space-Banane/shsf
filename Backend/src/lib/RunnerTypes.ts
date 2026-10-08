@@ -12,6 +12,11 @@ export type FunctionExecutionMode =
 	| "production_execute"
 	| "cron_execute";
 
+export type FunctionExecutionErrorType =
+	| "function_timeout"
+	| "execution_failed"
+	| "internal_error";
+
 export interface PersistedFunctionExecutionLogInput {
 	functionId: number;
 	functionData: Pick<Function, "logging" | "startup_file">;

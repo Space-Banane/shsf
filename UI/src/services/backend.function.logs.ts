@@ -1,4 +1,7 @@
 import { BASE_URL } from "..";
+import { apiFetch, type ApiFailure } from "./api";
+
+const fetch = apiFetch;
 
 export interface LoggingConfig {
     enabled: boolean;
@@ -15,10 +18,7 @@ interface GetLoggingConfigResponse {
     data: LoggingConfig;
 }
 
-interface ErrorResponse {
-    status: "ERROR" | number;
-    message: string;
-}
+type ErrorResponse = ApiFailure;
 
 /**
  * Get logging configuration for a specific function

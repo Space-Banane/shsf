@@ -1,4 +1,7 @@
 import { BASE_URL } from "..";
+import { apiFetch, type ApiFailure } from "./api";
+
+const fetch = apiFetch;
 
 export type AIMode = "kickoff" | "revision";
 
@@ -26,10 +29,7 @@ model: string;
 };
 }
 
-export interface ErrorResponse {
-status: number | string;
-message: string;
-}
+export type ErrorResponse = ApiFailure;
 
 export async function generateConfigWithAI(
 prompt: string,
@@ -42,6 +42,7 @@ headers: {
 },
 credentials: "include",
 body: JSON.stringify({ prompt, image }),
+timeoutMs: 2 * 60_000,
 });
 return response.json();
 }
@@ -59,6 +60,7 @@ headers: { "Content-Type": "application/json" },
 credentials: "include",
 body: JSON.stringify(request),
 signal,
+timeoutMs: 10 * 60_000,
 },
 );
 

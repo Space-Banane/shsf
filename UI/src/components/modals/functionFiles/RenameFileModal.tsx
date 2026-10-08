@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Modal from "../Modal";
-import { cancelBtnClass, primaryBtnClass, inputClass, labelClass, ModalFooter } from "../Modal";
-import { toast } from "react-toastify";
+import { cancelBtnClass, primaryBtnClass, inputClass, labelClass, ModalFooter, ModalError } from "../Modal";
 import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 
 interface RenameFileModalProps {
@@ -21,6 +20,7 @@ function RenameFileModal({
 }: RenameFileModalProps) {
 	const [newFilename, setNewFilename] = useState(currentFilename);
 	const [isLoading, setIsLoading] = useState(false);
+	const [error, setError] = useState("");
 	const lowerCaseAllowedFileTypes = useMemo(
 		() => allowedFileTypes?.map((e) => e.toLowerCase()) ?? [],
 		[allowedFileTypes],
@@ -34,24 +34,25 @@ function RenameFileModal({
 	};
 
 	useEffect(() => {
-		if (isOpen) setNewFilename(currentFilename);
+		if (isOpen) { setNewFilename(currentFilename); setError(""); }
 	}, [isOpen, currentFilename]);
 
 	const handleRename = async () => {
 		if (!newFilename.trim() || newFilename.trim().length < 3) {
-			toast.error("Filename must be at least 3 characters long.");
+			setError("Filename must be at least 3 characters long.");
 			return;
 		}
 		if (newFilename === currentFilename) { onClose(); return; }
 		if (allowedFileTypes && allowedFileTypes.length > 0) {
 			const ext = getFilenameExtension(newFilename);
 			if (!lowerCaseAllowedFileTypes.includes(ext)) {
-				toast.error(
+				setError(
 					`File type ${ext || "(none)"} is not allowed. Allowed: ${allowedFileTypes.join(", ")}`,
 				);
 				return;
 			}
 		}
+		setError("");
 		setIsLoading(true);
 		try {
 			const success = await onRename(newFilename);
@@ -66,6 +67,7 @@ function RenameFileModal({
 	return (
 		<Modal isOpen={isOpen} onClose={handleClose} title="Rename File" isLoading={isLoading}>
 			<div className="space-y-4">
+				<ModalError message={error} />
 				<div>
 					<label className={labelClass}>New filename</label>
 					<input

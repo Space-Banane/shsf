@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { toast } from "react-toastify";
 import { getAccountFunctionAnalytics } from "../services/backend.analytics";
 import { Icon } from "../components/ui/Icon";
 import {
@@ -742,8 +741,7 @@ function FunctionAnalyticsPage() {
 			});
 		} catch (loadError) {
 			console.error("Failed to load function analytics", loadError);
-			setError("Failed to load analytics");
-			toast.error("Failed to load analytics");
+			setError("Analytics could not be loaded. Check the server connection and try again.");
 		} finally {
 			setLoading(false);
 		}

@@ -1,5 +1,8 @@
 import { BASE_URL } from "..";
 import { Session, User } from "../types/Prisma";
+import { apiFetch } from "./api";
+
+const fetch = apiFetch;
 
 interface EnvironmentVariable {
 	name: string;
@@ -49,10 +52,12 @@ async function deleteAccount(confirmation: string) {
 async function exportAccountData() {
 	const response = await fetch(`${BASE_URL}/api/account/export`, {
 		credentials: "include",
+		rawResponse: true,
 	});
 
 	if (!response.ok) {
-		throw new Error("Failed to export account data");
+		const failure = await response.json().catch(() => null);
+		throw new Error(failure?.message || "Account data could not be exported. Try again.");
 	}
 
 	return response;

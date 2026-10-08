@@ -24,6 +24,7 @@ import {
 } from "./StoragePaths";
 
 import type {
+	FunctionExecutionErrorType,
 	TimingEntry,
 	PersistedFunctionExecutionLogInput,
 } from "./RunnerTypes";
@@ -76,6 +77,8 @@ import {
 	toDockerEnvironment,
 } from "./EnvironmentVariables";
 import { getRuntimeImageStatus } from "./RunnerImagePulls";
+
+class FunctionExecutionTimeoutError extends Error {}
 
 async function getRuntimeEnvironment(functionData: Pick<Function, "env" | "userId">) {
 	const accountData = await prisma.user.findUnique({
@@ -175,6 +178,7 @@ export async function executeFunction(
 	const tooks: TimingEntry[] = [];
 	let func_result: string = "";
 	let logs: string = "";
+	let executionErrorType: FunctionExecutionErrorType | undefined;
 
 	// mark() — records a user-facing timing phase into tooks
 	let _lastMark = starting_time;
@@ -663,13 +667,14 @@ export async function executeFunction(
 			execStream.on("error", reject);
 		});
 
-		const timeoutPromise = new Promise<Docker.ExecInspectInfo>((_, reject) =>
-			setTimeout(
+		let execTimeout: ReturnType<typeof setTimeout> | undefined;
+		const timeoutPromise = new Promise<Docker.ExecInspectInfo>((_, reject) => {
+			execTimeout = setTimeout(
 				() =>
-					reject(new Error(`Execution timed out after ${execTimeoutMs / 1000}s`)),
+					reject(new FunctionExecutionTimeoutError(`Execution timed out after ${execTimeoutMs / 1000}s`)),
 				execTimeoutMs
-			)
-		);
+			);
+		});
 
 		let execResultDetails: Docker.ExecInspectInfo;
 		try {
@@ -679,6 +684,7 @@ export async function executeFunction(
 			if (exitCode === 0 && execOutput.stdout) {
 				func_result = "";
 			} else if (exitCode !== 0) {
+				executionErrorType = "execution_failed";
 				// Combine outputs but respect size limits
 				const combinedOutput = `Exit Code: ${exitCode}\n${execOutput.stderr}\n${execOutput.stdout}`;
 				logs =
@@ -691,9 +697,13 @@ export async function executeFunction(
 		} catch (execError: any) {
 			log.error({ err: execError.message }, "Exec failed or timed out");
 			logs = `${execOutput.stderr}\nExecution Error: ${execError.message}`;
+			executionErrorType = execError instanceof FunctionExecutionTimeoutError
+				? "function_timeout"
+				: "execution_failed";
 			exitCode = -1;
 			func_result = "";
 		} finally {
+			if (execTimeout) clearTimeout(execTimeout);
 			await storageBridge.stop();
 			await callFuncBridge.stop();
 		}
@@ -710,6 +720,7 @@ export async function executeFunction(
 				logs += `\nError parsing result JSON file: ${resultState.error.message}`;
 				func_result = resultState.raw;
 				exitCode = -2;
+				executionErrorType = "execution_failed";
 			} else {
 				func_result = JSON.stringify(null);
 			}
@@ -726,8 +737,11 @@ export async function executeFunction(
 			result: parsedResult, // Return parsed object or null
 			tooks,
 			exit_code: exitCode,
+			...(executionErrorType ? { error_type: executionErrorType } : {}),
 		};
 	} catch (error: any) {
+		executionErrorType = "internal_error";
+		exitCode = error.statusCode || -3;
 		log.error({ err: error, functionId: id }, "Critical error in executeFunction");
 		tooks.push({
 			timestamp: Date.now(),
@@ -738,7 +752,8 @@ export async function executeFunction(
 			logs: `${logs}\nCritical Error: ${error.message}\n${error.stack}`,
 			result: "Sorry, an error occurred during execution.",
 			tooks,
-			exit_code: error.statusCode || -3, // Custom code for unhandled errors
+			exit_code: exitCode, // Custom code for unhandled errors
+			error_type: executionErrorType,
 		};
 	} finally {
 		try {
@@ -779,6 +794,7 @@ export async function executeFunction(
 					payload,
 					exit_code: exitCode,
 					tooks,
+					...(executionErrorType ? { error_type: executionErrorType } : {}),
 					...(options?.ratelimit ? { ratelimit: options.ratelimit } : {}),
 				});
 			} catch (error) {

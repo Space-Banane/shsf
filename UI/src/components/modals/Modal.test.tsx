@@ -1,5 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import Modal, { ModalError } from "./Modal";
+import { toast } from "react-toastify";
+
+jest.mock("react-toastify", () => ({
+	toast: { error: jest.fn() },
+}));
 
 describe("Modal", () => {
 	it("renders title and children when open", () => {
@@ -48,6 +53,7 @@ describe("ModalError", () => {
 	it("renders the error message", () => {
 		render(<ModalError message="Something failed" />);
 		expect(screen.getByText("Something failed")).toBeInTheDocument();
+		expect(toast.error).not.toHaveBeenCalled();
 	});
 
 	it("renders nothing without a message", () => {

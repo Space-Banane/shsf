@@ -35,8 +35,8 @@ export function TokenCard({
 			} else {
 				setEditError(res.message || "Failed to update token");
 			}
-		} catch {
-			setEditError("Failed to update token");
+		} catch (updateError) {
+			setEditError(updateError instanceof Error ? updateError.message : "The token could not be updated. Try again.");
 		}
 		setEditLoading(false);
 	};

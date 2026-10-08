@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
 import Modal from "../Modal";
-import { cancelBtnClass, primaryBtnClass, inputClass, textareaClass, labelClass, ModalSection, ModalFooter, ToggleRow } from "../Modal";
+import { cancelBtnClass, primaryBtnClass, inputClass, textareaClass, labelClass, ModalSection, ModalFooter, ModalError, ToggleRow } from "../Modal";
 import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 import { Trigger } from "../../../types/Prisma";
 import { cronPresets as ImportedcronPresets } from "./CreateTriggerModal";
@@ -30,6 +29,7 @@ function EditTriggerModal({ isOpen, onClose, onUpdate, onRun, trigger }: EditTri
 	const [enabled, setEnabled] = useState(true);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isPayloadValid, setIsPayloadValid] = useState(true);
+	const [error, setError] = useState("");
 
 	const cronPresets = ImportedcronPresets;
 
@@ -43,12 +43,14 @@ function EditTriggerModal({ isOpen, onClose, onUpdate, onRun, trigger }: EditTri
 			setData(trigger.data || "{}");
 			setEnabled(trigger.enabled ?? true);
 			setIsPayloadValid(true);
+			setError("");
 		}
 	}, [trigger]);
 
 	const handleSubmit = async () => {
-		if (!name.trim() || !cron.trim()) { toast.error("Name and cron expression are required"); return; }
-		if (!isPayloadValid) { toast.error("Fix the payload before updating the trigger"); return; }
+		if (!name.trim() || !cron.trim()) { setError("Name and cron expression are required."); return; }
+		if (!isPayloadValid) { setError("Fix the payload before updating the trigger."); return; }
+		setError("");
 		setIsSubmitting(true);
 		try {
 			const success = await onUpdate(name, description, cron, data, enabled);
@@ -59,7 +61,7 @@ function EditTriggerModal({ isOpen, onClose, onUpdate, onRun, trigger }: EditTri
 	};
 
 	const handleRunNow = async () => {
-		if (!trigger) { toast.error("No trigger selected"); return; }
+		if (!trigger) { setError("No trigger is selected."); return; }
 		setIsSubmitting(true);
 		try {
 			await onRun?.();
@@ -74,6 +76,7 @@ function EditTriggerModal({ isOpen, onClose, onUpdate, onRun, trigger }: EditTri
 	return (
 		<Modal isOpen={isOpen} onClose={onClose} title="Edit Trigger" maxWidth="lg" isLoading={isSubmitting}>
 			<div className="space-y-6">
+				<ModalError message={error} />
 				<ModalSection title="Basic Information">
 					<div>
 						<label className={labelClass}>Trigger name</label>

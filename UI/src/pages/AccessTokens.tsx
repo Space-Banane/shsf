@@ -35,8 +35,8 @@ export default function AccessTokensPage() {
 		try {
 			const data = await listAccessTokens();
 			setTokens(data || []);
-		} catch {
-			setError("Failed to load tokens");
+		} catch (loadError) {
+			setError(loadError instanceof Error ? loadError.message : "Tokens could not be loaded. Try again.");
 		} finally {
 			setLoading(false);
 		}
@@ -65,8 +65,8 @@ export default function AccessTokensPage() {
 			} else {
 				setGenError(res.message || "Failed to generate token");
 			}
-		} catch {
-			setGenError("Failed to generate token");
+		} catch (generateError) {
+			setGenError(generateError instanceof Error ? generateError.message : "The token could not be generated. Try again.");
 		} finally {
 			setGenLoading(false);
 		}
@@ -78,8 +78,8 @@ export default function AccessTokensPage() {
 		try {
 			await revokeAccessToken(id);
 			fetchTokens();
-		} catch {
-			setRevokeError("Failed to revoke token.");
+		} catch (revokeFailure) {
+			setRevokeError(revokeFailure instanceof Error ? revokeFailure.message : "The token could not be revoked. Try again.");
 		} finally {
 			setRevokeLoading(null);
 		}
@@ -97,8 +97,8 @@ export default function AccessTokensPage() {
 			} else {
 				setCliGenError(res.message || "Failed to generate SHSF Cli token");
 			}
-		} catch {
-			setCliGenError("Failed to generate SHSF Cli token");
+		} catch (generateError) {
+			setCliGenError(generateError instanceof Error ? generateError.message : "The SHSF CLI token could not be generated. Try again.");
 		} finally {
 			setCliGenLoading(false);
 		}

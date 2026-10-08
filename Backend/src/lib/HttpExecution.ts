@@ -196,6 +196,7 @@ export async function executeLoadedHttpFunction(
 			logs: `HTTP execution blocked by rate limit (${ratelimitResult.scope})`,
 			output: JSON.stringify({
 				status: "FAILED",
+				code: "RATE_LIMITED",
 				message: "Function execution rate limit exceeded",
 				scope: ratelimitResult.scope,
 			}),
@@ -215,6 +216,7 @@ export async function executeLoadedHttpFunction(
 
 		return ctr.status(ctr.$status.TOO_MANY_REQUESTS).print({
 			status: "FAILED",
+			code: "RATE_LIMITED",
 			message: `Function execution rate limit exceeded. Retry again in ${retryMessage}.${penaltyMessage}`,
 			scope: ratelimitResult.scope,
 			...(ratelimitResult.policy_id ? { policy_id: ratelimitResult.policy_id } : {}),
@@ -288,6 +290,28 @@ export async function executeLoadedHttpFunction(
 			ratelimit: loggedRateLimit,
 		},
 	);
+
+	if (result?.error_type === "function_timeout") {
+		return ctr.status(504).print({
+			status: "FAILED",
+			code: "FUNCTION_TIMEOUT",
+			message: "The function exceeded its configured execution timeout. Check its logs or increase the timeout in function settings.",
+		});
+	}
+	if (result?.error_type === "internal_error") {
+		return ctr.status(500).print({
+			status: "FAILED",
+			code: "SERVER_ERROR",
+			message: "SHSF could not complete the execution. Check the server logs and try again.",
+		});
+	}
+	if (result?.error_type) {
+		return ctr.status(422).print({
+			status: "FAILED",
+			code: "FUNCTION_EXECUTION_FAILED",
+			message: "The function did not complete successfully. Check its logs, fix the reported error, and try again.",
+		});
+	}
 
 	if (result?.exit_code === 0 && useCache && functionData.cache_enabled) {
 		await dependencies.setFunctionCache(

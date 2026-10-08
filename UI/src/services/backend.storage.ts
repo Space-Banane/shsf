@@ -1,4 +1,7 @@
 import { BASE_URL } from "..";
+import { apiFetch, type ApiFailure } from "./api";
+
+const fetch = apiFetch;
 
 export interface Storage {
 	id: number;
@@ -20,10 +23,7 @@ interface OKResponse<T = any> {
 	data: T;
 }
 
-interface ErrorResponse {
-	status: number;
-	message: string;
-}
+type ErrorResponse = ApiFailure;
 
 // Create a new storage
 export async function createStorage(config: { name: string; purpose: string }) {

@@ -1,14 +1,14 @@
 import { BASE_URL } from "..";
 import { Namespace, XFunction } from "../types/Prisma";
+import { apiFetch, type ApiFailure } from "./api";
+
+const fetch = apiFetch;
 
 interface OKResponse {
 	status: "OK";
 	message: string;
 }
-interface ErrorResponse {
-	status: number;
-	message: string;
-}
+type ErrorResponse = ApiFailure;
 
 interface NamespaceListResponse {
 	status: "OK";
@@ -42,12 +42,7 @@ async function getNamespaces(
 	);
 
 	const data = await response.json();
-	if (response.status !== 200) {
-		return {
-			status: response.status,
-			message: data.message,
-		} as ErrorResponse;
-	}
+	if (!response.ok) return data as ErrorResponse;
 
 	if (includeFunctions) {
 		return data as NamespaceResponseWithFunctions;

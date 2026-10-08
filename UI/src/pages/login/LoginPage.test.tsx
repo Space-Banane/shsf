@@ -39,7 +39,10 @@ describe("LoginPage demo login", () => {
 
 		renderLoginPage();
 
-		await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/config"));
+		await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+			"/api/config",
+			expect.objectContaining({ signal: expect.any(Object) }),
+		));
 		expect(screen.queryByRole("button", { name: "Log in as demo user" })).not.toBeInTheDocument();
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
@@ -53,12 +56,13 @@ describe("LoginPage demo login", () => {
 
 		fireEvent.click(await screen.findByRole("button", { name: "Log in as demo user" }));
 
-		await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith("/api/account/login", {
+		await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith("/api/account/login", expect.objectContaining({
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			credentials: "include",
 			body: JSON.stringify({ email: "demo@shsf.local", password: "demo-password" }),
-		}));
+			signal: expect.any(Object),
+		})));
 		expect(refreshUser).toHaveBeenCalledTimes(1);
 		expect(mockNavigate).toHaveBeenCalledWith("/", { replace: true });
 	});

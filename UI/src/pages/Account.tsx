@@ -5,6 +5,7 @@ import { Icon, IconName } from "../components/ui/Icon";
 import { HelpTooltip } from "../components/ui/Tooltip";
 import { useShiftEnterSubmit } from "../hooks/useShiftEnterSubmit";
 import { deleteAccount, exportAccountData, getAccountSettings, updateAccountSettings } from "../services/backend.account";
+import { toast } from "react-toastify";
 
 interface EnvironmentVariable { name: string; value: string; }
 type Notice = { type: "ok" | "err"; text: string };
@@ -79,6 +80,8 @@ export const AccountPage = () => {
 			const response = await exportAccountData(); const url = URL.createObjectURL(await response.blob());
 			const link = document.createElement("a"); link.href = url; link.download = `shsf-account-export-${new Date().toISOString().split("T")[0]}.json`;
 			document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+		} catch (exportError) {
+			toast.error(exportError instanceof Error ? exportError.message : "Account data could not be exported. Try again.");
 		} finally { setExportLoading(false); }
 	};
 

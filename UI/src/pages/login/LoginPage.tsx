@@ -2,6 +2,9 @@ import { useState, useContext, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { UserContext } from "../../App";
 import { BASE_URL } from "../..";
+import { apiFetch } from "../../services/api";
+
+const fetch = apiFetch;
 
 type LoginLocationState = {
 	from?: {

@@ -1,4 +1,7 @@
 import { BASE_URL } from "..";
+import { apiFetch } from "./api";
+
+const fetch = apiFetch;
 
 export type LinkStatus =
 	| { linked: true; global_user_email: string }

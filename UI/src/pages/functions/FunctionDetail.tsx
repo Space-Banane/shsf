@@ -4,6 +4,7 @@ import { SHSFExport } from "../../components/modals/functions/ImportFunctionModa
 import { useContext, useEffect, useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import JSZip from "jszip";
+import { apiFetch } from "../../services/api";
 import CreateFileModal from "../../components/modals/functionFiles/CreateFileModal";
 import FolderModal from "../../components/modals/functionFiles/FolderModal";
 import RenameFileModal from "../../components/modals/functionFiles/RenameFileModal";
@@ -70,6 +71,8 @@ import { TriggersCard } from "../../components/cards/TriggersCard";
 import { FileManagerCard } from "../../components/cards/FileManagerCard";
 import { ActionButton } from "../../components/buttons/ActionButton";
 import { useConfirm } from "../../components/modals/ConfirmModal";
+
+const fetch = apiFetch;
 
 // Define the timing entry interface
 export interface TimingEntry {
@@ -790,11 +793,7 @@ function FunctionDetail() {
 						showResultIfNotPopup(result.data.result);
 					}
 				} else {
-					setConsoleOutput(
-						`Error: ${result.message}\nDetails: ${
-							result.error || "No additional details."
-						}`,
-					);
+					setConsoleOutput(`Execution failed: ${result.message}`);
 				}
 			} catch (error) {
 				console.error("Error executing code:", error);
@@ -894,7 +893,9 @@ function FunctionDetail() {
 				setDepModalContent({
 					title: "Install Error",
 					message:
-						"Error installing dependencies: " + String(response),
+						typeof response === "object" && response && "message" in response
+							? String(response.message)
+							: "Dependencies could not be installed. Check the function logs and try again.",
 					success: false,
 				});
 				setShowDepModal(true);
