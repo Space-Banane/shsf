@@ -66,6 +66,12 @@ cp .env.example .env
 
 Edit `.env` and set the required variables:
 
+Generate the instance secret before starting a production deployment:
+
+```bash
+openssl rand -hex 32
+```
+
 | Variable | Description |
 |---|---|
 | `DATABASE_URL` | MySQL/MariaDB connection string |
@@ -74,7 +80,7 @@ Edit `.env` and set the required variables:
 | `UI_URL` | Full URL to the UI (used for CORS) |
 | `REACT_APP_API_URL` | Full URL to the backend API |
 | `CORS_URLS` | Additional comma-separated CORS origins |
-| `INSTANCE_SECRET` | Random secret — **change the default in production** |
+| `INSTANCE_SECRET` | Secret used to encrypt credentials at rest. Production requires a non-default value of at least 32 characters; use `openssl rand -hex 32`. |
 | `IS_DEMO` | Set to `true` only for a disposable public demo; seeds `demo@shsf.local` / `demo-password` and an example function |
 
 An optional MariaDB service block is included (commented out) in `docker-compose.yml` if you do not have an external database.

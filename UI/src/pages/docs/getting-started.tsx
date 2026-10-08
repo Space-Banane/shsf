@@ -60,7 +60,7 @@ RATELIMIT=5000
 
 # Used to encrypt secrets at rest (e.g. git tokens). Generate with:
 #   openssl rand -hex 32
-INSTANCE_SECRET=changeme_replace_with_a_random_32_byte_hex_string`}</code>
+INSTANCE_SECRET=`}</code>
 			</pre>
 
 			<h3>What each variable does</h3>
@@ -92,17 +92,18 @@ INSTANCE_SECRET=changeme_replace_with_a_random_32_byte_hex_string`}</code>
 					limits are configured separately in the function settings.)
 				</li>
 				<li>
-					<strong>INSTANCE_SECRET</strong> — 32-byte hex secret used to encrypt
-					sensitive data at rest (such as git credentials). Never share it.
+					<strong>INSTANCE_SECRET</strong> — a secret of at least 32 characters used to
+					encrypt sensitive data at rest (such as git credentials). Use a 32-byte hex
+					value from <code>openssl rand -hex 32</code> and never share it.
 				</li>
 			</ul>
 
 			<Callout variant="danger" title="Change INSTANCE_SECRET before production">
 				<p>
-					The default value (<code>default_insecure_secret_please_set</code>) is{" "}
-					<strong>insecure</strong>. Generate a real one with{" "}
-					<code>openssl rand -hex 32</code>. Changing it later will invalidate any
-					git credentials that were already encrypted.
+					Production startup rejects a missing secret, the default value ({" "}
+					<code>default_insecure_secret_please_set</code>), and values shorter than 32
+					characters. Generate one with <code>openssl rand -hex 32</code>. Changing it
+					later will invalidate any git credentials that were already encrypted.
 				</p>
 			</Callout>
 
