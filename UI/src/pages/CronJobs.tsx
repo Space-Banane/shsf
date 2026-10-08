@@ -79,8 +79,8 @@ function CronJobsPage() {
 		if (!trigger) return false;
 		try {
 			const res = await runTrigger(trigger.functionId, trigger.id);
-			if ((res as any).status === "OK") { toast.success("Trigger executed"); loadData(); return true; }
-			toast.error((res as any).message || "Failed to run trigger");
+			if (res.status === "OK") { toast.success("Trigger executed"); loadData(); return true; }
+			toast.error(res.message || "Failed to run trigger");
 			return false;
 		} catch { toast.error("Failed to run trigger"); return false; }
 	};
