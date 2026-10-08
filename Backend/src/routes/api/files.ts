@@ -11,6 +11,7 @@ import * as fs from "fs/promises";
 import { OpenAPITags } from "../../lib/openapi";
 import { getFunctionAppDir } from "../../lib/StoragePaths";
 import { createLogger } from "../../lib/logger";
+import { FUNCTION_TEMPLATES, getFunctionTemplate, getTemplatesForRuntime, readFunctionTemplate } from "../../lib/FunctionTemplates";
 import { listGitAppFiles } from "../../lib/GitOps";
 import { isDependencyFilename } from "../../lib/FunctionDependencies";
 import {
@@ -1257,7 +1258,7 @@ export = new fileRouter.Path("/")
 					// Get the function to check its runtime
 					const func = await prisma.function.findUnique({
 						where: { id: functionId },
-						select: { image: true },
+						select: { image: true, startup_file: true },
 					});
 
 					if (!func) {
@@ -1294,7 +1295,30 @@ export = new fileRouter.Path("/")
 						go_redirects: "../fill_examples/redirects.go",
 					};
 
+					const catalogTemplate = getFunctionTemplate(data.defaultToLoad);
 					const filePath = defaultFileMap[data.defaultToLoad];
+					if (catalogTemplate) {
+						const functionRuntimeLanguage = func.image.toLowerCase().split(":")[0];
+						const compatible = catalogTemplate.runtime === "html"
+							? func.startup_file.toLowerCase().endsWith(".html")
+							: getTemplatesForRuntime(functionRuntimeLanguage).some((template) => template.id === catalogTemplate.id);
+						if (!compatible) {
+							return ctr.status(ctr.$status.BAD_REQUEST).print({
+								status: 400,
+								message: `Cannot load ${catalogTemplate.runtime} template into a ${functionRuntimeLanguage} function`,
+							});
+						}
+						try {
+							const updatedFile = await prisma.functionFile.update({
+								where: { id: fileIdInt },
+								data: { content: await readFunctionTemplate(catalogTemplate) },
+							});
+							return ctr.print({ status: "OK", data: updatedFile });
+						} catch (err) {
+							log.error({ err, templateId: catalogTemplate.id }, "Error reading catalog template");
+							return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({ status: 500, message: "Failed to load default template" });
+						}
+					}
 					if (!filePath) {
 						return ctr.status(ctr.$status.BAD_REQUEST).print({
 							status: 400,
@@ -1401,14 +1425,24 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				// Read all files from fill_examples directory
+				const catalogDefaults = FUNCTION_TEMPLATES.map((template) => ({
+					id: template.id,
+					name: template.name,
+					language: template.runtime,
+					useCase: template.useCase,
+					description: template.description,
+					setup: template.setup,
+					samplePayload: template.samplePayload,
+				}));
+
+				// Read legacy examples when available; the catalog is always returned.
 				try {
 					const fillExamplesDir = "../fill_examples";
 					const files = await fs.readdir(fillExamplesDir);
 
 					// Convert filenames to default names with metadata
 					// e.g., "default.py" -> { id: "python_default", name: "Default", language: "python", description: "..." }
-					const defaults = files
+					const legacyDefaults = files
 						.filter(
 							(file) =>
 								file.endsWith(".py") ||
@@ -1479,20 +1513,13 @@ export = new fileRouter.Path("/")
 
 					return ctr.print({
 						status: "OK",
-						defaults,
+						defaults: [...catalogDefaults, ...legacyDefaults],
 					});
 				} catch (err) {
 					log.error({ err }, "Error reading fill_examples directory");
 					return ctr.print({
 						status: "OK",
-						defaults: [
-							{
-								id: "python_default",
-								name: "Default",
-								language: "python",
-								description: "Basic function template",
-							},
-						],
+						defaults: catalogDefaults,
 					});
 				}
 			}),

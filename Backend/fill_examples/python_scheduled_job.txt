@@ -1,0 +1,3 @@
+def main(args):
+    dry_run = args.get("body", {}).get("dry_run", False)
+    return {"_shsf": "v2", "_code": 200, "_res": {"ok": True, "dry_run": dry_run}}

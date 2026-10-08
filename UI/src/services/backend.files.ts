@@ -178,6 +178,9 @@ interface DefaultTemplate {
 	name: string;
 	language: string;
 	description: string;
+	useCase?: string;
+	setup?: string;
+	samplePayload?: Record<string, unknown>;
 }
 
 async function loadPossibleDefaults() {

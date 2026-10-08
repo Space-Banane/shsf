@@ -14,6 +14,7 @@ import {
 } from "../Modal";
 import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 import { createFunction, getDeprecatedImages } from "../../../services/backend.functions";
+import { loadPossibleDefaults, DefaultTemplate } from "../../../services/backend.files";
 import {
 	getImageDisplayName,
 	Image,
@@ -54,9 +55,14 @@ function CreateFunctionModal({
 	const [corsOrigins, setCorsOrigins] = useState<string>("");
 	const [corsOriginInput, setCorsOriginInput] = useState<string>("");
 	const [deprecatedImages, setDeprecatedImages] = useState<string[]>([]);
+	const [templates, setTemplates] = useState<DefaultTemplate[]>([]);
+	const [templateId, setTemplateId] = useState("");
 
 	useEffect(() => {
 		getDeprecatedImages().then(setDeprecatedImages).catch(() => {});
+		loadPossibleDefaults().then((response) => {
+			if (response.status === "OK") setTemplates(response.defaults.filter((template) => template.id.includes("_http_api") || template.id.includes("_webhook") || template.id.includes("_scheduled_job")));
+		}).catch(() => {});
 	}, []);
 
 	const resetForm = () => {
@@ -66,6 +72,7 @@ function CreateFunctionModal({
 		setDockerMount(false); setNetworkRestricted(false);
 		setFfmpegInstall(false); setOpencvInstall(false);
 		setCorsOrigins(""); setError("");
+		setTemplateId("");
 	};
 
 	const isHtmlFunction = !!startupFile && startupFile.trim().toLowerCase().endsWith(".html");
@@ -100,6 +107,7 @@ function CreateFunctionModal({
 			const response = await createFunction({
 				name, description, image, namespaceId,
 				startup_file: startupFile,
+				templateId: templateId || undefined,
 				docker_mount: dockerMount,
 				network_restricted: networkRestricted,
 				ffmpeg_install: ffmpegInstall,
@@ -218,6 +226,21 @@ function CreateFunctionModal({
 							className={`${inputClass} ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
 							disabled={isLoading}
 						/>
+					</div>
+					<div>
+						<label className={labelClass}>Starter Template</label>
+						<select
+							value={templateId}
+							onChange={(e) => setTemplateId(e.target.value)}
+							className={selectClass}
+							disabled={isLoading}
+						>
+							<option value="">Blank runtime starter</option>
+							{templates.filter((template) => template.language === image.split(":")[0] || (image.startsWith("golang:") && template.language === "go") || (image.startsWith("node:") && template.language === "javascript")).map((template) => (
+								<option key={template.id} value={template.id}>{template.name} — {template.description}</option>
+							))}
+						</select>
+						<p className="text-xs text-muted mt-1">Templates include a sample payload and setup notes in the file editor.</p>
 					</div>
 				</ModalSection>
 

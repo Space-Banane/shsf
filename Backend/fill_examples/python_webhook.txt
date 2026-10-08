@@ -1,0 +1,3 @@
+def main(args):
+    body = args.get("body", {})
+    return {"_shsf": "v2", "_code": 200, "_res": {"received": True, "event": body.get("event"), "id": body.get("id")}}

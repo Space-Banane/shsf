@@ -1,0 +1,5 @@
+async function main(args) {
+  return { _shsf: "v2", _code: 200, _res: { ok: true, dry_run: args?.body?.dry_run ?? false } };
+}
+
+module.exports = { main };

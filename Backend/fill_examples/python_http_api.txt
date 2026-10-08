@@ -1,0 +1,3 @@
+def main(args):
+    name = args.get("body", {}).get("name", "world")
+    return {"_shsf": "v2", "_code": 200, "_res": {"message": f"Hello, {name}!"}}

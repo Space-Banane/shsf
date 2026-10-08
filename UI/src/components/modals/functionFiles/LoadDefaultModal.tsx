@@ -46,7 +46,8 @@ function LoadDefaultModal({
 					const trimmedLanguage = functionLanguage.trim();
 					if (trimmedLanguage !== "") {
 						const lowerLanguage = trimmedLanguage.toLowerCase();
-						const normalizedLanguage = lowerLanguage.split(":")[0];
+										const rawLanguage = lowerLanguage.split(":")[0];
+										const normalizedLanguage = rawLanguage === "node" ? "javascript" : rawLanguage === "golang" ? "go" : rawLanguage;
 						if (normalizedLanguage) {
 							filteredDefaults = response.defaults.filter(
 								(template) => template.language.toLowerCase() === normalizedLanguage,
@@ -138,6 +139,8 @@ function LoadDefaultModal({
 															{template.description}
 														</p>
 													)}
+															{template.setup && <p className="text-xs text-muted/80 mt-1">Setup: {template.setup}</p>}
+															{template.samplePayload && <p className="text-xs text-muted/80 mt-1">Sample: {JSON.stringify(template.samplePayload)}</p>}
 												</div>
 												<Icon name="chevron-right" className="w-4 h-4 text-muted shrink-0 mt-0.5" />
 											</button>

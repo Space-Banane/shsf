@@ -12,6 +12,7 @@ import {
 } from "../../../lib/Runner";
 import Docker from "dockerode";
 import { getFirstFileByLanguage } from "../../../lib/LangOps";
+import { getFunctionTemplate, getTemplatesForRuntime, readFunctionTemplate } from "../../../lib/FunctionTemplates";
 
 const Images: string[] = [
 	// Python versions
@@ -237,6 +238,7 @@ export = new fileRouter.Path("/")
 							.optional(), // Only allow alphanumeric, hyphens, and underscores
 						imported: z.boolean().optional(),
 						ai_kicked_off: z.boolean().optional(),
+						templateId: z.string().optional(),
 						settings: z
 							.object({
 								max_ram: z.number().min(128).max(1024).optional(),
@@ -302,6 +304,16 @@ export = new fileRouter.Path("/")
 				}
 
 				const normalizedStartupFile = data.startup_file.trim();
+				const selectedTemplate = data.templateId ? getFunctionTemplate(data.templateId) : undefined;
+				if (data.templateId && (!selectedTemplate || !getTemplatesForRuntime(data.image).some((template) => template.id === data.templateId))) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Template is not compatible with the selected runtime",
+					});
+				}
+				const starterContent = selectedTemplate
+					? await readFunctionTemplate(selectedTemplate)
+					: await getFirstFileByLanguage(getImageFamily(data.image), normalizedStartupFile);
 
 				const authCheck = await checkAuthentication(
 					ctr.cookies.get(COOKIE),
@@ -396,11 +408,7 @@ export = new fileRouter.Path("/")
 									files: {
 										create: {
 											name: normalizedStartupFile,
-											content:
-												(await getFirstFileByLanguage(
-													getImageFamily(data.image),
-													normalizedStartupFile,
-												)) ?? "",
+											content: starterContent ?? "",
 										},
 									},
 							}

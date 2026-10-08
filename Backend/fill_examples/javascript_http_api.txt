@@ -1,0 +1,6 @@
+async function main(args) {
+  const name = args?.body?.name ?? "world";
+  return { _shsf: "v2", _code: 200, _res: { message: `Hello, ${name}!` } };
+}
+
+module.exports = { main };

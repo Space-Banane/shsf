@@ -90,6 +90,7 @@ async function createFunction(config: {
 	executionAlias?: string;
 	imported?: boolean;
 	ai_kicked_off?: boolean;
+	templateId?: string;
 }) {
 	const response = await fetch(`${BASE_URL}/api/function`, {
 		method: "POST",

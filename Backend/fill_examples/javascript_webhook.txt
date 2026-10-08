@@ -1,0 +1,6 @@
+async function main(args) {
+  const body = args?.body ?? {};
+  return { _shsf: "v2", _code: 200, _res: { received: true, event: body.event, id: body.id } };
+}
+
+module.exports = { main };

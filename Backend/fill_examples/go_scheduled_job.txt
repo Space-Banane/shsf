@@ -1,0 +1,5 @@
+package main
+
+func main_user(args interface{}) (interface{}, error) {
+	return map[string]interface{}{"_shsf": "v2", "_code": 200, "_res": map[string]interface{}{"ok": true}}, nil
+}
