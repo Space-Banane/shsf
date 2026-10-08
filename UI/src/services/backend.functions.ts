@@ -231,7 +231,11 @@ async function updateFunction(
 	return data;
 }
 
-async function executeFunction(id: number, data?: any) {
+async function executeFunction(
+	id: number,
+	data?: unknown,
+	signal?: AbortSignal,
+) {
 	try {
 		const response = await fetch(
 			`${BASE_URL}/api/function/${id}/execute?stream=false`,
@@ -242,6 +246,7 @@ async function executeFunction(id: number, data?: any) {
 				},
 				credentials: "include",
 				body: data ? JSON.stringify(data) : undefined,
+				signal,
 				timeoutMs: 15 * 60_000,
 			},
 		);
@@ -319,7 +324,8 @@ async function reinstallOpencv(
 async function executeFunctionStreaming(
 	id: number,
 	onChunk: (data: any) => void,
-	data?: any,
+	data?: unknown,
+	signal?: AbortSignal,
 ) {
 	try {
 		const response = await fetch(
@@ -331,6 +337,7 @@ async function executeFunctionStreaming(
 				},
 				credentials: "include",
 				body: data ? JSON.stringify(data) : undefined,
+				signal,
 				timeoutMs: 15 * 60_000,
 				rawResponse: true,
 			},
