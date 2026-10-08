@@ -127,6 +127,7 @@ function FunctionDetail() {
 	const [runParams, setRunParams] = useState<string>("");
 	const [showRunParams, setShowRunParams] = useState<boolean>(false);
 	const timerRef = useRef<NodeJS.Timeout | null>(null);
+	const executionAbortControllerRef = useRef<AbortController | null>(null);
 	const [activeFileLanguage, setActiveFileLanguage] = useState<string>("");
 	const consoleOutputRef = useRef<HTMLDivElement>(null!);
 	const [autoScroll, setAutoScroll] = useState<boolean>(true);
@@ -246,6 +247,17 @@ function FunctionDetail() {
 	}, [activeFile]);
 
 	useEffect(() => {
+		const editorViewStates = editorViewStatesRef.current;
+		return () => {
+			executionAbortControllerRef.current?.abort();
+			if (timerRef.current) clearInterval(timerRef.current);
+			timerRef.current = null;
+			editorViewStates.clear();
+			editorRef.current = null;
+		};
+	}, []);
+
+	useEffect(() => {
 		if (resultModalsEnabled) {
 			return;
 		}
@@ -306,11 +318,11 @@ function FunctionDetail() {
 	};
 
 	const startTimer = () => {
-		let startTime = Date.now();
+		const startTime = Date.now();
 		setExecutionTime(0);
 		timerRef.current = setInterval(() => {
 			setExecutionTime((Date.now() - startTime) / 1000);
-		}, 1);
+		}, 50);
 	};
 
 	const stopTimer = () => {
@@ -652,6 +664,8 @@ function FunctionDetail() {
 		setExitCode(null);
 		setFunctionResult(null);
 		setTooks([]);
+		const executionController = new AbortController();
+		executionAbortControllerRef.current = executionController;
 		startTimer();
 
 		// Parse run params if provided
@@ -663,6 +677,7 @@ function FunctionDetail() {
 				setConsoleOutput("Error parsing run parameters: Invalid JSON");
 				setRunning(false);
 				stopTimer();
+				executionAbortControllerRef.current = null;
 				return;
 			}
 		}
@@ -759,6 +774,7 @@ function FunctionDetail() {
 				const result = await executeFunction(
 					parseInt(id),
 					parsedRunParams ? { run: parsedRunParams } : undefined,
+					executionController.signal,
 				);
 				if (result.status === "OK") {
 					// Check for popup result
@@ -796,11 +812,15 @@ function FunctionDetail() {
 					setConsoleOutput(`Execution failed: ${result.message}`);
 				}
 			} catch (error) {
+				if (executionController.signal.aborted) return;
 				console.error("Error executing code:", error);
 				setConsoleOutput("An error occurred while executing the code.");
 			} finally {
-				stopTimer();
-				setRunning(false);
+				if (executionAbortControllerRef.current === executionController) {
+					stopTimer();
+					setRunning(false);
+					executionAbortControllerRef.current = null;
+				}
 			}
 		} else {
 			// Streaming mode
@@ -810,6 +830,7 @@ function FunctionDetail() {
 				await executeFunctionStreaming(
 					parseInt(id),
 					(data) => {
+						if (executionController.signal.aborted) return;
 						if (data.type === "output" && data.content) {
 							// Check for popup result
 							if (!popupTriggered && checkPopup(data.content)) {
@@ -857,16 +878,21 @@ function FunctionDetail() {
 						}
 					},
 					parsedRunParams ? { run: parsedRunParams } : undefined,
+					executionController.signal,
 				);
 			} catch (error) {
+				if (executionController.signal.aborted) return;
 				console.error("Error streaming execution:", error);
 				setConsoleOutput(
 					(prev) =>
 						prev + "\nConnection error: Failed to stream output.",
 				);
 			} finally {
-				stopTimer();
-				setRunning(false);
+				if (executionAbortControllerRef.current === executionController) {
+					stopTimer();
+					setRunning(false);
+					executionAbortControllerRef.current = null;
+				}
 			}
 		}
 	};
