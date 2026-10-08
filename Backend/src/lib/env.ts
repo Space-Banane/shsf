@@ -2,6 +2,9 @@ import dotenv from "dotenv";
 import { join } from "path";
 import { z } from "zod";
 
+export const DEFAULT_INSTANCE_SECRET = "default_insecure_secret_please_set";
+export const MIN_INSTANCE_SECRET_LENGTH = 32;
+
 if (process.env.NODE_ENV !== "test") {
 	dotenv.config({ path: join(__dirname, "../../.env") });
 }
@@ -18,7 +21,7 @@ const baseSchema = z.object({
 	CORS_URLS: z.string().min(1),
 	INSTANCE_SECRET: z
 		.string()
-		.default("default_insecure_secret_please_set"),
+		.default(DEFAULT_INSTANCE_SECRET),
 	RATELIMIT: z.coerce.number().int().nonnegative().default(0),
 	LOG_LEVEL: z.string().default("info"),
 	OPENROUTER_API_KEY: z.string().optional(),
@@ -47,14 +50,38 @@ const testSchema = baseSchema.extend({
 	CORS_URLS: z.string().default("http://localhost:3000"),
 });
 
-const isTest = process.env.NODE_ENV === "test";
-const result = (isTest ? testSchema : baseSchema).safeParse(process.env);
+export function parseEnvironment(input: NodeJS.ProcessEnv = process.env) {
+	const schema = input.NODE_ENV === "test" ? testSchema : baseSchema;
+	const result = schema
+		.superRefine(({ NODE_ENV, INSTANCE_SECRET }, ctx) => {
+			if (NODE_ENV !== "production") return;
 
-if (!result.success) {
-	const formatted = result.error.issues
-		.map((i) => `  ${i.path.join(".")}: ${i.message}`)
-		.join("\n");
-	throw new Error(`Invalid environment variables:\n${formatted}`);
+			if (INSTANCE_SECRET === DEFAULT_INSTANCE_SECRET) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["INSTANCE_SECRET"],
+					message: "must not use the default value in production. Generate one with: openssl rand -hex 32",
+				});
+			}
+
+			if (INSTANCE_SECRET.length < MIN_INSTANCE_SECRET_LENGTH) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ["INSTANCE_SECRET"],
+					message: `must be at least ${MIN_INSTANCE_SECRET_LENGTH} characters in production. Generate one with: openssl rand -hex 32`,
+				});
+			}
+		})
+		.safeParse(input);
+
+	if (!result.success) {
+		const formatted = result.error.issues
+			.map((i) => `  ${i.path.join(".")}: ${i.message}`)
+			.join("\n");
+		throw new Error(`Invalid environment variables:\n${formatted}`);
+	}
+
+	return result.data;
 }
 
-export const env = result.data;
+export const env = parseEnvironment();
