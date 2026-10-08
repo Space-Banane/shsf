@@ -10,6 +10,7 @@ import { checkAuthentication } from "../../../lib/Authentication";
 import * as bcrypt from "bcrypt";
 import { createLogger } from "../../../lib/logger";
 import { getGuestAccessDisabled } from "../../../lib/DataManager";
+import { isFunctionOwnedByUser } from "../../../lib/GuestFunctionAccess";
 
 const log = createLogger("guest-auth");
 
@@ -263,6 +264,16 @@ export = new fileRouter.Path("/")
 				});
 			}
 
+			const functionData = await prisma.function.findFirst({
+				where: { id: data.functionId, userId: authCheck.user.id },
+			});
+			if (!isFunctionOwnedByUser(functionData, authCheck.user.id)) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: "FAILED",
+					message: "Function not found",
+				});
+			}
+
 			const permitted = Array.isArray(guest.permittedFunctions)
 				? guest.permittedFunctions
 				: [];
@@ -270,16 +281,16 @@ export = new fileRouter.Path("/")
 				permitted.push(data.functionId);
 			}
 
-			await prisma.guestUser.update({
-				where: { id: data.guestId },
-				data: { permittedFunctions: permitted },
-			});
+			await prisma.$transaction(async (tx) => {
+				await tx.guestUser.update({
+					where: { id: data.guestId },
+					data: { permittedFunctions: permitted },
+				});
 
-			await prisma.function.update({
-				where: { id: data.functionId },
-				data: {
-					guest_access: true,
-				},
+				await tx.function.update({
+					where: { id: functionData.id },
+					data: { guest_access: true },
+				});
 			});
 
 			return ctr.print({
@@ -321,34 +332,42 @@ export = new fileRouter.Path("/")
 				});
 			}
 
+			const functionData = await prisma.function.findFirst({
+				where: { id: data.functionId, userId: authCheck.user.id },
+			});
+			if (!isFunctionOwnedByUser(functionData, authCheck.user.id)) {
+				return ctr.status(ctr.$status.NOT_FOUND).print({
+					status: "FAILED",
+					message: "Function not found",
+				});
+			}
+
 			const permitted = Array.isArray(guest.permittedFunctions)
 				? guest.permittedFunctions
 						.filter((fid): fid is number => typeof fid === "number")
 						.filter((fid) => fid !== data.functionId)
 				: [];
 
-			await prisma.guestUser.update({
-				where: { id: data.guestId },
-				data: { permittedFunctions: permitted },
-			});
+			await prisma.$transaction(async (tx) => {
+				await tx.guestUser.update({
+					where: { id: data.guestId },
+					data: { permittedFunctions: permitted },
+				});
 
-			// Before saving, check if any other guest has access to this function
-			const otherGuests = await prisma.guestUser.findMany({
-				where: {
-					guestOwnerId: authCheck.user.id,
-					permittedFunctions: { array_contains: data.functionId },
-				},
-			});
-
-			if (otherGuests.length === 0) {
-				// No other guest has access, set guest_access to false
-				await prisma.function.update({
-					where: { id: data.functionId },
-					data: {
-						guest_access: false,
+				const otherGuests = await tx.guestUser.findMany({
+					where: {
+						guestOwnerId: authCheck.user.id,
+						permittedFunctions: { array_contains: data.functionId },
 					},
 				});
-			}
+
+				if (otherGuests.length === 0) {
+					await tx.function.update({
+						where: { id: functionData.id },
+						data: { guest_access: false },
+					});
+				}
+			});
 
 			return ctr.print({
 				status: "OK",
