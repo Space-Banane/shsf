@@ -570,7 +570,7 @@ export = new fileRouter.Path("/")
 				const tag = ctr.queries.get("tag")?.trim();
 				const status = ctr.queries.get("status");
 				const sort = ctr.queries.get("sort");
-				const order = ctr.queries.get("order") === "desc" ? "desc" : "asc";
+				const order: "asc" | "desc" = ctr.queries.get("order") === "desc" ? "desc" : "asc";
 				const where = {
 					userId: authCheck.user.id,
 					...(search ? { OR: [{ name: { contains: search } }, { description: { contains: search } }] } : {}),
