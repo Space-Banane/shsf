@@ -12,6 +12,11 @@ type LoginLocationState = {
 	message?: string;
 };
 
+const DEMO_CREDENTIALS = {
+	email: "demo@shsf.local",
+	password: "demo-password",
+};
+
 const getRedirectPath = (state: LoginLocationState | null | undefined) => {
 	const pathname = state?.from?.pathname;
 	if (!pathname || !pathname.startsWith("/") || pathname === "/login") return "/";
@@ -41,7 +46,9 @@ function LoginPage() {
 			.catch(() => setIsDemo(false));
 	}, []);
 
-	const handleLogin = async () => {
+	const handleLogin = async (loginEmail = email, loginPassword = password) => {
+		if (loading) return;
+
 		setError("");
 		setLoading(true);
 		try {
@@ -49,7 +56,7 @@ function LoginPage() {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				credentials: "include",
-				body: JSON.stringify({ email, password }),
+				body: JSON.stringify({ email: loginEmail, password: loginPassword }),
 			});
 			const data = await response.json();
 			if (data.status === "OK") {
@@ -81,7 +88,7 @@ function LoginPage() {
 					{isDemo && (
 						<div className="px-3 py-2.5 bg-primary/10 border border-primary/20 rounded-lg text-sm text-text">
 							<p className="font-medium">Public demo instance</p>
-							<p className="text-muted mt-1">Sign in with <span className="font-mono text-text">demo@shsf.local</span> / <span className="font-mono text-text">demo-password</span>.</p>
+							<p className="text-muted mt-1">Sign in with <span className="font-mono text-text">{DEMO_CREDENTIALS.email}</span> / <span className="font-mono text-text">{DEMO_CREDENTIALS.password}</span>.</p>
 						</div>
 					)}
 					{successMessage && (
@@ -129,6 +136,15 @@ function LoginPage() {
 							<><div className="w-4 h-4 border-2 border-background/30 border-t-background rounded-full animate-spin" /> Signing in…</>
 						) : "Sign In"}
 					</button>
+					{isDemo && (
+						<button
+							onClick={() => handleLogin(DEMO_CREDENTIALS.email, DEMO_CREDENTIALS.password)}
+							disabled={loading}
+							className="w-full py-2.5 border border-primary/50 text-primary text-sm font-semibold rounded-lg hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+						>
+							{loading ? "Signing in…" : "Log in as demo user"}
+						</button>
+					)}
 				</div>
 
 				<p className="text-center text-sm text-muted mt-4">
