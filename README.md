@@ -61,7 +61,7 @@ cd shsf
 ### 2 — Configure environment
 
 ```bash
-cp .env.example .env
+cp example.env .env
 ```
 
 Edit `.env` and set the required variables:
@@ -96,6 +96,12 @@ docker compose up -d
 Open `http://localhost:<PORT>` in your browser. The first registered account is automatically promoted to admin.
 
 ---
+
+### API reference
+
+Each SHSF instance publishes its OpenAPI document at `/api/openapi.json`. For a
+local installation, open `http://localhost:<PORT>/api/openapi.json`; for a
+hosted installation, append `/api/openapi.json` to its public URL.
 
 ### Runtime data directory
 
@@ -216,7 +222,7 @@ The `args` payload includes `body` (parsed request body), `query` (query string 
 ```bash
 # Backend (terminal 1)
 cd Backend
-cp .env.example .env   # fill in DATABASE_URL etc.
+cp ../example.env .env # fill in DATABASE_URL etc.
 pnpm install
 pnpm dev               # esbuild watch + node
 

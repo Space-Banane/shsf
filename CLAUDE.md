@@ -1,8 +1,12 @@
-# SHSF – Claude Code Guidelines
+# SHSF – Agent Guidelines
+
+This file is the authoritative rule set for all AI coding agents (Claude Code, Copilot, Cursor, etc.) working in this repository.
+
+---
 
 ## What is SHSF?
 
-**SelfHostable Serverless Functions** — a self-hosted platform for deploying and running serverless functions, packaged as a single `docker compose` stack. Users write functions, manage them via the web UI, and invoke them over HTTP. The platform handles routing, rate limiting, analytics, logging, and AI-assisted code generation.
+**SelfHostable Serverless Functions** — a self-hosted platform for deploying and running serverless functions via a single `docker compose` stack. Users author functions through the web UI, invoke them over HTTP, and optionally use AI to generate or import function code.
 
 ---
 
@@ -12,103 +16,119 @@
 Backend/        Node.js + TypeScript API (rjweb-server)
   src/
     index.ts          PrismaClient singleton + server bootstrap
-    lib/              Shared utilities (Runner, GitOps, Auth, Caching, …)
-    routes/           rjweb-server route handlers
+    lib/              Auth, Runner, GitOps, Caching, Analytics, Logging, …
+    routes/           HTTP route handlers
   prisma/
     schema.prisma     Source-of-truth data model
-    migrations/       Ordered SQL migration history (all files committed)
-  prisma.config.ts    Prisma 7 CLI config (datasource URL, paths)
+    migrations/       Committed SQL migration history
+  prisma.config.ts    Prisma 7 CLI config
 
-UI/             React frontend (no external state management lib)
+UI/             React frontend (CRA, Tailwind, no external state lib)
   src/
-    pages/      Route-level page components
-    components/ Reusable UI components (buttons, cards, modals, motion, ui)
+    pages/      Route-level components
+    components/ Shared UI components
     services/   API client helpers
     types/      Shared TypeScript types
-    utils/      Pure utility functions
-
-scripts/        Dev/ops helper scripts
-docker-compose.yml  Single-file deployment unit
+    utils/      Pure utilities
 ```
-
----
-
-## Stack
-
-| Layer | Technology |
-|---|---|
-| Backend runtime | Node.js + TypeScript (strict mode) |
-| HTTP server | rjweb-server |
-| ORM | Prisma 7 (`@prisma/adapter-mariadb`) |
-| Database | MySQL / MariaDB |
-| Frontend | React (Create React App), Tailwind CSS |
-| Package manager | pnpm (both workspaces) |
-| Backend tests | Vitest |
-| Frontend tests | react-scripts test (Jest) |
-| Linting (UI) | ESLint (`eslint-config-react-app`) |
-| Linting (Backend) | ESLint (`@typescript-eslint/recommended`) |
 
 ---
 
 ## Development workflow
 
-### Branch strategy
+### Branches
 
 ```
 feature/<name>  →  dev  →  main
 ```
 
-- Cut a `feature/` branch from `dev` for every piece of work.
-- Open a PR into `dev` when the feature is ready.
-- `main` is the stable/release branch; only `dev` merges into it.
+Always branch from `dev`. PRs target `dev`. Only `dev` merges into `main`.
 
-### Starting the app locally
+### Before every commit — mandatory checks
 
-```bash
-# Backend
-cd Backend
-pnpm dev          # builds with esbuild and starts the server
-
-# UI (separate terminal)
-cd UI
-pnpm dev          # react-scripts start on port 443
-pnpm tailwind:watch   # if editing CSS
-```
-
-### Before committing
-
-1. **UI — always lint:**
+1. **Lint the UI:**
    ```bash
-   cd UI
-   pnpm lint
+   cd UI && pnpm lint
    ```
-2. **Backend — always lint:**
+   Do not commit if ESLint reports errors.
+
+2. **Run backend tests:**
    ```bash
-   cd Backend
-   pnpm lint
-   ```
-3. **Backend — run the test suite:**
-   ```bash
-   cd Backend
-   pnpm test           # vitest run
-   ```
-4. **UI — run tests:**
-   ```bash
-   cd UI
-   pnpm test -- --watchAll=false
+   cd Backend && pnpm test
    ```
 
-Never commit code that fails lint or tests.
+3. **Run UI tests:**
+   ```bash
+   cd UI && pnpm test -- --watchAll=false
+   ```
+
+Never commit code that fails lint or any test.
 
 ---
 
-## Key subsystems
+## Database migrations – HARD RULES
 
-### Auth
-Session-cookie auth, fully managed by the backend (`Backend/src/lib/Authentication.ts`). No third-party auth provider. Do not bypass session checks or add unauthenticated routes without explicit approval.
+### Rule 1 – Always use `prisma migrate dev` for schema changes
 
-### Function runner
-`Backend/src/lib/Runner.ts` is the public entry point for function execution — always import from here. The implementation is split across several co-located modules:
+After **every** edit to `Backend/prisma/schema.prisma`:
+
+```bash
+cd Backend
+pnpm migrate
+# Give a short descriptive slug when prompted, e.g. "add_user_oauth_provider"
+```
+
+Commit the generated `migration.sql` in the same commit as the schema change.
+
+### Rule 2 – `prisma db push` is banned
+
+`prisma db push` mutates the database without recording a migration. **Do not use it under any circumstances.** Use `--create-only` if you need to inspect the SQL before applying:
+
+```bash
+pnpm exec prisma migrate dev --name <slug> --create-only
+# review the generated SQL, then:
+pnpm migrate
+```
+
+### Rule 3 – Never mutate applied migration files
+
+Once committed, a `migration.sql` is immutable. Fix mistakes with a new migration.
+
+### Rule 4 – Production deploys use `migrate deploy`
+
+```bash
+pnpm migrate:deploy   # non-interactive, CI-safe
+```
+
+### Rule 5 – Regenerate the client after schema changes
+
+```bash
+cd Backend && pnpm generate
+```
+
+---
+
+## Prisma 7 architecture
+
+| Concern | Location |
+|---|---|
+| Schema / data model | `Backend/prisma/schema.prisma` |
+| Migration history | `Backend/prisma/migrations/` (all files committed) |
+| CLI datasource config | `Backend/prisma.config.ts` |
+| Runtime client | `Backend/src/index.ts` → `new PrismaClient({ adapter })` |
+
+- Database URL: set via `prisma.config.ts` using `env("DATABASE_URL")`, **not** in `schema.prisma`.
+- `PrismaClient` uses `new PrismaMariaDb(...)` as driver adapter — do not remove or bypass it.
+
+---
+
+## Key subsystems — read before touching
+
+### Auth (`src/lib/Authentication.ts`)
+Session-cookie auth, entirely in-house. No third-party provider. Never add unauthenticated routes or bypass session checks without explicit instruction.
+
+### Function runner (`src/lib/Runner.ts`)
+`src/lib/Runner.ts` is the public entry point for function execution — always import from here. The implementation is split across several co-located modules:
 - `Runner.ts` — exported API (`executeFunction`, `buildPayloadFromGET/POST`, `installDependencies`, `buildDotnetFunction`, container lifecycle, `persistFunctionExecutionLog`)
 - `RunnerRuntimeScripts.ts` — pure generator functions for per-runtime runner and init scripts (no I/O)
 - `RunnerScripts.ts` — DB communication template strings and `getOrCreateFunctionDbToken`
@@ -116,63 +136,25 @@ Session-cookie auth, fully managed by the backend (`Backend/src/lib/Authenticati
 - `RunnerUtils.ts` — small utility and filesystem helpers
 - `RunnerTypes.ts` — shared types and constants
 
-Changes here affect every function invocation — test thoroughly and be conservative.
-
-### AI / code generation
-The AI feature generates function code from a prompt or file import. The `ai_kicked_off` flag on a `Function` record tracks whether generation has been triggered. Generation is initiated from the UI and calls the backend which calls the AI provider. Keep the flag lifecycle (`ai_kicked_off`, import/AI gen flags) consistent across schema, API, and UI.
+Every function invocation flows through here. Be conservative with changes and always run the full test suite after edits.
 
 ### Inter-function calls (`callF`)
 Functions can call other functions owned by the same user via the `callF` built-in. At runtime a per-execution pair of directories (`callfunc-requests/`, `callfunc-responses/`) under the execution transport dir are used; `Runner.ts` starts a `startCallFuncBridge` alongside the storage bridge to service these requests. The helper scripts (`_call_func.py`, `_call_func.js`, `callfunc/callfunc.go`) are injected unconditionally into every function's app dir. The target function is looked up by name scoped to the same `userId`, and the payload's `ran_by` field is set to `func_<callerFunctionId>`. Do not bypass this scoping — it is the sole authz boundary for cross-function calls.
 
-### Git-backed storage
-`Backend/src/lib/GitOps.ts` and `GitEditGuards.ts` manage function source files under version control. Treat these as sensitive — mutations must go through the guard layer.
+### Git-backed storage (`src/lib/GitOps.ts`, `GitEditGuards.ts`)
+Function source files are stored under git version control. All mutations must go through the guard layer — do not write function files directly.
+
+### AI / code generation
+The `ai_kicked_off` flag on `Function` tracks whether AI generation has been triggered. Keep this flag and the import/AI-gen flags consistent across schema, API routes, and UI components. When touching AI-related code, verify all three layers remain in sync.
 
 ### UI modals – Ctrl+Enter submits
 All modals must support **Ctrl+Enter submission** using the `useShiftEnterSubmit` hook from `UI/src/hooks/useShiftEnterSubmit.ts`. When a user presses Ctrl+Enter (or Cmd+Enter on Mac) inside a modal, the primary action (create, update, delete, confirm) must fire. Import the hook and call `useShiftEnterSubmit(() => handleSubmit(), isOpen && !isLoading)` in every modal with a submit action. Do not use other keyboard shortcuts for submission.
 
 ---
 
-## Database migrations – MANDATORY rules
+## Keeping AGENTS.md and CLAUDE.md in sync – MANDATORY
 
-> **Never use `prisma db push` or `prisma db pull` to evolve the schema.**
-
-### When you change `prisma/schema.prisma`:
-
-1. **Create a migration immediately:**
-   ```bash
-   cd Backend
-   pnpm migrate          # runs: npx prisma migrate dev
-   # Give a short descriptive slug, e.g. "add_user_oauth_provider"
-   ```
-
-2. **Commit the generated file** at `Backend/prisma/migrations/<timestamp>_<name>/migration.sql` together with the schema change.
-
-3. **Never hand-edit applied `migration.sql` files.** Create a new migration instead.
-
-4. **Production deployments:**
-   ```bash
-   pnpm migrate:deploy   # npx prisma migrate deploy — no prompts, CI-safe
-   ```
-
-### Forbidden commands
-
-| Command | Why banned |
-|---|---|
-| `npx prisma db push` | Skips migration history; rollbacks impossible |
-| `npx prisma db pull` | Overwrites schema from DB, erases intent |
-| Editing an applied `migration.sql` | Corrupts checksum; deploy will fail |
-
-### Prisma 7 specifics
-
-- Database URL lives in `prisma.config.ts` (via `env("DATABASE_URL")`), **not** in `schema.prisma`.
-- `PrismaClient` is instantiated with a `PrismaMariaDb` driver adapter — do not remove it.
-- Run `pnpm generate` if you only need updated TS types without a DB migration.
-
----
-
-## Keeping CLAUDE.md and AGENTS.md in sync – MANDATORY
-
-`CLAUDE.md` (Claude Code) and `AGENTS.md` (all other AI agents) must always reflect the same rules. Whenever you make a change that affects either file — adding a subsystem, changing a workflow step, updating a banned command, etc. — **update both files in the same commit**.
+`AGENTS.md` (all AI agents) and `CLAUDE.md` (Claude Code) must always reflect the same rules. Whenever you make a change that affects either file — adding a subsystem, changing a workflow step, updating a banned command, etc. — **update both files in the same commit**.
 
 Rules:
 - Any rule added to one file must be added to the other in equivalent form.
@@ -183,7 +165,38 @@ Rules:
 
 ## General coding rules
 
-- TypeScript strict mode is on. Do not use `any` without a comment explaining why.
-- Do not use `console.log/warn/error` in the Backend. Use `createLogger(component)` from `src/lib/logger.ts` (pino-based) instead.
-- UI state is managed with React built-ins (`useState`, `useContext`) — do not introduce external state libraries without discussion.
-- Follow existing file/folder conventions: route handlers in `src/routes/`, shared logic in `src/lib/`.
+- TypeScript strict mode is on. No `any` without a comment explaining why.
+- Do not use `console.log`, `console.warn`, or `console.error` in the Backend. Use `createLogger(component)` from `src/lib/logger.ts` (pino-based) instead.
+- UI uses React built-ins for state — do not introduce Zustand, Redux, or similar.
+- Add new route handlers under `src/routes/`, shared logic under `src/lib/`.
+- Follow existing naming and file-structure conventions; don't invent new top-level folders.
+
+---
+
+## Quick reference
+
+```bash
+# Dev: create + apply a migration
+cd Backend && pnpm migrate
+
+# Generate TS types only (no migration)
+cd Backend && pnpm generate
+
+# Apply pending migrations in prod/CI
+cd Backend && pnpm migrate:deploy
+
+# Check migration status
+cd Backend && pnpm exec prisma migrate status
+
+# Run backend tests
+cd Backend && pnpm test
+
+# Lint UI
+cd UI && pnpm lint
+
+# Lint Backend
+cd Backend && pnpm lint
+
+# Run UI tests
+cd UI && pnpm test -- --watchAll=false
+```

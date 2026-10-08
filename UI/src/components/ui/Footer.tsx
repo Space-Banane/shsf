@@ -13,8 +13,8 @@ const FOOTER_CONFIG = {
 			title: "Resources",
 			links: [
 				{ label: "Documentation", href: "/docs" },
-				{ label: "GitHub", href: "https://github.com/Space-Banane/shsf", external: true },
-				{ label: "Report a Bug", href: "https://github.com/Space-Banane/shsf/issues", external: true },
+				{ label: "Source Code", href: "https://gitea.reversed.dev/shsf/shsf", external: true },
+				{ label: "Report a Bug", href: "https://gitea.reversed.dev/shsf/shsf/issues", external: true },
 			],
 		},
 		{
@@ -33,8 +33,8 @@ const FOOTER_CONFIG = {
 			icon: "discord",
 		},
 		{
-			label: "GitHub",
-			href: "https://github.com/Space-Banane/shsf",
+			label: "Source repository",
+			href: "https://gitea.reversed.dev/shsf/shsf",
 			icon: "github",
 		},
 	],

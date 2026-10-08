@@ -19,7 +19,7 @@ export function NavBar({
 	const [isAdmin, setIsAdmin] = useState(user?.role === "Admin");
 	const documentationLinks = [
 		{ name: "SHSF Docs", path: "/docs" },
-		{ name: "API Reference", path: "https://api-docs.shsf.dev" },
+		{ name: "API Reference", path: "/api/openapi.json" },
 	];
 
 	useEffect(() => {

@@ -22,7 +22,7 @@ export const DocsGettingStarted = () => {
 
 			<h2>1. Clone the repository</h2>
 			<pre>
-				<code>git clone https://github.com/Space-Banane/shsf && cd shsf</code>
+				<code>git clone https://gitea.reversed.dev/shsf/shsf.git && cd shsf</code>
 			</pre>
 
 			<h2>2. Configure your environment</h2>
@@ -126,6 +126,14 @@ INSTANCE_SECRET=`}</code>
 					<code>UI_URL</code>) — if you see the SHSF interface, you're ready.
 				</p>
 			</Callout>
+
+			<h2>API reference</h2>
+			<p>
+				Your instance publishes its OpenAPI document at{" "}
+				<code>/api/openapi.json</code>. Open{" "}
+				<code>http://localhost:5000/api/openapi.json</code> locally, or append
+				that path to your public <code>UI_URL</code>.
+			</p>
 
 			<h2>5. Create your account &amp; lock down registration</h2>
 			<p>
