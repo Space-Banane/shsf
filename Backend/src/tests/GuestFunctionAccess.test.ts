@@ -3,7 +3,7 @@ import { isFunctionOwnedByUser } from "../lib/GuestFunctionAccess";
 
 describe("isFunctionOwnedByUser", () => {
 	it("accepts a function owned by the authenticated user", () => {
-		expect(isFunctionOwnedByUser({ userId: 7 }, 7)).toBe(true);
+		expect(isFunctionOwnedByUser({ id: 1, userId: 7 }, 7)).toBe(true);
 	});
 
 	it("rejects a missing function", () => {
@@ -11,6 +11,6 @@ describe("isFunctionOwnedByUser", () => {
 	});
 
 	it("rejects a function owned by another user", () => {
-		expect(isFunctionOwnedByUser({ userId: 8 }, 7)).toBe(false);
+		expect(isFunctionOwnedByUser({ id: 1, userId: 8 }, 7)).toBe(false);
 	});
 });
