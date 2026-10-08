@@ -23,21 +23,6 @@ importers:
       '@rjweb/utils':
         specifier: ^1.12.29
         version: 1.12.29
-      '@types/bcrypt':
-        specifier: ^5.0.2
-        version: 5.0.2
-      '@types/dockerode':
-        specifier: ^3.3.47
-        version: 3.3.47
-      '@types/node':
-        specifier: ^22.19.15
-        version: 22.19.15
-      '@types/nodemailer':
-        specifier: ^6.4.23
-        version: 6.4.23
-      '@vitest/coverage-v8':
-        specifier: ^4.1.2
-        version: 4.1.2(vitest@4.1.2(@types/node@22.19.15)(vite@8.0.1(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)(@types/node@22.19.15)(esbuild@0.25.12)(jiti@2.6.1)(yaml@2.8.3)))
       axios:
         specifier: ^1.14.0
         version: 1.14.0
@@ -53,9 +38,6 @@ importers:
       dotenv:
         specifier: 17.2.3
         version: 17.2.3
-      esbuild:
-        specifier: ^0.25.12
-        version: 0.25.12
       file-type:
         specifier: ^19.6.0
         version: 19.6.0
@@ -80,28 +62,46 @@ importers:
       tar:
         specifier: ^7.5.13
         version: 7.5.13
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^4.1.2
-        version: 4.1.2(@types/node@22.19.15)(vite@8.0.1(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)(@types/node@22.19.15)(esbuild@0.25.12)(jiti@2.6.1)(yaml@2.8.3))
       zod:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@types/bcrypt':
+        specifier: ^5.0.2
+        version: 5.0.2
+      '@types/dockerode':
+        specifier: ^3.3.47
+        version: 3.3.47
+      '@types/node':
+        specifier: ^22.19.15
+        version: 22.19.15
+      '@types/nodemailer':
+        specifier: ^6.4.23
+        version: 6.4.23
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.62.1
         version: 8.62.1(@typescript-eslint/parser@8.62.1(eslint@8.57.1)(typescript@5.9.3))(eslint@8.57.1)(typescript@5.9.3)
       '@typescript-eslint/parser':
         specifier: ^8.62.1
         version: 8.62.1(eslint@8.57.1)(typescript@5.9.3)
+      '@vitest/coverage-v8':
+        specifier: ^4.1.2
+        version: 4.1.2(vitest@4.1.2(@types/node@22.19.15)(vite@8.0.1(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)(@types/node@22.19.15)(esbuild@0.25.12)(jiti@2.6.1)(yaml@2.8.3)))
+      esbuild:
+        specifier: ^0.25.12
+        version: 0.25.12
       eslint:
         specifier: ^8.57.1
         version: 8.57.1
       rimraf:
         specifier: ^5.0.10
         version: 5.0.10
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.2
+        version: 4.1.2(@types/node@22.19.15)(vite@8.0.1(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)(@types/node@22.19.15)(esbuild@0.25.12)(jiti@2.6.1)(yaml@2.8.3))
 
 packages:
 

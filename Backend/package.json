@@ -10,17 +10,11 @@
 		"@prisma/client": "^7.8.0",
 		"@rjweb/runtime-node": "^1.1.1",
 		"@rjweb/utils": "^1.12.29",
-		"@types/bcrypt": "^5.0.2",
-		"@types/dockerode": "^3.3.47",
-		"@types/node": "^22.19.15",
-		"@types/nodemailer": "^6.4.23",
-		"@vitest/coverage-v8": "^4.1.2",
 		"axios": "^1.14.0",
 		"bcrypt": "^5.1.1",
 		"cron-parser": "^5.5.0",
 		"dockerode": "^4.0.10",
 		"dotenv": "17.2.3",
-		"esbuild": "^0.25.12",
 		"file-type": "^19.6.0",
 		"lru-cache": "^11.2.7",
 		"mariadb": "^3.5.3",
@@ -29,8 +23,6 @@
 		"prisma": "^7.8.0",
 		"rjweb-server": "^9.8.6",
 		"tar": "^7.5.13",
-		"typescript": "^5.9.3",
-		"vitest": "^4.1.2",
 		"zod": "^4.4.3"
 	},
 	"scripts": {
@@ -47,9 +39,17 @@
 		"lint": "eslint src --ext .ts"
 	},
 	"devDependencies": {
+		"@types/bcrypt": "^5.0.2",
+		"@types/dockerode": "^3.3.47",
+		"@types/node": "^22.19.15",
+		"@types/nodemailer": "^6.4.23",
+		"@vitest/coverage-v8": "^4.1.2",
 		"@typescript-eslint/eslint-plugin": "^8.62.1",
 		"@typescript-eslint/parser": "^8.62.1",
+		"esbuild": "^0.25.12",
 		"eslint": "^8.57.1",
-		"rimraf": "^5.0.10"
+		"rimraf": "^5.0.10",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.2"
 	}
 }
