@@ -561,23 +561,47 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				const functions = await prisma.function.findMany({
-					where: {
-						userId: authCheck.user.id,
-					},
-					include: {
-						namespace: {
-							select: {
-								name: true,
-								id: true,
+				const paged = ["page", "limit", "search", "namespace_id", "runtime", "tag", "status", "sort", "order"].some((key) => ctr.queries.get(key) !== null);
+				const page = Math.max(1, Number(ctr.queries.get("page") ?? 1) || 1);
+				const limit = Math.min(100, Math.max(1, Number(ctr.queries.get("limit") ?? 25) || 25));
+				const search = ctr.queries.get("search")?.trim();
+				const namespaceId = Number(ctr.queries.get("namespace_id"));
+				const runtime = ctr.queries.get("runtime")?.trim();
+				const tag = ctr.queries.get("tag")?.trim();
+				const status = ctr.queries.get("status");
+				const sort = ctr.queries.get("sort");
+				const order = ctr.queries.get("order") === "desc" ? "desc" : "asc";
+				const where = {
+					userId: authCheck.user.id,
+					...(search ? { OR: [{ name: { contains: search } }, { description: { contains: search } }] } : {}),
+					...(Number.isInteger(namespaceId) && namespaceId > 0 ? { namespaceId } : {}),
+					...(runtime ? { image: { startsWith: `${runtime}:` } } : {}),
+					...(tag ? { tags: { contains: tag } } : {}),
+					...(status === "never-run" ? { lastRun: null } : status === "has-run" ? { lastRun: { not: null } } : {}),
+				};
+				const orderBy = sort === "createdAt" ? { createdAt: order } : sort === "lastRun" ? { lastRun: order } : { name: order };
+				const [total, functions] = await Promise.all([
+					prisma.function.count({ where }),
+					prisma.function.findMany({
+						where,
+						orderBy,
+						skip: paged ? (page - 1) * limit : undefined,
+						take: paged ? limit : undefined,
+						include: {
+							namespace: {
+								select: {
+									name: true,
+									id: true,
+								},
 							},
 						},
-					},
-				});
+					}),
+				]);
 
 				return ctr.print({
 					status: "OK",
 					data: functions,
+					...(paged ? { pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } : {}),
 				});
 			}),
 	)
