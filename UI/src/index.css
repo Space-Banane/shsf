@@ -1,6 +1,54 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
+/* Motion communicates hierarchy and state without delaying interaction. */
+@keyframes shsf-fade-in {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes shsf-slide-up {
+	from { opacity: 0; transform: translateY(0.35rem); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shsf-popover {
+	from { opacity: 0; transform: translateY(-0.25rem) scale(0.98); }
+	to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.motion-fade-in {
+	animation: shsf-fade-in 160ms ease-out both;
+}
+
+.motion-slide-up {
+	animation: shsf-slide-up 180ms ease-out both;
+}
+
+.motion-popover {
+	animation: shsf-popover 140ms ease-out both;
+	transform-origin: top;
+}
+
+/* Keep loading feedback and focus/hover transitions accessible for users who
+   request less motion. Content remains visible; nonessential movement stops. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+	}
+
+	.motion-fade-in,
+	.motion-slide-up,
+	.motion-popover {
+		animation: none;
+	}
+}
+
 button:hover,
 a:hover {
 	cursor: pointer;

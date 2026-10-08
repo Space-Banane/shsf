@@ -40,12 +40,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppLayout() {
 	const { user, loading, refreshUser } = useContext(UserContext);
+	const location = useLocation();
 
 	return (
 		<div className="min-h-screen flex flex-col bg-background">
 			<NavBar user={user} loading={loading} refreshUser={refreshUser} />
 			<ToastContainer theme="dark" autoClose={3500} limit={15} />
-			<main className="flex-grow w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:w-11/12 xl:px-0 2xl:w-5/6 2xl:px-0 py-6">
+			<main key={location.pathname} className="motion-fade-in flex-grow w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:w-11/12 xl:px-0 2xl:w-5/6 2xl:px-0 py-6">
 				<Outlet />
 			</main>
 			<Footer />

@@ -291,7 +291,7 @@ function NamespaceCard({
 			</div>
 
 			{isExpanded && (
-				<div className="border-t border-white/[0.07]">
+				<div className="motion-slide-up border-t border-white/[0.07]">
 					{functions.length === 0 ? (
 						<p className="px-12 py-4 text-xs text-muted">No functions yet</p>
 					) : (

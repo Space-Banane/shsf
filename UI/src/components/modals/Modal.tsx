@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useId } from "react";
 import { toast } from "react-toastify";
 import { Icon } from "../ui/Icon";
 
@@ -115,6 +115,8 @@ function Modal({
 	maxWidth = "md",
 	isLoading = false,
 }: ModalProps) {
+	const titleId = useId();
+
 	useEffect(() => {
 		const handleEscape = (e: KeyboardEvent) => {
 			if (e.key === "Escape" && !isLoading) onClose();
@@ -134,15 +136,18 @@ function Modal({
 
 	return (
 		<div
-			className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4"
+			className="motion-fade-in fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4"
 			onClick={() => !isLoading && onClose()}
 		>
 			<div
 				onClick={(e) => e.stopPropagation()}
-				className={`bg-surface-raised border border-white/[0.07] rounded-xl shadow-2xl ${maxWidthClass} w-full flex flex-col max-h-[90vh] relative overflow-hidden`}
+				className={`motion-slide-up bg-surface-raised border border-white/[0.07] rounded-xl shadow-2xl ${maxWidthClass} w-full flex flex-col max-h-[90vh] relative overflow-hidden`}
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby={titleId}
 			>
 				<div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.07] shrink-0">
-					<h2 className="text-base font-semibold text-text">{title}</h2>
+					<h2 id={titleId} className="text-base font-semibold text-text">{title}</h2>
 					{!isLoading && (
 						<button
 							onClick={onClose}

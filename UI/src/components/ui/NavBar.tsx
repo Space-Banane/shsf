@@ -112,7 +112,7 @@ export function NavBar({
 											/>
 										</button>
 										<div className="absolute left-0 top-full z-50 hidden pt-1.5 group-hover:block">
-											<div className="min-w-[11rem] rounded-lg border border-white/[0.07] bg-surface-raised py-1 shadow-2xl shadow-black/40">
+											<div className="motion-popover min-w-[11rem] rounded-lg border border-white/[0.07] bg-surface-raised py-1 shadow-2xl shadow-black/40">
 												{documentationLinks.map((link) => (
 													<a
 														key={link.path}
@@ -174,7 +174,7 @@ export function NavBar({
 											className="fixed inset-0 z-40"
 											onClick={() => setIsDropdownOpen(false)}
 										/>
-										<div className="absolute right-0 z-50 mt-1.5 w-48 rounded-lg border border-white/[0.07] bg-surface-raised py-1 shadow-2xl shadow-black/40">
+										<div className="motion-popover absolute right-0 z-50 mt-1.5 w-48 rounded-lg border border-white/[0.07] bg-surface-raised py-1 shadow-2xl shadow-black/40">
 											<a
 												href="/account"
 												className="flex items-center gap-2.5 px-4 py-2 text-sm text-text/80 hover:bg-white/[0.06] hover:text-text transition-colors"
@@ -220,7 +220,7 @@ export function NavBar({
 
 			{/* Mobile menu */}
 			{isMobileMenuOpen && (
-				<div className="md:hidden border-t border-white/[0.07] bg-navbar px-4 py-3 space-y-1">
+				<div className="motion-slide-up md:hidden border-t border-white/[0.07] bg-navbar px-4 py-3 space-y-1">
 					{navRoutes.map((route, index) => (
 						<Fragment key={route.path}>
 							{index === 1 &&
