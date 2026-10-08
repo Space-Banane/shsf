@@ -119,9 +119,10 @@ export = new fileRouter.Path("/")
 				);
 
 				if (!authCheck.success) {
-					return ctr.print({
-						status: 401,
-						message: "Unauthorized",
+					return ctr.status(ctr.$status.UNAUTHORIZED).print({
+						status: "FAILED",
+						code: "AUTHENTICATION_REQUIRED",
+						message: "Your session could not be verified. Sign in and try again.",
 					});
 				}
 
@@ -187,8 +188,35 @@ export = new fileRouter.Path("/")
 										ran_by: "user",
 										...runPayload,
 									}),
-																	)
+								)
 									.then(async (result) => {
+										if (result?.error_type === "function_timeout") {
+											await print(JSON.stringify({
+												type: "error",
+												code: "FUNCTION_TIMEOUT",
+												error: "The function exceeded its configured execution timeout. Check its logs or increase the timeout in function settings.",
+											}));
+											end();
+											return;
+										}
+										if (result?.error_type === "internal_error") {
+											await print(JSON.stringify({
+												type: "error",
+												code: "SERVER_ERROR",
+												error: "SHSF could not complete the execution. Check the server logs and try again.",
+											}));
+											end();
+											return;
+										}
+										if (result?.error_type) {
+											await print(JSON.stringify({
+												type: "error",
+												code: "FUNCTION_EXECUTION_FAILED",
+												error: "The function did not complete successfully. Check its logs, fix the reported error, and try again.",
+											}));
+											end();
+											return;
+										}
 										await print(
 											JSON.stringify({
 												type: "end",
@@ -200,11 +228,12 @@ export = new fileRouter.Path("/")
 										);
 										end();
 									})
-									.catch(async (error) => {
+									.catch(async () => {
 										await print(
 											JSON.stringify({
 												type: "error",
-												error: error.message || "Execution failed",
+												code: "SERVER_ERROR",
+												error: "SHSF could not complete the execution. Check the function logs and try again.",
 											})
 										);
 										end();
@@ -225,7 +254,29 @@ export = new fileRouter.Path("/")
 								ran_by: "user",
 								...runPayload,
 							}),
-													);
+						);
+
+						if (result?.error_type === "function_timeout") {
+							return ctr.status(504).print({
+								status: "FAILED",
+								code: "FUNCTION_TIMEOUT",
+								message: "The function exceeded its configured execution timeout. Check its logs or increase the timeout in function settings.",
+							});
+						}
+						if (result?.error_type === "internal_error") {
+							return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
+								status: "FAILED",
+								code: "SERVER_ERROR",
+								message: "SHSF could not complete the execution. Check the server logs and try again.",
+							});
+						}
+						if (result?.error_type) {
+							return ctr.status(422).print({
+								status: "FAILED",
+								code: "FUNCTION_EXECUTION_FAILED",
+								message: "The function did not complete successfully. Check its logs, fix the reported error, and try again.",
+							});
+						}
 
 						if (functionData.cache_enabled && result?.exit_code === 0 && result?.result) {
 							await setFunctionCache(
@@ -238,17 +289,11 @@ export = new fileRouter.Path("/")
 
 						return handleFunctionResult(ctr, result?.result, false);
 					}
-				} catch (error: any) {
-					if (error.message === "Timeout") {
-						return ctr.status(ctr.$status.REQUEST_TIMEOUT).print({
-							status: 408,
-							message: "Code execution timed out",
-						});
-					}
+				} catch {
 					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
-						status: 500,
-						message: "Failed to execute code",
-						error: error.message,
+						status: "FAILED",
+						code: "SERVER_ERROR",
+						message: "SHSF could not complete the execution. Check the function logs and try again.",
 					});
 				}
 			}),

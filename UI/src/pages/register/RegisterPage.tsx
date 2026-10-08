@@ -2,6 +2,9 @@ import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserContext } from "../../App";
 import { BASE_URL } from "../..";
+import { apiFetch } from "../../services/api";
+
+const fetch = apiFetch;
 
 function RegisterPage() {
 	const [displayName, setDisplayName] = useState("");
@@ -33,12 +36,6 @@ function RegisterPage() {
 					password_confirm: passwordConfirm,
 				}),
 			});
-
-			if (response.status === 400) {
-				const errorData = await response.text();
-				setError(errorData || "Registration failed");
-				return;
-			}
 
 			const data = await response.json();
 			if (data.status === "OK") {

@@ -1,4 +1,7 @@
 import { BASE_URL } from "..";
+import { apiFetch } from "./api";
+
+const fetch = apiFetch;
 
 export interface AdminUser {
 	id: number;
@@ -188,6 +191,7 @@ export async function triggerUpdateCheck(): Promise<
 	const res = await fetch(`${BASE_URL}/api/admin/update/check`, {
 		method: "POST",
 		credentials: "include",
+		timeoutMs: 2 * 60_000,
 	});
 	return res.json();
 }
@@ -199,6 +203,7 @@ export async function triggerUpdateApply(): Promise<
 	const res = await fetch(`${BASE_URL}/api/admin/update/apply`, {
 		method: "POST",
 		credentials: "include",
+		timeoutMs: 5 * 60_000,
 	});
 	return res.json();
 }

@@ -1,4 +1,7 @@
 import { BASE_URL } from "..";
+import { apiFetch, type ApiFailure } from "./api";
+
+const fetch = apiFetch;
 
 export interface GuestUser {
 	id: number;
@@ -16,10 +19,7 @@ interface OKResponse<T = any> {
 	data?: T;
 }
 
-interface ErrorResponse {
-	status: number | string;
-	message: string;
-}
+type ErrorResponse = ApiFailure;
 
 // Create a new guest user
 export async function createGuestUser(params: {

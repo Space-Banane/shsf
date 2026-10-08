@@ -89,7 +89,8 @@ export const authEnforcementMiddleware = new Middleware<{}, {}>(
 		return end(
 			ctr.status(ERROR_MESSAGES.UNAUTHORIZED.code).print({
 				status: "FAILED",
-				message: auth.message,
+				code: ERROR_MESSAGES.UNAUTHORIZED.errorCode,
+				message: ERROR_MESSAGES.UNAUTHORIZED.message,
 			}),
 		);
 	})

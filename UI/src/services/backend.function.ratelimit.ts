@@ -1,4 +1,7 @@
 import { BASE_URL } from "..";
+import { apiFetch, type ApiFailure } from "./api";
+
+const fetch = apiFetch;
 
 export type ExecutionRateLimitIdentity =
 	| "ip"
@@ -52,10 +55,7 @@ interface GetRateLimitConfigResponse {
 	data: RateLimitConfig;
 }
 
-interface ErrorResponse {
-	status: "ERROR" | number;
-	message: string;
-}
+type ErrorResponse = ApiFailure;
 
 export async function getRateLimitConfig(
 	functionId: number,

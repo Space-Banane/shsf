@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { BASE_URL, VERSION } from "../..";
+import { apiFetch } from "../../services/api";
+
+const fetch = apiFetch;
 
 const FOOTER_CONFIG = {
 	brand: {

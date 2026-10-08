@@ -42,8 +42,8 @@ function MassReplaceModal({ isOpen, onClose, onSuccess }: MassReplaceModalProps)
 			const result = await getMassReplaceFindings(find, replace);
 			if (result.status === "OK") { setFindings(result.data); setStep("preview"); }
 			else setError(result.message);
-		} catch (err: any) {
-			setError(err.message || "An error occurred during search");
+		} catch {
+			setError("The search could not be completed. Try again.");
 		} finally {
 			setIsLoading(false);
 		}
@@ -56,8 +56,8 @@ function MassReplaceModal({ isOpen, onClose, onSuccess }: MassReplaceModalProps)
 			const result = await massReplace(find, replace);
 			if (result.status === "OK") { onSuccess(result.message); resetAndClose(); }
 			else setError(result.message);
-		} catch (err: any) {
-			setError(err.message || "An error occurred during replacement");
+		} catch {
+			setError("The replacement could not be completed. Try again.");
 		} finally {
 			setIsLoading(false);
 		}

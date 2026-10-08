@@ -231,4 +231,49 @@ describe("executeLoadedHttpFunction", () => {
 		);
 		expect(result).toBe("handled");
 	});
+
+	it("returns a distinct safe response when the function runtime times out", async () => {
+		const ctr = createCtr();
+		const handleFunctionResult = vi.fn();
+
+		await executeLoadedHttpFunction({
+			ctr,
+			functionData: { ...baseFunctionData, cache_enabled: false } as any,
+			method: "POST",
+			namespaceId: 7,
+			permissionFunctionId: "exec-123",
+			executionAliasOrId: "alias-123",
+			useCache: false,
+			dependencies: {
+				checkHttpExecutionPermission: vi.fn().mockResolvedValue({ state: true, reason: "" }),
+				getRateLimitConfigFromData: vi.fn().mockResolvedValue({ enabled: false }),
+				extractExecutionIdentityValues: vi.fn().mockReturnValue({
+					ip: "1.2.3.4",
+					method: "POST",
+					route: "default",
+					origin: "__missing__",
+					access_key: "__missing__",
+					secure_header: "__missing__",
+					guest_session: "__missing__",
+					execution_alias_or_id: "alias-123",
+				}),
+				enforceFunctionRateLimit: vi.fn().mockReturnValue({ allowed: true }),
+				buildPayloadFromPOST: vi.fn().mockResolvedValue({ body: "{}", route: "default" }),
+				executeFunction: vi.fn().mockResolvedValue({
+					exit_code: -1,
+					result: null,
+					error_type: "function_timeout",
+				}),
+				handleFunctionResult,
+			},
+		});
+
+		expect(ctr.status).toHaveBeenCalledWith(504);
+		expect(ctr.print).toHaveBeenCalledWith({
+			status: "FAILED",
+			code: "FUNCTION_TIMEOUT",
+			message: "The function exceeded its configured execution timeout. Check its logs or increase the timeout in function settings.",
+		});
+		expect(handleFunctionResult).not.toHaveBeenCalled();
+	});
 });

@@ -2,6 +2,7 @@ import { useContext, useState, useEffect, useCallback } from "react";
 import { UserContext } from "../App";
 import { Navigate } from "react-router-dom";
 import { BASE_URL } from "..";
+import { apiFetch } from "../services/api";
 import { HelpTooltip } from "../components/ui/Tooltip";
 import { useShiftEnterSubmit } from "../hooks/useShiftEnterSubmit";
 import {
@@ -35,6 +36,8 @@ import {
 	type AdminStats,
 	type UpdateStatus,
 } from "../services/backend.admin";
+
+const fetch = apiFetch;
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 

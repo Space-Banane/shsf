@@ -147,12 +147,10 @@ function GitVersionControlModal({
 				clearPassword(); onChanged?.();
 			} else {
 				appendLog("\n[FAIL] Failed: " + res.message);
-				toast.error("Git failed: " + res.message);
 				setLogStatus("error");
 			}
-		} catch (err: any) {
-			appendLog("[ERROR] " + (err?.message ?? "Unexpected error"));
-			toast.error("Unexpected error: " + (err?.message ?? "Check console"));
+		} catch {
+			appendLog("[ERROR] Git setup could not be completed. Try again.");
 			setLogStatus("error");
 		} finally {
 			setIsBusy(false);
@@ -169,11 +167,10 @@ function GitVersionControlModal({
 			if (res.status === "OK") {
 				appendLog("\n[OK] Pull successful!"); toast.success("Pull successful!"); setLogStatus("ok");
 			} else {
-				appendLog("\n[FAIL] Pull failed: " + res.message); toast.error("Pull failed: " + res.message); setLogStatus("error");
+				appendLog("\n[FAIL] Pull failed: " + res.message); setLogStatus("error");
 			}
-		} catch (err: any) {
-			appendLog("[ERROR] " + (err?.message ?? "Unexpected error"));
-			toast.error("Pull error: " + (err?.message ?? "Check console"));
+		} catch {
+			appendLog("[ERROR] The repository could not be pulled. Try again.");
 			setLogStatus("error");
 		} finally {
 			setIsBusy(false);
@@ -188,13 +185,12 @@ function GitVersionControlModal({
 			if (res.status !== "OK") {
 				setPeriodicPull(!enabled);
 				appendLog("[ERROR] Failed to update periodic pull setting.");
-				toast.error("Failed to update auto-sync.");
 			} else {
 				appendLog(`[GIT] Periodic pull ${enabled ? "enabled" : "disabled"}.`);
 				toast.info(`Auto-sync ${enabled ? "enabled" : "disabled"}.`);
 			}
 		} catch {
-			setPeriodicPull(!enabled); toast.error("Error updating auto-sync.");
+			setPeriodicPull(!enabled); appendLog("[ERROR] Failed to update periodic pull setting.");
 		}
 	};
 
@@ -204,13 +200,13 @@ function GitVersionControlModal({
 		try {
 			const res = await updateGitSettings(functionId, undefined, undefined, undefined, minutes);
 			if (res.status !== "OK") {
-				appendLog("[ERROR] Failed to update pull interval."); toast.error("Failed to update pull interval.");
+				appendLog("[ERROR] Failed to update pull interval.");
 			} else {
 				appendLog(`[GIT] Pull interval set to ${minutes} minute${minutes === 1 ? "" : "s"}.`);
 				toast.info(`Pull interval set to ${minutes}m.`);
 			}
 		} catch {
-			appendLog("[ERROR] Unexpected error updating pull interval."); toast.error("Error updating pull interval.");
+			appendLog("[ERROR] Failed to update pull interval.");
 		}
 	};
 
@@ -245,10 +241,10 @@ function GitVersionControlModal({
 				setSavedHasCredentials(false); setUsernameInput(""); clearPassword();
 				appendLog("[GIT] Credentials removed."); toast.success("Credentials removed."); setLogStatus("ok");
 			} else {
-				appendLog("[ERROR] Failed to remove credentials: " + res.message); toast.error("Failed to remove credentials."); setLogStatus("error");
+				appendLog("[ERROR] Failed to remove credentials: " + res.message); setLogStatus("error");
 			}
-		} catch (err: any) {
-			appendLog("[ERROR] " + (err?.message ?? "Unexpected error")); toast.error("Error removing credentials."); setLogStatus("error");
+		} catch {
+			appendLog("[ERROR] Failed to remove credentials. Try again."); setLogStatus("error");
 		} finally {
 			setIsBusy(false);
 		}
@@ -270,7 +266,7 @@ function GitVersionControlModal({
 				resetGitState(); setLogs("[GIT] Git configuration removed.");
 				toast.success("Git disconnected."); setLogStatus("ok"); onChanged?.();
 			} else {
-				appendLog("[ERROR] " + res.message); toast.error("Failed to disconnect Git."); setLogStatus("error");
+				appendLog("[ERROR] " + res.message); setLogStatus("error");
 			}
 		} finally {
 			setIsBusy(false);
@@ -289,8 +285,8 @@ function GitVersionControlModal({
 			const res = await getGitBranches(functionId, trimmedUrl, username, password);
 			if (res.status === "OK") { setAvailableBranches(res.data); appendLog(`[GIT] Fetched ${res.data.length} branches.`); }
 			else appendLog(`[ERROR] Failed to fetch branches: ${res.message}`);
-		} catch (err: any) {
-			appendLog(`[ERROR] ${err?.message ?? "Failed to fetch branches"}`);
+		} catch {
+			appendLog("[ERROR] Failed to fetch branches. Try again.");
 		} finally {
 			setIsFetchingBranches(false);
 		}
@@ -304,8 +300,8 @@ function GitVersionControlModal({
 			const res = await getGitTree(functionId, trimmedUrl, username, password, trimmedBranch || undefined);
 			if (res.status === "OK") { setAvailableDirs(res.data); appendLog(`[GIT] Fetched ${res.data.length} directories.`); }
 			else appendLog(`[ERROR] Failed to fetch tree: ${res.message}`);
-		} catch (err: any) {
-			appendLog(`[ERROR] ${err?.message ?? "Failed to fetch tree"}`);
+		} catch {
+			appendLog("[ERROR] Failed to fetch repository folders. Try again.");
 		} finally {
 			setIsFetchingTree(false);
 		}

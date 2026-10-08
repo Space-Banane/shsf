@@ -3,6 +3,10 @@ import { useLocation } from "react-router-dom";
 import { BASE_URL } from "../..";
 import { AppRoute, routes } from "../../Routes";
 import { Icon } from "./Icon";
+import { apiFetch } from "../../services/api";
+import { toast } from "react-toastify";
+
+const fetch = apiFetch;
 
 export function NavBar({
 	user,
@@ -43,9 +47,11 @@ export function NavBar({
 					window.location.href = "/login";
 					document.cookie =
 						"shsf_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+				} else {
+					toast.error(data.message || "Sign out could not be completed. Try again.");
 				}
 			})
-			.catch((err) => console.error("Logout error:", err));
+			.catch(() => toast.error("Sign out could not be completed. Try again."));
 	};
 
 	const isActive = (path: string) => {

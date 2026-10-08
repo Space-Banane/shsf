@@ -248,7 +248,13 @@ Platform Rules:
 				} as any);
 
 				const content = response.choices[0].message.content;
-				if (!content) return ctr.status(500).print({ status: 500, message: "AI failed to respond" });
+				if (!content) {
+					return ctr.status(500).print({
+						status: "FAILED",
+						code: "SERVER_ERROR",
+						message: "AI generation did not return a usable response. Try again.",
+					});
+				}
 
 				try {
 					const rawContent = typeof content === "string" ? content : JSON.stringify(content);
@@ -265,7 +271,11 @@ Platform Rules:
 						},
 					});
 				} catch {
-					return ctr.status(500).print({ status: 500, message: "AI returned invalid JSON: " + content });
+					return ctr.status(500).print({
+						status: "FAILED",
+						code: "SERVER_ERROR",
+						message: "AI generation returned an invalid response. Try again.",
+					});
 				}
 			}),
 	)

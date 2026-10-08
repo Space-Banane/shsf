@@ -1,14 +1,14 @@
 import { BASE_URL } from "..";
 import { Trigger } from "../types/Prisma";
+import { apiFetch, type ApiFailure } from "./api";
+
+const fetch = apiFetch;
 
 interface OKResponse {
 	status: "OK";
 	message: string;
 }
-interface ErrorResponse {
-	status: number;
-	message: string;
-}
+type ErrorResponse = ApiFailure;
 
 interface CreateTriggerResponse {
 	status: "OK";

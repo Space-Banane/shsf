@@ -29,18 +29,15 @@ export default function GuestUsersPage() {
 		setError(null);
 		try {
 			const res = await listGuestUsers();
-			const guestsArr =
-				(res as any).guests ??
-				((res as any).data && (res as any).data.guests) ??
-				[];
-			if (Array.isArray(guestsArr)) {
+			if (res.error) {
+				setError(res.error);
+			} else {
+				const guestsArr = res.guests;
 				setGuests(guestsArr);
 				if (selectedGuest) {
 					const updated = guestsArr.find((g: GuestUser) => g.id === selectedGuest.id);
 					if (updated) setSelectedGuest(updated);
 				}
-			} else {
-				setError((res as any).error || "Failed to load guests");
 			}
 		} catch { setError("Failed to load guests"); }
 		finally { setLoading(false); }

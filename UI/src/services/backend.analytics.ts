@@ -4,11 +4,11 @@ import {
 	AnalyticsRange,
 	SingleFunctionAnalyticsResponse,
 } from "../types/Analytics";
+import { apiFetch, type ApiFailure } from "./api";
 
-interface ErrorResponse {
-	status: number;
-	message: string;
-}
+const fetch = apiFetch;
+
+type ErrorResponse = ApiFailure;
 
 export async function getAccountFunctionAnalytics(
 	range: AnalyticsRange = "7d",

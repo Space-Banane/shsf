@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { toast } from "react-toastify";
 import Modal from "../Modal";
-import { cancelBtnClass, primaryBtnClass, inputClass, textareaClass, labelClass, ModalSection, ModalFooter, ToggleRow } from "../Modal";
+import { cancelBtnClass, primaryBtnClass, inputClass, textareaClass, labelClass, ModalSection, ModalFooter, ModalError, ToggleRow } from "../Modal";
 import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
 import { XFunction } from "../../../types/Prisma";
 import { Link } from "react-router-dom";
@@ -52,6 +51,7 @@ function CreateTriggerModal({
 	const [enabled, setEnabled] = useState(true);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isPayloadValid, setIsPayloadValid] = useState(true);
+	const [error, setError] = useState("");
 
 	useShiftEnterSubmit(() => {
 		if (step === 1) handleNext();
@@ -59,10 +59,11 @@ function CreateTriggerModal({
 	}, isOpen && !isSubmitting);
 
 	const handleSubmit = async () => {
-		if (!selectedFunctionId) { toast.error("Please select a function first"); return; }
-		if (!name.trim() || !cron.trim()) { toast.error("Name and cron expression are required"); return; }
-		if (!isPayloadValid) { toast.error("Fix the payload before creating the trigger"); return; }
+		if (!selectedFunctionId) { setError("Please select a function first."); return; }
+		if (!name.trim() || !cron.trim()) { setError("Name and cron expression are required."); return; }
+		if (!isPayloadValid) { setError("Fix the payload before creating the trigger."); return; }
 
+		setError("");
 		setIsSubmitting(true);
 		try {
 			const success = await onCreate(selectedFunctionId, name, description, cron, data, enabled);
@@ -78,7 +79,8 @@ function CreateTriggerModal({
 	};
 
 	const handleNext = () => {
-		if (!selectedFunctionId) { toast.error("Please select a function"); return; }
+		if (!selectedFunctionId) { setError("Please select a function."); return; }
+		setError("");
 		setStep(2);
 	};
 
@@ -90,6 +92,7 @@ function CreateTriggerModal({
 			maxWidth="lg"
 			isLoading={isSubmitting}
 		>
+			<ModalError message={error} />
 			{step === 1 ? (
 				<div className="space-y-4">
 					<p className="text-xs text-muted">

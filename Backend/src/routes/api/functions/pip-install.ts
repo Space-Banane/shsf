@@ -59,9 +59,10 @@ export = new fileRouter.Path("/").http(
 				);
 
 				if (!authCheck.success) {
-					return ctr.print({
-						status: 401,
-						message: authCheck.message,
+					return ctr.status(ctr.$status.UNAUTHORIZED).print({
+						status: "FAILED",
+						code: "AUTHENTICATION_REQUIRED",
+						message: "Your session could not be verified. Sign in and try again.",
 					});
 				}
 
@@ -130,17 +131,11 @@ export = new fileRouter.Path("/").http(
 					return ctr.print({
 						status: "OK",
 					});
-				} catch (error: any) {
-					if (error.message === "Timeout") {
-						return ctr.status(ctr.$status.REQUEST_TIMEOUT).print({
-							status: 408,
-							message: "Pip install timed out",
-						});
-					}
+				} catch {
 					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
-						status: 500,
-						message: "Failed to install dependencies",
-						error: error.message,
+						status: "FAILED",
+						code: "DEPENDENCY_ERROR",
+						message: "Dependencies could not be installed. Check requirements.txt and the function logs, then try again.",
 					});
 				}
 			}),

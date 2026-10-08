@@ -1,4 +1,7 @@
 import { BASE_URL } from "..";
+import { apiFetch } from "./api";
+
+const fetch = apiFetch;
 
 export async function generateAccessToken(
 	name: string,

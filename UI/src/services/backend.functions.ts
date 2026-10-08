@@ -1,14 +1,14 @@
 import { BASE_URL } from "..";
 import { Image, TriggerLog, XFunction } from "../types/Prisma";
+import { apiFetch, type ApiFailure } from "./api";
+
+const fetch = apiFetch;
 
 interface OKResponse {
 	status: "OK";
 	message: string;
 }
-interface ErrorResponse {
-	status: number;
-	message: string;
-}
+type ErrorResponse = ApiFailure;
 
 interface CreateFunctionResponse {
 	status: "OK";
@@ -217,6 +217,7 @@ async function executeFunction(id: number, data?: any) {
 				},
 				credentials: "include",
 				body: data ? JSON.stringify(data) : undefined,
+				timeoutMs: 15 * 60_000,
 			},
 		);
 		return await response.json();
@@ -228,24 +229,16 @@ async function executeFunction(id: number, data?: any) {
 
 async function installDependencies(
 	id: number,
-): Promise<OKResponse | string | undefined> {
-	try {
-		const response = await fetch(`${BASE_URL}/api/function/${id}/pip-install`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			credentials: "include",
-		});
-		const data = await response.json();
-		console.log(data);
-		if (data.status !== "OK") {
-			return data.message || "Something else went wrong... Check logs";
-		}
-		return data;
-	} catch (error) {
-		console.error("Error installing dependencies:", error);
-	}
+): Promise<OKResponse | ErrorResponse> {
+	const response = await fetch(`${BASE_URL}/api/function/${id}/pip-install`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		credentials: "include",
+		timeoutMs: 10 * 60_000,
+	});
+	return await response.json();
 }
 
 async function reinstallFfmpeg(
@@ -260,6 +253,7 @@ async function reinstallFfmpeg(
 					"Content-Type": "application/json",
 				},
 				credentials: "include",
+				timeoutMs: 10 * 60_000,
 			},
 		);
 		const data = await response.json();
@@ -284,6 +278,7 @@ async function reinstallOpencv(
 					"Content-Type": "application/json",
 				},
 				credentials: "include",
+				timeoutMs: 10 * 60_000,
 			},
 		);
 		const data = await response.json();
@@ -311,8 +306,20 @@ async function executeFunctionStreaming(
 				},
 				credentials: "include",
 				body: data ? JSON.stringify(data) : undefined,
+				timeoutMs: 15 * 60_000,
+				rawResponse: true,
 			},
 		);
+
+		if (!response.ok) {
+			const failure = await response.json();
+			onChunk({
+				type: "error",
+				code: failure.code,
+				error: failure.message,
+			});
+			return;
+		}
 
 		if (!response.body) {
 			throw new Error("ReadableStream not supported in this browser.");
@@ -448,6 +455,7 @@ async function gitClone(
 			git_source_dir: git_source_dir || undefined,
 			git_branch: git_branch || undefined,
 		}),
+		timeoutMs: 5 * 60_000,
 	});
 	return (await response.json()) as
 		| { status: "OK"; message: string; logs: string }
@@ -459,6 +467,7 @@ async function gitPull(id: number) {
 	const response = await fetch(`${BASE_URL}/api/function/${id}/git/pull`, {
 		method: "POST",
 		credentials: "include",
+		timeoutMs: 5 * 60_000,
 	});
 	return (await response.json()) as
 		| { status: "OK"; message: string; logs: string }
@@ -506,6 +515,7 @@ async function getGitBranches(
 			git_username: git_username || undefined,
 			git_password: git_password || undefined,
 		}),
+		timeoutMs: 2 * 60_000,
 	});
 	return (await response.json()) as
 		| { status: "OK"; data: string[] }
@@ -529,6 +539,7 @@ async function getGitTree(
 			git_password: git_password || undefined,
 			git_branch: git_branch || undefined,
 		}),
+		timeoutMs: 2 * 60_000,
 	});
 	return (await response.json()) as
 		| { status: "OK"; data: string[] }
@@ -561,6 +572,7 @@ async function massReplace(find: string, replace: string) {
 		},
 		credentials: "include",
 		body: JSON.stringify({ find, replace }),
+		timeoutMs: 2 * 60_000,
 	});
 
 	const data = (await response.json()) as OKResponse | ErrorResponse;
@@ -575,6 +587,7 @@ async function getMassReplaceFindings(find: string, replace: string) {
 		},
 		credentials: "include",
 		body: JSON.stringify({ find, replace }),
+		timeoutMs: 2 * 60_000,
 	});
 
 	const data = (await response.json()) as

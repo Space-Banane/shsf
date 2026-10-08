@@ -4,6 +4,7 @@ import { SHSFExport } from "../../components/modals/functions/ImportFunctionModa
 import { useContext, useEffect, useState, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import JSZip from "jszip";
+import { apiFetch } from "../../services/api";
 import CreateFileModal from "../../components/modals/functionFiles/CreateFileModal";
 import FolderModal from "../../components/modals/functionFiles/FolderModal";
 import RenameFileModal from "../../components/modals/functionFiles/RenameFileModal";
@@ -70,6 +71,9 @@ import { TriggersCard } from "../../components/cards/TriggersCard";
 import { FileManagerCard } from "../../components/cards/FileManagerCard";
 import { ActionButton } from "../../components/buttons/ActionButton";
 import { useConfirm } from "../../components/modals/ConfirmModal";
+import { copyTextToClipboard } from "../../utils/clipboard";
+
+const fetch = apiFetch;
 
 // Define the timing entry interface
 export interface TimingEntry {
@@ -126,7 +130,6 @@ function FunctionDetail() {
 	const [activeFileLanguage, setActiveFileLanguage] = useState<string>("");
 	const consoleOutputRef = useRef<HTMLDivElement>(null!);
 	const [autoScroll, setAutoScroll] = useState<boolean>(true);
-	const [, setCopyUrlColor] = useState<string>("text-stone-300");
 	const [copyUrltext, setCopyUrlText] = useState<string>(
 		"Copy URL to Clipboard",
 	);
@@ -790,11 +793,7 @@ function FunctionDetail() {
 						showResultIfNotPopup(result.data.result);
 					}
 				} else {
-					setConsoleOutput(
-						`Error: ${result.message}\nDetails: ${
-							result.error || "No additional details."
-						}`,
-					);
+					setConsoleOutput(`Execution failed: ${result.message}`);
 				}
 			} catch (error) {
 				console.error("Error executing code:", error);
@@ -894,7 +893,9 @@ function FunctionDetail() {
 				setDepModalContent({
 					title: "Install Error",
 					message:
-						"Error installing dependencies: " + String(response),
+						typeof response === "object" && response && "message" in response
+							? String(response.message)
+							: "Dependencies could not be installed. Check the function logs and try again.",
 					success: false,
 				});
 				setShowDepModal(true);
@@ -1782,16 +1783,19 @@ function FunctionDetail() {
 									icon="📋"
 									label={copyUrltext}
 									variant="primary"
-									onClick={() => {
-										navigator.clipboard.writeText(
-											functionURL,
-										);
-										setCopyUrlColor("text-green-400");
-										setCopyUrlText("✅ Copied!");
-										setTimeout(() => {
-											setCopyUrlColor("text-stone-300");
-											setCopyUrlText("Copy📎");
-										}, 2000);
+									onClick={async () => {
+										try {
+											await copyTextToClipboard(functionURL);
+											setCopyUrlText("✅ Copied!");
+											setTimeout(
+												() => setCopyUrlText("Copy📎"),
+												2000,
+											);
+										} catch {
+											toast.error(
+												"The URL could not be copied. Select it and copy it manually.",
+											);
+										}
 									}}
 								/>
 							</div>
@@ -1822,22 +1826,23 @@ function FunctionDetail() {
 											icon="📋"
 											label={copyAliasURL}
 											variant="primary"
-											onClick={() => {
-												navigator.clipboard.writeText(
-													functionURL.split(
-														"/api/",
-													)[0] +
-														"/exec/" +
-														functionData.executionAlias,
-												);
-												setCopyAliasURL(
-													"✅ Copied Alias!",
-												);
-												setTimeout(() => {
-													setCopyAliasURL(
-														"Copy Alias📎",
+											onClick={async () => {
+												try {
+													await copyTextToClipboard(
+														functionURL.split("/api/")[0] +
+															"/exec/" +
+															functionData.executionAlias,
 													);
-												}, 2000);
+													setCopyAliasURL("✅ Copied Alias!");
+													setTimeout(
+														() => setCopyAliasURL("Copy Alias📎"),
+														2000,
+													);
+												} catch {
+													toast.error(
+														"The alias URL could not be copied. Select it and copy it manually.",
+													);
+												}
 											}}
 										/>
 									</div>
@@ -2075,11 +2080,13 @@ function FunctionDetail() {
 								/>
 								<button
 									className="h-9 shrink-0 rounded-lg border border-primary/20 bg-background/45 px-3 text-sm text-primary transition-all duration-300 hover:border-primary/40"
-									onClick={() => {
-										navigator.clipboard.writeText(
-											cliPullCommand,
-										);
-										toast.success("CLI command copied");
+									onClick={async () => {
+										try {
+											await copyTextToClipboard(cliPullCommand);
+											toast.success("CLI command copied");
+										} catch {
+											toast.error("The command could not be copied. Select it and copy it manually.");
+										}
 									}}
 								>
 									Copy

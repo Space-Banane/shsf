@@ -1,5 +1,7 @@
 import React, { useState } from "react";
+import { toast } from "react-toastify";
 import { useShiftEnterSubmit } from "../../hooks/useShiftEnterSubmit";
+import { copyTextToClipboard } from "../../utils/clipboard";
 
 interface CLICommandCardProps {
 	command: string;
@@ -16,10 +18,14 @@ const CLICommandCard: React.FC<CLICommandCardProps> = ({
 	const [modalOpen, setModalOpen] = useState(false);
 	const [copied, setCopied] = useState(false);
 
-	const handleCopy = () => {
-		navigator.clipboard.writeText(command);
-		setCopied(true);
-		setTimeout(() => setCopied(false), 1500);
+	const handleCopy = async () => {
+		try {
+			await copyTextToClipboard(command);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 1500);
+		} catch {
+			toast.error("The command could not be copied. Select it and copy it manually.");
+		}
 	};
 
 	useShiftEnterSubmit(handleCopy, modalOpen);
