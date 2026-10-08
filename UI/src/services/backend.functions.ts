@@ -19,12 +19,13 @@ interface CreateFunctionResponse {
 
 interface FunctionListResponse {
 	status: "OK";
-	data: {
+	data: Array<{
 		namespace: {
 			name: string;
 			id: number;
 		};
-	} & XFunction[];
+	} & XFunction>;
+	pagination?: { page: number; limit: number; total: number; totalPages: number };
 }
 
 interface getFunctionByIdOkResponse {
@@ -116,9 +117,32 @@ async function deleteFunction(id: number) {
 	return data;
 }
 
-async function getFunctions(include_functions: boolean = false) {
+
+interface FunctionListOptions {
+	page?: number;
+	limit?: number;
+	search?: string;
+	namespaceId?: number;
+	runtime?: string;
+	tag?: string;
+	status?: "all" | "never-run" | "has-run";
+	sort?: "name" | "createdAt" | "lastRun";
+	order?: "asc" | "desc";
+}
+
+async function getFunctions(include_functions: boolean = false, options: FunctionListOptions = {}) {
+	const params = new URLSearchParams({ include_functions: String(include_functions) });
+	if (options.page) params.set("page", String(options.page));
+	if (options.limit) params.set("limit", String(options.limit));
+	if (options.search?.trim()) params.set("search", options.search.trim());
+	if (options.namespaceId) params.set("namespace_id", String(options.namespaceId));
+	if (options.runtime) params.set("runtime", options.runtime);
+	if (options.tag) params.set("tag", options.tag);
+	if (options.status && options.status !== "all") params.set("status", options.status);
+	if (options.sort) params.set("sort", options.sort);
+	if (options.order) params.set("order", options.order);
 	const response = await fetch(
-		`${BASE_URL}/api/functions?include_functions=${include_functions}`,
+		`${BASE_URL}/api/functions?${params.toString()}`,
 		{
 			method: "GET",
 			headers: {
@@ -661,6 +685,7 @@ export type { OKResponse, ErrorResponse };
 export type {
 	CreateFunctionResponse,
 	FunctionListResponse,
+	FunctionListOptions,
 	getFunctionByIdOkResponse,
 	UpdateFunctionResponse,
 	ExecuteFunctionResponse,

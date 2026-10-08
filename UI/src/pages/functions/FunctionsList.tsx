@@ -1,7 +1,8 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import { UserContext } from "../../App";
 import { getNamespaces } from "../../services/backend.namespaces";
+import { getFunctions, type FunctionListOptions } from "../../services/backend.functions";
 import { Namespace, XFunction } from "../../types/Prisma";
 import CreateNamespaceModal from "../../components/modals/namespaces/CreateNamespaceModal";
 import CreateFunctionModal from "../../components/modals/functions/CreateFunctionModal";
@@ -18,6 +19,9 @@ import { HelpTooltip } from "../../components/ui/Tooltip";
 
 function FunctionsList() {
 	const [namespaces, setNamespaces] = useState<Namespace[]>([]);
+	const [functions, setFunctions] = useState<XFunction[]>([]);
+	const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
+	const [filters, setFilters] = useState<FunctionListOptions>({ page: 1, limit: 25, sort: "name", order: "asc", status: "all" });
 	const [loading, setLoading] = useState(true);
 	const { user } = useContext(UserContext);
 	const aiEnabled = Boolean(user?.apiKeyConfigured);
@@ -37,22 +41,22 @@ function FunctionsList() {
 
 	useEffect(() => {
 		setLoading(true);
-		getNamespaces(true).then((data) => {
-			if (data.status === "OK") {
-				const loaded = data.data as Namespace[];
+		Promise.all([getNamespaces(false), getFunctions(false, filters)]).then(([namespaceData, functionData]) => {
+			if (namespaceData.status === "OK") {
+				const loaded = namespaceData.data as Namespace[];
 				setNamespaces(loaded);
-				setExpandedNamespaces(loaded.map((ns) => ns.id));
-			} else {
-				toast.error("Error fetching namespaces: " + data.message);
-			}
+				setExpandedNamespaces((prev) => prev.length ? prev : loaded.map((ns) => ns.id));
+			} else toast.error("Error fetching namespaces: " + namespaceData.message);
+			if (functionData.status === "OK") {
+				setFunctions(functionData.data as XFunction[]);
+				if (functionData.pagination) setPagination(functionData.pagination);
+			} else toast.error("Error fetching functions: " + functionData.message);
 			setLoading(false);
-		});
-	}, []);
+		}).catch(() => { toast.error("Unable to load functions."); setLoading(false); });
+	}, [filters]);
 
 	const refreshData = () => {
-		getNamespaces(true).then((data) => {
-			if (data.status === "OK") setNamespaces(data.data as Namespace[]);
-		});
+		setFilters((current) => ({ ...current }));
 	};
 
 	const toggleNamespace = (id: number) => {
@@ -76,10 +80,20 @@ function FunctionsList() {
 		}
 	};
 
-	const totalFunctions = namespaces.reduce((sum, ns) => sum + (ns.functions?.length ?? 0), 0);
+	const groupedNamespaces = useMemo(() => namespaces.map((namespace) => ({
+		...namespace,
+		functions: functions.filter((func) => func.namespaceId === namespace.id),
+	})), [namespaces, functions]);
+	const totalFunctions = pagination.total;
 	const allExpanded = expandedNamespaces.length === namespaces.length;
+	const hasFilters = Boolean(filters.search || filters.namespaceId || filters.runtime || filters.tag || filters.status !== "all");
 
-	if (loading) {
+	const visibleNamespaces = functions.length > 0
+		? groupedNamespaces.filter((namespace) => namespace.functions.length > 0)
+		: totalFunctions === 0 && !hasFilters ? groupedNamespaces : [];
+	const controlClass = "h-9 min-w-0 rounded-lg border border-white/[0.08] bg-background/60 px-3 text-sm text-text outline-none transition-colors focus:border-primary/50";
+
+	if (loading && namespaces.length === 0) {
 		return (
 			<div className="flex items-center justify-center py-24">
 				<div className="text-center space-y-3">
@@ -93,78 +107,215 @@ function FunctionsList() {
 	return (
 		<div>
 			{/* Page header */}
-			<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-				<div>
-					<h1 className="text-2xl font-semibold text-text">Functions</h1>
-					<p className="text-sm text-muted mt-0.5">
-						{namespaces.length} namespace{namespaces.length !== 1 ? "s" : ""} · {totalFunctions} function{totalFunctions !== 1 ? "s" : ""}
-					</p>
+			<div className="mb-6 space-y-4">
+				<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+					<div>
+						<h1 className="text-2xl font-semibold text-text">Functions</h1>
+						<p className="text-sm text-muted mt-0.5">
+							{namespaces.length} namespace{namespaces.length !== 1 ? "s" : ""} · {totalFunctions} function{totalFunctions !== 1 ? "s" : ""}
+						</p>
+					</div>
+
+					{/* Action toolbar */}
+					<div className="flex flex-wrap items-center gap-2 sm:justify-end">
+						<Btn
+							icon="folder"
+							label="New Namespace"
+							variant="secondary"
+							onClick={() => setNamespaceModalOpen(true)}
+						/>
+						<Btn
+							icon="plus"
+							label="New Function"
+							variant="primary"
+							onClick={() => setFunctionModalOpen(true)}
+						/>
+						<div className="flex items-center gap-1.5">
+							<Btn
+								icon="sparkles"
+								label="AI Kickoff"
+								variant="secondary"
+								disabled={!aiEnabled}
+								onClick={() => setAIModalOpen(true)}
+							/>
+							{!aiEnabled && (
+								<HelpTooltip
+									content="Configure an OpenRouter API key in Account → AI Settings to enable AI-powered function generation."
+									placement="bottom"
+								/>
+							)}
+						</div>
+						<Btn
+							icon="arrow-down-tray"
+							label="Import"
+							variant="secondary"
+							onClick={() => setImportModalOpen(true)}
+						/>
+						<Btn
+							icon="magnifying-glass"
+							label="Find & Replace"
+							variant="secondary"
+							onClick={() => setMassReplaceModalOpen(true)}
+						/>
+						<button
+							onClick={() =>
+								allExpanded
+									? setExpandedNamespaces([])
+									: setExpandedNamespaces(namespaces.map((ns) => ns.id))
+							}
+							className="p-2 text-muted hover:text-text hover:bg-surface rounded-lg border border-transparent hover:border-white/[0.07] transition-colors"
+							title={allExpanded ? "Collapse all" : "Expand all"}
+						>
+							<Icon name={allExpanded ? "folder" : "folder-open"} className="w-4 h-4" />
+						</button>
+					</div>
 				</div>
 
-				{/* Action toolbar */}
-				<div className="flex flex-wrap items-center gap-2">
-					<Btn
-						icon="folder"
-						label="New Namespace"
-						variant="secondary"
-						onClick={() => setNamespaceModalOpen(true)}
-					/>
-					<Btn
-						icon="plus"
-						label="New Function"
-						variant="primary"
-						onClick={() => setFunctionModalOpen(true)}
-					/>
-					<div className="flex items-center gap-1.5">
-						<Btn
-							icon="sparkles"
-							label="AI Kickoff"
-							variant="secondary"
-							disabled={!aiEnabled}
-							onClick={() => setAIModalOpen(true)}
-						/>
-						{!aiEnabled && (
-							<HelpTooltip
-								content="Configure an OpenRouter API key in Account → AI Settings to enable AI-powered function generation."
-								placement="bottom"
+				{/* Discovery toolbar */}
+				<div className="rounded-xl border border-white/[0.07] bg-surface p-3">
+					<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(15rem,1.5fr)_repeat(5,minmax(8.5rem,1fr))_auto]">
+						<label className="relative block min-w-0">
+							<span className="sr-only">Search functions</span>
+							<Icon
+								name="magnifying-glass"
+								className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
 							/>
+							<input
+								value={filters.search ?? ""}
+								onChange={(e) =>
+									setFilters((current) => ({
+										...current,
+										search: e.target.value,
+										page: 1,
+									}))
+								}
+								placeholder="Search functions…"
+								className={`${controlClass} w-full pl-9 placeholder:text-muted/60`}
+							/>
+						</label>
+						<select
+							aria-label="Namespace filter"
+							value={filters.namespaceId ?? ""}
+							onChange={(e) =>
+								setFilters((current) => ({
+									...current,
+									namespaceId: e.target.value
+										? Number(e.target.value)
+										: undefined,
+									page: 1,
+								}))
+							}
+							className={controlClass}
+						>
+							<option value="">All namespaces</option>
+							{namespaces.map((namespace) => (
+								<option key={namespace.id} value={namespace.id}>
+									{namespace.name}
+								</option>
+							))}
+						</select>
+						<select
+							aria-label="Runtime filter"
+							value={filters.runtime ?? ""}
+							onChange={(e) =>
+								setFilters((current) => ({
+									...current,
+									runtime: e.target.value || undefined,
+									page: 1,
+								}))
+							}
+							className={controlClass}
+						>
+							<option value="">All runtimes</option>
+							<option value="python">Python</option>
+							<option value="node">Node.js</option>
+							<option value="golang">Go</option>
+						</select>
+						<select
+							aria-label="Function status filter"
+							value={filters.status ?? "all"}
+							onChange={(e) =>
+								setFilters((current) => ({
+									...current,
+									status: e.target
+										.value as FunctionListOptions["status"],
+									page: 1,
+								}))
+							}
+							className={controlClass}
+						>
+							<option value="all">All statuses</option>
+							<option value="never-run">Never run</option>
+							<option value="has-run">Has run</option>
+						</select>
+						<input
+							aria-label="Tag filter"
+							value={filters.tag ?? ""}
+							onChange={(e) =>
+								setFilters((current) => ({
+									...current,
+									tag: e.target.value,
+									page: 1,
+								}))
+							}
+							placeholder="Filter by tag"
+							className={`${controlClass} placeholder:text-muted/60`}
+						/>
+						<select
+							aria-label="Sort functions"
+							value={`${filters.sort}-${filters.order}`}
+							onChange={(e) => {
+								const [sort, order] = e.target.value.split("-");
+								setFilters((current) => ({
+									...current,
+									sort: sort as FunctionListOptions["sort"],
+									order: order as FunctionListOptions["order"],
+									page: 1,
+								}));
+							}}
+							className={controlClass}
+						>
+							<option value="name-asc">Name A–Z</option>
+							<option value="name-desc">Name Z–A</option>
+							<option value="createdAt-desc">Newest first</option>
+							<option value="lastRun-desc">Recently run</option>
+						</select>
+						{hasFilters && (
+							<button
+								type="button"
+								onClick={() =>
+									setFilters({
+										page: 1,
+										limit: 25,
+										sort: "name",
+										order: "asc",
+										status: "all",
+									})
+								}
+								className="flex h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-sm text-muted transition-colors hover:bg-white/[0.05] hover:text-text"
+							>
+								<Icon name="x-mark" className="h-4 w-4" />
+								Clear
+							</button>
 						)}
 					</div>
-					<Btn
-						icon="arrow-down-tray"
-						label="Import"
-						variant="secondary"
-						onClick={() => setImportModalOpen(true)}
-					/>
-					<Btn
-						icon="magnifying-glass"
-						label="Find & Replace"
-						variant="secondary"
-						onClick={() => setMassReplaceModalOpen(true)}
-					/>
-					<button
-						onClick={() =>
-							allExpanded
-								? setExpandedNamespaces([])
-								: setExpandedNamespaces(namespaces.map((ns) => ns.id))
-						}
-						className="p-2 text-muted hover:text-text hover:bg-surface rounded-lg border border-transparent hover:border-white/[0.07] transition-colors"
-						title={allExpanded ? "Collapse all" : "Expand all"}
-					>
-						<Icon name={allExpanded ? "folder" : "folder-open"} className="w-4 h-4" />
-					</button>
+					{loading && (
+						<p className="mt-2 text-xs text-muted">
+							Updating results…
+						</p>
+					)}
 				</div>
 			</div>
 
 			{/* Namespace list */}
-			{namespaces.length === 0 ? (
+			{namespaces.length === 0 && !hasFilters ? (
 				<EmptyState
 					onCreateNamespace={() => setNamespaceModalOpen(true)}
 					onCreateFunction={() => setFunctionModalOpen(true)}
 				/>
 			) : (
 				<div className="space-y-3">
-					{namespaces
+					{visibleNamespaces
 						.slice()
 						.sort((a, b) => a.name.localeCompare(b.name))
 						.map((namespace) => (
@@ -179,6 +330,8 @@ function FunctionsList() {
 								onCloneFunction={(func) => { setSelectedFunctionForClone(func); setCloneFunctionModalOpen(true); }}
 							/>
 						))}
+					{functions.length === 0 && <div className="rounded-xl border border-white/[0.07] bg-surface px-6 py-12 text-center text-sm text-muted">{hasFilters ? "No functions match these filters." : "No functions found."}</div>}
+					{pagination.totalPages > 1 && <div className="flex items-center justify-between pt-2"><span className="text-xs text-muted">Page {pagination.page} of {pagination.totalPages}</span><div className="flex gap-2"><button disabled={pagination.page <= 1} onClick={() => setFilters((f) => ({ ...f, page: (f.page ?? 1) - 1 }))} className="rounded border border-white/[0.08] px-3 py-1 text-sm disabled:opacity-40">Previous</button><button disabled={pagination.page >= pagination.totalPages} onClick={() => setFilters((f) => ({ ...f, page: (f.page ?? 1) + 1 }))} className="rounded border border-white/[0.08] px-3 py-1 text-sm disabled:opacity-40">Next</button></div></div>}
 				</div>
 			)}
 
