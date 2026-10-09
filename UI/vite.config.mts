@@ -7,7 +7,10 @@ export default defineConfig({
 	build: { outDir: "build" },
 	server: {
 		port: 443,
-		proxy: { "/api": "http://localhost:5000" },
+		proxy: {
+			"/api": "http://localhost:5000",
+			"/version": "http://localhost:5000",
+		},
 	},
 	envPrefix: ["VITE_", "REACT_APP_"],
 	test: {
