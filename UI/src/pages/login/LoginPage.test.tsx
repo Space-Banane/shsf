@@ -2,21 +2,21 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { UserContext } from "../../App";
 import LoginPage from "./LoginPage";
 
-const mockNavigate = jest.fn();
-const mockLocation = jest.fn();
-const refreshUser = jest.fn();
-const fetchMock = jest.fn();
+const mockNavigate = vi.fn();
+const mockLocation = vi.fn();
+const refreshUser = vi.fn();
+const fetchMock = vi.fn();
 
-jest.mock("../..", () => ({ BASE_URL: "" }));
+vi.mock("../..", () => ({ BASE_URL: "" }));
 
-jest.mock("../../App", () => {
+vi.mock("../../App", () => {
 	const React = require("react");
 	return {
-		UserContext: React.createContext({ user: null, loading: false, refreshUser: jest.fn() }),
+		UserContext: React.createContext({ user: null, loading: false, refreshUser: vi.fn() }),
 	};
 });
 
-jest.mock("react-router-dom", () => ({
+vi.mock("react-router-dom", () => ({
 	useLocation: () => mockLocation(),
 	useNavigate: () => mockNavigate,
 }), { virtual: true });
@@ -29,7 +29,7 @@ const renderLoginPage = () => render(
 
 describe("LoginPage demo login", () => {
 	beforeEach(() => {
-		jest.clearAllMocks();
+		vi.clearAllMocks();
 		mockLocation.mockReturnValue({ state: null });
 		Object.defineProperty(global, "fetch", { writable: true, value: fetchMock });
 	});

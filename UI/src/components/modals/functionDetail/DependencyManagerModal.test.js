@@ -8,11 +8,11 @@ describe("DependencyManagerModal", () => {
 		["golang:1.23", "Go Dependencies", "go.mod"],
 		["node:22", "Node.js Dependencies", "package.json"],
 	])("supports %s dependency manifests", async (image, title, filename) => {
-		const onSave = jest.fn().mockResolvedValue(true);
+		const onSave = vi.fn().mockResolvedValue(true);
 
 		render(React.createElement(DependencyManagerModal, {
 			isOpen: true,
-			onClose: jest.fn(),
+			onClose: vi.fn(),
 			functionId: 1,
 			image,
 			files: [],
@@ -36,11 +36,11 @@ describe("DependencyManagerModal", () => {
 	it("renders null for unsupported runtimes", () => {
 		const { container } = render(React.createElement(DependencyManagerModal, {
 			isOpen: true,
-			onClose: jest.fn(),
+			onClose: vi.fn(),
 			functionId: 1,
 			image: "unknown:1.0",
 			files: [],
-			onSave: jest.fn(),
+			onSave: vi.fn(),
 		}));
 		expect(container.firstChild).toBeNull();
 	});
@@ -48,11 +48,11 @@ describe("DependencyManagerModal", () => {
 	it("pre-populates package.json with a useful default for node", () => {
 		render(React.createElement(DependencyManagerModal, {
 			isOpen: true,
-			onClose: jest.fn(),
+			onClose: vi.fn(),
 			functionId: 42,
 			image: "node:24",
 			files: [],
-			onSave: jest.fn(),
+			onSave: vi.fn(),
 		}));
 
 		const textarea = screen.getByRole("textbox", { name: "package.json content" });

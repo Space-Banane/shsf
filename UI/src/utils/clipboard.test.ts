@@ -2,7 +2,7 @@ import { copyTextToClipboard } from "./clipboard";
 
 describe("copyTextToClipboard", () => {
 	afterEach(() => {
-		jest.restoreAllMocks();
+		vi.restoreAllMocks();
 		Object.defineProperty(navigator, "clipboard", {
 			configurable: true,
 			value: undefined,
@@ -10,7 +10,7 @@ describe("copyTextToClipboard", () => {
 	});
 
 	it("uses the Clipboard API when available", async () => {
-		const writeText = jest.fn().mockResolvedValue(undefined);
+		const writeText = vi.fn().mockResolvedValue(undefined);
 		Object.defineProperty(navigator, "clipboard", {
 			configurable: true,
 			value: { writeText },
@@ -24,9 +24,9 @@ describe("copyTextToClipboard", () => {
 	it("falls back to execCommand when Clipboard API writes are unavailable", async () => {
 		Object.defineProperty(navigator, "clipboard", {
 			configurable: true,
-			value: { writeText: jest.fn().mockRejectedValue(new Error("insecure origin")) },
+			value: { writeText: vi.fn().mockRejectedValue(new Error("insecure origin")) },
 		});
-		const execCommand = jest.fn().mockReturnValue(true);
+		const execCommand = vi.fn().mockReturnValue(true);
 		Object.defineProperty(document, "execCommand", {
 			configurable: true,
 			value: execCommand,

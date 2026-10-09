@@ -9,3 +9,6 @@ allowBuilds:
   prisma: true
   protobufjs: true
   ssh2: true
+
+overrides:
+  '@grpc/grpc-js': 1.14.5

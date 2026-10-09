@@ -1,10 +1,11 @@
 import { executeFunction, executeFunctionStreaming } from "./backend.functions";
 import { apiFetch } from "./api";
+import type { MockedFunction } from "vitest";
 
-jest.mock("..", () => ({ BASE_URL: "" }));
-jest.mock("./api", () => ({ apiFetch: jest.fn() }));
+vi.mock("..", () => ({ BASE_URL: "" }));
+vi.mock("./api", () => ({ apiFetch: vi.fn() }));
 
-const mockedApiFetch = apiFetch as jest.MockedFunction<typeof apiFetch>;
+const mockedApiFetch = apiFetch as MockedFunction<typeof apiFetch>;
 
 describe("function execution cancellation", () => {
 	beforeEach(() => mockedApiFetch.mockReset());

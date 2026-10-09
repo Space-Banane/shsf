@@ -72,7 +72,7 @@ jobs:
               run: cd UI && pnpm lint
 
             - name: UI tests
-              run: cd UI && pnpm test --watchAll=false
+              run: cd UI && pnpm test
 
     generate_openapi_release:
         name: Generate OpenAPI Release

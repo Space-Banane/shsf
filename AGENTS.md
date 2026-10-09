@@ -59,7 +59,7 @@ Always branch from `dev`. PRs target `dev`. Only `dev` merges into `main`.
 
 3. **Run UI tests:**
    ```bash
-   cd UI && pnpm test -- --watchAll=false
+   cd UI && pnpm test
    ```
 
 Never commit code that fails lint or any test.
@@ -198,5 +198,5 @@ cd UI && pnpm lint
 cd Backend && pnpm lint
 
 # Run UI tests
-cd UI && pnpm test -- --watchAll=false
+cd UI && pnpm test
 ```
