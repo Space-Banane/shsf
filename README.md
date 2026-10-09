@@ -212,8 +212,8 @@ The `args` payload includes `body` (parsed request body), `query` (query string 
 
 ### Prerequisites
 
-- Node.js 20+
-- pnpm
+- Node.js 24.20.0+ (the CI and Docker image use Node 24)
+- pnpm 11.5.2 (activated automatically by Corepack from the root `packageManager` field)
 - A running MariaDB instance
 - Docker (for function execution)
 
@@ -242,6 +242,17 @@ cd UI && pnpm lint
 # Lint + test the backend
 cd Backend && pnpm lint && pnpm test
 ```
+
+### Dependency maintenance
+
+Run dependency status checks from the repository root with the pinned toolchain:
+
+```bash
+corepack pnpm -C Backend outdated
+corepack pnpm -C UI outdated
+```
+
+This release updates compatible patch/minor versions. Deliberately deferred major upgrades are TypeScript 7 and ESLint 10 (tooling/config compatibility), `react-scripts` (requires a separate build-tool migration), Dockerode 5 and its types (runtime/API review), OpenRouter SDK 1 (AI route API review), Vitest 5/coverage, bcrypt 6, dotenv 18, file-type 22, rimraf 6, and the remaining UI test/runtime majors (`@testing-library/jest-dom` 7, `user-event` 14, Motion 14, `react-syntax-highlighter` 16, web-vitals 6, cross-env 10, and Node/Jest types). Esbuild 0.28 is also deferred because 0.x minor versions can contain breaking changes. `cron-parser` is pinned to 5.10.1 because 5.10.2 had not yet met the registry release-age policy during this update.
 
 ### Database migrations
 
