@@ -210,11 +210,11 @@ export = new fileRouter.Path("/")
 				const or = new OpenRouter({
 					apiKey: authCheck.user.openRouterKey || env.OPENROUTER_API_KEY,
 					httpReferer: "https://github.com/Space-Banane/shsf",
-					xTitle: "SHSF - Self-Hostable Serverless Functions",
+					appTitle: "SHSF - Self-Hostable Serverless Functions",
 				});
 
 				const response = await or.chat.send({
-					chatGenerationParams: {
+					chatRequest: {
 						model: "qwen/qwen3-coder-next",
 						messages: [
 							{
@@ -246,6 +246,14 @@ Platform Rules:
 						response_format: { type: "json_object" },
 					},
 				} as any);
+
+				if (!("choices" in response)) {
+					return ctr.status(500).print({
+						status: "FAILED",
+						code: "SERVER_ERROR",
+						message: "AI generation returned a streaming response unexpectedly. Try again.",
+					});
+				}
 
 				const content = response.choices[0].message.content;
 				if (!content) {
@@ -405,7 +413,7 @@ Platform Rules:
 				const openRouter = new OpenRouter({
 					apiKey: openRouterKey,
 					httpReferer: "https://github.com/Space-Banane/shsf",
-					xTitle: "SHSF - Self-Hostable Serverless Functions",
+					appTitle: "SHSF - Self-Hostable Serverless Functions",
 				});
 
 				const runtimePolicy = createRuntimeFilePolicy(func.image, func.startup_file);
@@ -493,13 +501,15 @@ ${runtimePolicy.docSection}`;
 					iterations++;
 
 					const response = await openRouter.chat.send({
-						chatGenerationParams: {
+						chatRequest: {
 							model,
 							messages,
 							tools: [writeFileTool] as any,
 							stream: false,
 						},
 					} as any);
+
+					if (!("choices" in response)) break;
 
 					const responseMessage = response.choices[0].message;
 					// Push the raw assistant message so the model has full context in subsequent turns

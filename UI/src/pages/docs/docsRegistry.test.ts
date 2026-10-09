@@ -1,6 +1,6 @@
 import { documentation, documentationRoutes, getDocumentationNavigation, validateDocumentationRoutes } from "./docsRegistry";
 
-jest.mock("react-router-dom", () => ({ useLocation: () => ({ pathname: "/docs/getting-started" }) }), { virtual: true });
+vi.mock("react-router-dom", () => ({ useLocation: () => ({ pathname: "/docs/getting-started" }) }), { virtual: true });
 
 describe("documentation registry", () => {
 	it("keeps every configured link on a registered documentation route", () => {

@@ -3,7 +3,7 @@ import { useShiftEnterSubmit } from "./useShiftEnterSubmit";
 
 describe("useShiftEnterSubmit", () => {
 	it("fires the callback on Ctrl+Enter", () => {
-		const onSubmit = jest.fn();
+		const onSubmit = vi.fn();
 		renderHook(() => useShiftEnterSubmit(onSubmit));
 
 		fireEvent.keyDown(document, { key: "Enter", ctrlKey: true });
@@ -11,7 +11,7 @@ describe("useShiftEnterSubmit", () => {
 	});
 
 	it("fires the callback on Cmd+Enter (macOS)", () => {
-		const onSubmit = jest.fn();
+		const onSubmit = vi.fn();
 		renderHook(() => useShiftEnterSubmit(onSubmit));
 
 		fireEvent.keyDown(document, { key: "Enter", metaKey: true });
@@ -19,7 +19,7 @@ describe("useShiftEnterSubmit", () => {
 	});
 
 	it("does not fire on plain Enter or Ctrl with other keys", () => {
-		const onSubmit = jest.fn();
+		const onSubmit = vi.fn();
 		renderHook(() => useShiftEnterSubmit(onSubmit));
 
 		fireEvent.keyDown(document, { key: "Enter" });
@@ -28,7 +28,7 @@ describe("useShiftEnterSubmit", () => {
 	});
 
 	it("does not re-submit while Ctrl+Enter is held", () => {
-		const onSubmit = jest.fn();
+		const onSubmit = vi.fn();
 		renderHook(() => useShiftEnterSubmit(onSubmit));
 
 		fireEvent.keyDown(document, { key: "Enter", ctrlKey: true, repeat: true });
@@ -36,7 +36,7 @@ describe("useShiftEnterSubmit", () => {
 	});
 
 	it("does not fire when disabled", () => {
-		const onSubmit = jest.fn();
+		const onSubmit = vi.fn();
 		renderHook(() => useShiftEnterSubmit(onSubmit, false));
 
 		fireEvent.keyDown(document, { key: "Enter", ctrlKey: true });
@@ -44,7 +44,7 @@ describe("useShiftEnterSubmit", () => {
 	});
 
 	it("removes the listener on unmount", () => {
-		const onSubmit = jest.fn();
+		const onSubmit = vi.fn();
 		const { unmount } = renderHook(() => useShiftEnterSubmit(onSubmit));
 		unmount();
 

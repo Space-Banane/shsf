@@ -1,32 +1,33 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import StoragePage from "./Storage";
 import { listStorageItems, listStorages } from "../services/backend.storage";
+import type { MockedFunction } from "vitest";
 
-const mockLocation = jest.fn();
-const mockNavigate = jest.fn();
+const mockLocation = vi.fn();
+const mockNavigate = vi.fn();
 
-jest.mock("react-router-dom", () => ({
+vi.mock("react-router-dom", () => ({
 	useLocation: () => mockLocation(),
 	useNavigate: () => mockNavigate,
 }), { virtual: true });
 
-jest.mock("../services/backend.storage", () => ({
-	listStorages: jest.fn(),
-	listStorageItems: jest.fn(),
-	createStorage: jest.fn(),
-	deleteStorage: jest.fn(),
-	clearStorageItems: jest.fn(),
-	setStorageItem: jest.fn(),
-	getStorageItem: jest.fn(),
-	deleteStorageItem: jest.fn(),
+vi.mock("../services/backend.storage", () => ({
+	listStorages: vi.fn(),
+	listStorageItems: vi.fn(),
+	createStorage: vi.fn(),
+	deleteStorage: vi.fn(),
+	clearStorageItems: vi.fn(),
+	setStorageItem: vi.fn(),
+	getStorageItem: vi.fn(),
+	deleteStorageItem: vi.fn(),
 }));
 
-const mockedListStorages = listStorages as jest.MockedFunction<typeof listStorages>;
-const mockedListStorageItems = listStorageItems as jest.MockedFunction<typeof listStorageItems>;
+const mockedListStorages = listStorages as MockedFunction<typeof listStorages>;
+const mockedListStorageItems = listStorageItems as MockedFunction<typeof listStorageItems>;
 
 describe("StoragePage", () => {
 	beforeEach(() => {
-		jest.clearAllMocks();
+		vi.clearAllMocks();
 		mockLocation.mockReturnValue({ pathname: "/storage", search: "", hash: "", state: null });
 		mockedListStorages.mockResolvedValue({
 			status: "OK",

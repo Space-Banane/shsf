@@ -2,14 +2,14 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import Modal, { ModalError } from "./Modal";
 import { toast } from "react-toastify";
 
-jest.mock("react-toastify", () => ({
-	toast: { error: jest.fn() },
+vi.mock("react-toastify", () => ({
+	toast: { error: vi.fn() },
 }));
 
 describe("Modal", () => {
 	it("renders title and children when open", () => {
 		render(
-			<Modal isOpen={true} onClose={jest.fn()} title="Test Modal">
+			<Modal isOpen={true} onClose={vi.fn()} title="Test Modal">
 				<p>modal body</p>
 			</Modal>,
 		);
@@ -19,7 +19,7 @@ describe("Modal", () => {
 
 	it("renders nothing when closed", () => {
 		render(
-			<Modal isOpen={false} onClose={jest.fn()} title="Hidden">
+			<Modal isOpen={false} onClose={vi.fn()} title="Hidden">
 				<p>hidden body</p>
 			</Modal>,
 		);
@@ -27,7 +27,7 @@ describe("Modal", () => {
 	});
 
 	it("closes on Escape", () => {
-		const onClose = jest.fn();
+		const onClose = vi.fn();
 		render(
 			<Modal isOpen={true} onClose={onClose} title="Esc">
 				<p>body</p>
@@ -38,7 +38,7 @@ describe("Modal", () => {
 	});
 
 	it("does not close on Escape while loading", () => {
-		const onClose = jest.fn();
+		const onClose = vi.fn();
 		render(
 			<Modal isOpen={true} onClose={onClose} title="Busy" isLoading={true}>
 				<p>body</p>

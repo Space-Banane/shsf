@@ -1,6 +1,6 @@
 import { parseRunTriggerResponse } from "./backend.triggers";
 
-jest.mock("..", () => ({ BASE_URL: "" }));
+vi.mock("..", () => ({ BASE_URL: "" }));
 
 describe("trigger run response parsing", () => {
 	it("accepts the documented response envelope", () => {

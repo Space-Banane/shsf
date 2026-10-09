@@ -36,6 +36,9 @@ export const corsMiddleware = new Middleware<{}, {}>("Custom CORS", "1.0.3")
 		}
 
 		const origin = ctr.headers.get("origin");
+		// Module scripts send an Origin header. UI assets are same-origin resources,
+		// not cross-origin API/function calls, so they must not hit API CORS policy.
+		if (origin && !ctr.url.path.startsWith("/api") && !ctr.url.path.startsWith("/exec/")) return;
 
 		if (origin && !CORS_DOMAINS.includes(origin)) {
 			let allowRequest = false;
