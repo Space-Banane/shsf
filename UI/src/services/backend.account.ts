@@ -9,6 +9,13 @@ interface EnvironmentVariable {
 	value: string;
 }
 
+export interface AIProviderSettings {
+	endpoint: string;
+	model: string;
+	apiKey: string;
+	capabilities: { tools: boolean; json: boolean };
+}
+
 async function getUserInfo() {
 	const response = await fetch(`${BASE_URL}/api/account/getUserInfo`, {
 		credentials: "include",
@@ -72,6 +79,7 @@ async function getAccountSettings() {
 				status: "OK";
 				data: {
 					accountEnvironment: EnvironmentVariable[];
+					aiProvider: Omit<AIProviderSettings, "apiKey"> | null;
 				};
 		  }
 		| { status: "FAILED"; message: string };
@@ -79,6 +87,7 @@ async function getAccountSettings() {
 }
 
 async function updateAccountSettings(settings: {
+	aiProvider?: AIProviderSettings | null;
 	openRouterKey?: string | null;
 	accountEnvironment?: EnvironmentVariable[];
 }) {

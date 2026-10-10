@@ -1,9 +1,16 @@
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
+import { API_KEY_HEADER, COOKIE, fileRouter, INSTANCE_SECRET, prisma } from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
 import { OpenAPITags } from "../../lib/openapi";
 import { env } from "../../lib/env";
 import { AIDOC } from "../../lib/aidoc";
 import { getDefaultStartupFile } from "../../lib/LangOps";
+import {
+	createAICompletion,
+	DEFAULT_AI_PROVIDER_ENDPOINT,
+	DEFAULT_AI_PROVIDER_MODEL,
+	getAIProvider,
+} from "../../lib/AIProvider";
+import { encryptSecret } from "../../lib/GitOps";
 
 const Images: string[] = [
 	"python:3.9",
@@ -24,6 +31,20 @@ const Images: string[] = [
 
 const DisallowedFiles = ["_runner.py", "_runner.js", "_shsf_runner.js", "init.sh"];
 
+async function migrateLegacyAIProvider(user: { id: number; openRouterKey: string | null }): Promise<void> {
+	if (!user.openRouterKey) return;
+	await prisma.user.update({
+		where: { id: user.id },
+		data: {
+			openRouterKey: null,
+			aiProviderEndpoint: DEFAULT_AI_PROVIDER_ENDPOINT,
+			aiProviderModel: DEFAULT_AI_PROVIDER_MODEL,
+			aiProviderApiKey: encryptSecret(user.openRouterKey, INSTANCE_SECRET),
+			aiProviderCapabilities: JSON.stringify({ tools: true, json: true }),
+		},
+	});
+}
+
 type RuntimeFamily = "python" | "golang" | "javascript" | "html";
 
 interface RuntimeFilePolicy {
@@ -34,6 +55,11 @@ interface RuntimeFilePolicy {
 	isAllowedFilename: (filename: string) => boolean;
 	systemInstruction: string;
 	docSection: string;
+}
+
+interface AIToolCall {
+	id?: string;
+	function?: { name?: string; arguments?: string };
 }
 
 function getRuntimeFamily(image: string, startupFile: string): RuntimeFamily {
@@ -206,16 +232,13 @@ export = new fileRouter.Path("/")
 
 				if (error || !body) return ctr.status(400).print({ status: 400, message: "Invalid request body" });
 
-				const { OpenRouter } = await import("@openrouter/sdk");
-				const or = new OpenRouter({
-					apiKey: authCheck.user.openRouterKey || env.OPENROUTER_API_KEY,
-					httpReferer: "https://github.com/Space-Banane/shsf",
-					appTitle: "SHSF - Self-Hostable Serverless Functions",
-				});
+				const provider = getAIProvider(authCheck.user, env.OPENROUTER_API_KEY, INSTANCE_SECRET);
+				if (!provider) return ctr.status(ctr.$status.SERVICE_UNAVAILABLE).print({ status: 503, message: "AI features are unavailable: add an AI provider in Account Settings." });
+				await migrateLegacyAIProvider(authCheck.user);
 
-				const response = await or.chat.send({
-					chatRequest: {
-						model: "qwen/qwen3-coder-next",
+				let response: Record<string, unknown>;
+				try {
+					response = await createAICompletion(provider, {
 						messages: [
 							{
 								role: "system",
@@ -243,11 +266,14 @@ Platform Rules:
 								content: `User Description: ${body.prompt}\nChosen Runtime: ${body.image}`,
 							},
 						],
-						response_format: { type: "json_object" },
-					},
-				} as any);
+						...(provider.capabilities.json ? { response_format: { type: "json_object" } } : {}),
+					});
+				} catch (err) {
+					return ctr.status(ctr.$status.BAD_GATEWAY).print({ status: "FAILED", message: err instanceof Error ? err.message : "AI provider request failed." });
+				}
 
-				if (!("choices" in response)) {
+				const choices = response.choices as Array<{ message?: { content?: unknown } }> | undefined;
+				if (!choices?.[0]?.message) {
 					return ctr.status(500).print({
 						status: "FAILED",
 						code: "SERVER_ERROR",
@@ -255,7 +281,7 @@ Platform Rules:
 					});
 				}
 
-				const content = response.choices[0].message.content;
+				const content = choices[0].message.content;
 				if (!content) {
 					return ctr.status(500).print({
 						status: "FAILED",
@@ -357,16 +383,16 @@ Platform Rules:
 					return ctr.print({ status: 401, message: authCheck.message });
 				}
 
-				const openRouterKey =
-					authCheck.user.openRouterKey || env.OPENROUTER_API_KEY;
+				const provider = getAIProvider(authCheck.user, env.OPENROUTER_API_KEY, INSTANCE_SECRET);
 
-				if (!openRouterKey) {
+				if (!provider) {
 					return ctr.status(ctr.$status.SERVICE_UNAVAILABLE).print({
 						status: 503,
 						message:
-							"AI features are unavailable: add your OpenRouter API key in Account Settings",
+							"AI features are unavailable: add an AI provider in Account Settings.",
 					});
 				}
+				await migrateLegacyAIProvider(authCheck.user);
 
 				const [data, error] = await ctr.bindBody((z) =>
 					z.object({
@@ -407,14 +433,14 @@ Platform Rules:
 						.print({ status: 404, message: "Function not found" });
 				}
 
-				const model = "qwen/qwen3-coder-next";
+				if (!provider.capabilities.tools) {
+					return ctr.status(ctr.$status.UNPROCESSABLE_ENTITY).print({
+						status: 422,
+						message: "This provider does not support tool calling, which AI code generation requires.",
+					});
+				}
 
-				const { OpenRouter } = await import("@openrouter/sdk");
-				const openRouter = new OpenRouter({
-					apiKey: openRouterKey,
-					httpReferer: "https://github.com/Space-Banane/shsf",
-					appTitle: "SHSF - Self-Hostable Serverless Functions",
-				});
+				const model = provider.model;
 
 				const runtimePolicy = createRuntimeFilePolicy(func.image, func.startup_file);
 				const maxFiles =
@@ -500,26 +526,22 @@ ${runtimePolicy.docSection}`;
 				while (iterations < MAX_ITERATIONS) {
 					iterations++;
 
-					const response = await openRouter.chat.send({
-						chatRequest: {
-							model,
-							messages,
-							tools: [writeFileTool] as any,
-							stream: false,
-						},
-					} as any);
+					let response: Record<string, unknown>;
+					try {
+						response = await createAICompletion(provider, { messages, tools: [writeFileTool], stream: false });
+					} catch (err) {
+						return ctr.status(ctr.$status.BAD_GATEWAY).print({ status: "FAILED", message: err instanceof Error ? err.message : "AI provider request failed." });
+					}
 
-					if (!("choices" in response)) break;
-
-					const responseMessage = response.choices[0].message;
+					const choices = response.choices as Array<{ message?: Record<string, unknown> }> | undefined;
+					const responseMessage = choices?.[0]?.message;
+					if (!responseMessage) break;
 					// Push the raw assistant message so the model has full context in subsequent turns
 					messages.push(responseMessage);
 
-					// Normalise tool_calls vs toolCalls (SDK may differ from raw API)
-					const toolCalls: any[] =
-						(responseMessage as any).toolCalls ??
-						(responseMessage as any).tool_calls ??
-						[];
+					// Accept the standard field and the camelCase variant used by some compatible APIs.
+					const rawToolCalls = responseMessage.toolCalls ?? responseMessage.tool_calls;
+					const toolCalls: AIToolCall[] = Array.isArray(rawToolCalls) ? rawToolCalls as AIToolCall[] : [];
 
 					if (toolCalls.length === 0) {
 						// No more tool calls — model is done
@@ -583,7 +605,7 @@ ${runtimePolicy.docSection}`;
 
 						messages.push({
 							role: "tool",
-							toolCallId,
+						tool_call_id: toolCallId,
 							name: toolName || "write_file",
 							content: toolResult,
 						});
