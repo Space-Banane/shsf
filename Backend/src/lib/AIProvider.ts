@@ -1,4 +1,5 @@
 import { decryptSecret } from "./GitOps";
+import { parseAIProviderEndpoint, requestAIProvider } from "./AIProviderHttp";
 
 export const DEFAULT_AI_PROVIDER_ENDPOINT = "https://openrouter.ai/api/v1";
 export const DEFAULT_AI_PROVIDER_MODEL = "qwen/qwen3-coder-next";
@@ -25,16 +26,8 @@ export interface StoredAIProvider {
 
 const defaultCapabilities: AIProviderCapabilities = { tools: true, json: true };
 
-function endpointUrl(endpoint: string): URL {
-	const url = new URL(endpoint);
-	if (url.protocol !== "https:" && url.protocol !== "http:") {
-		throw new Error("Provider endpoint must use HTTP or HTTPS");
-	}
-	return url;
-}
-
 export function normalizeAIProviderEndpoint(endpoint: string): string {
-	return endpointUrl(endpoint.trim()).toString().replace(/\/$/, "");
+	return parseAIProviderEndpoint(endpoint).toString().replace(/\/$/, "");
 }
 
 export function parseAIProviderCapabilities(value: string | null): AIProviderCapabilities {
@@ -90,21 +83,12 @@ export function getAIProvider(
 }
 
 export async function validateAIProvider(provider: AIProvider): Promise<void> {
-	const endpoint = normalizeAIProviderEndpoint(provider.endpoint);
-	let response: Response;
-	try {
-		response = await fetch(`${endpoint}/models`, {
-			headers: { Authorization: `Bearer ${provider.apiKey}` },
-			signal: AbortSignal.timeout(10_000),
-		});
-	} catch {
-		throw new Error("Could not reach the provider. Check the endpoint and network access.");
-	}
+	const response = await requestAIProvider(provider.endpoint, "/models", provider.apiKey, 10_000);
 
 	if (response.status === 401 || response.status === 403) {
 		throw new Error("The provider rejected the API key.");
 	}
-	if (!response.ok) {
+	if (response.status < 200 || response.status >= 300) {
 		throw new Error(`The provider did not accept a compatible models request (HTTP ${response.status}).`);
 	}
 	const body = await response.json().catch(() => null) as { data?: Array<{ id?: string }> } | null;
@@ -120,16 +104,8 @@ export async function createAICompletion(
 	if (body.tools && !provider.capabilities.tools) {
 		throw new Error("This provider is configured without tool-calling support, which SHSF code generation requires.");
 	}
-	const response = await fetch(`${normalizeAIProviderEndpoint(provider.endpoint)}/chat/completions`, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${provider.apiKey}`,
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify({ model: provider.model, ...body }),
-		signal: AbortSignal.timeout(120_000),
-	});
-	if (!response.ok) {
+	const response = await requestAIProvider(provider.endpoint, "/chat/completions", provider.apiKey, 120_000, { model: provider.model, ...body });
+	if (response.status < 200 || response.status >= 300) {
 		throw new Error(`AI provider request failed (HTTP ${response.status}).`);
 	}
 	return response.json() as Promise<Record<string, unknown>>;

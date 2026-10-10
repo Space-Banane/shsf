@@ -161,8 +161,16 @@ export = new fileRouter.Path("/")
 						updatePayload.aiProviderCapabilities = null;
 						updatePayload.openRouterKey = null;
 					} else {
-						const endpoint = normalizeAIProviderEndpoint(data.aiProvider.endpoint);
-						await validateAIProvider({ ...data.aiProvider, endpoint });
+						let endpoint: string;
+						try {
+							endpoint = normalizeAIProviderEndpoint(data.aiProvider.endpoint);
+							await validateAIProvider({ ...data.aiProvider, endpoint });
+						} catch (error) {
+							return ctr.status(ctr.$status.BAD_REQUEST).print({
+								status: "FAILED",
+								message: error instanceof Error ? error.message : "AI provider validation failed.",
+							});
+						}
 						updatePayload.aiProviderEndpoint = endpoint;
 						updatePayload.aiProviderModel = data.aiProvider.model.trim();
 						updatePayload.aiProviderApiKey = encryptSecret(data.aiProvider.apiKey, INSTANCE_SECRET);

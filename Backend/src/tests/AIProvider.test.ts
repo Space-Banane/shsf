@@ -1,12 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { encryptSecret } from "../lib/GitOps";
+import { requestAIProvider } from "../lib/AIProviderHttp";
 import {
+	createAICompletion,
 	DEFAULT_AI_PROVIDER_ENDPOINT,
 	DEFAULT_AI_PROVIDER_MODEL,
 	getAIProvider,
 	parseAIProviderCapabilities,
 	validateAIProvider,
 } from "../lib/AIProvider";
+
+vi.mock("../lib/AIProviderHttp", async (importOriginal) => ({
+	...await importOriginal<typeof import("../lib/AIProviderHttp")>(),
+	requestAIProvider: vi.fn(),
+}));
+
+afterEach(() => vi.resetAllMocks());
 
 const emptyProvider = {
 	aiProviderEndpoint: null,
@@ -44,14 +53,23 @@ describe("AI providers", () => {
 	});
 
 	it("reports authentication failures during provider validation", async () => {
-		vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 401 })));
+		vi.mocked(requestAIProvider).mockResolvedValue({ status: 401, json: async () => null });
 		await expect(validateAIProvider({ endpoint: "https://example.test/v1", model: "test", apiKey: "bad", capabilities: { tools: true, json: true } })).rejects.toThrow("rejected the API key");
-		vi.unstubAllGlobals();
 	});
 
 	it("reports a configured model that the provider does not offer", async () => {
-		vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ data: [{ id: "other-model" }] })));
+		vi.mocked(requestAIProvider).mockResolvedValue({ status: 200, json: async () => ({ data: [{ id: "other-model" }] }) });
 		await expect(validateAIProvider({ endpoint: "https://example.test/v1", model: "test", apiKey: "key", capabilities: { tools: true, json: true } })).rejects.toThrow("configured model is unavailable");
-		vi.unstubAllGlobals();
+	});
+
+	it("uses the guarded transport for both validation and completion requests", async () => {
+		const provider = getAIProvider(emptyProvider, "instance-key", "secret")!;
+		vi.mocked(requestAIProvider).mockResolvedValue({ status: 200, json: async () => ({ data: [{ id: provider.model }] }) });
+		await validateAIProvider(provider);
+		expect(requestAIProvider).toHaveBeenLastCalledWith(DEFAULT_AI_PROVIDER_ENDPOINT, "/models", "instance-key", 10_000);
+		const completion = { choices: [{ message: { content: "hello" } }] };
+		vi.mocked(requestAIProvider).mockResolvedValue({ status: 200, json: async () => completion });
+		expect(await createAICompletion(provider, { messages: [] })).toEqual(completion);
+		expect(requestAIProvider).toHaveBeenLastCalledWith(DEFAULT_AI_PROVIDER_ENDPOINT, "/chat/completions", "instance-key", 120_000, { model: DEFAULT_AI_PROVIDER_MODEL, messages: [] });
 	});
 });
