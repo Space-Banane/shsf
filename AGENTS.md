@@ -44,6 +44,10 @@ feature/<name>  →  dev  →  main
 
 Always branch from `dev`. PRs target `dev`. Only `dev` merges into `main`.
 
+### Addressing review feedback
+
+After fixing review feedback, push the changes and report the result. Do not request or re-request external PR reviews, including review-bot reviews, unless the user explicitly asks. Do not add reviewers or use comments, mentions, or bot commands to trigger another review automatically.
+
 ### Before every commit — mandatory checks
 
 1. **Lint the UI:**
