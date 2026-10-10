@@ -1,5 +1,5 @@
 import * as bcrypt from "bcrypt";
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
+import { API_KEY_HEADER, COOKIE, fileRouter, INSTANCE_SECRET, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import {
 	parseStoredEnvironmentVariables,
@@ -7,6 +7,15 @@ import {
 } from "../../../lib/EnvironmentVariables";
 import { cleanupFunctionContainer } from "../../../lib/Runner";
 import { OpenAPITags } from "../../../lib/openapi";
+import {
+	DEFAULT_AI_PROVIDER_ENDPOINT,
+	DEFAULT_AI_PROVIDER_MODEL,
+	normalizeAIProviderEndpoint,
+	parseAIProviderCapabilities,
+	parseAIProviderIgnoreTlsErrors,
+	validateAIProvider,
+} from "../../../lib/AIProvider";
+import { encryptSecret } from "../../../lib/GitOps";
 
 export = new fileRouter.Path("/")
 	.http("GET", "/api/account/settings", (http) =>
@@ -65,6 +74,12 @@ export = new fileRouter.Path("/")
 						accountEnvironment: parseStoredEnvironmentVariables(
 							authCheck.user.account_env,
 						),
+						aiProvider: authCheck.user.aiProviderApiKey || authCheck.user.openRouterKey ? {
+							endpoint: authCheck.user.aiProviderEndpoint ?? DEFAULT_AI_PROVIDER_ENDPOINT,
+							model: authCheck.user.aiProviderModel ?? DEFAULT_AI_PROVIDER_MODEL,
+							capabilities: parseAIProviderCapabilities(authCheck.user.aiProviderCapabilities),
+							ignoreTlsErrors: parseAIProviderIgnoreTlsErrors(authCheck.user.aiProviderCapabilities),
+						} : null,
 					},
 				});
 			}),
@@ -104,7 +119,17 @@ export = new fileRouter.Path("/")
 
 				const [data, error] = await ctr.bindBody((z) =>
 					z.object({
-						openRouterKey: z.string().max(512).nullable().optional(),
+						aiProvider: z.object({
+							endpoint: z.string().url().max(1024).refine((value) => {
+								const protocol = new URL(value).protocol;
+								return protocol === "https:" || protocol === "http:";
+							}, "Endpoint must use HTTP or HTTPS"),
+							model: z.string().min(1).max(256),
+							apiKey: z.string().min(1).max(4096),
+							capabilities: z.object({ tools: z.boolean(), json: z.boolean() }),
+							ignoreTlsErrors: z.boolean().default(false),
+						}).nullable().optional(),
+						openRouterKey: z.string().max(512).nullable().optional(), // Backward-compatible API input.
 						accountEnvironment: z
 							.array(
 								z.object({
@@ -123,11 +148,50 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				const updatePayload: any = {};
+				const updatePayload: {
+					openRouterKey?: string | null;
+					aiProviderEndpoint?: string | null;
+					aiProviderModel?: string | null;
+					aiProviderApiKey?: string | null;
+					aiProviderCapabilities?: string | null;
+					account_env?: string | null;
+				} = {};
+				if (data.aiProvider !== undefined) {
+					if (data.aiProvider === null) {
+						updatePayload.aiProviderEndpoint = null;
+						updatePayload.aiProviderModel = null;
+						updatePayload.aiProviderApiKey = null;
+						updatePayload.aiProviderCapabilities = null;
+						updatePayload.openRouterKey = null;
+					} else {
+						let endpoint: string;
+						try {
+							endpoint = normalizeAIProviderEndpoint(data.aiProvider.endpoint);
+							await validateAIProvider({ ...data.aiProvider, endpoint });
+						} catch (error) {
+							return ctr.status(ctr.$status.BAD_REQUEST).print({
+								status: "FAILED",
+								message: error instanceof Error ? error.message : "AI provider validation failed.",
+							});
+						}
+						updatePayload.aiProviderEndpoint = endpoint;
+						updatePayload.aiProviderModel = data.aiProvider.model.trim();
+						updatePayload.aiProviderApiKey = encryptSecret(data.aiProvider.apiKey, INSTANCE_SECRET);
+						// Store the TLS option alongside existing provider options; legacy JSON keeps verification enabled.
+						updatePayload.aiProviderCapabilities = JSON.stringify({
+							...data.aiProvider.capabilities,
+							ignoreTlsErrors: data.aiProvider.ignoreTlsErrors,
+						});
+						updatePayload.openRouterKey = null;
+					}
+				}
 				if (data.openRouterKey !== undefined) {
-					// null clears the key, empty string also clears it
-					updatePayload.openRouterKey =
-						data.openRouterKey === "" ? null : data.openRouterKey;
+					// Legacy clients retain the OpenRouter default but now store credentials encrypted.
+					updatePayload.openRouterKey = null;
+					updatePayload.aiProviderEndpoint = DEFAULT_AI_PROVIDER_ENDPOINT;
+					updatePayload.aiProviderModel = DEFAULT_AI_PROVIDER_MODEL;
+					updatePayload.aiProviderApiKey = data.openRouterKey ? encryptSecret(data.openRouterKey, INSTANCE_SECRET) : null;
+					updatePayload.aiProviderCapabilities = data.openRouterKey ? JSON.stringify({ tools: true, json: true }) : null;
 				}
 				if (data.accountEnvironment !== undefined) {
 					updatePayload.account_env = serializeEnvironmentVariables(

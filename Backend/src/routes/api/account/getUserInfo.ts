@@ -55,8 +55,12 @@ export = new fileRouter.Path("/").http(
 						...authCheck.user,
 						password: undefined,
 						openRouterKey: undefined,
+						aiProviderApiKey: undefined,
+						aiProviderEndpoint: undefined,
+						aiProviderModel: undefined,
+						aiProviderCapabilities: undefined,
 						apiKeyConfigured: Boolean(
-							authCheck.user.openRouterKey || env.OPENROUTER_API_KEY,
+							authCheck.user.aiProviderApiKey || authCheck.user.openRouterKey || env.OPENROUTER_API_KEY,
 						),
 					},
 					session: authCheck.method === "session" ? authCheck.session : null,
