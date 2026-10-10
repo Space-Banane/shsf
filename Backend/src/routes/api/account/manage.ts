@@ -12,6 +12,7 @@ import {
 	DEFAULT_AI_PROVIDER_MODEL,
 	normalizeAIProviderEndpoint,
 	parseAIProviderCapabilities,
+	parseAIProviderIgnoreTlsErrors,
 	validateAIProvider,
 } from "../../../lib/AIProvider";
 import { encryptSecret } from "../../../lib/GitOps";
@@ -77,6 +78,7 @@ export = new fileRouter.Path("/")
 							endpoint: authCheck.user.aiProviderEndpoint ?? DEFAULT_AI_PROVIDER_ENDPOINT,
 							model: authCheck.user.aiProviderModel ?? DEFAULT_AI_PROVIDER_MODEL,
 							capabilities: parseAIProviderCapabilities(authCheck.user.aiProviderCapabilities),
+							ignoreTlsErrors: parseAIProviderIgnoreTlsErrors(authCheck.user.aiProviderCapabilities),
 						} : null,
 					},
 				});
@@ -125,6 +127,7 @@ export = new fileRouter.Path("/")
 							model: z.string().min(1).max(256),
 							apiKey: z.string().min(1).max(4096),
 							capabilities: z.object({ tools: z.boolean(), json: z.boolean() }),
+							ignoreTlsErrors: z.boolean().default(false),
 						}).nullable().optional(),
 						openRouterKey: z.string().max(512).nullable().optional(), // Backward-compatible API input.
 						accountEnvironment: z
@@ -174,7 +177,11 @@ export = new fileRouter.Path("/")
 						updatePayload.aiProviderEndpoint = endpoint;
 						updatePayload.aiProviderModel = data.aiProvider.model.trim();
 						updatePayload.aiProviderApiKey = encryptSecret(data.aiProvider.apiKey, INSTANCE_SECRET);
-						updatePayload.aiProviderCapabilities = JSON.stringify(data.aiProvider.capabilities);
+						// Store the TLS option alongside existing provider options; legacy JSON keeps verification enabled.
+						updatePayload.aiProviderCapabilities = JSON.stringify({
+							...data.aiProvider.capabilities,
+							ignoreTlsErrors: data.aiProvider.ignoreTlsErrors,
+						});
 						updatePayload.openRouterKey = null;
 					}
 				}

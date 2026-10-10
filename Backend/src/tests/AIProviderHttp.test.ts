@@ -91,7 +91,28 @@ describe("AI provider network boundary", () => {
 		const [url, options] = vi.mocked(httpsRequest).mock.calls[0];
 		expect((url as URL).hostname).toBe("provider.example");
 		expect((url as URL).pathname).toBe("/v1/models");
-		expect(options).toMatchObject({ agent: false, headers: { Authorization: "Bearer key" } });
+		expect(options).toMatchObject({ agent: false, rejectUnauthorized: true, headers: { Authorization: "Bearer key" } });
+	});
+
+	it("disables certificate verification only for an opted-in HTTPS request", async () => {
+		await requestAIProvider("https://provider.example/v1", "/models", "key", 1000, undefined, true);
+		expect(vi.mocked(httpsRequest).mock.calls[0][1]).toMatchObject({ rejectUnauthorized: false, agent: false });
+		await requestAIProvider("https://other-provider.example/v1", "/models", "key", 1000);
+		expect(vi.mocked(httpsRequest).mock.calls[1][1]).toMatchObject({ rejectUnauthorized: true });
+	});
+
+	it("still blocks internal IP literals and private DNS with TLS verification disabled", async () => {
+		await expect(requestAIProvider("https://127.0.0.1/v1", "/models", "key", 1000, undefined, true)).rejects.toThrow("public Internet addresses");
+		expect(httpsRequest).not.toHaveBeenCalled();
+		lookupMock.mockResolvedValue([{ address: "10.0.0.1", family: 4 }]);
+		await expect(requestAIProvider("https://provider.example/v1", "/models", "key", 1000, undefined, true)).rejects.toThrow("public Internet addresses");
+		expect(socketAddress).toBeUndefined();
+	});
+
+	it("still rejects redirects with TLS verification disabled", async () => {
+		status = 302;
+		await expect(requestAIProvider("https://provider.example/v1", "/models", "key", 1000, undefined, true)).rejects.toThrow("redirects are not allowed");
+		expect(httpsRequest).toHaveBeenCalledTimes(1);
 	});
 
 	it("supports public IPv4 and IPv6 socket lookup results", async () => {
@@ -123,11 +144,12 @@ describe("AI provider network boundary", () => {
 
 	it("uses the same guarded lookup for HTTP completion requests", async () => {
 		responseBody = '{"choices":[]}';
-		const response = await requestAIProvider("http://provider.example/v1", "/chat/completions", "key", 1000, { model: "test", messages: [] });
+		const response = await requestAIProvider("http://provider.example/v1", "/chat/completions", "key", 1000, { model: "test", messages: [] }, true);
 		expect(await response.json()).toEqual({ choices: [] });
 		const [url, options] = vi.mocked(httpRequest).mock.calls[0];
 		expect((url as URL).pathname).toBe("/v1/chat/completions");
 		expect(options).toMatchObject({ method: "POST", agent: false });
+		expect(options).not.toHaveProperty("rejectUnauthorized");
 	});
 
 	it("fails closed on an empty or failed DNS lookup without leaking raw errors", async () => {

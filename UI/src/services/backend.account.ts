@@ -14,6 +14,7 @@ export interface AIProviderSettings {
 	model: string;
 	apiKey: string;
 	capabilities: { tools: boolean; json: boolean };
+	ignoreTlsErrors?: boolean;
 }
 
 async function getUserInfo() {

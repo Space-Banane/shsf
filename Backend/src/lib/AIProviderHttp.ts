@@ -82,6 +82,7 @@ export async function requestAIProvider(
 	apiKey: string,
 	timeoutMs: number,
 	body?: Record<string, unknown>,
+	ignoreTlsErrors = false,
 ): Promise<{ status: number; json: () => Promise<unknown> }> {
 	const url = parseAIProviderEndpoint(endpoint);
 	url.pathname = url.pathname.replace(/\/+$/, "") + path;
@@ -93,6 +94,7 @@ export async function requestAIProvider(
 			agent: false, // Each connection must use the validating lookup; no pooled socket bypass.
 			lookup: publicLookup,
 			signal: AbortSignal.timeout(timeoutMs),
+			...(url.protocol === "https:" ? { rejectUnauthorized: !ignoreTlsErrors } : {}),
 		}, (response) => {
 			const status = response.statusCode ?? 502;
 			if (status >= 300 && status < 400) {

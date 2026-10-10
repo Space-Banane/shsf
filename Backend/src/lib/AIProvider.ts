@@ -14,6 +14,7 @@ export interface AIProvider {
 	model: string;
 	apiKey: string;
 	capabilities: AIProviderCapabilities;
+	ignoreTlsErrors?: boolean;
 }
 
 export interface StoredAIProvider {
@@ -40,12 +41,23 @@ export function parseAIProviderCapabilities(value: string | null): AIProviderCap
 			typeof (parsed as Record<string, unknown>).tools === "boolean" &&
 			typeof (parsed as Record<string, unknown>).json === "boolean"
 		) {
-			return parsed as AIProviderCapabilities;
+			const capabilities = parsed as AIProviderCapabilities;
+			return { tools: capabilities.tools, json: capabilities.json };
 		}
 	} catch {
 		// A malformed legacy value falls back to the default provider capabilities.
 	}
 	return defaultCapabilities;
+}
+
+export function parseAIProviderIgnoreTlsErrors(value: string | null): boolean {
+	try {
+		const options: unknown = JSON.parse(value ?? "null");
+		return typeof options === "object" && options !== null &&
+			(options as Record<string, unknown>).ignoreTlsErrors === true;
+	} catch {
+		return false;
+	}
 }
 
 export function getAIProvider(
@@ -61,6 +73,7 @@ export function getAIProvider(
 			model: stored.aiProviderModel ?? DEFAULT_AI_PROVIDER_MODEL,
 			apiKey,
 			capabilities: parseAIProviderCapabilities(stored.aiProviderCapabilities),
+			ignoreTlsErrors: parseAIProviderIgnoreTlsErrors(stored.aiProviderCapabilities),
 		};
 	}
 
@@ -83,7 +96,7 @@ export function getAIProvider(
 }
 
 export async function validateAIProvider(provider: AIProvider): Promise<void> {
-	const response = await requestAIProvider(provider.endpoint, "/models", provider.apiKey, 10_000);
+	const response = await requestAIProvider(provider.endpoint, "/models", provider.apiKey, 10_000, undefined, provider.ignoreTlsErrors === true);
 
 	if (response.status === 401 || response.status === 403) {
 		throw new Error("The provider rejected the API key.");
@@ -104,7 +117,7 @@ export async function createAICompletion(
 	if (body.tools && !provider.capabilities.tools) {
 		throw new Error("This provider is configured without tool-calling support, which SHSF code generation requires.");
 	}
-	const response = await requestAIProvider(provider.endpoint, "/chat/completions", provider.apiKey, 120_000, { model: provider.model, ...body });
+	const response = await requestAIProvider(provider.endpoint, "/chat/completions", provider.apiKey, 120_000, { model: provider.model, ...body }, provider.ignoreTlsErrors === true);
 	if (response.status < 200 || response.status >= 300) {
 		throw new Error(`AI provider request failed (HTTP ${response.status}).`);
 	}

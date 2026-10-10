@@ -21,6 +21,7 @@ export const AccountPage = () => {
 	const [providerModel, setProviderModel] = useState("qwen/qwen3-coder-next");
 	const [providerTools, setProviderTools] = useState(true);
 	const [providerJson, setProviderJson] = useState(true);
+	const [ignoreTlsErrors, setIgnoreTlsErrors] = useState(false);
 	const [showKey, setShowKey] = useState(false);
 	const [aiSaving, setAiSaving] = useState(false);
 	const [aiNotice, setAiNotice] = useState<Notice | null>(null);
@@ -46,7 +47,9 @@ export const AccountPage = () => {
 					setProviderModel(result.data.aiProvider.model);
 					setProviderTools(result.data.aiProvider.capabilities.tools);
 					setProviderJson(result.data.aiProvider.capabilities.json);
+					setIgnoreTlsErrors(result.data.aiProvider.ignoreTlsErrors === true);
 				}
+				else setIgnoreTlsErrors(false);
 			}
 			else setVariablesNotice({ type: "err", text: result.message });
 		} catch { setVariablesNotice({ type: "err", text: "We couldn't load your shared environment variables. Try again." }); }
@@ -59,7 +62,7 @@ export const AccountPage = () => {
 		if (!key.trim()) { setAiNotice({ type: "err", text: "Enter an API key before saving." }); return; }
 		setAiSaving(true); setAiNotice(null);
 		try {
-			const result = await updateAccountSettings({ aiProvider: { endpoint: providerEndpoint, model: providerModel, apiKey: key.trim(), capabilities: { tools: providerTools, json: providerJson } } });
+			const result = await updateAccountSettings({ aiProvider: { endpoint: providerEndpoint, model: providerModel, apiKey: key.trim(), capabilities: { tools: providerTools, json: providerJson }, ignoreTlsErrors } });
 			if (result.status === "OK") { setKey(""); setAiNotice({ type: "ok", text: "Provider validated and saved. AI generation is ready to use." }); refreshUser(); }
 			else setAiNotice({ type: "err", text: result.message });
 		} catch { setAiNotice({ type: "err", text: "We couldn't save the API key. Try again." }); }
@@ -70,7 +73,7 @@ export const AccountPage = () => {
 		setAiSaving(true); setAiNotice(null);
 		try {
 			const result = await updateAccountSettings({ aiProvider: null });
-			if (result.status === "OK") { setKey(""); setAiNotice({ type: "ok", text: "Saved API key removed. AI generation is now off." }); refreshUser(); }
+			if (result.status === "OK") { setKey(""); setIgnoreTlsErrors(false); setAiNotice({ type: "ok", text: "Saved API key removed. AI generation is now off." }); refreshUser(); }
 			else setAiNotice({ type: "err", text: result.message });
 		} catch { setAiNotice({ type: "err", text: "We couldn't remove the API key. Try again." }); }
 		finally { setAiSaving(false); }
@@ -127,6 +130,8 @@ export const AccountPage = () => {
 					<label htmlFor="provider-key" className="mb-1.5 mt-3 flex items-center gap-1.5 text-xs font-medium text-muted">API key <HelpTooltip content="The key is encrypted at rest and is never returned to the browser." placement="right" /></label>
 					<div className="flex flex-col gap-2 sm:flex-row"><div className="relative min-w-0 flex-1"><input id="provider-key" type={showKey ? "text" : "password"} value={key} onChange={(event) => setKey(event.target.value)} placeholder={aiEnabled ? "Enter a new key to replace the saved one" : "sk-…"} className={`${inputClass} pr-11 font-mono`} /><button type="button" onClick={() => setShowKey((value) => !value)} className="absolute inset-y-0 right-0 px-3 text-muted hover:text-text" aria-label={showKey ? "Hide API key" : "Show API key"}><Icon name={showKey ? "eye-slash" : "eye"} className="h-4 w-4" /></button></div><button type="button" onClick={saveKey} disabled={aiSaving} className={primaryButton}>{aiSaving ? "Validating…" : "Validate & save"}</button></div>
 					<div className="mt-3 flex flex-wrap gap-4 text-xs text-muted"><label className="flex items-center gap-2"><input type="checkbox" checked={providerTools} onChange={(event) => setProviderTools(event.target.checked)} /> Supports tool calls (required for code generation)</label><label className="flex items-center gap-2"><input type="checkbox" checked={providerJson} onChange={(event) => setProviderJson(event.target.checked)} /> Supports JSON mode</label></div>
+					<label className="mt-3 flex items-center gap-2 text-xs text-muted"><input type="checkbox" checked={ignoreTlsErrors} onChange={(event) => setIgnoreTlsErrors(event.target.checked)} /> Ignore SSL certificate errors</label>
+					{ignoreTlsErrors && <p className="mt-2 text-xs text-amber-300">Certificate identity will not be verified. Enable only for a provider you trust.</p>}
 					<div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-xs leading-5 text-muted">SHSF validates the provider before saving. OpenRouter remains the default endpoint.</p>{aiEnabled && <button type="button" onClick={removeKey} disabled={aiSaving} className="text-xs font-medium text-red-300 hover:text-red-200 disabled:opacity-50">Remove saved provider</button>}</div><NoticeMessage notice={aiNotice} />
 				</Section>
 				<Section id="environment" icon="cog-6-tooth" title="Shared environment" description="Set defaults once for every function you own. Function-level values take precedence.">
