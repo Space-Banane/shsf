@@ -1,5 +1,6 @@
 import { decryptSecret } from "./GitOps";
 import { parseAIProviderEndpoint, requestAIProvider } from "./AIProviderHttp";
+import { getAllowAIProviderInternal } from "./DataManager";
 
 export const DEFAULT_AI_PROVIDER_ENDPOINT = "https://openrouter.ai/api/v1";
 export const DEFAULT_AI_PROVIDER_MODEL = "qwen/qwen3-coder-next";
@@ -27,8 +28,8 @@ export interface StoredAIProvider {
 
 const defaultCapabilities: AIProviderCapabilities = { tools: true, json: true };
 
-export function normalizeAIProviderEndpoint(endpoint: string): string {
-	return parseAIProviderEndpoint(endpoint).toString().replace(/\/$/, "");
+export function normalizeAIProviderEndpoint(endpoint: string, allowInternal = false): string {
+	return parseAIProviderEndpoint(endpoint, allowInternal).toString().replace(/\/$/, "");
 }
 
 export function parseAIProviderCapabilities(value: string | null): AIProviderCapabilities {
@@ -96,7 +97,7 @@ export function getAIProvider(
 }
 
 export async function validateAIProvider(provider: AIProvider): Promise<void> {
-	const response = await requestAIProvider(provider.endpoint, "/models", provider.apiKey, 10_000, undefined, provider.ignoreTlsErrors === true);
+	const response = await requestAIProvider(provider.endpoint, "/models", provider.apiKey, 10_000, undefined, provider.ignoreTlsErrors === true, await getAllowAIProviderInternal());
 
 	if (response.status === 401 || response.status === 403) {
 		throw new Error("The provider rejected the API key.");
@@ -117,7 +118,7 @@ export async function createAICompletion(
 	if (body.tools && !provider.capabilities.tools) {
 		throw new Error("This provider is configured without tool-calling support, which SHSF code generation requires.");
 	}
-	const response = await requestAIProvider(provider.endpoint, "/chat/completions", provider.apiKey, 120_000, { model: provider.model, ...body }, provider.ignoreTlsErrors === true);
+	const response = await requestAIProvider(provider.endpoint, "/chat/completions", provider.apiKey, 120_000, { model: provider.model, ...body }, provider.ignoreTlsErrors === true, await getAllowAIProviderInternal());
 	if (response.status < 200 || response.status >= 300) {
 		throw new Error(`AI provider request failed (HTTP ${response.status}).`);
 	}

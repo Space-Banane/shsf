@@ -16,6 +16,7 @@ import {
 	validateAIProvider,
 } from "../../../lib/AIProvider";
 import { encryptSecret } from "../../../lib/GitOps";
+import { getAllowAIProviderInternal } from "../../../lib/DataManager";
 
 export = new fileRouter.Path("/")
 	.http("GET", "/api/account/settings", (http) =>
@@ -166,7 +167,7 @@ export = new fileRouter.Path("/")
 					} else {
 						let endpoint: string;
 						try {
-							endpoint = normalizeAIProviderEndpoint(data.aiProvider.endpoint);
+							endpoint = normalizeAIProviderEndpoint(data.aiProvider.endpoint, await getAllowAIProviderInternal());
 							await validateAIProvider({ ...data.aiProvider, endpoint });
 						} catch (error) {
 							return ctr.status(ctr.$status.BAD_REQUEST).print({

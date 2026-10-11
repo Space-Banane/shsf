@@ -15,6 +15,7 @@ vi.mock("../lib/AIProviderHttp", async (importOriginal) => ({
 	...await importOriginal<typeof import("../lib/AIProviderHttp")>(),
 	requestAIProvider: vi.fn(),
 }));
+vi.mock("../lib/DataManager", () => ({ getAllowAIProviderInternal: vi.fn(async () => false) }));
 
 afterEach(() => vi.resetAllMocks());
 
@@ -72,7 +73,7 @@ describe("AI providers", () => {
 		const provider = getAIProvider({ ...emptyProvider, openRouterKey: "legacy-key", aiProviderCapabilities: '{"ignoreTlsErrors":true}' }, undefined, "secret")!;
 		vi.mocked(requestAIProvider).mockResolvedValue({ status: 200, json: async () => ({}) });
 		await validateAIProvider(provider);
-		expect(requestAIProvider).toHaveBeenLastCalledWith(DEFAULT_AI_PROVIDER_ENDPOINT, "/models", "legacy-key", 10_000, undefined, false);
+		expect(requestAIProvider).toHaveBeenLastCalledWith(DEFAULT_AI_PROVIDER_ENDPOINT, "/models", "legacy-key", 10_000, undefined, false, false);
 	});
 
 	it("reports authentication failures during provider validation", async () => {
@@ -89,19 +90,19 @@ describe("AI providers", () => {
 		const provider = getAIProvider(emptyProvider, "instance-key", "secret")!;
 		vi.mocked(requestAIProvider).mockResolvedValue({ status: 200, json: async () => ({ data: [{ id: provider.model }] }) });
 		await validateAIProvider(provider);
-		expect(requestAIProvider).toHaveBeenLastCalledWith(DEFAULT_AI_PROVIDER_ENDPOINT, "/models", "instance-key", 10_000, undefined, false);
+		expect(requestAIProvider).toHaveBeenLastCalledWith(DEFAULT_AI_PROVIDER_ENDPOINT, "/models", "instance-key", 10_000, undefined, false, false);
 		const completion = { choices: [{ message: { content: "hello" } }] };
 		vi.mocked(requestAIProvider).mockResolvedValue({ status: 200, json: async () => completion });
 		expect(await createAICompletion(provider, { messages: [] })).toEqual(completion);
-		expect(requestAIProvider).toHaveBeenLastCalledWith(DEFAULT_AI_PROVIDER_ENDPOINT, "/chat/completions", "instance-key", 120_000, { model: DEFAULT_AI_PROVIDER_MODEL, messages: [] }, false);
+		expect(requestAIProvider).toHaveBeenLastCalledWith(DEFAULT_AI_PROVIDER_ENDPOINT, "/chat/completions", "instance-key", 120_000, { model: DEFAULT_AI_PROVIDER_MODEL, messages: [] }, false, false);
 	});
 
 	it("applies the custom TLS opt-in to validation and generation", async () => {
 		const provider = { endpoint: "https://provider.example/v1", model: "test", apiKey: "key", capabilities: { tools: true, json: true }, ignoreTlsErrors: true };
 		vi.mocked(requestAIProvider).mockResolvedValue({ status: 200, json: async () => ({}) });
 		await validateAIProvider(provider);
-		expect(requestAIProvider).toHaveBeenLastCalledWith(provider.endpoint, "/models", "key", 10_000, undefined, true);
+		expect(requestAIProvider).toHaveBeenLastCalledWith(provider.endpoint, "/models", "key", 10_000, undefined, true, false);
 		await createAICompletion(provider, { messages: [] });
-		expect(requestAIProvider).toHaveBeenLastCalledWith(provider.endpoint, "/chat/completions", "key", 120_000, { model: "test", messages: [] }, true);
+		expect(requestAIProvider).toHaveBeenLastCalledWith(provider.endpoint, "/chat/completions", "key", 120_000, { model: "test", messages: [] }, true, false);
 	});
 });

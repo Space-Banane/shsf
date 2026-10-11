@@ -47,6 +47,7 @@ vi.mock("../index", () => ({
 }));
 vi.mock("../lib/Authentication", () => ({ checkAuthentication: async () => ({ success: true, user: harness.user }) }));
 vi.mock("../lib/Runner", () => ({ cleanupFunctionContainer: vi.fn() }));
+vi.mock("../lib/DataManager", () => ({ getAllowAIProviderInternal: vi.fn(async () => false) }));
 vi.mock("../lib/AIProviderHttp", async (importOriginal) => ({
 	...await importOriginal<typeof import("../lib/AIProviderHttp")>(),
 	requestAIProvider: vi.fn(),
@@ -86,7 +87,7 @@ describe("AI provider account TLS option", () => {
 		const enabled = ignoreTlsErrors === true;
 		const { response } = await settingsRequest("PATCH", { aiProvider: { ...providerInput, ignoreTlsErrors } });
 		expect(response).toMatchObject({ status: "OK" });
-		expect(requestAIProvider).toHaveBeenCalledWith(providerInput.endpoint, "/models", providerInput.apiKey, 10_000, undefined, enabled);
+		expect(requestAIProvider).toHaveBeenCalledWith(providerInput.endpoint, "/models", providerInput.apiKey, 10_000, undefined, enabled, false);
 		expect(JSON.parse(harness.user.aiProviderCapabilities!)).toEqual({ ...providerInput.capabilities, ignoreTlsErrors: enabled });
 		const loaded = await settingsRequest("GET");
 		expect(loaded.response).toMatchObject({ data: { aiProvider: { endpoint: providerInput.endpoint, model: "test", capabilities: providerInput.capabilities, ignoreTlsErrors: enabled } } });

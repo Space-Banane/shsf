@@ -26,6 +26,8 @@ import {
 	setGuestAccessDisabled as apiSetGuestAccessDisabled,
 	getExternalAccessDisabled,
 	setExternalAccessDisabled as apiSetExternalAccessDisabled,
+	getAllowAIProviderInternal,
+	setAllowAIProviderInternal as apiSetAllowAIProviderInternal,
 	getDisabledImages,
 	setDisabledImages as apiSetDisabledImages,
 	getUpdateStatus,
@@ -319,6 +321,10 @@ function AccessControlTab() {
 	const [externalLoading, setExternalLoading] = useState(false);
 	const [externalError, setExternalError] = useState<string | null>(null);
 
+	const [allowAIProviderInternal, setAllowAIProviderInternalState] = useState<boolean | null>(null);
+	const [allowAIProviderInternalLoading, setAllowAIProviderInternalLoading] = useState(false);
+	const [allowAIProviderInternalError, setAllowAIProviderInternalError] = useState<string | null>(null);
+
 	useEffect(() => {
 		getRegistrationDisabled()
 			.then((d) => { if (d.status === "OK") setRegistrationDisabledState(d.disabled); })
@@ -329,6 +335,9 @@ function AccessControlTab() {
 		getExternalAccessDisabled()
 			.then((d) => { if (d.status === "OK") setExternalAccessDisabledState(d.disabled); })
 			.catch(() => setExternalError("Failed to load external access state."));
+		getAllowAIProviderInternal()
+			.then((d) => { if (d.status === "OK") setAllowAIProviderInternalState(d.enabled); })
+			.catch(() => setAllowAIProviderInternalError("Failed to load AI provider network setting."));
 	}, []);
 
 	const toggleRegistration = async () => {
@@ -376,6 +385,21 @@ function AccessControlTab() {
 		}
 	};
 
+	const toggleAllowAIProviderInternal = async () => {
+		if (allowAIProviderInternal === null) return;
+		setAllowAIProviderInternalLoading(true);
+		setAllowAIProviderInternalError(null);
+		try {
+			const data = await apiSetAllowAIProviderInternal(!allowAIProviderInternal);
+			if (data.status === "OK") setAllowAIProviderInternalState(data.enabled);
+			else setAllowAIProviderInternalError("Failed to update.");
+		} catch {
+			setAllowAIProviderInternalError("An error occurred.");
+		} finally {
+			setAllowAIProviderInternalLoading(false);
+		}
+	};
+
 	const controls = [
 		{
 			title: "Disable Registration",
@@ -411,6 +435,18 @@ function AccessControlTab() {
 			toggle: toggleExternalAccess,
 			activeLabel: "Disabled — API key execution blocked",
 			inactiveLabel: "Enabled — API key execution allowed",
+			dangerWhenActive: true,
+		},
+		{
+			title: "Allow Internal AI Provider",
+			tooltip: "When enabled, AI provider endpoints may resolve to private, loopback, link-local, or other reserved addresses.",
+			description: "Allows AI provider endpoints on internal networks such as ai.srv.home.lab. Enable only on trusted instances.",
+			state: allowAIProviderInternal,
+			loading: allowAIProviderInternalLoading,
+			error: allowAIProviderInternalError,
+			toggle: toggleAllowAIProviderInternal,
+			activeLabel: "Enabled — internal provider addresses allowed",
+			inactiveLabel: "Disabled — public provider addresses required",
 			dangerWhenActive: true,
 		},
 	];

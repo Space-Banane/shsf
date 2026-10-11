@@ -140,6 +140,18 @@ export async function setExternalAccessDisabled(disabled: boolean): Promise<{ st
 	return res.json();
 }
 
+export async function getAllowAIProviderInternal(): Promise<{ status: "OK"; enabled: boolean }> {
+	const res = await fetch(`${BASE_URL}/api/global/allow-ai-provider-internal`, { credentials: "include" });
+	return res.json();
+}
+
+export async function setAllowAIProviderInternal(enabled: boolean): Promise<{ status: "OK"; enabled: boolean }> {
+	const res = await fetch(`${BASE_URL}/api/global/allow-ai-provider-internal`, {
+		method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }),
+	});
+	return res.json();
+}
+
 // --- Disabled Images ---
 
 export async function getDisabledImages(): Promise<{ status: "OK"; disabledImages: string[] }> {

@@ -125,6 +125,15 @@ export async function setAutoUpdateEnabled(enabled: boolean): Promise<void> {
 	await setSetting("auto_update_enabled", String(enabled));
 }
 
+export async function getAllowAIProviderInternal(): Promise<boolean> {
+	const val = await getSetting("allow_ai_provider_internal");
+	return val === "true";
+}
+
+export async function setAllowAIProviderInternal(enabled: boolean): Promise<void> {
+	await setSetting("allow_ai_provider_internal", String(enabled));
+}
+
 export type UpdateLastCheck = {
 	checkedAt: string; // ISO
 	updateAvailable: boolean;

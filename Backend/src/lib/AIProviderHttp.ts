@@ -34,7 +34,8 @@ const blockedIPv6 = new BlockList();
 // Documentation space within an otherwise allocated range.
 blockedIPv6.addSubnet("2001:db8::", 32, "ipv6");
 
-function assertPublicAddress(address: string): void {
+function assertPublicAddress(address: string, allowInternal = false): void {
+	if (allowInternal) return;
 	const family = isIP(address);
 	if (
 		(family === 4 && !blockedIPv4.check(address, "ipv4")) ||
@@ -43,7 +44,7 @@ function assertPublicAddress(address: string): void {
 	throw new AIProviderEndpointError("AI provider endpoints must resolve only to public Internet addresses. Internal and reserved addresses are not allowed.");
 }
 
-export function parseAIProviderEndpoint(endpoint: string): URL {
+export function parseAIProviderEndpoint(endpoint: string, allowInternal = false): URL {
 	let url: URL;
 	try {
 		url = new URL(endpoint.trim());
@@ -57,24 +58,26 @@ export function parseAIProviderEndpoint(endpoint: string): URL {
 		throw new AIProviderEndpointError("Provider endpoint must not contain credentials, a query, or a fragment.");
 	}
 	const hostname = url.hostname.replace(/^\[|\]$/g, "");
-	if (isIP(hostname)) assertPublicAddress(hostname);
+	if (isIP(hostname)) assertPublicAddress(hostname, allowInternal);
 	return url;
 }
 
 // Run validation inside the socket's lookup: the connection uses the checked DNS
 // results directly, with no second resolution that could enable DNS rebinding.
-const publicLookup: LookupFunction = (hostname, options, callback) => {
-	lookup(hostname, { all: true, verbatim: true }).then((addresses) => {
-		try {
-			if (addresses.length === 0) throw new Error("Empty DNS response");
-			for (const { address } of addresses) assertPublicAddress(address);
-			if (options.all) callback(null, addresses);
-			else callback(null, addresses[0].address, addresses[0].family);
-		} catch (error) {
-			callback(error instanceof AIProviderEndpointError ? error : new AIProviderEndpointError("Could not resolve the AI provider endpoint."), "");
-		}
-	}, () => callback(new AIProviderEndpointError("Could not resolve the AI provider endpoint."), ""));
-};
+function createPublicLookup(allowInternal: boolean): LookupFunction {
+	return (hostname, options, callback) => {
+		lookup(hostname, { all: true, verbatim: true }).then((addresses) => {
+			try {
+				if (addresses.length === 0) throw new Error("Empty DNS response");
+				for (const { address } of addresses) assertPublicAddress(address, allowInternal);
+				if (options.all) callback(null, addresses);
+				else callback(null, addresses[0].address, addresses[0].family);
+			} catch (error) {
+				callback(error instanceof AIProviderEndpointError ? error : new AIProviderEndpointError("Could not resolve the AI provider endpoint."), "");
+			}
+		}, () => callback(new AIProviderEndpointError("Could not resolve the AI provider endpoint."), ""));
+	};
+}
 
 export async function requestAIProvider(
 	endpoint: string,
@@ -83,8 +86,9 @@ export async function requestAIProvider(
 	timeoutMs: number,
 	body?: Record<string, unknown>,
 	ignoreTlsErrors = false,
+	allowInternal = false,
 ): Promise<{ status: number; json: () => Promise<unknown> }> {
-	const url = parseAIProviderEndpoint(endpoint);
+	const url = parseAIProviderEndpoint(endpoint, allowInternal);
 	url.pathname = url.pathname.replace(/\/+$/, "") + path;
 	return new Promise<{ status: number; json: () => Promise<unknown> }>((resolve, reject) => {
 		const request = url.protocol === "https:" ? httpsRequest : httpRequest;
@@ -92,7 +96,7 @@ export async function requestAIProvider(
 			method: body ? "POST" : "GET",
 			headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
 			agent: false, // Each connection must use the validating lookup; no pooled socket bypass.
-			lookup: publicLookup,
+			lookup: createPublicLookup(allowInternal),
 			signal: AbortSignal.timeout(timeoutMs),
 			...(url.protocol === "https:" ? { rejectUnauthorized: !ignoreTlsErrors } : {}),
 		}, (response) => {

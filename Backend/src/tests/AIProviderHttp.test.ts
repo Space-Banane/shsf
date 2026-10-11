@@ -82,6 +82,13 @@ describe("AI provider network boundary", () => {
 		expect(socketAddress).toBeUndefined();
 	});
 
+	it("allows internal endpoints only when explicitly enabled", async () => {
+		lookupMock.mockResolvedValue([{ address: "10.0.0.1", family: 4 }]);
+		await expect(requestAIProvider("http://10.0.0.1/v1", "/models", "key", 1000)).rejects.toThrow("public Internet addresses");
+		const response = await requestAIProvider("http://10.0.0.1/v1", "/models", "key", 1000, undefined, false, true);
+		expect(await response.json()).toEqual({ data: [{ id: "test" }] });
+	});
+
 	it("pins the socket to the validated result without a second DNS resolution", async () => {
 		lookupMock.mockResolvedValueOnce([{ address: "93.184.215.14", family: 4 }]).mockResolvedValue([{ address: "127.0.0.1", family: 4 }]);
 		const response = await requestAIProvider("https://provider.example/v1/", "/models", "key", 1000);
