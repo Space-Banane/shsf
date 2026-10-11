@@ -440,7 +440,7 @@ function AccessControlTab() {
 		{
 			title: "Allow Internal AI Provider",
 			tooltip: "When enabled, AI provider endpoints may resolve to private, loopback, link-local, or other reserved addresses.",
-			description: "Allows AI provider endpoints on internal networks such as ai.srv.home.lab. Enable only on trusted instances.",
+			description: "Allows AI provider endpoints on internal networks. Enable only on trusted instances.",
 			state: allowAIProviderInternal,
 			loading: allowAIProviderInternalLoading,
 			error: allowAIProviderInternalError,
