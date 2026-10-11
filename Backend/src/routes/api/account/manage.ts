@@ -10,8 +10,10 @@ import { OpenAPITags } from "../../../lib/openapi";
 import {
 	DEFAULT_AI_PROVIDER_ENDPOINT,
 	DEFAULT_AI_PROVIDER_MODEL,
+	getAIProvider,
 	normalizeAIProviderEndpoint,
 	parseAIProviderCapabilities,
+	parseAIProviderIgnoreInvalidModels,
 	parseAIProviderIgnoreTlsErrors,
 	validateAIProvider,
 } from "../../../lib/AIProvider";
@@ -80,6 +82,7 @@ export = new fileRouter.Path("/")
 							model: authCheck.user.aiProviderModel ?? DEFAULT_AI_PROVIDER_MODEL,
 							capabilities: parseAIProviderCapabilities(authCheck.user.aiProviderCapabilities),
 							ignoreTlsErrors: parseAIProviderIgnoreTlsErrors(authCheck.user.aiProviderCapabilities),
+							ignoreInvalidModels: parseAIProviderIgnoreInvalidModels(authCheck.user.aiProviderCapabilities),
 						} : null,
 					},
 				});
@@ -126,9 +129,10 @@ export = new fileRouter.Path("/")
 								return protocol === "https:" || protocol === "http:";
 							}, "Endpoint must use HTTP or HTTPS"),
 							model: z.string().min(1).max(256),
-							apiKey: z.string().min(1).max(4096),
+							apiKey: z.string().min(1).max(4096).optional(),
 							capabilities: z.object({ tools: z.boolean(), json: z.boolean() }),
 							ignoreTlsErrors: z.boolean().default(false),
+							ignoreInvalidModels: z.boolean().default(false),
 						}).nullable().optional(),
 						openRouterKey: z.string().max(512).nullable().optional(), // Backward-compatible API input.
 						accountEnvironment: z
@@ -166,9 +170,15 @@ export = new fileRouter.Path("/")
 						updatePayload.openRouterKey = null;
 					} else {
 						let endpoint: string;
+						let apiKey: string;
+						const model = data.aiProvider.model.trim();
 						try {
 							endpoint = normalizeAIProviderEndpoint(data.aiProvider.endpoint, await getAllowAIProviderInternal());
-							await validateAIProvider({ ...data.aiProvider, endpoint });
+							const existingProvider = data.aiProvider.apiKey ? null : getAIProvider(authCheck.user, undefined, INSTANCE_SECRET);
+							apiKey = data.aiProvider.apiKey ?? (existingProvider?.endpoint === endpoint ? existingProvider.apiKey : "");
+							if (!apiKey) throw new Error("Enter an API key before saving a provider.");
+							if (!model) throw new Error("Enter a model before saving a provider.");
+							await validateAIProvider({ ...data.aiProvider, endpoint, model, apiKey });
 						} catch (error) {
 							return ctr.status(ctr.$status.BAD_REQUEST).print({
 								status: "FAILED",
@@ -177,11 +187,12 @@ export = new fileRouter.Path("/")
 						}
 						updatePayload.aiProviderEndpoint = endpoint;
 						updatePayload.aiProviderModel = data.aiProvider.model.trim();
-						updatePayload.aiProviderApiKey = encryptSecret(data.aiProvider.apiKey, INSTANCE_SECRET);
+						updatePayload.aiProviderApiKey = encryptSecret(apiKey, INSTANCE_SECRET);
 						// Store the TLS option alongside existing provider options; legacy JSON keeps verification enabled.
 						updatePayload.aiProviderCapabilities = JSON.stringify({
 							...data.aiProvider.capabilities,
 							ignoreTlsErrors: data.aiProvider.ignoreTlsErrors,
+							ignoreInvalidModels: data.aiProvider.ignoreInvalidModels,
 						});
 						updatePayload.openRouterKey = null;
 					}

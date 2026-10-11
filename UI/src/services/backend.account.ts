@@ -12,9 +12,10 @@ interface EnvironmentVariable {
 export interface AIProviderSettings {
 	endpoint: string;
 	model: string;
-	apiKey: string;
+	apiKey?: string;
 	capabilities: { tools: boolean; json: boolean };
 	ignoreTlsErrors?: boolean;
+	ignoreInvalidModels?: boolean;
 }
 
 async function getUserInfo() {

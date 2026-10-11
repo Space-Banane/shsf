@@ -40,7 +40,7 @@ describe("Account provider TLS settings", () => {
 		expect(screen.getByText(/Certificate identity will not be verified/)).toBeInTheDocument();
 		fireEvent.change(screen.getByLabelText(/^API key/), { target: { value: "new-key" } });
 		fireEvent.click(screen.getByRole("button", { name: "Validate & save" }));
-		await waitFor(() => expect(updateAccountSettings).toHaveBeenCalledWith({ aiProvider: { ...savedProvider, apiKey: "new-key", ignoreTlsErrors: true } }));
+		await waitFor(() => expect(updateAccountSettings).toHaveBeenCalledWith({ aiProvider: { ...savedProvider, apiKey: "new-key", ignoreTlsErrors: true, ignoreInvalidModels: false } }));
 		await screen.findByText(/Provider validated and saved/);
 	});
 
@@ -53,7 +53,7 @@ describe("Account provider TLS settings", () => {
 		fireEvent.click(checkbox);
 		fireEvent.change(screen.getByLabelText(/^API key/), { target: { value: "new-key" } });
 		fireEvent.click(screen.getByRole("button", { name: "Validate & save" }));
-		await waitFor(() => expect(updateAccountSettings).toHaveBeenCalledWith({ aiProvider: { ...savedProvider, apiKey: "new-key", ignoreTlsErrors: false } }));
+		await waitFor(() => expect(updateAccountSettings).toHaveBeenCalledWith({ aiProvider: { ...savedProvider, apiKey: "new-key", ignoreTlsErrors: false, ignoreInvalidModels: false } }));
 		await screen.findByText(/Provider validated and saved/);
 	});
 
@@ -65,5 +65,32 @@ describe("Account provider TLS settings", () => {
 		await screen.findByText(/Saved API key removed/);
 		expect(screen.getByRole("checkbox", { name: "Ignore SSL certificate errors" })).not.toBeChecked();
 		expect(updateAccountSettings).toHaveBeenCalledWith({ aiProvider: null });
+	});
+
+	it("updates the model without asking for the saved API key again", async () => {
+		render(<MemoryRouter><AccountPage /></MemoryRouter>);
+		await screen.findByDisplayValue(savedProvider.endpoint);
+		fireEvent.change(screen.getByLabelText("Model"), { target: { value: "updated-model" } });
+		fireEvent.click(screen.getByRole("button", { name: "Validate & save" }));
+		await waitFor(() => expect(updateAccountSettings).toHaveBeenCalledWith({ aiProvider: { ...savedProvider, model: "updated-model", ignoreTlsErrors: false, ignoreInvalidModels: false } }));
+	});
+
+	it("uses the fixed OpenAI URL and sends the model-list override", async () => {
+		render(<MemoryRouter><AccountPage /></MemoryRouter>);
+		await screen.findByDisplayValue(savedProvider.endpoint);
+		fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "openai" } });
+		fireEvent.click(screen.getByRole("checkbox", { name: "Allow model even if it is not listed by the provider" }));
+		fireEvent.change(screen.getByLabelText(/^API key/), { target: { value: "openai-key" } });
+		fireEvent.click(screen.getByRole("button", { name: "Validate & save" }));
+		await waitFor(() => expect(updateAccountSettings).toHaveBeenCalledWith({ aiProvider: { ...savedProvider, endpoint: "https://api.openai.com/v1", apiKey: "openai-key", ignoreTlsErrors: false, ignoreInvalidModels: true } }));
+	});
+
+	it("requires a new key when changing provider endpoints", async () => {
+		render(<MemoryRouter><AccountPage /></MemoryRouter>);
+		await screen.findByDisplayValue(savedProvider.endpoint);
+		fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "openrouter" } });
+		fireEvent.click(screen.getByRole("button", { name: "Validate & save" }));
+		await screen.findByText("Enter an API key before saving.");
+		expect(updateAccountSettings).not.toHaveBeenCalled();
 	});
 });

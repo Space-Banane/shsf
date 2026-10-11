@@ -88,7 +88,7 @@ describe("AI provider account TLS option", () => {
 		const { response } = await settingsRequest("PATCH", { aiProvider: { ...providerInput, ignoreTlsErrors } });
 		expect(response).toMatchObject({ status: "OK" });
 		expect(requestAIProvider).toHaveBeenCalledWith(providerInput.endpoint, "/models", providerInput.apiKey, 10_000, undefined, enabled, false);
-		expect(JSON.parse(harness.user.aiProviderCapabilities!)).toEqual({ ...providerInput.capabilities, ignoreTlsErrors: enabled });
+		expect(JSON.parse(harness.user.aiProviderCapabilities!)).toEqual({ ...providerInput.capabilities, ignoreTlsErrors: enabled, ignoreInvalidModels: false });
 		const loaded = await settingsRequest("GET");
 		expect(loaded.response).toMatchObject({ data: { aiProvider: { endpoint: providerInput.endpoint, model: "test", capabilities: providerInput.capabilities, ignoreTlsErrors: enabled } } });
 		expect(JSON.stringify([response, loaded.response])).not.toContain(providerInput.apiKey);
@@ -109,5 +109,40 @@ describe("AI provider account TLS option", () => {
 		await settingsRequest("PATCH", { aiProvider: null });
 		expect(harness.user.aiProviderCapabilities).toBeNull();
 		expect((await settingsRequest("GET")).response).toMatchObject({ data: { aiProvider: null } });
+	});
+
+	it("reuses the saved API key when updating the provider model", async () => {
+		await settingsRequest("PATCH", { aiProvider: providerInput });
+		vi.mocked(requestAIProvider).mockResolvedValue({ status: 200, json: async () => ({ data: [{ id: "updated-model" }] }) });
+		const providerWithoutKey = { endpoint: providerInput.endpoint, model: providerInput.model, capabilities: providerInput.capabilities };
+		const { response } = await settingsRequest("PATCH", { aiProvider: { ...providerWithoutKey, model: "updated-model" } });
+		expect(response).toMatchObject({ status: "OK" });
+		expect(requestAIProvider).toHaveBeenLastCalledWith(providerInput.endpoint, "/models", providerInput.apiKey, 10_000, undefined, false, false);
+		expect(getAIProvider(harness.user, undefined, "test-instance-secret")).toMatchObject({ model: "updated-model", apiKey: providerInput.apiKey });
+	});
+
+	it("requires an API key when no saved provider exists", async () => {
+		const providerWithoutKey = { endpoint: providerInput.endpoint, model: providerInput.model, capabilities: providerInput.capabilities };
+		const { response, context } = await settingsRequest("PATCH", { aiProvider: providerWithoutKey });
+		expect(response).toMatchObject({ status: "FAILED", message: "Enter an API key before saving a provider." });
+		expect(context.status).toHaveBeenCalledWith(400);
+		expect(requestAIProvider).not.toHaveBeenCalled();
+		expect(harness.update).not.toHaveBeenCalled();
+	});
+
+	it("does not send a saved API key to a different provider endpoint", async () => {
+		await settingsRequest("PATCH", { aiProvider: providerInput });
+		const { response, context } = await settingsRequest("PATCH", { aiProvider: { endpoint: "https://other-provider.example/v1", model: "test", capabilities: providerInput.capabilities } });
+		expect(response).toMatchObject({ status: "FAILED", message: "Enter an API key before saving a provider." });
+		expect(context.status).toHaveBeenCalledWith(400);
+		expect(requestAIProvider).toHaveBeenCalledTimes(1);
+		expect(harness.update).toHaveBeenCalledTimes(1);
+	});
+
+	it("can replace a corrupt saved key when a new key is supplied", async () => {
+		harness.user.aiProviderApiKey = "corrupt-ciphertext";
+		const { response } = await settingsRequest("PATCH", { aiProvider: providerInput });
+		expect(response).toMatchObject({ status: "OK" });
+		expect(requestAIProvider).toHaveBeenCalledWith(providerInput.endpoint, "/models", providerInput.apiKey, 10_000, undefined, false, false);
 	});
 });

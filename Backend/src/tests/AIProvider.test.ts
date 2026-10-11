@@ -7,6 +7,7 @@ import {
 	DEFAULT_AI_PROVIDER_MODEL,
 	getAIProvider,
 	parseAIProviderCapabilities,
+	parseAIProviderIgnoreInvalidModels,
 	parseAIProviderIgnoreTlsErrors,
 	validateAIProvider,
 } from "../lib/AIProvider";
@@ -59,14 +60,15 @@ describe("AI providers", () => {
 	});
 
 	it("loads the explicit TLS opt-in without exposing it as a capability", () => {
-		const options = JSON.stringify({ tools: true, json: false, ignoreTlsErrors: true });
+		const options = JSON.stringify({ tools: true, json: false, ignoreTlsErrors: true, ignoreInvalidModels: true });
 		const provider = getAIProvider({
 			...emptyProvider,
 			aiProviderApiKey: encryptSecret("provider-key", "secret"),
 			aiProviderCapabilities: options,
 		}, undefined, "secret");
-		expect(provider).toMatchObject({ ignoreTlsErrors: true, capabilities: { tools: true, json: false } });
+		expect(provider).toMatchObject({ ignoreTlsErrors: true, ignoreInvalidModels: true, capabilities: { tools: true, json: false } });
 		expect(parseAIProviderCapabilities(options)).toEqual({ tools: true, json: false });
+		expect(parseAIProviderIgnoreInvalidModels(options)).toBe(true);
 	});
 
 	it("does not apply custom TLS options to legacy OpenRouter keys", async () => {
@@ -81,9 +83,14 @@ describe("AI providers", () => {
 		await expect(validateAIProvider({ endpoint: "https://example.test/v1", model: "test", apiKey: "bad", capabilities: { tools: true, json: true } })).rejects.toThrow("rejected the API key");
 	});
 
-	it("does not require the configured model to be listed", async () => {
+	it("rejects a configured model that the provider does not list", async () => {
 		vi.mocked(requestAIProvider).mockResolvedValue({ status: 200, json: async () => ({ data: [{ id: "other-model" }] }) });
-		await expect(validateAIProvider({ endpoint: "https://example.test/v1", model: "or/meta/muse-spark-1.3", apiKey: "key", capabilities: { tools: true, json: true } })).resolves.toBeUndefined();
+		await expect(validateAIProvider({ endpoint: "https://example.test/v1", model: "or/meta/muse-spark-1.3", apiKey: "key", capabilities: { tools: true, json: true } })).rejects.toThrow("configured model is unavailable");
+	});
+
+	it("allows an unlisted model when the provider override is enabled", async () => {
+		vi.mocked(requestAIProvider).mockResolvedValue({ status: 200, json: async () => ({ data: [{ id: "other-model" }] }) });
+		await expect(validateAIProvider({ endpoint: "https://example.test/v1", model: "or/meta/muse-spark-1.3", apiKey: "key", capabilities: { tools: true, json: true }, ignoreInvalidModels: true })).resolves.toBeUndefined();
 	});
 
 	it("uses the guarded transport for both validation and completion requests", async () => {

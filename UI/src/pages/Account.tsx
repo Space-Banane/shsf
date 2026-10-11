@@ -9,6 +9,10 @@ import { toast } from "react-toastify";
 
 interface EnvironmentVariable { name: string; value: string; }
 type Notice = { type: "ok" | "err"; text: string };
+type ProviderChoice = "openrouter" | "openai" | "custom";
+
+const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1";
+const OPENAI_ENDPOINT = "https://api.openai.com/v1";
 
 const inputClass = "w-full rounded-lg border border-white/[0.07] bg-background px-3 py-2.5 text-sm text-text outline-none placeholder:text-muted/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/10";
 const primaryButton = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -17,11 +21,15 @@ const secondaryButton = "inline-flex min-h-10 items-center justify-center gap-2 
 export const AccountPage = () => {
 	const { user, refreshUser, loading } = useContext(UserContext);
 	const [key, setKey] = useState("");
-	const [providerEndpoint, setProviderEndpoint] = useState("https://openrouter.ai/api/v1");
+	const [providerChoice, setProviderChoice] = useState<ProviderChoice>("openrouter");
+	const [customEndpoint, setCustomEndpoint] = useState("");
 	const [providerModel, setProviderModel] = useState("qwen/qwen3-coder-next");
 	const [providerTools, setProviderTools] = useState(true);
 	const [providerJson, setProviderJson] = useState(true);
 	const [ignoreTlsErrors, setIgnoreTlsErrors] = useState(false);
+	const [ignoreInvalidModels, setIgnoreInvalidModels] = useState(false);
+	const [hasSavedProvider, setHasSavedProvider] = useState(false);
+	const [savedProviderEndpoint, setSavedProviderEndpoint] = useState("");
 	const [showKey, setShowKey] = useState(false);
 	const [aiSaving, setAiSaving] = useState(false);
 	const [aiNotice, setAiNotice] = useState<Notice | null>(null);
@@ -35,6 +43,8 @@ export const AccountPage = () => {
 	const [deleteLoading, setDeleteLoading] = useState(false);
 	const [deleteError, setDeleteError] = useState("");
 	const aiEnabled = Boolean(user?.apiKeyConfigured);
+	const providerEndpoint = providerChoice === "openrouter" ? OPENROUTER_ENDPOINT : providerChoice === "openai" ? OPENAI_ENDPOINT : customEndpoint;
+	const canReuseSavedKey = hasSavedProvider && providerEndpoint === savedProviderEndpoint;
 
 	const loadSettings = useCallback(async () => {
 		setVariablesLoading(true); setVariablesNotice(null);
@@ -42,14 +52,19 @@ export const AccountPage = () => {
 			const result = await getAccountSettings();
 			if (result.status === "OK") {
 				setVariables(result.data.accountEnvironment);
+				setHasSavedProvider(Boolean(result.data.aiProvider));
 				if (result.data.aiProvider) {
-					setProviderEndpoint(result.data.aiProvider.endpoint);
+					setSavedProviderEndpoint(result.data.aiProvider.endpoint);
+					const choice = result.data.aiProvider.endpoint === OPENROUTER_ENDPOINT ? "openrouter" : result.data.aiProvider.endpoint === OPENAI_ENDPOINT ? "openai" : "custom";
+					setProviderChoice(choice);
+					setCustomEndpoint(choice === "custom" ? result.data.aiProvider.endpoint : "");
 					setProviderModel(result.data.aiProvider.model);
 					setProviderTools(result.data.aiProvider.capabilities.tools);
 					setProviderJson(result.data.aiProvider.capabilities.json);
 					setIgnoreTlsErrors(result.data.aiProvider.ignoreTlsErrors === true);
+					setIgnoreInvalidModels(result.data.aiProvider.ignoreInvalidModels === true);
 				}
-				else setIgnoreTlsErrors(false);
+				else { setIgnoreTlsErrors(false); setIgnoreInvalidModels(false); }
 			}
 			else setVariablesNotice({ type: "err", text: result.message });
 		} catch { setVariablesNotice({ type: "err", text: "We couldn't load your shared environment variables. Try again." }); }
@@ -59,11 +74,12 @@ export const AccountPage = () => {
 	useEffect(() => { if (user) loadSettings(); }, [loadSettings, user]);
 
 	const saveKey = async () => {
-		if (!key.trim()) { setAiNotice({ type: "err", text: "Enter an API key before saving." }); return; }
+		const apiKey = key.trim();
+		if (!canReuseSavedKey && !apiKey) { setAiNotice({ type: "err", text: "Enter an API key before saving." }); return; }
 		setAiSaving(true); setAiNotice(null);
 		try {
-			const result = await updateAccountSettings({ aiProvider: { endpoint: providerEndpoint, model: providerModel, apiKey: key.trim(), capabilities: { tools: providerTools, json: providerJson }, ignoreTlsErrors } });
-			if (result.status === "OK") { setKey(""); setAiNotice({ type: "ok", text: "Provider validated and saved. AI generation is ready to use." }); refreshUser(); }
+			const result = await updateAccountSettings({ aiProvider: { endpoint: providerEndpoint, model: providerModel, ...(apiKey ? { apiKey } : {}), capabilities: { tools: providerTools, json: providerJson }, ignoreTlsErrors, ignoreInvalidModels } });
+			if (result.status === "OK") { setKey(""); setHasSavedProvider(true); setSavedProviderEndpoint(providerEndpoint); setAiNotice({ type: "ok", text: "Provider validated and saved. AI generation is ready to use." }); refreshUser(); }
 			else setAiNotice({ type: "err", text: result.message });
 		} catch { setAiNotice({ type: "err", text: "We couldn't save the API key. Try again." }); }
 		finally { setAiSaving(false); }
@@ -73,7 +89,7 @@ export const AccountPage = () => {
 		setAiSaving(true); setAiNotice(null);
 		try {
 			const result = await updateAccountSettings({ aiProvider: null });
-			if (result.status === "OK") { setKey(""); setIgnoreTlsErrors(false); setAiNotice({ type: "ok", text: "Saved API key removed. AI generation is now off." }); refreshUser(); }
+			if (result.status === "OK") { setKey(""); setHasSavedProvider(false); setSavedProviderEndpoint(""); setIgnoreTlsErrors(false); setIgnoreInvalidModels(false); setAiNotice({ type: "ok", text: "Saved API key removed. AI generation is now off." }); refreshUser(); }
 			else setAiNotice({ type: "err", text: result.message });
 		} catch { setAiNotice({ type: "err", text: "We couldn't remove the API key. Try again." }); }
 		finally { setAiSaving(false); }
@@ -126,13 +142,15 @@ export const AccountPage = () => {
 			<div className="space-y-8">
 				<Section id="ai-settings" icon="sparkles" title="AI generation" description="Use an OpenAI-compatible provider to create and refine functions from a prompt.">
 					<div className={`mb-5 flex gap-3 rounded-xl border p-3.5 text-sm ${aiEnabled ? "border-green-500/20 bg-green-500/[0.08] text-green-300" : "border-white/[0.07] bg-background/60 text-muted"}`}><Icon name={aiEnabled ? "check" : "information-circle"} className="mt-0.5 h-4 w-4 shrink-0" />{aiEnabled ? "AI generation is active for this account." : "Add an API key to enable AI-powered function generation."}</div>
-					<div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-muted">Endpoint<input type="url" value={providerEndpoint} onChange={(event) => setProviderEndpoint(event.target.value)} placeholder="https://provider.example/v1" className={`${inputClass} mt-1.5 font-mono`} /></label><label className="text-xs font-medium text-muted">Model<input type="text" value={providerModel} onChange={(event) => setProviderModel(event.target.value)} placeholder="model-name" className={`${inputClass} mt-1.5 font-mono`} /></label></div>
+					<div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-muted">Provider<select value={providerChoice} onChange={(event) => setProviderChoice(event.target.value as ProviderChoice)} className={`${inputClass} mt-1.5`}><option value="openrouter">OpenRouter</option><option value="openai">OpenAI</option><option value="custom">Custom URL</option></select></label><label className="text-xs font-medium text-muted">Model<input type="text" value={providerModel} onChange={(event) => setProviderModel(event.target.value)} placeholder="model-name" className={`${inputClass} mt-1.5 font-mono`} /></label></div>
+					{providerChoice === "custom" && <label className="mt-3 block text-xs font-medium text-muted">Custom URL<input type="url" value={customEndpoint} onChange={(event) => setCustomEndpoint(event.target.value)} placeholder="https://provider.example/v1" className={`${inputClass} mt-1.5 font-mono`} /></label>}
 					<label htmlFor="provider-key" className="mb-1.5 mt-3 flex items-center gap-1.5 text-xs font-medium text-muted">API key <HelpTooltip content="The key is encrypted at rest and is never returned to the browser." placement="right" /></label>
-					<div className="flex flex-col gap-2 sm:flex-row"><div className="relative min-w-0 flex-1"><input id="provider-key" type={showKey ? "text" : "password"} value={key} onChange={(event) => setKey(event.target.value)} placeholder={aiEnabled ? "Enter a new key to replace the saved one" : "sk-…"} className={`${inputClass} pr-11 font-mono`} /><button type="button" onClick={() => setShowKey((value) => !value)} className="absolute inset-y-0 right-0 px-3 text-muted hover:text-text" aria-label={showKey ? "Hide API key" : "Show API key"}><Icon name={showKey ? "eye-slash" : "eye"} className="h-4 w-4" /></button></div><button type="button" onClick={saveKey} disabled={aiSaving} className={primaryButton}>{aiSaving ? "Validating…" : "Validate & save"}</button></div>
+					<div className="flex flex-col gap-2 sm:flex-row"><div className="relative min-w-0 flex-1"><input id="provider-key" type={showKey ? "text" : "password"} value={key} onChange={(event) => setKey(event.target.value)} placeholder={canReuseSavedKey ? "Leave blank to keep the saved key" : "sk-…"} className={`${inputClass} pr-11 font-mono`} /><button type="button" onClick={() => setShowKey((value) => !value)} className="absolute inset-y-0 right-0 px-3 text-muted hover:text-text" aria-label={showKey ? "Hide API key" : "Show API key"}><Icon name={showKey ? "eye-slash" : "eye"} className="h-4 w-4" /></button></div><button type="button" onClick={saveKey} disabled={aiSaving} className={primaryButton}>{aiSaving ? "Validating…" : "Validate & save"}</button></div>
 					<div className="mt-3 flex flex-wrap gap-4 text-xs text-muted"><label className="flex items-center gap-2"><input type="checkbox" checked={providerTools} onChange={(event) => setProviderTools(event.target.checked)} /> Supports tool calls (required for code generation)</label><label className="flex items-center gap-2"><input type="checkbox" checked={providerJson} onChange={(event) => setProviderJson(event.target.checked)} /> Supports JSON mode</label></div>
+					<label className="mt-3 flex items-center gap-2 text-xs text-muted"><input type="checkbox" checked={ignoreInvalidModels} onChange={(event) => setIgnoreInvalidModels(event.target.checked)} /> Allow model even if it is not listed by the provider</label>
 					<label className="mt-3 flex items-center gap-2 text-xs text-muted"><input type="checkbox" checked={ignoreTlsErrors} onChange={(event) => setIgnoreTlsErrors(event.target.checked)} /> Ignore SSL certificate errors</label>
 					{ignoreTlsErrors && <p className="mt-2 text-xs text-amber-300">Certificate identity will not be verified. Enable only for a provider you trust.</p>}
-					<div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-xs leading-5 text-muted">SHSF validates the provider before saving. OpenRouter remains the default endpoint.</p>{aiEnabled && <button type="button" onClick={removeKey} disabled={aiSaving} className="text-xs font-medium text-red-300 hover:text-red-200 disabled:opacity-50">Remove saved provider</button>}</div><NoticeMessage notice={aiNotice} />
+					<div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-xs leading-5 text-muted">SHSF checks the provider's /models endpoint before saving.</p>{hasSavedProvider && <button type="button" onClick={removeKey} disabled={aiSaving} className="text-xs font-medium text-red-300 hover:text-red-200 disabled:opacity-50">Remove saved provider</button>}</div><NoticeMessage notice={aiNotice} />
 				</Section>
 				<Section id="environment" icon="cog-6-tooth" title="Shared environment" description="Set defaults once for every function you own. Function-level values take precedence.">
 					<div className="mb-5 flex items-start gap-3 rounded-xl border border-white/[0.07] bg-background/50 p-3.5 text-xs leading-5 text-muted"><Icon name="information-circle" className="mt-0.5 h-4 w-4 shrink-0 text-primary" />Use this for repeated configuration such as service URLs. Do not add secrets you would not want available to all of your functions.</div>

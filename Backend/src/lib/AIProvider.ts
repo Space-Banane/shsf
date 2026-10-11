@@ -16,6 +16,7 @@ export interface AIProvider {
 	apiKey: string;
 	capabilities: AIProviderCapabilities;
 	ignoreTlsErrors?: boolean;
+	ignoreInvalidModels?: boolean;
 }
 
 export interface StoredAIProvider {
@@ -61,6 +62,16 @@ export function parseAIProviderIgnoreTlsErrors(value: string | null): boolean {
 	}
 }
 
+export function parseAIProviderIgnoreInvalidModels(value: string | null): boolean {
+	try {
+		const options: unknown = JSON.parse(value ?? "null");
+		return typeof options === "object" && options !== null &&
+			(options as Record<string, unknown>).ignoreInvalidModels === true;
+	} catch {
+		return false;
+	}
+}
+
 export function getAIProvider(
 	stored: StoredAIProvider,
 	instanceKey: string | undefined,
@@ -75,6 +86,7 @@ export function getAIProvider(
 			apiKey,
 			capabilities: parseAIProviderCapabilities(stored.aiProviderCapabilities),
 			ignoreTlsErrors: parseAIProviderIgnoreTlsErrors(stored.aiProviderCapabilities),
+			ignoreInvalidModels: parseAIProviderIgnoreInvalidModels(stored.aiProviderCapabilities),
 		};
 	}
 
@@ -104,6 +116,10 @@ export async function validateAIProvider(provider: AIProvider): Promise<void> {
 	}
 	if (response.status < 200 || response.status >= 300) {
 		throw new Error(`The provider did not accept a compatible models request (HTTP ${response.status}).`);
+	}
+	const body = await response.json().catch(() => null) as { data?: Array<{ id?: string }> } | null;
+	if (!provider.ignoreInvalidModels && Array.isArray(body?.data) && !body.data.some((model) => model.id === provider.model)) {
+		throw new Error("The provider is reachable, but the configured model is unavailable.");
 	}
 }
 
