@@ -81,9 +81,9 @@ describe("AI providers", () => {
 		await expect(validateAIProvider({ endpoint: "https://example.test/v1", model: "test", apiKey: "bad", capabilities: { tools: true, json: true } })).rejects.toThrow("rejected the API key");
 	});
 
-	it("reports a configured model that the provider does not offer", async () => {
+	it("does not require the configured model to be listed", async () => {
 		vi.mocked(requestAIProvider).mockResolvedValue({ status: 200, json: async () => ({ data: [{ id: "other-model" }] }) });
-		await expect(validateAIProvider({ endpoint: "https://example.test/v1", model: "test", apiKey: "key", capabilities: { tools: true, json: true } })).rejects.toThrow("configured model is unavailable");
+		await expect(validateAIProvider({ endpoint: "https://example.test/v1", model: "or/meta/muse-spark-1.3", apiKey: "key", capabilities: { tools: true, json: true } })).resolves.toBeUndefined();
 	});
 
 	it("uses the guarded transport for both validation and completion requests", async () => {

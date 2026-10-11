@@ -105,10 +105,6 @@ export async function validateAIProvider(provider: AIProvider): Promise<void> {
 	if (response.status < 200 || response.status >= 300) {
 		throw new Error(`The provider did not accept a compatible models request (HTTP ${response.status}).`);
 	}
-	const body = await response.json().catch(() => null) as { data?: Array<{ id?: string }> } | null;
-	if (Array.isArray(body?.data) && !body.data.some((model) => model.id === provider.model)) {
-		throw new Error("The provider is reachable, but the configured model is unavailable.");
-	}
 }
 
 export async function createAICompletion(
