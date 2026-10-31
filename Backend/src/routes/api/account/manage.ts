@@ -19,6 +19,13 @@ import {
 } from "../../../lib/AIProvider";
 import { encryptSecret } from "../../../lib/GitOps";
 import { getAllowAIProviderInternal } from "../../../lib/DataManager";
+import { env } from "../../../lib/env";
+import {
+	getLogAnalysisAvailability,
+	resolveOpenRouterKey,
+	validateLogAnalysisModel,
+} from "../../../lib/LogAnalysis";
+import { DecisionsError } from "../../../lib/OpenRouterDecisions";
 
 export = new fileRouter.Path("/")
 	.http("GET", "/api/account/settings", (http) =>
@@ -84,6 +91,7 @@ export = new fileRouter.Path("/")
 							ignoreTlsErrors: parseAIProviderIgnoreTlsErrors(authCheck.user.aiProviderCapabilities),
 							ignoreInvalidModels: parseAIProviderIgnoreInvalidModels(authCheck.user.aiProviderCapabilities),
 						} : null,
+						logAnalysis: getLogAnalysisAvailability(authCheck.user, env.OPENROUTER_API_KEY, INSTANCE_SECRET),
 					},
 				});
 			}),
@@ -135,6 +143,10 @@ export = new fileRouter.Path("/")
 							ignoreInvalidModels: z.boolean().default(false),
 						}).nullable().optional(),
 						openRouterKey: z.string().max(512).nullable().optional(), // Backward-compatible API input.
+						logAnalysis: z.object({
+							enabled: z.boolean(),
+							model: z.string().trim().max(256).optional(),
+						}).optional(),
 						accountEnvironment: z
 							.array(
 								z.object({
@@ -160,6 +172,8 @@ export = new fileRouter.Path("/")
 					aiProviderApiKey?: string | null;
 					aiProviderCapabilities?: string | null;
 					account_env?: string | null;
+					logAnalysisEnabled?: boolean;
+					logAnalysisModel?: string | null;
 				} = {};
 				if (data.aiProvider !== undefined) {
 					if (data.aiProvider === null) {
@@ -205,6 +219,30 @@ export = new fileRouter.Path("/")
 					updatePayload.aiProviderApiKey = data.openRouterKey ? encryptSecret(data.openRouterKey, INSTANCE_SECRET) : null;
 					updatePayload.aiProviderCapabilities = data.openRouterKey ? JSON.stringify({ tools: true, json: true }) : null;
 				}
+				if (data.logAnalysis !== undefined) {
+					const model = data.logAnalysis.model ?? authCheck.user.logAnalysisModel ?? "";
+					if (data.logAnalysis.enabled) {
+						const key = resolveOpenRouterKey(authCheck.user, env.OPENROUTER_API_KEY, INSTANCE_SECRET);
+						const problem = !model
+							? "Enter a Decisions-compatible model before enabling log analysis."
+							: !key
+								? "Add an OpenRouter API key under AI generation (or ask your admin to set OPENROUTER_API_KEY) before enabling log analysis."
+								: null;
+						if (problem) {
+							return ctr.status(ctr.$status.BAD_REQUEST).print({ status: "FAILED", message: problem });
+						}
+						try {
+							await validateLogAnalysisModel(key!.apiKey, model);
+						} catch (error) {
+							return ctr.status(ctr.$status.BAD_REQUEST).print({
+								status: "FAILED",
+								message: `Log analysis check failed: ${error instanceof DecisionsError ? error.message : "OpenRouter could not be reached."}`,
+							});
+						}
+					}
+					updatePayload.logAnalysisEnabled = data.logAnalysis.enabled;
+					updatePayload.logAnalysisModel = model || null;
+				}
 				if (data.accountEnvironment !== undefined) {
 					updatePayload.account_env = serializeEnvironmentVariables(
 						data.accountEnvironment,
@@ -221,9 +259,6 @@ export = new fileRouter.Path("/")
 				const updatedUser = await prisma.user.update({
 					where: { id: authCheck.user.id },
 					data: updatePayload,
-					select: {
-						account_env: true,
-					},
 				});
 
 				return ctr.print({
@@ -233,6 +268,7 @@ export = new fileRouter.Path("/")
 						accountEnvironment: parseStoredEnvironmentVariables(
 							updatedUser.account_env,
 						),
+						logAnalysis: getLogAnalysisAvailability(updatedUser, env.OPENROUTER_API_KEY, INSTANCE_SECRET),
 					},
 				});
 			}),

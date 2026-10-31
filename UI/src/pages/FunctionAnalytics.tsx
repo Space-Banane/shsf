@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getAccountFunctionAnalytics } from "../services/backend.analytics";
 import { Icon } from "../components/ui/Icon";
+import { LogAnalysisBadge, LogAnalysisPanel } from "../components/LogAnalysis";
 import {
 	AccountFunctionAnalyticsResponse,
 	AnalyticsPoint,
@@ -529,6 +530,9 @@ function RecentExecutionRow({ execution }: { execution: ExecutionAnalyticsItem }
 					{formatExecutionStatus(execution)}
 				</span>
 			</td>
+			<td className="py-2.5 pl-4 text-sm">
+				<LogAnalysisBadge analysis={execution.analysis} />
+			</td>
 		</tr>
 	);
 }
@@ -695,6 +699,7 @@ function FunctionAnalyticsCard({
 												<th className="pb-3 pr-4">Total</th>
 												<th className="pb-3 pr-4">Rate Limit</th>
 												<th className="pb-3">Status</th>
+												<th className="pb-3 pl-4">Advisory</th>
 											</tr>
 										</thead>
 										<tbody>
@@ -710,6 +715,7 @@ function FunctionAnalyticsCard({
 							)}
 						</div>
 					</div>
+					<LogAnalysisPanel summary={data.logAnalysis} compact />
 				</div>
 			) : null}
 		</div>
@@ -848,6 +854,8 @@ function FunctionAnalyticsPage() {
 								/>
 							))}
 						</div>
+
+						<LogAnalysisPanel summary={data.logAnalysis} />
 
 						<div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 							<RateLimitScopeCard

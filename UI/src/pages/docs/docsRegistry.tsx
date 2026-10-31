@@ -14,6 +14,7 @@ import { DocsGettingStarted } from "./getting-started";
 import { DocsGoRuntime } from "./go-runtime";
 import { GuestUsersDocPage } from "./guest-users";
 import { DOCSKICKOFF } from "./kickoff";
+import { LogAnalysisDocPage } from "./log-analysis";
 import { MyFirstFunctionDoc } from "./my-first-function";
 import { DocsNodeJsRuntime } from "./nodejs-runtime";
 import { OpencvInstallPage } from "./opencv-install";
@@ -63,6 +64,7 @@ const documentationDefinitions: DocumentationDefinition[] = [
 	{ key: "go-runtime", title: "Go Runtime", description: "Compile-once, cache-forever Go functions with module support, db_com, and custom responses.", category: "Advanced", path: "/docs/go-runtime", related: ["nodejs-runtime", "db-com"] },
 	{ key: "nodejs-runtime", title: "Node.js Runtime", description: "npm-backed Node.js functions with package caching, db_com, and full async/await support.", category: "Advanced", path: "/docs/nodejs-runtime", related: ["go-runtime", "kickoff"] },
 	{ key: "kickoff", title: "Kickoff", description: "AI-powered code generation via OpenRouter — describe your function and get production-ready files.", category: "Advanced", path: "/docs/kickoff", related: ["version-control", "clone-function"] },
+	{ key: "log-analysis", title: "Log Analysis", description: "Opt-in advisory failure and priority signals for new logs via OpenRouter's Decisions API.", category: "Advanced", path: "/docs/log-analysis", related: ["kickoff", "environment-variables"] },
 	{ key: "version-control", title: "VERSION // CONTROL", description: "Deploy from a Git repo — clone, manual pull, periodic pull, monorepo source directories.", category: "Advanced", path: "/docs/version-control", related: ["cli", "clone-function"] },
 	{ key: "clone-function", title: "Cloning Functions", description: "Duplicate a function with all files, settings, and env vars — aliases, git config, and logs excluded.", category: "Advanced", path: "/docs/clone-function", related: ["version-control", "opencv-install"] },
 	{ key: "opencv-install", title: "OpenCV Installation", description: "Auto-install python3-opencv on first init via a marker file — computer vision in Python functions.", category: "Advanced", path: "/docs/opencv-install", related: ["ffmpeg-install", "go-runtime"] },
@@ -70,7 +72,7 @@ const documentationDefinitions: DocumentationDefinition[] = [
 ];
 
 const components: Record<string, FC> = {
-	"getting-started": DocsGettingStarted, "my-first-function": MyFirstFunctionDoc, "data-passing": DataPassingPage, "custom-responses": CustomResponsesPage, "environment-variables": EnvironmentVariablesPage, "secure-headers": SecureHeadersPage, "persistent-data": PersistentDataPage, redirects: RedirectsPage, "raw-body": RawBodyPage, "user-interfaces": UserInterfacesPage, "docker-mount": DockerMountPage, "serve-only": ServeOnlyHtmlPage, "access-tokens": AccessTokensDocPage, cli: CLIDocPage, "db-com": DatabaseComDocPage, routing: RoutingDocPage, "custom-cors": CustomCorsDocPage, "guest-users": GuestUsersDocPage, "execution-alias": ExecutionAliasPage, "ffmpeg-install": FfmpegInstallPage, "go-runtime": DocsGoRuntime, "nodejs-runtime": DocsNodeJsRuntime, kickoff: DOCSKICKOFF, "version-control": DocsVersionControl, "clone-function": DocsCloneFunction, "opencv-install": OpencvInstallPage, "call-functions": CallFunctionsDocPage,
+	"getting-started": DocsGettingStarted, "my-first-function": MyFirstFunctionDoc, "data-passing": DataPassingPage, "custom-responses": CustomResponsesPage, "environment-variables": EnvironmentVariablesPage, "secure-headers": SecureHeadersPage, "persistent-data": PersistentDataPage, redirects: RedirectsPage, "raw-body": RawBodyPage, "user-interfaces": UserInterfacesPage, "docker-mount": DockerMountPage, "serve-only": ServeOnlyHtmlPage, "access-tokens": AccessTokensDocPage, cli: CLIDocPage, "db-com": DatabaseComDocPage, routing: RoutingDocPage, "custom-cors": CustomCorsDocPage, "guest-users": GuestUsersDocPage, "execution-alias": ExecutionAliasPage, "ffmpeg-install": FfmpegInstallPage, "go-runtime": DocsGoRuntime, "nodejs-runtime": DocsNodeJsRuntime, kickoff: DOCSKICKOFF, "log-analysis": LogAnalysisDocPage, "version-control": DocsVersionControl, "clone-function": DocsCloneFunction, "opencv-install": OpencvInstallPage, "call-functions": CallFunctionsDocPage,
 };
 
 export const documentation: DocumentationEntry[] = documentationDefinitions.map((entry) => ({ ...entry, component: components[entry.key] }));

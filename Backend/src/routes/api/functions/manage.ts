@@ -13,6 +13,7 @@ import {
 import Docker from "dockerode";
 import { getFirstFileByLanguage } from "../../../lib/LangOps";
 import { getFunctionTemplate, getTemplatesForRuntime, readFunctionTemplate } from "../../../lib/FunctionTemplates";
+import { toExecutionLogAnalysis } from "../../../lib/LogAnalysis";
 
 const Images: string[] = [
 	// Python versions
@@ -787,10 +788,12 @@ export = new fileRouter.Path("/")
 				const logs = await prisma.triggerLog.findMany({
 					where: {
 						functionId: functionId,
+						function: { userId: authCheck.user.id },
 						createdAt: {
 							gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7), // 7 days
 						},
 					},
+					include: { analysis: true },
 					take: 50,
 					orderBy: {
 						createdAt: "desc",
@@ -805,7 +808,7 @@ export = new fileRouter.Path("/")
 
 				return ctr.print({
 					status: "OK",
-					data: logs,
+					data: logs.map((log) => ({ ...log, analysis: toExecutionLogAnalysis(log.analysis) })),
 				});
 			}),
 	)

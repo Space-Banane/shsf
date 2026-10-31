@@ -3,9 +3,12 @@ import { apiFetch, type ApiFailure } from "./api";
 
 const fetch = apiFetch;
 
+import type { LogAnalysisAvailability } from "./backend.account";
+
 export interface LoggingConfig {
     enabled: boolean;
     hide_payload_headers?: boolean;
+    analyze?: boolean;
 }
 
 interface OKResponse {
@@ -15,7 +18,7 @@ interface OKResponse {
 
 interface GetLoggingConfigResponse {
     status: "OK";
-    data: LoggingConfig;
+    data: LoggingConfig & { analysis?: LogAnalysisAvailability & { effective: boolean } };
 }
 
 type ErrorResponse = ApiFailure;

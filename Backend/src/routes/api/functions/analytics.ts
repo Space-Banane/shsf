@@ -50,6 +50,7 @@ export = new fileRouter.Path("/")
 								name: true,
 							},
 						},
+						analysis: true,
 					},
 					orderBy: {
 						createdAt: "desc",
@@ -129,6 +130,7 @@ export = new fileRouter.Path("/")
 								name: true,
 							},
 						},
+						analysis: true,
 					},
 					orderBy: {
 						createdAt: "desc",

@@ -63,6 +63,35 @@ export interface PhaseSummary {
 	maxSeconds: number;
 }
 
+export type LogAnalysisStatus = "pending" | "running" | "completed" | "skipped" | "failed" | "disabled";
+
+/** Advisory OpenRouter Decisions result. Never overrides exitCode. */
+export interface ExecutionLogAnalysis {
+	status: LogAnalysisStatus;
+	failureProbability: number | null;
+	failureDetected: boolean | null;
+	attentionPriority: number | null;
+	attentionConfidence: number | null;
+	model: string;
+	error: string | null;
+	costUsd: number | null;
+	analyzedAt: string | null;
+	/** Priority (1-10) -> probability, when the model returned a distribution. */
+	attentionDistribution?: Record<string, number> | null;
+}
+
+export interface LogAnalysisSummary {
+	analyzed: number;
+	pending: number;
+	unavailable: number;
+	notAnalyzed: number;
+	failureSignals: number;
+	priorityDistribution: number[];
+	avgConfidence: number | null;
+	costUsd: number;
+	highPriority: ExecutionAnalyticsItem[];
+}
+
 export interface ExecutionAnalyticsItem {
 	executionId: number;
 	functionId: number;
@@ -74,6 +103,7 @@ export interface ExecutionAnalyticsItem {
 	phaseTimings: ExecutionTimingPhase[];
 	errorType: string | null;
 	ratelimit: ExecutionRateLimitAnalytics | null;
+	analysis: ExecutionLogAnalysis | null;
 }
 
 export interface FunctionAnalyticsSummary {
@@ -92,6 +122,7 @@ export interface FunctionAnalyticsSummary {
 	rateLimitWouldBlockExecutions: number;
 	rateLimitBlockedByScope: RateLimitScopeBreakdown;
 	topRateLimitIdentityValues: RateLimitTopIdentityValue[];
+	logAnalysis?: LogAnalysisSummary;
 }
 
 export interface AccountAnalyticsSummary {
@@ -114,6 +145,7 @@ export interface AccountFunctionAnalyticsResponse {
 	series: AnalyticsPoint[];
 	functions: FunctionAnalyticsSummary[];
 	slowestExecutions: ExecutionAnalyticsItem[];
+	logAnalysis?: LogAnalysisSummary;
 }
 
 export interface SingleFunctionAnalyticsResponse {

@@ -1,3 +1,5 @@
+import type { ExecutionLogAnalysis } from "./Analytics";
+
 type UserRole = "Admin" | "User";
 
 interface Session {
@@ -128,6 +130,7 @@ interface TriggerLog {
 	functionId: number;
 	result: string | null;
 	logs: string | null;
+	analysis?: ExecutionLogAnalysis | null;
 
 	createdAt: Date;
 	updatedAt: Date;

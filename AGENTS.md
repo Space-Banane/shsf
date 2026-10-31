@@ -151,6 +151,9 @@ Function source files are stored under git version control. All mutations must g
 ### AI / code generation
 The `ai_kicked_off` flag on `Function` tracks whether AI generation has been triggered. Keep this flag and the import/AI-gen flags consistent across schema, API routes, and UI components. When touching AI-related code, verify all three layers remain in sync.
 
+### Log analysis (`src/lib/LogAnalysis.ts`, `src/lib/OpenRouterDecisions.ts`)
+Opt-in advisory analysis of execution logs through OpenRouter's Decisions API. Effective only when the account (`User.logAnalysisEnabled` + `logAnalysisModel`) and the function's logging config (`analyze: true`) are both on. `persistFunctionExecutionLog` enqueues a `LogAnalysis` row; the `log-analysis` system cron drains it. Never send unsanitized logs (always go through `buildDecisionsRequest`), never log keys or request bodies, never hardcode a model, and never let analysis change a log's exit code or `result`. Keep `OpenRouterDecisions.ts` separate from the chat-completion code in `AIProvider.ts`.
+
 ### UI modals – Ctrl+Enter submits
 All modals must support **Ctrl+Enter submission** using the `useShiftEnterSubmit` hook from `UI/src/hooks/useShiftEnterSubmit.ts`. When a user presses Ctrl+Enter (or Cmd+Enter on Mac) inside a modal, the primary action (create, update, delete, confirm) must fire. Import the hook and call `useShiftEnterSubmit(() => handleSubmit(), isOpen && !isLoading)` in every modal with a submit action. Do not use other keyboard shortcuts for submission.
 

@@ -45,6 +45,10 @@ model User {
   aiProviderCapabilities String? @db.Text
   account_env   String? @db.Text // Account-wide environment variables in JSON format
 
+  // Opt-in OpenRouter Decisions log analysis. Off by default; no model is assumed.
+  logAnalysisEnabled Boolean @default(false)
+  logAnalysisModel   String? @db.VarChar(256)
+
   allow_docker_mount Boolean @default(false) // Admin-controlled: whether this user may create functions with docker socket mount
 
   createdAt DateTime @default(now())
@@ -215,6 +219,49 @@ model TriggerLog {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  analysis LogAnalysis?
+}
+
+enum LogAnalysisStatus {
+  pending
+  running
+  completed
+  skipped
+  failed
+  disabled
+}
+
+// Advisory OpenRouter Decisions result for one TriggerLog. Never rewrites the log's own result.
+model LogAnalysis {
+  id           Int        @id @default(autoincrement())
+  triggerLogId Int        @unique
+  triggerLog   TriggerLog @relation(fields: [triggerLogId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  status        LogAnalysisStatus @default(pending)
+  attempts      Int               @default(0)
+  nextAttemptAt DateTime          @default(now())
+  model         String            @db.VarChar(256) // Configured model at enqueue time
+  inputVersion  Int?              // Sanitizer/request version
+  inputHash     String?           @db.VarChar(64) // sha256 of the sanitized request state
+
+  failureProbability  Float?
+  failureDetected     Boolean?
+  attentionPriority   Int? // 1-10
+  attentionConfidence Float?
+  decision            Json? // Raw typed answers as returned by the Decisions API
+  providerModel       String? @db.VarChar(256)
+  costUsd             Float?
+  inputTokens         Int?
+  outputTokens        Int?
+  error               String? @db.VarChar(512)
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt])
 }
 
 model AccessToken {

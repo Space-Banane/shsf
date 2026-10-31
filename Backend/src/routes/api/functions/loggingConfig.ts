@@ -1,4 +1,6 @@
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
+import { API_KEY_HEADER, COOKIE, fileRouter, INSTANCE_SECRET, prisma } from "../../..";
+import { env } from "../../../lib/env";
+import { getLogAnalysisAvailability } from "../../../lib/LogAnalysis";
 import { checkAuthentication } from "../../../lib/Authentication";
 import {
 	getLoggingConfigFromData,
@@ -40,6 +42,11 @@ export = new fileRouter.Path("/")
 											properties: {
 												enabled: { type: "boolean" },
 												hide_payload_headers: { type: "boolean" },
+												analyze: { type: "boolean", description: "Per-function opt-in for OpenRouter log analysis" },
+												analysis: {
+													type: "object",
+													description: "Account-level availability; analysis is effective only when analyze and analysis.ready are both true",
+												},
 											},
 										},
 									},
@@ -80,6 +87,8 @@ export = new fileRouter.Path("/")
 				}
 
 				const config = await getLoggingConfigFromData(functionData.logging);
+				const analyze = config.enabled && config.analyze === true;
+				const analysis = getLogAnalysisAvailability(authCheck.user, env.OPENROUTER_API_KEY, INSTANCE_SECRET);
 
 				return ctr.print({
 					status: "OK",
@@ -89,6 +98,8 @@ export = new fileRouter.Path("/")
 							config.enabled && config.hide_payload_headers
 								? config.hide_payload_headers
 								: false,
+						analyze,
+						analysis: { ...analysis, effective: analyze && analysis.ready },
 					},
 				});
 			}),
@@ -120,6 +131,7 @@ export = new fileRouter.Path("/")
 								properties: {
 									enabled: { type: "boolean" },
 									hide_payload_headers: { type: "boolean" },
+									analyze: { type: "boolean", description: "Opt this function in to OpenRouter log analysis for new logs" },
 								},
 							},
 						},
@@ -158,6 +170,7 @@ export = new fileRouter.Path("/")
 					z.object({
 						enabled: z.boolean().optional(),
 						hide_payload_headers: z.boolean().optional(),
+						analyze: z.boolean().optional(),
 					}),
 				);
 
@@ -197,6 +210,9 @@ export = new fileRouter.Path("/")
 								hide_payload_headers:
 									body.hide_payload_headers ??
 									(currentConfig.enabled ? currentConfig.hide_payload_headers : false),
+								analyze:
+									body.analyze ??
+									(currentConfig.enabled ? currentConfig.analyze === true : false),
 								logs_last_cleared: currentConfig.enabled
 									? currentConfig.logs_last_cleared
 									: undefined,

@@ -4,7 +4,7 @@ import { UserContext } from "../App";
 import { Icon, IconName } from "../components/ui/Icon";
 import { HelpTooltip } from "../components/ui/Tooltip";
 import { useShiftEnterSubmit } from "../hooks/useShiftEnterSubmit";
-import { deleteAccount, exportAccountData, getAccountSettings, updateAccountSettings } from "../services/backend.account";
+import { deleteAccount, exportAccountData, getAccountSettings, type LogAnalysisAvailability, updateAccountSettings } from "../services/backend.account";
 import { toast } from "react-toastify";
 
 interface EnvironmentVariable { name: string; value: string; }
@@ -42,6 +42,10 @@ export const AccountPage = () => {
 	const [deleteText, setDeleteText] = useState("");
 	const [deleteLoading, setDeleteLoading] = useState(false);
 	const [deleteError, setDeleteError] = useState("");
+	const [logAnalysis, setLogAnalysis] = useState<LogAnalysisAvailability | null>(null);
+	const [analysisModel, setAnalysisModel] = useState("");
+	const [analysisSaving, setAnalysisSaving] = useState(false);
+	const [analysisNotice, setAnalysisNotice] = useState<Notice | null>(null);
 	const aiEnabled = Boolean(user?.apiKeyConfigured);
 	const providerEndpoint = providerChoice === "openrouter" ? OPENROUTER_ENDPOINT : providerChoice === "openai" ? OPENAI_ENDPOINT : customEndpoint;
 	const canReuseSavedKey = hasSavedProvider && providerEndpoint === savedProviderEndpoint;
@@ -52,6 +56,8 @@ export const AccountPage = () => {
 			const result = await getAccountSettings();
 			if (result.status === "OK") {
 				setVariables(result.data.accountEnvironment);
+				setLogAnalysis(result.data.logAnalysis ?? null);
+				setAnalysisModel(result.data.logAnalysis?.model ?? "");
 				setHasSavedProvider(Boolean(result.data.aiProvider));
 				if (result.data.aiProvider) {
 					setSavedProviderEndpoint(result.data.aiProvider.endpoint);
@@ -93,6 +99,19 @@ export const AccountPage = () => {
 			else setAiNotice({ type: "err", text: result.message });
 		} catch { setAiNotice({ type: "err", text: "We couldn't remove the API key. Try again." }); }
 		finally { setAiSaving(false); }
+	};
+
+	const saveLogAnalysis = async (enabled: boolean) => {
+		setAnalysisSaving(true); setAnalysisNotice(null);
+		try {
+			const result = await updateAccountSettings({ logAnalysis: { enabled, model: analysisModel.trim() } });
+			if (result.status === "OK") {
+				setLogAnalysis(result.data?.logAnalysis ?? null);
+				setAnalysisNotice({ type: "ok", text: enabled ? "Model checked and saved. Turn on analysis for each function under its Logs card." : "Log analysis is off. No logs will be sent." });
+			}
+			else setAnalysisNotice({ type: "err", text: result.message });
+		} catch { setAnalysisNotice({ type: "err", text: "We couldn't save log analysis settings. Try again." }); }
+		finally { setAnalysisSaving(false); }
 	};
 
 	const saveVariables = async () => {
@@ -151,6 +170,14 @@ export const AccountPage = () => {
 					<label className="mt-3 flex items-center gap-2 text-xs text-muted"><input type="checkbox" checked={ignoreTlsErrors} onChange={(event) => setIgnoreTlsErrors(event.target.checked)} /> Ignore SSL certificate errors</label>
 					{ignoreTlsErrors && <p className="mt-2 text-xs text-amber-300">Certificate identity will not be verified. Enable only for a provider you trust.</p>}
 					<div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-xs leading-5 text-muted">SHSF checks the provider's /models endpoint before saving.</p>{hasSavedProvider && <button type="button" onClick={removeKey} disabled={aiSaving} className="text-xs font-medium text-red-300 hover:text-red-200 disabled:opacity-50">Remove saved provider</button>}</div><NoticeMessage notice={aiNotice} />
+				</Section>
+				<Section id="log-analysis" icon="bolt" title="Log analysis" description="Optional. OpenRouter's Decisions API reads new execution logs and flags likely failures with a 1–10 priority.">
+					<div className={`mb-5 flex gap-3 rounded-xl border p-3.5 text-sm ${logAnalysis?.ready ? "border-green-500/20 bg-green-500/[0.08] text-green-300" : "border-white/[0.07] bg-background/60 text-muted"}`}><Icon name={logAnalysis?.ready ? "check" : "information-circle"} className="mt-0.5 h-4 w-4 shrink-0" /><span>{logAnalysis?.ready ? `On for this account using ${logAnalysis.model} with ${logAnalysis.keySource === "account" ? "your OpenRouter key" : "the instance OpenRouter key"}. Functions still need their own opt-in.` : logAnalysis?.enabled ? `On, but not running: ${logAnalysis.reason}` : "Off. No logs leave this server."}</span></div>
+					<div className="mb-5 rounded-xl border border-amber-500/20 bg-amber-500/[0.05] p-3.5 text-xs leading-5 text-amber-200/90"><p className="font-medium text-amber-200">What gets sent</p><p className="mt-1 text-muted">For opted-in functions, each new log is sent to OpenRouter and the model provider after SHSF masks common keys, tokens, passwords, cookies, emails, and your environment variable values, and trims it to 8,000 characters. Exit code, error type, and duration go with it. Masking is best effort, so don't opt in functions that print data you can't share. Each analysis is billed to the OpenRouter key. Old logs are never sent.</p></div>
+					<label className="block text-xs font-medium text-muted">Decisions model<input type="text" value={analysisModel} onChange={(event) => setAnalysisModel(event.target.value)} placeholder="provider/model" className={`${inputClass} mt-1.5 font-mono`} /></label>
+					<p className="mt-1.5 text-xs text-muted">Any model listed for OpenRouter's Decisions API. SHSF sends one small test request to check the key and model before saving.</p>
+					<div className="mt-4 flex flex-wrap gap-2">{logAnalysis?.enabled ? <><button type="button" onClick={() => saveLogAnalysis(true)} disabled={analysisSaving} className={primaryButton}>{analysisSaving ? "Checking…" : "Save model"}</button><button type="button" onClick={() => saveLogAnalysis(false)} disabled={analysisSaving} className={secondaryButton}>Turn off log analysis</button></> : <button type="button" onClick={() => saveLogAnalysis(true)} disabled={analysisSaving || !analysisModel.trim()} className={primaryButton}>{analysisSaving ? "Checking…" : "Turn on log analysis"}</button>}</div>
+					<NoticeMessage notice={analysisNotice} />
 				</Section>
 				<Section id="environment" icon="cog-6-tooth" title="Shared environment" description="Set defaults once for every function you own. Function-level values take precedence.">
 					<div className="mb-5 flex items-start gap-3 rounded-xl border border-white/[0.07] bg-background/50 p-3.5 text-xs leading-5 text-muted"><Icon name="information-circle" className="mt-0.5 h-4 w-4 shrink-0 text-primary" />Use this for repeated configuration such as service URLs. Do not add secrets you would not want available to all of your functions.</div>

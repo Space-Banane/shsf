@@ -18,6 +18,14 @@ export interface AIProviderSettings {
 	ignoreInvalidModels?: boolean;
 }
 
+export interface LogAnalysisAvailability {
+	enabled: boolean;
+	model: string | null;
+	keySource: "account" | "instance" | null;
+	ready: boolean;
+	reason: string | null;
+}
+
 async function getUserInfo() {
 	const response = await fetch(`${BASE_URL}/api/account/getUserInfo`, {
 		credentials: "include",
@@ -82,6 +90,7 @@ async function getAccountSettings() {
 				data: {
 					accountEnvironment: EnvironmentVariable[];
 					aiProvider: Omit<AIProviderSettings, "apiKey"> | null;
+					logAnalysis?: LogAnalysisAvailability;
 				};
 		  }
 		| { status: "FAILED"; message: string };
@@ -92,6 +101,7 @@ async function updateAccountSettings(settings: {
 	aiProvider?: AIProviderSettings | null;
 	openRouterKey?: string | null;
 	accountEnvironment?: EnvironmentVariable[];
+	logAnalysis?: { enabled: boolean; model?: string };
 }) {
 	const response = await fetch(`${BASE_URL}/api/account/settings`, {
 		method: "PATCH",
@@ -107,6 +117,7 @@ async function updateAccountSettings(settings: {
 				message: string;
 				data?: {
 					accountEnvironment: EnvironmentVariable[];
+					logAnalysis?: LogAnalysisAvailability;
 				};
 		  }
 		| { status: "FAILED"; message: string };

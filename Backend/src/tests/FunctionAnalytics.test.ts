@@ -66,6 +66,7 @@ describe("FunctionAnalytics helpers", () => {
 				{ description: "Total", seconds: 1.234 },
 			],
 			errorType: null,
+			analysis: null,
 			ratelimit: null,
 		});
 	});
@@ -107,6 +108,7 @@ describe("FunctionAnalytics helpers", () => {
 			source: "exec",
 			phaseTimings: [{ description: "HTTP execution blocked before runtime", seconds: 0 }],
 			errorType: "rate_limit_blocked",
+			analysis: null,
 			ratelimit: {
 				configured: true,
 				blocked: true,

@@ -5,6 +5,8 @@ import type { performGitPull as performGitPullImpl } from "./GitOps";
 import { createLogger } from "./logger";
 import { getAutoUpdateEnabled } from "./DataManager";
 import { getUpdateState, checkForUpdate, applyUpdate } from "./Updater";
+import { processLogAnalysisQueue } from "./LogAnalysis";
+import { env } from "./env";
 
 type ExecuteFunction = typeof executeFunctionImpl;
 type PerformGitPull = typeof performGitPullImpl;
@@ -80,6 +82,15 @@ export function startSystemCrons(dependencies: SystemCronDependencies): SystemCr
 			name: "storage-cleanup",
 			intervalMs: 60 * 1000,
 			run: () => processStorageCleanup(dependencies),
+		},
+		{
+			name: "log-analysis",
+			intervalMs: 10 * 1000,
+			run: () => processLogAnalysisQueue({
+				prisma: dependencies.prisma,
+				instanceKey: env.OPENROUTER_API_KEY,
+				instanceSecret: env.INSTANCE_SECRET,
+			}),
 		},
 		{
 			name: "auto-update",

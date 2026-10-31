@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
 	deleteAllLogs,
 	getLoggingConfig,
@@ -32,6 +33,9 @@ export function LogsCard({
 	const confirm = useConfirm();
 	const [loggingEnabled, setLoggingEnabled] = useState(true);
 	const [hidePayloadHeaders, setHidePayloadHeaders] = useState(false);
+	const [analyze, setAnalyze] = useState(false);
+	const [analysisReady, setAnalysisReady] = useState(false);
+	const [analysisReason, setAnalysisReason] = useState<string | null>(null);
 	const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
 
 	useEffect(() => {
@@ -43,6 +47,9 @@ export function LogsCard({
 			if (res.status === "OK") {
 				setLoggingEnabled(res.data.enabled);
 				setHidePayloadHeaders(Boolean(res.data.hide_payload_headers));
+				setAnalyze(Boolean(res.data.analyze));
+				setAnalysisReady(Boolean(res.data.analysis?.ready));
+				setAnalysisReason(res.data.analysis?.reason ?? null);
 			}
 		});
 
@@ -57,6 +64,11 @@ export function LogsCard({
 		const res = await updateLoggingConfig(functionId, { enabled: checked });
 		if (res.status === "OK") {
 			setLoggingEnabled(checked);
+			// The backend resets per-function options when logging is turned off.
+			if (!checked) {
+				setAnalyze(false);
+				setHidePayloadHeaders(false);
+			}
 		}
 		setIsUpdatingConfig(false);
 	};
@@ -69,6 +81,16 @@ export function LogsCard({
 		});
 		if (res.status === "OK") {
 			setHidePayloadHeaders(checked);
+		}
+		setIsUpdatingConfig(false);
+	};
+
+	const handleToggleAnalyze = async (checked: boolean) => {
+		if (!functionId || disabled || isUpdatingConfig || !loggingEnabled) return;
+		setIsUpdatingConfig(true);
+		const res = await updateLoggingConfig(functionId, { analyze: checked });
+		if (res.status === "OK") {
+			setAnalyze(checked);
 		}
 		setIsUpdatingConfig(false);
 	};
@@ -160,6 +182,31 @@ export function LogsCard({
 							/>
 							<div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
 						</label>
+					</div>
+					<div className="rounded-lg border border-gray-700/50 bg-gray-900/40 px-3 py-2">
+						<div className="flex items-center justify-between">
+							<span className="text-sm text-gray-300" id={`analyze-label-${functionId}`}>Analyze new logs with OpenRouter</span>
+							<label className="relative inline-flex items-center cursor-pointer">
+								<input
+									type="checkbox"
+									className="sr-only peer"
+									aria-labelledby={`analyze-label-${functionId}`}
+									checked={analyze}
+									disabled={disabled || isUpdatingConfig || !loggingEnabled || (!analyze && !analysisReady)}
+									onChange={(e) => handleToggleAnalyze(e.target.checked)}
+								/>
+								<div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-primary peer-disabled:opacity-50 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
+							</label>
+						</div>
+						<p className="mt-1 text-xs text-gray-400">
+							{analyze && analysisReady
+								? "On. Sanitized logs from new runs are sent for an advisory failure check. Exit codes are never changed."
+								: analyze
+									? `Opted in, but paused: ${analysisReason ?? "account setup is incomplete."}`
+									: analysisReady
+										? "Off. Logs stay on this server."
+										: <>Off. Set up log analysis in <Link to="/account#log-analysis" className="text-primary hover:underline">account settings</Link> first.</>}
+						</p>
 					</div>
 					<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
 						{actionButtons.map((button, index) => {

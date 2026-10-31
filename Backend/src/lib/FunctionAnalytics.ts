@@ -1,4 +1,5 @@
-import { TriggerLog } from "@prisma/client";
+import { LogAnalysis, TriggerLog } from "@prisma/client";
+import { type ExecutionLogAnalysis, toExecutionLogAnalysis } from "./LogAnalysis";
 
 export type AnalyticsRange = "today" | "7d" | "30d" | "90d";
 
@@ -76,6 +77,22 @@ export interface ExecutionAnalyticsItem {
 	phaseTimings: ExecutionTimingPhase[];
 	errorType: string | null;
 	ratelimit: ExecutionRateLimitAnalytics | null;
+	/** Advisory OpenRouter decision; null means the log was never queued for analysis. */
+	analysis: ExecutionLogAnalysis | null;
+}
+
+export interface LogAnalysisSummary {
+	analyzed: number;
+	pending: number;
+	/** failed, skipped, or disabled before completion */
+	unavailable: number;
+	notAnalyzed: number;
+	failureSignals: number;
+	/** index i = executions with attention priority i + 1 */
+	priorityDistribution: number[];
+	avgConfidence: number | null;
+	costUsd: number;
+	highPriority: ExecutionAnalyticsItem[];
 }
 
 export interface FunctionAnalyticsSummary {
@@ -94,6 +111,7 @@ export interface FunctionAnalyticsSummary {
 	rateLimitWouldBlockExecutions: number;
 	rateLimitBlockedByScope: RateLimitScopeBreakdown;
 	topRateLimitIdentityValues: RateLimitTopIdentityValue[];
+	logAnalysis: LogAnalysisSummary;
 }
 
 export interface AccountAnalyticsSummary {
@@ -115,6 +133,7 @@ export interface AccountFunctionAnalyticsResponse {
 	series: AnalyticsPoint[];
 	functions: FunctionAnalyticsSummary[];
 	slowestExecutions: ExecutionAnalyticsItem[];
+	logAnalysis: LogAnalysisSummary;
 }
 
 type TriggerLogWithFunctionName = TriggerLog & {
@@ -122,7 +141,47 @@ type TriggerLogWithFunctionName = TriggerLog & {
 		id: number;
 		name: string;
 	} | null;
+	analysis?: LogAnalysis | null;
 };
+
+export const HIGH_PRIORITY_THRESHOLD = 7;
+
+export function buildLogAnalysisSummary(executions: ExecutionAnalyticsItem[]): LogAnalysisSummary {
+	const summary: LogAnalysisSummary = {
+		analyzed: 0,
+		pending: 0,
+		unavailable: 0,
+		notAnalyzed: 0,
+		failureSignals: 0,
+		priorityDistribution: Array<number>(10).fill(0),
+		avgConfidence: null,
+		costUsd: 0,
+		highPriority: [],
+	};
+	const confidences: number[] = [];
+	for (const execution of executions) {
+		const analysis = execution.analysis;
+		if (!analysis) summary.notAnalyzed += 1;
+		else if (analysis.status === "pending" || analysis.status === "running") summary.pending += 1;
+		else if (analysis.status !== "completed") summary.unavailable += 1;
+		else {
+			summary.analyzed += 1;
+			if (analysis.failureDetected) summary.failureSignals += 1;
+			if (analysis.attentionPriority) summary.priorityDistribution[analysis.attentionPriority - 1] += 1;
+			if (typeof analysis.attentionConfidence === "number") confidences.push(analysis.attentionConfidence);
+			summary.costUsd += analysis.costUsd ?? 0;
+		}
+	}
+	summary.avgConfidence = confidences.length
+		? roundNumber(confidences.reduce((sum, value) => sum + value, 0) / confidences.length)
+		: null;
+	summary.costUsd = Number(summary.costUsd.toFixed(6));
+	summary.highPriority = executions
+		.filter((execution) => (execution.analysis?.attentionPriority ?? 0) >= HIGH_PRIORITY_THRESHOLD)
+		.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+		.slice(0, 5);
+	return summary;
+}
 
 const RANGE_TO_DAYS: Record<Exclude<AnalyticsRange, "today">, number> = {
 	"7d": 7,
@@ -401,6 +460,7 @@ export function parseExecutionAnalyticsLog(
 			phaseTimings: [],
 			errorType: "cors_denied",
 			ratelimit: null,
+			analysis: toExecutionLogAnalysis(log.analysis),
 		};
 	}
 
@@ -432,6 +492,7 @@ export function parseExecutionAnalyticsLog(
 		errorType:
 			typeof parsedResult.error_type === "string" ? parsedResult.error_type : null,
 		ratelimit: parseRateLimitData(parsedResult.ratelimit),
+		analysis: toExecutionLogAnalysis(log.analysis),
 	};
 }
 
@@ -644,6 +705,7 @@ function buildFunctionSummary(
 		rateLimitWouldBlockExecutions,
 		rateLimitBlockedByScope: buildRateLimitBlockedByScope(executions),
 		topRateLimitIdentityValues: buildTopRateLimitIdentityValues(executions),
+		logAnalysis: buildLogAnalysisSummary(executions),
 	};
 }
 
@@ -729,6 +791,7 @@ export function buildAccountFunctionAnalytics(
 			.filter((execution) => typeof execution.totalSeconds === "number")
 			.sort((a, b) => (b.totalSeconds ?? 0) - (a.totalSeconds ?? 0))
 			.slice(0, 5),
+		logAnalysis: buildLogAnalysisSummary(parsedExecutions),
 	};
 }
 

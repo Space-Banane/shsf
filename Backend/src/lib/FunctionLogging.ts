@@ -15,6 +15,8 @@ interface LoggingConfigEnabled {
     last_log_deleted?: TriggerLog; // So we can have the last log that was deleted, incase we need to restore it.
 
     hide_payload_headers?: boolean;
+
+    analyze?: boolean; // Opt-in: send sanitized new logs to OpenRouter Decisions (see LogAnalysis.ts)
 }
 
 interface LoggingConfigDisabled {

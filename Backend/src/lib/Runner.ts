@@ -9,6 +9,7 @@ import * as fs from "fs/promises";
 import * as fsSync from "fs";
 import * as path from "path";
 import { getLoggingConfigFromData, stripHeadersFromPayload } from "./FunctionLogging";
+import { enqueueLogAnalysis } from "./LogAnalysis";
 import { replaceApiBaseInContent } from "./FileHelpers";
 import { createLogger } from "./logger";
 import type { LoggedExecutionRateLimitData } from "./FunctionRateLimit";
@@ -145,7 +146,7 @@ export async function persistFunctionExecutionLog(
 		disableResultReason = "Base64 transport envelope detected in result";
 	}
 
-	await prisma.triggerLog.create({
+	const triggerLog = await prisma.triggerLog.create({
 		data: {
 			functionId: input.functionId,
 			logs: truncateDbField(input.logs),
@@ -159,6 +160,15 @@ export async function persistFunctionExecutionLog(
 			}),
 		},
 	});
+
+	if (loggingConfig.enabled && loggingConfig.analyze) {
+		try {
+			await enqueueLogAnalysis(prisma, triggerLog.id, input.functionId);
+		} catch (error) {
+			// Advisory analysis must never affect the execution path.
+			log.error({ err: error, functionId: input.functionId }, "Failed to enqueue log analysis");
+		}
+	}
 }
 
 export async function executeFunction(

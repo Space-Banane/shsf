@@ -2,6 +2,7 @@ import React from "react";
 import { TriggerLog } from "../../../types/Prisma";
 import { useConfirm } from "../../modals/ConfirmModal";
 import { Icon } from "../../ui/Icon";
+import { LogAnalysisBadge, LogAnalysisDetails } from "../../LogAnalysis";
 
 interface TriggerLogCardProps {
 	log: TriggerLog;
@@ -60,6 +61,7 @@ const TriggerLogCard: React.FC<TriggerLogCardProps> = ({ log, expanded, onToggle
 									{exitCode === 0 ? "Success" : `Exit ${exitCode}`}
 								</span>
 							)}
+							<LogAnalysisBadge analysis={log.analysis} />
 						</div>
 						<p className="text-xs text-muted">Execution #{log.id}</p>
 					</div>
@@ -130,6 +132,15 @@ const TriggerLogCard: React.FC<TriggerLogCardProps> = ({ log, expanded, onToggle
 							}
 							return null;
 						})()}
+
+					{log.analysis !== undefined && (
+						<div>
+							<p className={sectionHeaderCls}>Advisory analysis</p>
+							<div className={detailCls}>
+								<LogAnalysisDetails analysis={log.analysis} />
+							</div>
+						</div>
+					)}
 
 					{log.logs && (
 						<div>
