@@ -1,4 +1,4 @@
-import { TimingEntry } from "../../pages/functions/FunctionDetail";
+import type { TimingEntry } from "../../types/FunctionExecution";
 
 export function TimingCard({
 	tooks,
