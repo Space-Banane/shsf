@@ -1,1651 +1,197 @@
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import { useBeforeUnload, useBlocker, useParams } from "react-router-dom";
-import { SHSFExport } from "../../components/modals/functions/ImportFunctionModal";
-import { useContext, useEffect, useState, useRef } from "react";
-import Editor from "@monaco-editor/react";
-import JSZip from "jszip";
-import { apiFetch } from "../../services/api";
-import CreateFileModal from "../../components/modals/functionFiles/CreateFileModal";
-import FolderModal from "../../components/modals/functionFiles/FolderModal";
-import RenameFileModal from "../../components/modals/functionFiles/RenameFileModal";
-import DeleteFileModal from "../../components/modals/functionFiles/DeleteFileModal";
-import UpdateFunctionModal from "../../components/modals/functions/UpdateFunctionModal";
-import CreateTriggerModal from "../../components/modals/functionTriggers/CreateTriggerModal";
-import EditTriggerModal from "../../components/modals/functionTriggers/EditTriggerModal";
-import DeleteTriggerModal from "../../components/modals/functionTriggers/DeleteTriggerModal";
-import UpdateEnvModal from "../../components/modals/functions/UpdateEnvModal";
-import TriggerLogsModal from "../../components/modals/functionTriggers/TriggerLogsModal";
-import GuestManagement from "../../components/modals/guests/GuestManagement";
-import LoadDefaultModal from "../../components/modals/functionFiles/LoadDefaultModal";
-import AIGenerateModal from "../../components/modals/AIGenerateModal";
-import GitVersionControlModal from "../../components/modals/functions/GitVersionControlModal";
-import DependencyModal from "../../components/modals/functionDetail/DependencyModal";
-import DependencyManagerModal from "../../components/modals/functionDetail/DependencyManagerModal";
-import ResultModal from "../../components/modals/functionDetail/ResultModal";
-import HtmlResultModal from "../../components/modals/functionDetail/HtmlResultModal";
-import ImageResultModal from "../../components/modals/functionDetail/ImageResultModal";
-import {
-	FunctionFile,
-	FunctionFolder,
-	getImageDisplayName,
-	XFunction,
-	Trigger,
-	Namespace,
-	TriggerLog,
-} from "../../types/Prisma";
+import type { OnMount } from "@monaco-editor/react";
 import { UserContext } from "../../App";
+import { ConsoleCard } from "../../components/cards/ConsoleCard";
+import { CodeEditorPanel } from "../../components/functionDetail/CodeEditorPanel";
+import { EditorToolbar } from "../../components/functionDetail/EditorToolbar";
+import { FunctionHeader } from "../../components/functionDetail/FunctionHeader";
+import { FunctionModals } from "../../components/functionDetail/FunctionModals";
+import { FunctionResultModals } from "../../components/functionDetail/FunctionResultModals";
+import { FunctionSidebar } from "../../components/functionDetail/FunctionSidebar";
+import type { FunctionModal } from "../../components/functionDetail/functionModal";
+import { useAutoScroll } from "../../hooks/useAutoScroll";
+import { useDependencyInstall } from "../../hooks/useDependencyInstall";
+import { useEditorViewState } from "../../hooks/useEditorViewState";
+import { useFileUpload } from "../../hooks/useFileUpload";
+import { useFunctionExecution } from "../../hooks/useFunctionExecution";
+import { useFunctionFiles } from "../../hooks/useFunctionFiles";
+import { useFunctionLogs } from "../../hooks/useFunctionLogs";
+import { useFunctionTriggers } from "../../hooks/useFunctionTriggers";
+import { useUnsavedChangesGuard } from "../../hooks/useUnsavedChangesGuard";
+import { getFiles, getFolders } from "../../services/backend.files";
 import {
 	getFunctionById,
-	executeFunction,
-	executeFunctionStreaming,
 	updateFunction,
-	getLogsByFuncId,
-	installDependencies,
 } from "../../services/backend.functions";
-import {
-	getFiles,
-	getFolders,
-	createOrUpdateFile,
-	createFolder,
-	deleteFile,
-	deleteFolder,
-	renameFile,
-	renameFolder,
-	loadDefaultContent,
-} from "../../services/backend.files";
-import {
-	createTrigger,
-	getTriggers,
-	updateTrigger,
-	deleteTrigger,
-	runTrigger,
-} from "../../services/backend.triggers";
 import { getNamespace } from "../../services/backend.namespaces";
-import { BASE_URL, PUBLIC_BASE_URL } from "../..";
-import React from "react";
-import { ConsoleCard } from "../../components/cards/ConsoleCard";
-import { LogsCard } from "../../components/cards/LogCard";
-import { RateLimitCard } from "../../components/cards/RateLimitCard";
-import { TimingCard } from "../../components/cards/TimingCard";
-import { TriggersCard } from "../../components/cards/TriggersCard";
-import { FileManagerCard } from "../../components/cards/FileManagerCard";
-import { ActionButton } from "../../components/buttons/ActionButton";
-import { useConfirm } from "../../components/modals/ConfirmModal";
-import { copyTextToClipboard } from "../../utils/clipboard";
+import { getTriggers } from "../../services/backend.triggers";
+import type { Namespace, XFunction } from "../../types/Prisma";
+import { exportFunctionToFile } from "../../utils/functionExport";
+import {
+	buildCliPullCommand,
+	getDefaultLanguage,
+	isHtmlOnlyFunction,
+} from "../../utils/functionFiles";
 
-const fetch = apiFetch;
+const HTML_ONLY_REASON = "This function is set to only serve an .html file";
 
-// Define the timing entry interface
-export interface TimingEntry {
-	timestamp: number;
-	value: number;
-	description: string;
-}
-
+/**
+ * Route for a single function. It loads the function and composes the editor,
+ * execution, logs, triggers and modal workflows; each of those owns its own
+ * state in a hook under `hooks/` or a component under `components/functionDetail/`.
+ */
 function FunctionDetail() {
 	const { id } = useParams<{ id: string }>();
+	const functionId = id ? parseInt(id) : null;
 	const { user } = useContext(UserContext);
-	const confirm = useConfirm();
+
 	const [functionData, setFunctionData] = useState<XFunction | null>(null);
-	const [nameSpace, setNamespace] = useState<Namespace | null>(null);
+	const [namespace, setNamespace] = useState<Namespace | null>(null);
 	const [loading, setLoading] = useState(true);
-	const [files, setFiles] = useState<FunctionFile[]>([]);
-	const [folders, setFolders] = useState<FunctionFolder[]>([]);
-	const [triggers, setTriggers] = useState<Trigger[]>([]);
-	const [showCreateModal, setShowCreateModal] = useState(false);
-	const [createFileParentPath, setCreateFileParentPath] = useState("");
-	const [showFolderModal, setShowFolderModal] = useState(false);
-	const [folderModalMode, setFolderModalMode] = useState<"create" | "rename">(
-		"create",
-	);
-	const [folderParentPath, setFolderParentPath] = useState("");
-	const [folderTargetPath, setFolderTargetPath] = useState("");
-	const [showRenameModal, setShowRenameModal] = useState(false);
-	const [showDeleteModal, setShowDeleteModal] = useState(false);
-	const [showUpdateModal, setShowUpdateModal] = useState(false);
-	const [showCreateTriggerModal, setShowCreateTriggerModal] = useState(false);
-	const [showEditTriggerModal, setShowEditTriggerModal] = useState(false);
-	const [showDeleteTriggerModal, setShowDeleteTriggerModal] = useState(false);
-	const [showEnvModal, setShowEnvModal] = useState(false);
-	const [selectedFile, setSelectedFile] = useState<FunctionFile | null>(null);
-	const [selectedTrigger, setSelectedTrigger] = useState<Trigger | null>(
-		null,
-	);
-	const [activeFile, setActiveFile] = useState<FunctionFile | null>(null);
-	const [code, setCode] = useState<string | null>(null); // Updated to allow null
-	const editorRef = useRef<any>(null);
-	const [consoleOutput, setConsoleOutput] = useState<string>("");
-	const [saving, setSaving] = useState<boolean>(false);
-	const [running, setRunning] = useState<boolean>(false);
-	const [runningMode, setRunningMode] = useState<"classic" | "streaming">(
-		"streaming",
-	);
-	const [exitCode, setExitCode] = useState<number | null>(null);
-	const [functionURL, setFunctionURL] = useState<string>("Loading url...");
-	const [executionTime, setExecutionTime] = useState<number | null>(null);
-	const [functionResult, setFunctionResult] = useState<any>(null);
-	const [runParams, setRunParams] = useState<string>("");
-	const [showRunParams, setShowRunParams] = useState<boolean>(false);
-	const timerRef = useRef<NodeJS.Timeout | null>(null);
-	const executionAbortControllerRef = useRef<AbortController | null>(null);
-	const [activeFileLanguage, setActiveFileLanguage] = useState<string>("");
-	const consoleOutputRef = useRef<HTMLDivElement>(null!);
-	const [autoScroll, setAutoScroll] = useState<boolean>(true);
-	const [copyUrltext, setCopyUrlText] = useState<string>(
-		"Copy URL to Clipboard",
-	);
-	const [copyAliasURL, setCopyAliasURL] = useState<string>("Copy Alias URL");
-	const [paramInputColor, setParamInputColor] =
-		useState<string>("text-white");
-	const [realTimeTaken, setRealTimeTaken] = useState<number | null>(null);
-	const [tooks, setTooks] = useState<TimingEntry[]>([]);
-	const [showTimingDetails, setShowTimingDetails] = useState<boolean>(false);
-	const [logs, setLogs] = useState<TriggerLog[]>([]);
-	const [showLogsDetails, setShowLogsDetails] = useState<boolean>(false);
-	const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(false);
-	const logPollingRef = useRef<NodeJS.Timeout | null>(null);
-	const [showTriggersDetails, setShowTriggersDetails] =
-		useState<boolean>(false);
-	const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
-	const [pipRunning, setPipRunning] = useState<boolean>(false);
-	const [showPopup, setShowPopup] = useState<boolean>(false);
-	const [popupContent, setPopupContent] = useState<{
-		headers: Record<string, string>;
-		html: string;
-		code: number;
-	} | null>(null);
-	const [showImagePopup, setShowImagePopup] = useState<boolean>(false);
-	const [imagePopupContent, setImagePopupContent] = useState<{
-		headers: Record<string, string>;
-		code: number;
-		src: string;
-		contentType: string;
-	} | null>(null);
-	const [, setShowAllImageHeaders] = useState<boolean>(false);
-	const [serveHtmlOnly, setServeHtmlOnly] = useState<boolean>(false);
-	const [showDepModal, setShowDepModal] = useState(false);
-	const [showDependencyManager, setShowDependencyManager] = useState(false);
-	const [depModalContent, setDepModalContent] = useState<{
-		title: string;
-		message: string;
-		success: boolean;
-	} | null>(null);
-	const [showResultModal, setShowResultModal] = useState(false);
-	const [resultModalContent, setResultModalContent] = useState<{
-		title: string;
-		value: any;
-		type: string;
-	} | null>(null);
-	const [showGuestModal, setShowGuestModal] = useState(false);
-	const [showLoadDefaultModal, setShowLoadDefaultModal] = useState(false);
-	const [showAIModal, setShowAIModal] = useState(false);
-	const [showGitModal, setShowGitModal] = useState(false);
-	const [autoUnzipFiles, setAutoUnzipFiles] = useState(true);
-	const [stopShowingResult, setStopShowingResult] = useState(false);
-	const navigationPromptOpenRef = useRef(false);
-	const editorViewStatesRef = useRef<Map<number, any>>(new Map());
-	const saveShortcutRef = useRef<() => void>(() => {});
-	const resultModalsEnabled = !stopShowingResult;
+	const [modal, setModal] = useState<FunctionModal | null>(null);
+	const [resultModalsEnabled, setResultModalsEnabled] = useState(true);
+
+	const htmlOnly = isHtmlOnlyFunction(functionData);
+	const gitManaged = Boolean(functionData?.git_url);
 	const aiEnabled = Boolean(user?.apiKeyConfigured);
-	const isZipFilename = (filename: string) =>
-		filename.toLowerCase().endsWith(".zip");
+	const closeModal = useCallback(() => setModal(null), []);
 
-	const savedActiveFile = activeFile
-		? (files.find((file) => file.id === activeFile.id) ?? activeFile)
-		: null;
-	const hasUnsavedChanges = Boolean(
-		activeFile && code !== (savedActiveFile?.content ?? ""),
+	const editorView = useEditorViewState();
+	const execution = useFunctionExecution({ functionId, resultModalsEnabled });
+	const files = useFunctionFiles({
+		functionId,
+		htmlOnly,
+		readOnly: gitManaged,
+		busy: execution.running,
+		editorViewState: editorView,
+	});
+	const upload = useFileUpload({
+		files: files.files,
+		htmlOnly,
+		persistFile: files.persistFile,
+	});
+	const logs = useFunctionLogs(
+		functionId,
+		!execution.running && execution.exitCode !== null,
 	);
-	const canSaveFile = Boolean(
-		activeFile &&
-		hasUnsavedChanges &&
-		!saving &&
-		!running &&
-		!functionData?.git_url,
-	);
-	const cliPullCommand = functionData
-		? `shsf remote pull --id ${functionData.id} --into ./${
-				functionData.name
-					.trim()
-					.toLowerCase()
-					.replace(/[^a-z0-9]+/g, "-")
-					.replace(/^-+|-+$/g, "") || "my-func"
-			} --force`
-		: "";
-	const isHtmlFilename = (filename: string) =>
-		filename.toLowerCase().endsWith(".html");
+	const triggers = useFunctionTriggers(functionId, { onRan: logs.refresh });
+	const dependencies = useDependencyInstall(functionId, {
+		onFinished: () => void logs.refresh(),
+	});
+	const output = useAutoScroll(execution.consoleOutput);
 
-	useBeforeUnload(
-		(event) => {
-			if (!hasUnsavedChanges) return;
-			event.preventDefault();
-			event.returnValue = "";
-		},
-		{ capture: true },
-	);
+	useUnsavedChangesGuard(files.hasUnsavedChanges);
 
-	const navigationBlocker = useBlocker(hasUnsavedChanges);
-
+	const { restore: restoreViewState } = editorView;
+	const activeFileId = files.activeFile?.id;
 	useEffect(() => {
-		setActiveFileLanguage(getDefaultLanguage(activeFile?.name || ""));
-	}, [activeFile]);
+		if (activeFileId === undefined) return;
+		requestAnimationFrame(() => restoreViewState(activeFileId));
+	}, [activeFileId, restoreViewState]);
 
-	useEffect(() => {
-		if (!editorRef.current || !activeFile) {
-			return;
-		}
-
-		requestAnimationFrame(() => {
-			const savedViewState = editorViewStatesRef.current.get(
-				activeFile.id,
-			);
-			if (savedViewState) {
-				editorRef.current.restoreViewState(savedViewState);
-			}
-			editorRef.current.focus();
-		});
-	}, [activeFile]);
-
-	useEffect(() => {
-		const editorViewStates = editorViewStatesRef.current;
-		return () => {
-			executionAbortControllerRef.current?.abort();
-			if (timerRef.current) clearInterval(timerRef.current);
-			timerRef.current = null;
-			editorViewStates.clear();
-			editorRef.current = null;
-		};
-	}, []);
-
-	useEffect(() => {
-		if (resultModalsEnabled) {
-			return;
-		}
-
-		setShowResultModal(false);
-		setShowPopup(false);
-		setShowImagePopup(false);
-	}, [resultModalsEnabled]);
-
-	useEffect(() => {
-		if (
-			navigationBlocker.state !== "blocked" ||
-			navigationPromptOpenRef.current
-		) {
-			return;
-		}
-
-		navigationPromptOpenRef.current = true;
-
-		void (async () => {
-			const shouldLeave = await confirm({
-				title: "Unsaved Changes",
-				message:
-					"You have unsaved changes in this file. Leave this page and discard them?",
-				confirmText: "Leave Page",
-				cancelText: "Stay Here",
-				variant: "delete",
-			});
-
-			if (shouldLeave) {
-				navigationBlocker.proceed();
-			} else {
-				navigationBlocker.reset();
-			}
-
-			navigationPromptOpenRef.current = false;
-		})();
-	}, [navigationBlocker, confirm]);
-
-	// Handle console auto-scrolling
-	useEffect(() => {
-		if (autoScroll && consoleOutputRef.current) {
-			consoleOutputRef.current.scrollTop =
-				consoleOutputRef.current.scrollHeight;
-		}
-	}, [consoleOutput, autoScroll]);
-
-	const handleConsoleScroll = () => {
-		if (consoleOutputRef.current) {
-			const { scrollTop, scrollHeight, clientHeight } =
-				consoleOutputRef.current;
-			// If user scrolls up, disable auto-scrolling
-			// If user scrolls to bottom, re-enable auto-scrolling
-			const isScrolledToBottom =
-				Math.abs(scrollHeight - clientHeight - scrollTop) < 10;
-			setAutoScroll(isScrolledToBottom);
-		}
+	// Monaco captures the save command once at mount, so it calls through a ref.
+	const saveShortcutRef = useRef<() => void>(() => {});
+	saveShortcutRef.current = () => {
+		if (files.canSave) void files.saveActiveFile();
 	};
-
-	const startTimer = () => {
-		const startTime = Date.now();
-		setExecutionTime(0);
-		timerRef.current = setInterval(() => {
-			setExecutionTime((Date.now() - startTime) / 1000);
-		}, 50);
-	};
-
-	const stopTimer = () => {
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-			timerRef.current = null;
-		}
-	};
-
-	const getDefaultLanguage = (filename: string): string => {
-		const extensionMapping: { [key: string]: string } = {
-			".py": "python",
-			".js": "javascript",
-			".ts": "typescript",
-			".json": "json",
-			".html": "html",
-			".css": "css",
-			".md": "markdown",
-			".go": "go",
-			".mod": "go",
-			".props": "xml",
-			".targets": "xml",
-			".rs": "rust",
-			".lua": "lua",
-		};
-		const nameMapping: { [key: string]: string } = {
-			Dockerfile: "dockerfile",
-			Makefile: "makefile",
-		};
-
-		// Check for exact name match first
-		if (nameMapping[filename]) {
-			return nameMapping[filename];
-		}
-
-		// Check for extension match
-		const extension = Object.keys(extensionMapping).find((ext) =>
-			filename.endsWith(ext),
-		);
-		return extension ? extensionMapping[extension] : "plaintext";
-	};
-
-	const handleFileSelect = async (file: FunctionFile) => {
-		if (file.id === activeFile?.id) return;
-
-		if (hasUnsavedChanges) {
-			const shouldSwitch = await confirm({
-				title: "Unsaved Changes",
-				message:
-					"You have unsaved changes in this file. Switch files and discard them?",
-				confirmText: "Switch File",
-				cancelText: "Stay Here",
-				variant: "delete",
-			});
-
-			if (!shouldSwitch) return;
-		}
-
-		if (activeFile && editorRef.current) {
-			editorViewStatesRef.current.set(
-				activeFile.id,
-				editorRef.current.saveViewState(),
-			);
-		}
-
-		setActiveFile(file);
-		setCode(file.content || "");
-	};
-
-	const handleDownloadFile = (file: FunctionFile) => {
-		const blob = new Blob([file.content], {
-			type: "text/plain;charset=utf-8",
-		});
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = file.name;
-		document.body.appendChild(a);
-		a.click();
-		a.remove();
-		URL.revokeObjectURL(url);
-	};
-
-	const handleEditorChange = (value: string | undefined) => {
-		setCode(value || "");
-	};
-
-	const normalizeZipEntryName = (entryName: string) => {
-		const normalized = entryName
-			.replace(/\\/g, "/")
-			.trim()
-			.replace(/^\/+/, "");
-		if (
-			!normalized ||
-			normalized.startsWith("/") ||
-			/^[a-zA-Z]:/.test(normalized)
-		) {
-			return null;
-		}
-
-		const segments = normalized
-			.split("/")
-			.filter((segment) => segment.length > 0 && segment !== ".");
-		if (
-			segments.length === 0 ||
-			segments.some((segment) => segment === "..")
-		) {
-			return null;
-		}
-
-		return segments.join("/");
-	};
-
-	const extractZipFiles = async (zipFile: File) => {
-		const zip = await JSZip.loadAsync(await zipFile.arrayBuffer());
-		const extracted: Array<{ name: string; content: string }> = [];
-		const skippedEntries: string[] = [];
-
-		const entryReads: Array<Promise<void>> = [];
-		zip.forEach((relativePath, entry) => {
-			if (entry.dir) {
-				return;
-			}
-
-			entryReads.push(
-				(async () => {
-					const normalizedName = normalizeZipEntryName(relativePath);
-					if (!normalizedName) {
-						skippedEntries.push(relativePath);
-						return;
-					}
-
-					const content = await entry.async("string");
-					extracted.push({ name: normalizedName, content });
-				})(),
-			);
-		});
-
-		await Promise.all(entryReads);
-		return { extracted, skippedEntries };
-	};
-
-	const persistFile = async (
-		filename: string,
-		content: string,
-	): Promise<
-		{ success: true; name: string } | { success: false; message: string }
-	> => {
-		if (!id) {
-			return { success: false, message: "Function ID is missing." };
-		}
-
-		if (serveHtmlOnly && !isHtmlFilename(filename)) {
-			return {
-				success: false,
-				message: "Only .html files are allowed for this function.",
-			};
-		}
-
-		try {
-			const data = await createOrUpdateFile(parseInt(id), {
-				filename,
-				code: content,
-			});
-
-			if (data.status === "OK") {
-				setFiles((prev) => {
-					const alreadyExists = prev.some(
-						(file) => file.id === data.data.id,
-					);
-					return alreadyExists
-						? prev.map((file) =>
-								file.id === data.data.id
-									? { ...file, content }
-									: file,
-							)
-						: [...prev, { ...data.data, content }];
-				});
-				if (activeFile?.id === data.data.id) {
-					setCode(content);
-				}
-				return { success: true, name: filename };
-			}
-
-			return { success: false, message: data.message };
-		} catch (error) {
-			console.error("Error creating file:", error);
-			return {
-				success: false,
-				message: "An error occurred while creating the file.",
-			};
-		}
-	};
-
-	const handleEditorDidMount = (editor: any, monaco: any) => {
-		editorRef.current = editor;
+	const handleEditorMount: OnMount = (editor, monaco) => {
+		editorView.editorRef.current = editor;
 		editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
 			saveShortcutRef.current();
 		});
 	};
 
-	const loadData = () => {
-		if (id) {
-			setLoading(true);
-			Promise.all([
-				getFunctionById(parseInt(id)),
-				getFiles(parseInt(id)),
-				getFolders(parseInt(id)),
-				getTriggers(parseInt(id)),
-			])
-				.then(
-					([functionData, filesData, foldersData, triggersData]) => {
-						if (functionData.status === "OK") {
-							setFunctionData(functionData.data);
-							setServeHtmlOnly(
-								(functionData.data.startup_file || "")
-									.toLowerCase()
-									.endsWith(".html"),
-							);
+	const { replaceFiles } = files;
+	const { setFolders } = files;
+	const { setTriggers } = triggers;
+	const loadData = useCallback(async () => {
+		if (functionId === null) return;
 
-							getNamespace(functionData.data.namespaceId).then(
-								(namespaceData) => {
-									if (namespaceData.status === "OK") {
-										setNamespace(namespaceData.data);
-									}
-								},
-							);
-						} else {
-							toast.error(
-								"Error fetching function: " +
-									functionData.message,
-							);
-							return;
-						}
-
-						if (filesData.status === "OK") {
-							setFiles(filesData.data);
-							if (functionData.data.allow_http) {
-								setFunctionURL(
-									`${PUBLIC_BASE_URL}/api/exec/${functionData.data.namespaceId}/${functionData.data.executionId}`,
-								);
-							} else {
-								setFunctionURL(`No HTTP Access 🚫`);
-							}
-							if (filesData.data.length > 0) {
-								// Select the startup file if it exists, otherwise select the first file
-								const startupFile = filesData.data.find(
-									(file) =>
-										file.name ===
-										functionData.data.startup_file,
-								);
-								const initialFile =
-									startupFile || filesData.data[0];
-								// setActiveFile(initialFile);
-								setCode(initialFile.content || "");
-							} else {
-								// Reset when no files exist
-								setActiveFile(null);
-								setCode(null);
-							}
-						} else if (!functionData.data.git_url) {
-							toast.error(
-								"Error fetching files: " + filesData.message,
-							);
-						}
-
-						if (foldersData.status === "OK") {
-							setFolders(foldersData.data);
-						} else if (!functionData.data.git_url) {
-							toast.error(
-								"Error fetching folders: " +
-									foldersData.message,
-							);
-						}
-
-						if (triggersData.status === "OK") {
-							setTriggers(triggersData.data);
-							setShowTriggersDetails(
-								triggersData.data.length > 0,
-							);
-						} else {
-							console.error(
-								"Error fetching triggers:",
-								triggersData.message,
-							);
-						}
-					},
-				)
-				.catch((error) => {
-					console.error("Error fetching data:", error);
-					toast.error("An error occurred while fetching data.");
-				})
-				.finally(() => {
-					setLoading(false);
-				});
-		}
-	};
-
-	const handleSaveFile = async () => {
-		if (!id || !activeFile) return;
-
-		setSaving(true);
+		setLoading(true);
 		try {
-			const data = await createOrUpdateFile(parseInt(id), {
-				filename: activeFile.name,
-				code: code || "",
-			});
+			const [functionResult, filesResult, foldersResult, triggersResult] =
+				await Promise.all([
+					getFunctionById(functionId),
+					getFiles(functionId),
+					getFolders(functionId),
+					getTriggers(functionId),
+				]);
 
-			if (data.status === "OK") {
-				setFiles((prev) =>
-					prev.map((file) =>
-						file.id === activeFile.id
-							? { ...file, content: code || "" }
-							: file,
-					),
-				);
-			} else {
-				toast.error("Error saving file: " + data.message);
-			}
-		} catch (error) {
-			console.error("Error saving file:", error);
-			toast.error("An error occurred while saving the file.");
-		} finally {
-			setSaving(false);
-		}
-	};
-
-	saveShortcutRef.current = () => {
-		if (canSaveFile) {
-			void handleSaveFile();
-		}
-	};
-
-	const handleRunCode = async () => {
-		if (!id) return;
-
-		setRunning(true);
-		setConsoleOutput("Executing code...");
-		setExitCode(null);
-		setFunctionResult(null);
-		setTooks([]);
-		const executionController = new AbortController();
-		executionAbortControllerRef.current = executionController;
-		startTimer();
-
-		// Parse run params if provided
-		let parsedRunParams = null;
-		if (showRunParams && runParams.trim()) {
-			try {
-				parsedRunParams = JSON.parse(runParams);
-			} catch (error) {
-				setConsoleOutput("Error parsing run parameters: Invalid JSON");
-				setRunning(false);
-				stopTimer();
-				executionAbortControllerRef.current = null;
+			if (functionResult.status !== "OK") {
+				toast.error("Error fetching function: " + functionResult.message);
 				return;
 			}
-		}
+			const loaded = functionResult.data;
+			setFunctionData(loaded);
 
-		const checkPopup = (result: any) => {
-			if (!resultModalsEnabled) {
-				return false;
-			}
-
-			const normalizeMaybeJson = (value: any): any => {
-				if (typeof value !== "string") return value;
-				const trimmed = value.trim();
-				if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-					try {
-						return JSON.parse(trimmed);
-					} catch {
-						return value;
-					}
-				}
-				return value;
-			};
-
-			const getHeader = (
-				headers: Record<string, string>,
-				name: string,
-			) => {
-				const target = name.toLowerCase();
-				for (const [key, value] of Object.entries(headers || {})) {
-					if (key.toLowerCase() === target) return value;
-				}
-				return "";
-			};
-
-			if (
-				result &&
-				typeof result === "object" &&
-				result._shsf === "v2" &&
-				typeof result._headers === "object"
-			) {
-				const headers = result._headers as Record<string, string>;
-				const contentType = getHeader(headers, "content-type");
-				const normalizedRes = normalizeMaybeJson(result._res);
-
-				if (
-					contentType.toLowerCase().startsWith("image/") &&
-					normalizedRes &&
-					typeof normalizedRes === "object" &&
-					normalizedRes.__shsf_transport === "base64-bytes-v1" &&
-					typeof normalizedRes.data === "string"
-				) {
-					setShowAllImageHeaders(false);
-					setImagePopupContent({
-						headers,
-						code: result._code ?? 200,
-						src: `data:${contentType};base64,${normalizedRes.data}`,
-						contentType,
-					});
-					setShowImagePopup(true);
-					return true;
-				}
-			}
-
-			if (
-				result &&
-				typeof result === "object" &&
-				result._shsf === "v2" &&
-				typeof result._res === "string" &&
-				typeof result._headers === "object"
-			) {
-				setPopupContent({
-					headers: result._headers,
-					html: result._res,
-					code: result._code ?? 200,
-				});
-				setShowPopup(true);
-				return true;
-			}
-			return false;
-		};
-
-		const showResultIfNotPopup = (result: any) => {
-			if (resultModalsEnabled && !checkPopup(result)) {
-				setResultModalContent({
-					title: "Function Result",
-					value: result,
-					type: typeof result,
-				});
-				setShowResultModal(true);
-			}
-		};
-
-		if (runningMode === "classic") {
-			try {
-				const result = await executeFunction(
-					parseInt(id),
-					parsedRunParams ? { run: parsedRunParams } : undefined,
-					executionController.signal,
-				);
-				if (result.status === "OK") {
-					// Check for popup result
-					if (checkPopup(result.data.result)) {
-						setConsoleOutput("Popup rendered.");
-						setExitCode(result.data.exitCode);
-						stopTimer();
-						setRunning(false);
-						return;
-					}
-					setConsoleOutput(
-						result.data.output ||
-							"Execution completed with no output.",
-					);
-					setExitCode(result.data.exitCode);
-					// Handle both old took and new tooks data
-					if (result.data.took) {
-						setTooks(result.data.took);
-						// Find the total execution time entry
-						const totalExecution = result.data.took.find(
-							(entry: TimingEntry) =>
-								entry.description === "Total execution time",
-						);
-						if (totalExecution) {
-							setRealTimeTaken(totalExecution.value);
-						}
-					}
-
-					// Display result if available
-					if (result.data.result !== undefined) {
-						setFunctionResult(result.data.result);
-						showResultIfNotPopup(result.data.result);
-					}
-				} else {
-					setConsoleOutput(`Execution failed: ${result.message}`);
-				}
-			} catch (error) {
-				if (executionController.signal.aborted) return;
-				console.error("Error executing code:", error);
-				setConsoleOutput("An error occurred while executing the code.");
-			} finally {
-				if (executionAbortControllerRef.current === executionController) {
-					stopTimer();
-					setRunning(false);
-					executionAbortControllerRef.current = null;
-				}
-			}
-		} else {
-			// Streaming mode
-			try {
-				setConsoleOutput(""); // Clear previous logs
-				let popupTriggered = false;
-				await executeFunctionStreaming(
-					parseInt(id),
-					(data) => {
-						if (executionController.signal.aborted) return;
-						if (data.type === "output" && data.content) {
-							// Check for popup result
-							if (!popupTriggered && checkPopup(data.content)) {
-								popupTriggered = true;
-								setExitCode(data.exitCode ?? null);
-								stopTimer();
-								setRunning(false);
-								return;
-							}
-							const content =
-								typeof data.content === "string"
-									? data.content
-									: JSON.stringify(data.content);
-							setConsoleOutput((prev) => prev + content);
-						} else if (data.type === "end") {
-							setExitCode(data.exitCode);
-							if (data.took) {
-								setTooks(data.took);
-								// Find the total execution time entry
-								const totalExecution = data.took.find(
-									(entry: TimingEntry) =>
-										entry.description ===
-										"Total execution time",
-								);
-								if (totalExecution) {
-									setRealTimeTaken(totalExecution.value);
-								}
-							}
-							if (data.result !== undefined) {
-								// Check for popup result
-								if (checkPopup(data.result)) {
-									stopTimer();
-									setRunning(false);
-									return;
-								}
-								setFunctionResult(data.result);
-								showResultIfNotPopup(data.result);
-							}
-						} else if (data.type === "error") {
-							setConsoleOutput(
-								(prev) =>
-									prev +
-									`\nError: ${data.error || "No additional details."}`,
-							);
-						}
-					},
-					parsedRunParams ? { run: parsedRunParams } : undefined,
-					executionController.signal,
-				);
-			} catch (error) {
-				if (executionController.signal.aborted) return;
-				console.error("Error streaming execution:", error);
-				setConsoleOutput(
-					(prev) =>
-						prev + "\nConnection error: Failed to stream output.",
-				);
-			} finally {
-				if (executionAbortControllerRef.current === executionController) {
-					stopTimer();
-					setRunning(false);
-					executionAbortControllerRef.current = null;
-				}
-			}
-		}
-	};
-
-	const handlePipInstall = async () => {
-		if (!id) return;
-
-		setPipRunning(true);
-		try {
-			const response = await installDependencies(parseInt(id));
-			if (
-				response &&
-				typeof response === "object" &&
-				"status" in response &&
-				response.status === "OK"
-			) {
-				setDepModalContent({
-					title: "Dependencies Installed",
-					message: "Dependencies installed successfully.",
-					success: true,
-				});
-				setShowDepModal(true);
-			} else {
-				setDepModalContent({
-					title: "Install Error",
-					message:
-						typeof response === "object" && response && "message" in response
-							? String(response.message)
-							: "Dependencies could not be installed. Check the function logs and try again.",
-					success: false,
-				});
-				setShowDepModal(true);
-			}
-		} catch (error) {
-			console.error("Error installing dependencies:", error);
-			setDepModalContent({
-				title: "Install Error",
-				message: "An error occurred while installing dependencies.",
-				success: false,
-			});
-			setShowDepModal(true);
-		} finally {
-			fetchLogs();
-			setPipRunning(false);
-		}
-	};
-
-	useEffect(() => {
-		loadData();
-	}, [id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-	const handleCreateFile = async (
-		filename: string,
-		content: string,
-	): Promise<boolean> => {
-		const result = await persistFile(filename, content);
-		if (!result.success) {
-			toast.error(`Error creating file: ${result.message}`);
-			return false;
-		}
-		return true;
-	};
-
-	const refreshExplorer = async (): Promise<FunctionFile[] | null> => {
-		if (!id) return null;
-		const [filesData, foldersData] = await Promise.all([
-			getFiles(parseInt(id)),
-			getFolders(parseInt(id)),
-		]);
-		if (filesData.status === "OK") setFiles(filesData.data);
-		if (foldersData.status === "OK") setFolders(foldersData.data);
-		return filesData.status === "OK" ? filesData.data : null;
-	};
-
-	const handleFolderSubmit = async (leafName: string): Promise<boolean> => {
-		if (!id) return false;
-		const fullName =
-			folderModalMode === "create"
-				? folderParentPath
-					? `${folderParentPath}/${leafName}`
-					: leafName
-				: folderTargetPath.includes("/")
-					? `${folderTargetPath.slice(0, folderTargetPath.lastIndexOf("/"))}/${leafName}`
-					: leafName;
-		try {
-			const response =
-				folderModalMode === "create"
-					? await createFolder(parseInt(id), fullName)
-					: await renameFolder(
-							parseInt(id),
-							folderTargetPath,
-							fullName,
-						);
-			if (response.status !== "OK") {
-				toast.error(
-					`Error ${folderModalMode === "create" ? "creating" : "renaming"} folder: ${response.message}`,
-				);
-				return false;
-			}
-			const refreshedFiles = await refreshExplorer();
-			if (
-				folderModalMode === "rename" &&
-				activeFile?.name.startsWith(`${folderTargetPath}/`)
-			) {
-				const renamedActiveFile = refreshedFiles?.find(
-					(file) => file.id === activeFile.id,
-				);
-				if (renamedActiveFile) {
-					setActiveFile(renamedActiveFile);
-					if (selectedFile?.id === renamedActiveFile.id) {
-						setSelectedFile(renamedActiveFile);
-					}
-				}
-			}
-			return true;
-		} catch (error) {
-			console.error("Error updating folder:", error);
-			toast.error("An error occurred while updating the folder.");
-			return false;
-		}
-	};
-
-	const handleDeleteFolder = async (folderName: string) => {
-		if (!id) return;
-		const shouldDelete = await confirm({
-			title: "Delete Folder",
-			message: `This will permanently delete "${folderName}" and every file inside it.`,
-			confirmText: "Delete Folder",
-			cancelText: "Cancel",
-			variant: "delete",
-		});
-		if (!shouldDelete) return;
-		try {
-			const response = await deleteFolder(parseInt(id), folderName);
-			if (response.status !== "OK") {
-				toast.error(`Error deleting folder: ${response.message}`);
-				return;
-			}
-			await refreshExplorer();
-			if (activeFile?.name.startsWith(`${folderName}/`)) {
-				setActiveFile(null);
-				setSelectedFile(null);
-				setCode(null);
-			}
-			toast.success(`Deleted ${folderName}.`);
-		} catch (error) {
-			console.error("Error deleting folder:", error);
-			toast.error("An error occurred while deleting the folder.");
-		}
-	};
-
-	const handleDropFiles = async (
-		droppedFiles: File[],
-		options?: { unzipArchives?: boolean },
-	) => {
-		if (!id) {
-			toast.error("Function ID is missing.");
-			return;
-		}
-
-		const shouldUnzipArchives = options?.unzipArchives ?? autoUnzipFiles;
-		const existingNames = new Set(files.map((file) => file.name));
-		const createdNames: string[] = [];
-		const skippedExistingNames: string[] = [];
-		const skippedInvalidTypeNames: string[] = [];
-		const skippedZipEntries: string[] = [];
-		const skippedZipFiles: string[] = [];
-
-		for (const droppedFile of droppedFiles) {
-			try {
-				let uploadedEntries: Array<{ name: string; content: string }>;
-				if (isZipFilename(droppedFile.name) && shouldUnzipArchives) {
-					const { extracted, skippedEntries } =
-						await extractZipFiles(droppedFile);
-					uploadedEntries = extracted;
-					skippedZipEntries.push(...skippedEntries);
-					if (uploadedEntries.length === 0) {
-						toast.error(
-							`${droppedFile.name} did not contain any files to upload.`,
-						);
-						continue;
-					}
-				} else if (isZipFilename(droppedFile.name)) {
-					skippedZipFiles.push(droppedFile.name);
-					continue;
-				} else {
-					uploadedEntries = [
-						{
-							name: droppedFile.name,
-							content: await droppedFile.text(),
-						},
-					];
-				}
-
-				for (const uploadedFile of uploadedEntries) {
-					if (serveHtmlOnly && !isHtmlFilename(uploadedFile.name)) {
-						skippedInvalidTypeNames.push(uploadedFile.name);
-						continue;
-					}
-
-					if (existingNames.has(uploadedFile.name)) {
-						skippedExistingNames.push(uploadedFile.name);
-						continue;
-					}
-
-					const result = await persistFile(
-						uploadedFile.name,
-						uploadedFile.content,
-					);
-					if (result.success) {
-						existingNames.add(uploadedFile.name);
-						createdNames.push(uploadedFile.name);
-					} else {
-						toast.error(
-							`Failed to create ${uploadedFile.name}: ${result.message}`,
-						);
-					}
-				}
-			} catch (error) {
-				console.error("Error reading dropped file:", error);
-				toast.error(
-					isZipFilename(droppedFile.name)
-						? `Failed to unpack ${droppedFile.name}. Make sure it is a valid zip archive.`
-						: `Failed to read ${droppedFile.name}.`,
-				);
-			}
-		}
-
-		if (createdNames.length > 0) {
-			toast.success(
-				createdNames.length === 1
-					? `Created ${createdNames[0]}`
-					: `Created ${createdNames.length} files`,
-			);
-		}
-
-		if (skippedExistingNames.length > 0) {
-			toast.error(
-				skippedExistingNames.length === 1
-					? `${skippedExistingNames[0]} already exists.`
-					: `${skippedExistingNames.length} files were skipped because they already exist.`,
-			);
-		}
-
-		if (skippedInvalidTypeNames.length > 0) {
-			toast.error(
-				skippedInvalidTypeNames.length === 1
-					? `${skippedInvalidTypeNames[0]} was skipped because only .html files are allowed.`
-					: `${skippedInvalidTypeNames.length} files were skipped because only .html files are allowed.`,
-			);
-		}
-
-		if (skippedZipEntries.length > 0) {
-			toast.error(
-				skippedZipEntries.length === 1
-					? `${skippedZipEntries[0]} was skipped because it is not a valid zip path.`
-					: `${skippedZipEntries.length} zip entries were skipped because they are not valid paths.`,
-			);
-		}
-
-		if (skippedZipFiles.length > 0) {
-			toast.error(
-				skippedZipFiles.length === 1
-					? `${skippedZipFiles[0]} was skipped because Auto Unzip Files is off.`
-					: `${skippedZipFiles.length} zip files were skipped because Auto Unzip Files is off.`,
-			);
-		}
-	};
-
-	const handleRenameFile = async (newFilename: string): Promise<boolean> => {
-		if (!id || !selectedFile) return false;
-
-		if (serveHtmlOnly && !isHtmlFilename(newFilename)) {
-			toast.error("Only .html files are allowed for this function.");
-			return false;
-		}
-
-		try {
-			const data = await renameFile(
-				parseInt(id),
-				selectedFile.id,
-				newFilename,
-			);
-			if (data.status === "OK") {
-				setFiles((prev) =>
-					prev.map((file) =>
-						file.id === selectedFile.id
-							? { ...file, name: newFilename }
-							: file,
-					),
-				);
-				return true;
-			} else {
-				toast.error("Error renaming file: " + data.message);
-				return false;
-			}
-		} catch (error) {
-			console.error("Error renaming file:", error);
-			toast.error("An error occurred while renaming the file.");
-			return false;
-		}
-	};
-
-	const removeFileFromState = (fileId: number) => {
-		editorViewStatesRef.current.delete(fileId);
-		setFiles((prev) => prev.filter((file) => file.id !== fileId));
-		if (selectedFile?.id === fileId) {
-			setSelectedFile(null);
-		}
-		if (activeFile?.id === fileId) {
-			setActiveFile(null);
-			setCode(null);
-		}
-	};
-
-	const deleteFunctionFiles = async (filesToDelete: FunctionFile[]) => {
-		if (!id || filesToDelete.length === 0) return false;
-
-		let deletedCount = 0;
-		let hadError = false;
-
-		for (const file of filesToDelete) {
-			try {
-				const data = await deleteFile(parseInt(id), file.id);
-				if (data.status === "OK") {
-					removeFileFromState(file.id);
-					deletedCount++;
-				} else {
-					hadError = true;
-					toast.error(`Error deleting ${file.name}: ${data.message}`);
-				}
-			} catch (error) {
-				hadError = true;
-				console.error("Error deleting file:", error);
-				toast.error(`An error occurred while deleting ${file.name}.`);
-			}
-		}
-
-		if (deletedCount > 0) {
-			toast.success(
-				deletedCount === 1
-					? `Deleted ${filesToDelete[0].name}.`
-					: `Deleted ${deletedCount} files.`,
-			);
-		}
-
-		return deletedCount > 0 && !hadError;
-	};
-
-	const handleDeleteFile = async (): Promise<boolean> => {
-		if (!selectedFile) return false;
-		return deleteFunctionFiles([selectedFile]);
-	};
-
-	const handleDeleteSelectedFiles = async (
-		filesToDelete: FunctionFile[],
-	): Promise<boolean> => {
-		if (!id || filesToDelete.length === 0) return false;
-
-		const previewNames = filesToDelete
-			.slice(0, 5)
-			.map((file) => file.name)
-			.join(", ");
-		const summary =
-			filesToDelete.length === 1
-				? `This will permanently delete "${filesToDelete[0].name}".`
-				: `This will permanently delete ${filesToDelete.length} files: ${previewNames}${
-						filesToDelete.length > 5
-							? `, and ${filesToDelete.length - 5} more`
-							: ""
-					}.`;
-		const shouldDelete = await confirm({
-			title: "Delete Files",
-			message: summary,
-			confirmText: "Delete Files",
-			cancelText: "Cancel",
-			variant: "delete",
-		});
-
-		if (!shouldDelete) {
-			return false;
-		}
-
-		return deleteFunctionFiles(filesToDelete);
-	};
-
-	const handleCreateTrigger = async (
-		functionId: number,
-		name: string,
-		description: string,
-		cron: string,
-		data: string,
-		enabled: boolean,
-	) => {
-		try {
-			const response = await createTrigger(functionId, {
-				name,
-				description,
-				cron,
-				data,
-				enabled,
+			void getNamespace(loaded.namespaceId).then((namespaceResult) => {
+				if (namespaceResult.status === "OK") setNamespace(namespaceResult.data);
 			});
 
-			if (response.status === "OK") {
-				// Reload triggers
-				if (id) {
-					const triggersData = await getTriggers(parseInt(id));
-					if (triggersData.status === "OK") {
-						setTriggers(triggersData.data);
-					}
-				}
-				return true;
+			if (filesResult.status === "OK") {
+				replaceFiles(filesResult.data, loaded.startup_file);
+			} else if (!loaded.git_url) {
+				toast.error("Error fetching files: " + filesResult.message);
+			}
+
+			if (foldersResult.status === "OK") {
+				setFolders(foldersResult.data);
+			} else if (!loaded.git_url) {
+				toast.error("Error fetching folders: " + foldersResult.message);
+			}
+
+			if (triggersResult.status === "OK") {
+				setTriggers(triggersResult.data);
 			} else {
-				toast.error(
-					"Error creating trigger: " + (response as any).message,
-				);
-				return false;
+				console.error("Error fetching triggers:", triggersResult.message);
 			}
 		} catch (error) {
-			console.error("Error creating trigger:", error);
-			toast.error("An error occurred while creating the trigger.");
-			return false;
-		}
-	};
-
-	const handleUpdateTrigger = async (
-		name: string,
-		description: string,
-		cron: string,
-		data: string,
-		enabled: boolean,
-	) => {
-		if (!id || !selectedTrigger) return false;
-
-		try {
-			const response = await updateTrigger(
-				parseInt(id),
-				selectedTrigger.id,
-				{
-					name,
-					description,
-					cron,
-					data,
-					enabled,
-				},
-			);
-
-			if (response.status === "OK") {
-				// Update triggers list
-				setTriggers((prev) =>
-					prev.map((trigger) =>
-						trigger.id === selectedTrigger.id
-							? response.data
-							: trigger,
-					),
-				);
-				return true;
-			} else {
-				toast.error(
-					"Error updating trigger: " + (response as any).message,
-				);
-				return false;
-			}
-		} catch (error) {
-			console.error("Error updating trigger:", error);
-			toast.error("An error occurred while updating the trigger.");
-			return false;
-		}
-	};
-
-	const handleDeleteTrigger = async () => {
-		if (!id || !selectedTrigger) return false;
-
-		try {
-			const response = await deleteTrigger(
-				parseInt(id),
-				selectedTrigger.id,
-			);
-
-			if (response.status === "OK") {
-				// Remove trigger from list
-				setTriggers((prev) =>
-					prev.filter((trigger) => trigger.id !== selectedTrigger.id),
-				);
-				return true;
-			} else {
-				toast.error("Error deleting trigger: " + response.message);
-				return false;
-			}
-		} catch (error) {
-			console.error("Error deleting trigger:", error);
-			toast.error("An error occurred while deleting the trigger.");
-			return false;
-		}
-	};
-
-	const handleRunTrigger = async (trigger: Trigger | null) => {
-		if (!id || !trigger) return false;
-
-		try {
-			const response = await runTrigger(parseInt(id), trigger.id);
-			if (response.status === "OK") {
-				toast.success("Trigger executed");
-				await fetchLogs();
-				return true;
-			} else {
-				toast.error(
-					"Error running trigger: " + response.message,
-				);
-				return false;
-			}
-		} catch (error) {
-			console.error("Error running trigger:", error);
-			toast.error("An error occurred while running the trigger.");
-			return false;
-		}
-	};
-
-	const handleUpdateEnvironment = async (
-		env: { name: string; value: string }[],
-	) => {
-		if (!id) return false;
-
-		try {
-			const response = await updateFunction(parseInt(id), {
-				environment: env,
-			});
-
-			if (response.status === "OK") {
-				// Update the function data with the new environment variables
-				setFunctionData((prev) => {
-					if (!prev) return prev;
-					return { ...prev, ...response.data };
-				});
-				return true;
-			} else {
-				toast.error(
-					"Error updating environment variables: " + response.message,
-				);
-				return false;
-			}
-		} catch (error) {
-			console.error("Error updating environment variables:", error);
-			toast.error(
-				"An error occurred while updating environment variables.",
-			);
-			return false;
-		}
-	};
-
-	// Function to fetch logs
-	const fetchLogs = async () => {
-		if (!id) return;
-
-		setIsLoadingLogs(true);
-		try {
-			const logsData = await getLogsByFuncId(parseInt(id));
-			if (logsData.status === "OK") {
-				setLogs(logsData.data);
-			} else {
-				console.error("Error fetching logs:", logsData.message);
-			}
-		} catch (error) {
-			console.error("Error fetching logs:", error);
+			console.error("Error fetching data:", error);
+			toast.error("An error occurred while fetching data.");
 		} finally {
-			setIsLoadingLogs(false);
+			setLoading(false);
 		}
-	};
+	}, [functionId, replaceFiles, setFolders, setTriggers]);
 
-	// Set up polling for logs
 	useEffect(() => {
-		if (id && !showLogsModal) {
-			fetchLogs(); // Fetch immediately on component mount
+		void loadData();
+	}, [loadData]);
 
-			// Set up interval to fetch logs
-			logPollingRef.current = setInterval(fetchLogs, 10000); // Poll every 10 seconds
-
-			// Clean up interval on unmount
-			return () => {
-				if (logPollingRef.current) {
-					clearInterval(logPollingRef.current);
-				}
-			};
-		}
-	}, [id, showLogsModal]); // eslint-disable-line react-hooks/exhaustive-deps
-
-	// Also fetch logs after running code
-	useEffect(() => {
-		if (!running && exitCode !== null && !showLogsModal) {
-			// Function execution just finished, refresh logs
-			fetchLogs();
-		}
-	}, [running, exitCode, showLogsModal]); // eslint-disable-line react-hooks/exhaustive-deps
-
-	const handleExportFunction = async () => {
-		if (!functionData) return;
-
-		// Parse env to get only the keys (strip values for security)
-		let envKeys: string[] = [];
-		try {
-			const envRaw =
-				typeof functionData.env === "string"
-					? JSON.parse(functionData.env)
-					: functionData.env;
-			if (Array.isArray(envRaw)) {
-				envKeys = envRaw.map((e: any) => e?.name).filter(Boolean);
-			}
-		} catch {
-			// ignore parse errors
-		}
-
-		let version = "";
-		try {
-			const res = await fetch(BASE_URL + "/version");
-			if (!res.ok) {
-				throw new Error("Failed to fetch version");
-			}
-			const data = await res.json();
-			version = data.version!.raw;
-		} catch (err) {
-			console.error("Error fetching version:", err);
-		}
-
-		const exportData: SHSFExport = {
-			shsf_version: version,
-			name: functionData.name,
-			description: functionData.description,
-			image: functionData.image,
-			startup_file: functionData.startup_file!,
-			docker_mount: functionData.docker_mount,
-			network_restricted: functionData.network_restricted,
-			ffmpeg_install: functionData.ffmpeg_install,
-			settings: {
-				max_ram: functionData.max_ram,
-				timeout: functionData.timeout,
-				allow_http: functionData.allow_http,
-			},
-			cors_origins: functionData.cors_origins ?? undefined,
-			...(envKeys.length > 0 && { env_keys: envKeys }),
-			files: files.map((f) => ({ name: f.name, content: f.content })),
-			triggers: triggers.map((t) => ({
-				name: t.name,
-				description: t.description,
-				cron: t.cron,
-				data: t.data,
-				enabled: t.enabled,
-			})),
-		};
-
-		const json = JSON.stringify(exportData, null, 2);
-		const blob = new Blob([json], { type: "application/json" });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = `${functionData.name}.shsf`;
-		a.click();
-		URL.revokeObjectURL(url);
-	};
-
-	const handleLoadDefault = () => {
-		if (!activeFile) {
-			toast.error("No file is currently selected.");
-			return;
-		}
-		setShowLoadDefaultModal(true);
-	};
-
-	const handleLoadDefaultContent = async (
-		defaultToLoad: string,
-	): Promise<boolean> => {
-		if (!id || !activeFile) return false;
-
-		setSaving(true);
-		try {
-			const response = await loadDefaultContent(
-				parseInt(id),
-				activeFile.id,
-				defaultToLoad,
-			);
-
-			if (response.status === "OK") {
-				// Update the file content in state
-				const updatedContent = response.data.content;
-				setCode(updatedContent);
-				setFiles((prev) =>
-					prev.map((file) =>
-						file.id === activeFile.id
-							? { ...file, content: updatedContent }
-							: file,
-					),
-				);
-				return true;
-			} else {
-				toast.error("Error loading default: " + response.message);
-				return false;
-			}
-		} catch (error) {
-			console.error("Error loading default content:", error);
-			toast.error(
-				"An error occurred while loading the default template.",
-			);
-			return false;
-		} finally {
-			setSaving(false);
-		}
-	};
-
-	const [loadedInitial, setLoadedInitial] = useState(false);
-
-	// Load first file or priority file
-	const loadInitialFile = () => {
-		if (!functionData) return;
-		if (activeFile) return;
-		if (loadedInitial) return;
-
-		if (files.length > 0) {
-			// Select the startup file if it exists, otherwise select the first file
-			const startupFile = files.find(
-				(file) => file.name === functionData.startup_file,
-			);
-			const initialFile = startupFile || files[0];
-			setActiveFile(initialFile);
-			setCode(initialFile.content || "");
-		} else {
-			// Reset when no files exist
-			setActiveFile(null);
-			setCode(null);
-		}
-		setLoadedInitial(true);
-	};
-	useEffect(() => {
-		loadInitialFile();
-	}, [functionData, files, activeFile]); // eslint-disable-line react-hooks/exhaustive-deps
-
-	// Handle "preopen" query param to open a specific menu on load
+	// `?preopen=guests` deep-links straight into the guest dialog.
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
-		const preopen = params.get("preopen");
-		if (preopen === "guests") {
-			setShowGuestModal(true);
-		} else {
-			console.warn("Unknown preopen value:", preopen);
-		}
+		if (params.get("preopen") === "guests") setModal({ type: "guests" });
 
-		// Clean up query params from URL after handling
 		return () => {
 			params.delete("preopen");
-			const newUrl =
-				window.location.pathname +
-				(params.toString() ? "?" + params.toString() : "");
-			window.history.replaceState({}, "", newUrl);
+			const query = params.toString();
+			window.history.replaceState(
+				{},
+				"",
+				window.location.pathname + (query ? "?" + query : ""),
+			);
 		};
 	}, []);
+
+	const updateEnvironment = async (env: { name: string; value: string }[]) => {
+		if (functionId === null) return false;
+
+		try {
+			const response = await updateFunction(functionId, { environment: env });
+			if (response.status !== "OK") {
+				toast.error("Error updating environment variables: " + response.message);
+				return false;
+			}
+			setFunctionData((prev) => (prev ? { ...prev, ...response.data } : prev));
+			return true;
+		} catch (error) {
+			console.error("Error updating environment variables:", error);
+			toast.error("An error occurred while updating environment variables.");
+			return false;
+		}
+	};
 
 	if (loading) {
 		return (
@@ -1670,807 +216,123 @@ function FunctionDetail() {
 
 	return (
 		<div className="w-full">
-			{/* Dependency Install Modal */}
-			<DependencyModal
-				isOpen={showDepModal}
-				onClose={() => setShowDepModal(false)}
-				content={
-					depModalContent || {
-						success: false,
-						title: "",
-						message: "",
-					}
-				}
+			<FunctionResultModals
+				popup={execution.popup}
+				onClosePopup={execution.closePopup}
+				valueResult={execution.valueResult}
+				onCloseValueResult={execution.closeValueResult}
+				cacheEnabled={functionData.cache_enabled}
+				dependencyResult={dependencies.result}
+				dependencyResultOpen={dependencies.resultOpen}
+				onCloseDependencyResult={dependencies.closeResult}
 			/>
 
-			{/* Result Modal */}
-			<ResultModal
-				isOpen={showResultModal}
-				onClose={() => setShowResultModal(false)}
-				content={
-					resultModalContent || { title: "", value: "", type: "" }
-				}
-				cacheEnabled={functionData?.cache_enabled}
+			<FunctionHeader
+				namespaceName={namespace?.name}
+				functionName={functionData.name}
+				fileCount={files.files.length}
+				triggerCount={triggers.triggers.length}
+				httpEnabled={functionData.allow_http}
 			/>
 
-			{/* Popup Modal for HTML result */}
-			<HtmlResultModal
-				isOpen={showPopup}
-				onClose={() => setShowPopup(false)}
-				content={popupContent || { code: 0, headers: {}, html: "" }}
-			/>
-
-			{/* Popup Modal for Image result */}
-			<ImageResultModal
-				isOpen={showImagePopup}
-				onClose={() => setShowImagePopup(false)}
-				content={
-					imagePopupContent || {
-						code: 0,
-						contentType: "",
-						headers: {},
-						src: "",
-					}
-				}
-			/>
-
-			{/* Page header */}
-			<div className="w-full border-b border-white/[0.07] mb-6 pb-4 pt-2">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-2 text-sm">
-						<span className="text-muted">{nameSpace?.name}</span>
-						<span className="text-muted/40">/</span>
-						<span className="text-text font-semibold">
-							{functionData.name}
-						</span>
-					</div>
-					<div className="flex items-center gap-4 text-xs text-muted">
-						<span>
-							{files.length}{" "}
-							{files.length === 1 ? "file" : "files"}
-						</span>
-						<span>{triggers.length} triggers</span>
-						<span
-							className={
-								functionData.allow_http
-									? "text-green-400"
-									: "text-muted/50"
-							}
-						>
-							{functionData.allow_http ? "HTTP on" : "HTTP off"}
-						</span>
-					</div>
-				</div>
-			</div>
-
-			<div className="w-full">
-				<div className="flex flex-col xl:flex-row gap-6 w-full">
-					{/* Sidebar */}
-					<div className="w-full xl:w-72 shrink-0 space-y-4">
-						{/* Quick Actions */}
-						<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
-							<h2 className="text-lg font-bold text-primary mb-3 flex items-center gap-2">
-								<span>⚡</span>
-								Actions
-							</h2>
-							<div className="grid grid-cols-2 gap-2">
-								<ActionButton
-									icon="⚙️"
-									label="Settings"
-									variant="secondary"
-									onClick={() => setShowUpdateModal(true)}
-								/>
-								<ActionButton
-									disabled={serveHtmlOnly}
-									icon="🌍"
-									label="Env"
-									variant="secondary"
-									onClick={() => setShowEnvModal(true)}
-								/>
-								{/* Add Guest Management Button as ActionButton */}
-								<ActionButton
-									icon="👥"
-									label="Guests"
-									variant="secondary"
-									onClick={() => setShowGuestModal(true)}
-								/>
-								<ActionButton
-									icon="🔀"
-									label="Version Control"
-									variant={
-										functionData.git_url
-											? "primary"
-											: "secondary"
-									}
-									onClick={() => setShowGitModal(true)}
-								/>
-							</div>
-						</div>
-
-						{/* Function URL - More Compact */}
-						<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
-							<h2 className="text-lg font-bold text-primary mb-3 flex items-center gap-2">
-								<span>🌐</span>
-								URL
-							</h2>
-							<div className="space-y-2">
-								<div className="bg-background/30 border border-primary/10 rounded-lg p-2">
-									<input
-										type="text"
-										value={functionURL}
-										readOnly
-										className="w-full bg-transparent text-text text-xs outline-none"
-										onClick={(e) =>
-											e.currentTarget.select()
-										}
-									/>
-								</div>
-								<ActionButton
-									icon="📋"
-									label={copyUrltext}
-									variant="primary"
-									onClick={async () => {
-										try {
-											await copyTextToClipboard(functionURL);
-											setCopyUrlText("✅ Copied!");
-											setTimeout(
-												() => setCopyUrlText("Copy📎"),
-												2000,
-											);
-										} catch {
-											toast.error(
-												"The URL could not be copied. Select it and copy it manually.",
-											);
-										}
-									}}
-								/>
-							</div>
-							{functionData.executionAlias &&
-								functionData.allow_http && (
-									<div className="space-y-2">
-										<h2 className="text-sm font-medium text-primary mt-4">
-											Alias URL
-										</h2>
-										<div className="bg-background/30 border border-primary/10 rounded-lg p-2">
-											<input
-												type="text"
-												value={
-													functionURL.split(
-														"/api/",
-													)[0] +
-													"/exec/" +
-													functionData.executionAlias
-												}
-												readOnly
-												className="w-full bg-transparent text-text text-xs outline-none"
-												onClick={(e) =>
-													e.currentTarget.select()
-												}
-											/>
-										</div>
-										<ActionButton
-											icon="📋"
-											label={copyAliasURL}
-											variant="primary"
-											onClick={async () => {
-												try {
-													await copyTextToClipboard(
-														functionURL.split("/api/")[0] +
-															"/exec/" +
-															functionData.executionAlias,
-													);
-													setCopyAliasURL("✅ Copied Alias!");
-													setTimeout(
-														() => setCopyAliasURL("Copy Alias📎"),
-														2000,
-													);
-												} catch {
-													toast.error(
-														"The alias URL could not be copied. Select it and copy it manually.",
-													);
-												}
-											}}
-										/>
-									</div>
-								)}
-						</div>
-
-						<FileManagerCard
-							files={files}
-							folders={folders}
-							activeFile={activeFile}
-							onFileSelect={handleFileSelect}
-							onCreateFile={(parentPath) => {
-								setCreateFileParentPath(parentPath ?? "");
-								setShowCreateModal(true);
-							}}
-							onCreateFolder={(parentPath) => {
-								setFolderModalMode("create");
-								setFolderParentPath(parentPath ?? "");
-								setShowFolderModal(true);
-							}}
-							onRenameFolder={(folderPath) => {
-								setFolderModalMode("rename");
-								setFolderTargetPath(folderPath);
-								setShowFolderModal(true);
-							}}
-							onDeleteFolder={handleDeleteFolder}
-							onDownloadFile={handleDownloadFile}
-							onRenameFile={(file) => {
-								setSelectedFile(file);
-								setShowRenameModal(true);
-							}}
-							onDeleteFile={(file) => {
-								setSelectedFile(file);
-								setShowDeleteModal(true);
-							}}
-							onDeleteSelectedFiles={handleDeleteSelectedFiles}
-							nonSelectableOnSelectAllFileNames={
-								functionData.startup_file
-									? [functionData.startup_file]
-									: []
-							}
-							onDropFiles={handleDropFiles}
-							autoUnzipFiles={autoUnzipFiles}
-							onAutoUnzipFilesChange={setAutoUnzipFiles}
-							onAIGenerate={() => setShowAIModal(true)}
-							aiDisabled={!aiEnabled}
-							aiDisabledReason="Enable AI in Account Settings to use AI KICKOFF."
-							disabled={Boolean(functionData.git_url)}
-							disabledReason="Git source active — file manager disabled. Use Version Control to manage files."
-						/>
-
-						<TriggersCard
-							triggers={triggers}
-							disabled={serveHtmlOnly}
-							disabledReason="This function is set to only serve an .html file"
-							showDetails={showTriggersDetails}
-							onToggleDetails={() =>
-								setShowTriggersDetails(!showTriggersDetails)
-							}
-							onCreateTrigger={() =>
-								setShowCreateTriggerModal(true)
-							}
-							onEditTrigger={(trigger) => {
-								setSelectedTrigger(trigger);
-								setShowEditTriggerModal(true);
-							}}
-							onDeleteTrigger={(trigger) => {
-								setSelectedTrigger(trigger);
-								setShowDeleteTriggerModal(true);
-							}}
-							onRunTrigger={(trigger) => {
-								handleRunTrigger(trigger);
-							}}
-						/>
-
-						<TimingCard
-							tooks={tooks}
-							showDetails={showTimingDetails}
-							onToggleDetails={() =>
-								setShowTimingDetails(!showTimingDetails)
-							}
-							disabled={serveHtmlOnly}
-							disabledReason="This function is set to only serve an .html file"
-						/>
-
-						<LogsCard
-							logs={logs}
-							isLoadingLogs={isLoadingLogs}
-							showDetails={showLogsDetails}
-							onToggleDetails={() =>
-								setShowLogsDetails(!showLogsDetails)
-							}
-							onRefreshLogs={fetchLogs}
-							onViewLogs={() => setShowLogsModal(true)}
-							functionId={functionData?.id ?? 0}
-							disabled={serveHtmlOnly}
-							disabledReason="This function is set to only serve an .html file"
-						/>
-
-						<RateLimitCard
-							functionId={functionData?.id ?? 0}
-							disabled={serveHtmlOnly}
-							disabledReason="This function is set to only serve an .html file"
-						/>
-					</div>
-
-					{/* Main Content - Use Full Remaining Space */}
-					<div className="flex-1 min-w-0 space-y-4">
-						{/* Editor Header - More Compact */}
-						<div className="bg-surface border border-white/[0.07] rounded-xl p-4 space-y-4">
-							<div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-								<div className="min-w-0 flex items-start gap-3">
-									<div className="w-9 h-9 bg-gradient-to-br from-blue-500/15 to-cyan-500/10 border border-blue-400/20 rounded-xl flex items-center justify-center text-base flex-shrink-0">
-										📝
-									</div>
-									<div className="min-w-0 space-y-1">
-										<div className="flex flex-wrap items-center gap-2">
-											<h2 className="text-lg font-semibold text-primary truncate">
-												{activeFile
-													? activeFile.name
-													: "No file selected"}
-											</h2>
-											{activeFile && (
-												<span
-													className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-														hasUnsavedChanges
-															? "border-amber-400/30 bg-amber-500/10 text-amber-300"
-															: "border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
-													}`}
-												>
-													{hasUnsavedChanges
-														? "Unsaved"
-														: "Saved"}
-												</span>
-											)}
-										</div>
-										<p className="text-xs text-text/55">
-											{activeFile
-												? `${activeFileLanguage || "plaintext"} file`
-												: "Select a file from the sidebar to start editing"}
-										</p>
-										{functionData && (
-											<p className="text-xs text-text/45">
-												Runtime:{" "}
-												{getImageDisplayName(
-													functionData.image,
-												)}
-											</p>
-										)}
-									</div>
-								</div>
-
-								<div className="flex flex-wrap items-center gap-2 xl:justify-end">
-									<select
-										className={`h-9 min-w-[110px] bg-background/45 border border-primary/20 text-primary px-3 text-sm rounded-lg transition-all duration-300 hover:border-primary/40 ${
-											running || saving || serveHtmlOnly
-												? "opacity-30 cursor-not-allowed bg-slate-800 text-gray-400"
-												: ""
-										}`}
-										value={runningMode}
-										onChange={(e) =>
-											setRunningMode(
-												e.target.value as
-													"classic" | "streaming",
-											)
-										}
-										disabled={
-											running || saving || serveHtmlOnly
-										}
-									>
-										<option value="streaming">
-											Stream
-										</option>
-										<option value="classic">Classic</option>
-									</select>
-									<button
-										className={[
-											"h-9 px-3 text-sm rounded-lg transition-all duration-300 border",
-											showRunParams
-												? "bg-primary border-transparent text-background"
-												: "bg-background/45 border-primary/20 text-primary hover:border-primary/40",
-											running || saving || serveHtmlOnly
-												? "opacity-30 cursor-not-allowed bg-slate-800 text-gray-400 border-primary/20"
-												: "",
-										].join(" ")}
-										style={{
-											cursor: serveHtmlOnly
-												? "not-allowed"
-												: "pointer",
-										}}
-										onClick={() =>
-											setShowRunParams(!showRunParams)
-										}
-										disabled={
-											running || saving || serveHtmlOnly
-										}
-									>
-										Run Params
-									</button>
-									<button
-										className={`h-9 px-3 text-sm rounded-lg transition-all duration-300 border ${
-											resultModalsEnabled
-												? "bg-emerald-500/10 border-emerald-400/30 text-emerald-300 hover:border-emerald-300/40"
-												: "bg-red-500/10 border-red-400/30 text-red-300 hover:border-red-300/40"
-										}`}
-										onClick={() =>
-											setStopShowingResult(
-												!stopShowingResult,
-											)
-										}
-										title={
-											resultModalsEnabled
-												? "Result modals are enabled"
-												: "Result modals are disabled"
-										}
-									>
-										{resultModalsEnabled
-											? "Modals On"
-											: "Modals Off"}
-									</button>
-								</div>
-							</div>
-
-							<div className="flex flex-col gap-2 rounded-xl border border-primary/10 bg-background/20 p-3 lg:flex-row lg:items-center">
-								<div className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.16em] text-text/45">
-									CLI Pull
-								</div>
-								<input
-									type="text"
-									value={cliPullCommand}
-									readOnly
-									disabled
-									className="h-9 min-w-0 flex-1 rounded-lg border border-primary/10 bg-background/35 px-3 text-xs text-text/70 outline-none disabled:cursor-text disabled:opacity-100"
-									onClick={(e) => e.currentTarget.select()}
-								/>
-								<button
-									className="h-9 shrink-0 rounded-lg border border-primary/20 bg-background/45 px-3 text-sm text-primary transition-all duration-300 hover:border-primary/40"
-									onClick={async () => {
-										try {
-											await copyTextToClipboard(cliPullCommand);
-											toast.success("CLI command copied");
-										} catch {
-											toast.error("The command could not be copied. Select it and copy it manually.");
-										}
-									}}
-								>
-									Copy
-								</button>
-							</div>
-
-							<div className="flex flex-wrap items-center justify-end gap-2 border-t border-primary/10 pt-4">
-								{!serveHtmlOnly &&
-									(functionData.image.startsWith("python") ||
-										functionData.image.startsWith(
-											"golang",
-										) ||
-										functionData.image.startsWith(
-											"node:",
-										)) && (
-										<button
-											className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-											onClick={() =>
-												setShowDependencyManager(true)
-											}
-											disabled={
-												running ||
-												saving ||
-												Boolean(functionData.git_url)
-											}
-											title={
-												functionData.git_url
-													? "Dependency files are managed by the linked git repository"
-													: "Edit runtime dependency manifests"
-											}
-										>
-											Manage Dependencies
-										</button>
-									)}
-								{/* Show Pip Install button if requirements.txt exists or if it's a git-based function (since we don't know the files) */}
-								{(files.find(
-									(file) => file.name === "requirements.txt",
-								) ||
-									Boolean(functionData.git_url)) && (
-									<button
-										className="h-9 px-3 text-sm rounded-lg bg-blue-600/90 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-										onClick={handlePipInstall}
-										disabled={
-											pipRunning || running || saving
-										}
-									>
-										{pipRunning
-											? "Installing..."
-											: "Install requirements.txt"}
-									</button>
-								)}
-								<button
-									className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-									onClick={handleLoadDefault}
-									disabled={
-										!activeFile ||
-										saving ||
-										running ||
-										Boolean(functionData.git_url)
-									}
-								>
-									{saving ? "Loading..." : "Load Defaults"}
-								</button>
-								<button
-									className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-									onClick={handleSaveFile}
-									disabled={!canSaveFile}
-									title={
-										hasUnsavedChanges
-											? "Save file (Ctrl/Cmd+S)"
-											: "No unsaved changes"
-									}
-								>
-									{saving ? "Saving..." : "Save"}
-								</button>
-								<button
-									className="h-9 px-3 text-sm rounded-lg bg-background/45 border border-primary/20 text-primary hover:border-primary/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-									onClick={() => {
-										handleExportFunction();
-									}}
-								>
-									Export
-								</button>
-								<button
-									className="h-9 px-3 text-sm rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:shadow-[0_0_20px_rgba(34,211,238,0.2)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-									onClick={handleRunCode}
-									disabled={running || saving}
-								>
-									{running ? "Running..." : "Run Function"}
-								</button>
-							</div>
-
-							{/* Run Parameters */}
-							{showRunParams && (
-								<div className="mt-3">
-									<textarea
-										className={`w-full h-20 bg-background/30 border border-primary/20 rounded-lg p-2 text-sm ${paramInputColor} placeholder-text/50 resize-none`}
-										placeholder="Enter JSON run parameters..."
-										value={runParams}
-										onChange={(e) => {
-											setRunParams(e.target.value);
-											try {
-												JSON.parse(e.target.value);
-												setParamInputColor("text-text");
-											} catch {
-												setParamInputColor(
-													"text-red-400",
-												);
-											}
-										}}
-										spellCheck={false}
-									/>
-								</div>
-							)}
-						</div>
-
-						{/* Code Editor - Larger */}
-						<div className="bg-surface border border-white/[0.07] rounded-xl overflow-hidden">
-							<div className="h-[600px] relative">
-								{functionData.git_url ? (
-									<div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-sm text-center z-10">
-										<div className="space-y-4 px-6">
-											<div className="text-5xl">🔀</div>
-											<h3 className="text-lg font-bold text-primary">
-												Editor Disabled
-											</h3>
-											<p className="text-text/70 text-sm max-w-xs">
-												This function uses a git
-												repository as its source. Manage
-												files through version control.
-											</p>
-											<button
-												onClick={() =>
-													setShowGitModal(true)
-												}
-												className="mt-1 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-background hover:bg-primary/90 transition-all duration-300"
-											>
-												Open Version Control
-											</button>
-										</div>
-									</div>
-								) : !activeFile ? (
-									<div className="absolute inset-0 flex items-center justify-center bg-background/50 text-center">
-										<div className="space-y-3">
-											<div className="text-5xl">📝</div>
-											<h3 className="text-lg font-bold text-primary">
-												No File Selected
-											</h3>
-											<p className="text-text/70 text-sm">
-												Select a file from the sidebar
-											</p>
-										</div>
-									</div>
-								) : null}
-								{activeFile && (
-									<Editor
-										theme="vs-dark"
-										height="100%"
-										language={activeFileLanguage}
-										value={code || ""}
-										onChange={handleEditorChange}
-										onMount={handleEditorDidMount}
-										options={{
-											readOnly: Boolean(
-												functionData.git_url,
-											),
-											minimap: { enabled: true },
-											scrollBeyondLastLine: false,
-											fontSize: 13,
-											tabSize: 4,
-											"semanticHighlighting.enabled": true,
-											codeLens: true,
-											automaticLayout: true,
-											smoothScrolling: true,
-											overviewRulerBorder: false,
-										}}
-									/>
-								)}
-							</div>
-						</div>
-
-						{/* Console Output - More Compact */}
-						<ConsoleCard
-							consoleOutput={consoleOutput}
-							exitCode={exitCode}
-							executionTime={executionTime}
-							realTimeTaken={realTimeTaken}
-							functionResult={functionResult}
-							functionData={functionData}
-							autoScroll={autoScroll}
-							consoleOutputRef={consoleOutputRef}
-							onConsoleScroll={handleConsoleScroll}
-							onResumeAutoScroll={() => {
-								setAutoScroll(true);
-								if (consoleOutputRef.current) {
-									consoleOutputRef.current.scrollTop =
-										consoleOutputRef.current.scrollHeight;
-								}
-							}}
-							disabled={serveHtmlOnly}
-							disabledReason="This function is set to only serve an .html file"
-						/>
-					</div>
-				</div>
-			</div>
-
-			{/* Modals */}
-			<div>
-				<DependencyManagerModal
-					isOpen={showDependencyManager}
-					onClose={() => setShowDependencyManager(false)}
-					functionId={functionData?.id ?? 0}
-					image={functionData?.image ?? ""}
-					files={files}
-					onSave={async (filename, content) => {
-						const result = await persistFile(filename, content);
-						if (!result.success) {
-							toast.error(
-								`Error saving ${filename}: ${result.message}`,
-							);
-							return false;
-						}
-						return true;
-					}}
-				/>
-				<CreateFileModal
-					isOpen={showCreateModal}
-					onClose={() => {
-						setShowCreateModal(false);
-						setCreateFileParentPath("");
-					}}
-					onCreate={(filename, content) =>
-						handleCreateFile(
-							createFileParentPath
-								? `${createFileParentPath}/${filename}`
-								: filename,
-							content,
-						)
-					}
-					allowedFileTypes={serveHtmlOnly ? [".html"] : undefined}
-				/>
-
-				<FolderModal
-					isOpen={showFolderModal}
-					mode={folderModalMode}
-					parentPath={folderParentPath}
-					currentName={folderTargetPath}
-					onClose={() => {
-						setShowFolderModal(false);
-						setFolderParentPath("");
-						setFolderTargetPath("");
-					}}
-					onSubmit={handleFolderSubmit}
-				/>
-
-				<RenameFileModal
-					isOpen={showRenameModal}
-					onClose={() => setShowRenameModal(false)}
-					onRename={handleRenameFile}
-					currentFilename={selectedFile?.name || ""}
-					allowedFileTypes={serveHtmlOnly ? [".html"] : undefined}
-				/>
-
-				<DeleteFileModal
-					isOpen={showDeleteModal}
-					onClose={() => setShowDeleteModal(false)}
-					onDelete={handleDeleteFile}
-					filename={selectedFile?.name || ""}
-				/>
-
-				<UpdateFunctionModal
-					isOpen={showUpdateModal}
-					onClose={() => setShowUpdateModal(false)}
-					onSuccess={loadData}
+			<div className="flex flex-col xl:flex-row gap-6 w-full">
+				<FunctionSidebar
 					functionData={functionData}
-					lastLogs={logs} // Pass last 5 logs for context in the update modal
-				/>
-
-				<UpdateEnvModal
-					isOpen={showEnvModal}
-					onClose={() => setShowEnvModal(false)}
-					onUpdate={handleUpdateEnvironment}
-					envString={
-						typeof functionData.env === "string"
-							? functionData.env
-							: JSON.stringify(functionData.env ?? [])
-					}
-				/>
-
-				<CreateTriggerModal
-					isOpen={showCreateTriggerModal}
-					onClose={() => setShowCreateTriggerModal(false)}
-					onCreate={handleCreateTrigger}
-					initialFunctionId={id ? parseInt(id) : undefined}
-				/>
-
-				<EditTriggerModal
-					isOpen={showEditTriggerModal}
-					onClose={() => setShowEditTriggerModal(false)}
-					onUpdate={handleUpdateTrigger}
-					onRun={() => handleRunTrigger(selectedTrigger)}
-					trigger={selectedTrigger}
-				/>
-
-				<DeleteTriggerModal
-					isOpen={showDeleteTriggerModal}
-					onClose={() => setShowDeleteTriggerModal(false)}
-					onDelete={handleDeleteTrigger}
-					triggerName={selectedTrigger?.name || ""}
-				/>
-
-				<TriggerLogsModal
-					isOpen={showLogsModal}
-					onClose={() => setShowLogsModal(false)}
+					htmlOnly={htmlOnly}
+					aiEnabled={aiEnabled}
+					files={files}
+					upload={upload}
 					logs={logs}
-					isLoading={isLoadingLogs}
-					functionId={functionData?.id ?? 0}
-					onRefresh={fetchLogs}
+					triggers={triggers.triggers}
+					onRunTrigger={(trigger) => void triggers.run(trigger)}
+					tooks={execution.tooks}
+					onOpenModal={setModal}
 				/>
 
-				<GuestManagement
-					isOpen={showGuestModal}
-					onClose={() => setShowGuestModal(false)}
-					functionId={functionData?.id ?? null}
-				/>
-
-				<GitVersionControlModal
-					isOpen={showGitModal}
-					onClose={() => setShowGitModal(false)}
-					functionId={functionData?.id ?? null}
-					onChanged={loadData}
-				/>
-
-				<LoadDefaultModal
-					isOpen={showLoadDefaultModal}
-					onClose={() => setShowLoadDefaultModal(false)}
-					onLoadDefault={handleLoadDefaultContent}
-					functionLanguage={functionData?.image}
-				/>
-
-				<AIGenerateModal
-					isOpen={showAIModal}
-					onClose={() => setShowAIModal(false)}
-					functionId={functionData?.id ?? 0}
-					existingFiles={files}
-					disabled={!aiEnabled}
-					disabledReason="Enable AI in Account Settings to use AI KICKOFF."
-					onSuccess={() => {
-						if (id) {
-							getFiles(parseInt(id)).then((filesData) => {
-								if (filesData.status === "OK") {
-									setFiles(filesData.data);
-								}
-							});
+				<div className="flex-1 min-w-0 space-y-4">
+					<EditorToolbar
+						functionData={functionData}
+						activeFileName={files.activeFile?.name ?? null}
+						language={getDefaultLanguage(files.activeFile?.name ?? "")}
+						hasUnsavedChanges={files.hasUnsavedChanges}
+						cliPullCommand={buildCliPullCommand(functionData)}
+						htmlOnly={htmlOnly}
+						hasRequirementsFile={files.files.some(
+							(file) => file.name === "requirements.txt",
+						)}
+						running={execution.running}
+						saving={files.saving}
+						canSave={files.canSave}
+						installing={dependencies.installing}
+						runMode={execution.runMode}
+						onRunModeChange={execution.setRunMode}
+						showRunParams={execution.showRunParams}
+						onToggleRunParams={() =>
+							execution.setShowRunParams(!execution.showRunParams)
 						}
-					}}
-				/>
+						runParams={execution.runParams}
+						onRunParamsChange={execution.setRunParams}
+						resultModalsEnabled={resultModalsEnabled}
+						onToggleResultModals={() => setResultModalsEnabled((on) => !on)}
+						onManageDependencies={() => setModal({ type: "dependencies" })}
+						onInstallDependencies={dependencies.install}
+						onLoadDefaults={() => {
+							if (!files.activeFile) {
+								toast.error("No file is currently selected.");
+								return;
+							}
+							setModal({ type: "loadDefault" });
+						}}
+						onSave={files.saveActiveFile}
+						onExport={() =>
+							void exportFunctionToFile({
+								functionData,
+								files: files.files,
+								triggers: triggers.triggers,
+							})
+						}
+						onRun={execution.run}
+					/>
+
+					<CodeEditorPanel
+						hasActiveFile={files.activeFile !== null}
+						gitManaged={gitManaged}
+						language={getDefaultLanguage(files.activeFile?.name ?? "")}
+						code={files.code}
+						onChange={files.setCode}
+						onMount={handleEditorMount}
+						onOpenVersionControl={() => setModal({ type: "git" })}
+					/>
+
+					<ConsoleCard
+						consoleOutput={execution.consoleOutput}
+						exitCode={execution.exitCode}
+						executionTime={execution.executionTime}
+						realTimeTaken={execution.realTimeTaken}
+						functionResult={execution.functionResult}
+						functionData={functionData}
+						autoScroll={output.autoScroll}
+						consoleOutputRef={output.ref}
+						onConsoleScroll={output.onScroll}
+						onResumeAutoScroll={output.resume}
+						disabled={htmlOnly}
+						disabledReason={HTML_ONLY_REASON}
+					/>
+				</div>
 			</div>
+
+			<FunctionModals
+				modal={modal}
+				onClose={closeModal}
+				functionData={functionData}
+				htmlOnly={htmlOnly}
+				aiEnabled={aiEnabled}
+				files={files}
+				triggers={triggers}
+				logs={logs}
+				onFunctionChanged={() => void loadData()}
+				onUpdateEnvironment={updateEnvironment}
+			/>
 		</div>
 	);
 }
