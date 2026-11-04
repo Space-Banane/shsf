@@ -60,7 +60,11 @@ RATELIMIT=5000
 
 # Used to encrypt secrets at rest (e.g. git tokens). Generate with:
 #   openssl rand -hex 32
-INSTANCE_SECRET=`}</code>
+INSTANCE_SECRET=
+
+# Enable only for a public, disposable demo instance. Seeds demo@shsf.local
+# with password demo-password plus a runnable sample function.
+IS_DEMO=false`}</code>
 			</pre>
 
 			<h3>What each variable does</h3>
@@ -96,7 +100,15 @@ INSTANCE_SECRET=`}</code>
 					encrypt sensitive data at rest (such as git credentials). Use a 32-byte hex
 					value from <code>openssl rand -hex 32</code> and never share it.
 				</li>
+				<li>
+					<strong>IS_DEMO</strong> — leave <code>false</code> for real instances.
+					<code>true</code> seeds a public demo account and is only for disposable demos.
+				</li>
 			</ul>
+			<p>
+				Optional: <code>OPENROUTER_API_KEY</code> (instance-wide key for log
+				analysis) and <code>LOG_LEVEL</code> (default <code>info</code>).
+			</p>
 
 			<Callout variant="danger" title="Change INSTANCE_SECRET before production">
 				<p>
@@ -111,7 +123,8 @@ INSTANCE_SECRET=`}</code>
 			<p>
 				Point <code>DATABASE_URL</code> at your own MariaDB/MySQL server, or
 				uncomment the <code>database</code> service in{" "}
-				<code>docker-compose.yml</code> to run one alongside SHSF. Migrations are
+				<code>docker-compose.yml</code> to run one alongside SHSF (then use{" "}
+				<code>database</code> as the host in <code>DATABASE_URL</code>). Migrations are
 				applied automatically on startup.
 			</p>
 
@@ -148,6 +161,14 @@ INSTANCE_SECRET=`}</code>
 					lets you toggle them without restarting the stack.
 				</p>
 			</Callout>
+
+			<h2>Next steps</h2>
+			<p>
+				Build and schedule a function in{" "}
+				<a href="/docs/my-first-function" className="text-blue-400 hover:text-blue-300">My First Function</a>.
+				If something fails, see{" "}
+				<a href="/docs/troubleshooting" className="text-blue-400 hover:text-blue-300">Troubleshooting</a>.
+			</p>
 
 			<h2>Updating SHSF</h2>
 			<p>

@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { documentation, documentationRoutes, getDocumentationNavigation, validateDocumentationRoutes } from "./docsRegistry";
 
 vi.mock("react-router-dom", () => ({ useLocation: () => ({ pathname: "/docs/getting-started" }) }), { virtual: true });
@@ -20,5 +21,16 @@ describe("documentation registry", () => {
 		expect(first.next).toBe(documentation[1]);
 		expect(middle.previous).toBe(documentation[0]);
 		expect(last.next).toBeUndefined();
+	});
+
+	it("only links to registered documentation pages", () => {
+		const known = new Set<string>(documentation.map((entry) => entry.path));
+		const broken = readdirSync(__dirname)
+			.filter((file) => file.endsWith(".tsx"))
+			.flatMap((file) => [...readFileSync(`${__dirname}/${file}`, "utf8").matchAll(/href="(\/docs\/[^"#?]+)"/g)].map((match) => ({ file, href: match[1] })))
+			.filter(({ href }) => !known.has(href))
+			.map(({ file, href }) => `${file}: ${href}`);
+
+		expect(broken).toEqual([]);
 	});
 });

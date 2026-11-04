@@ -14,8 +14,8 @@ export const SecureHeadersPage = () => {
 
 			<h2>How it works</h2>
 			<p>
-				Enable <strong>Secure Header</strong> in the Create or Update Function
-				modal and set your chosen secret value. SHSF validates the header on
+				Set a value in the <strong>Secure Header</strong> field of the{" "}
+				<strong>Update Function</strong> modal (under Security &amp; Advanced). SHSF validates the header on
 				every incoming HTTP request. Requests missing or with a wrong value
 				receive a <code>403</code> before the function container is even
 				contacted.
