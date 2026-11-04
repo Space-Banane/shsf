@@ -21,9 +21,8 @@ export const DocsVersionControl = () => {
 
 			<h2>How to open VERSION // CONTROL</h2>
 			<p>
-				Navigate to any function and click the{" "}
-				<strong>VERSION // CONTROL</strong> button (git branch icon) in the
-				function toolbar.
+				Navigate to any function and click{" "}
+				<strong>Version Control</strong> in the <strong>Actions</strong> card.
 			</p>
 
 			<h2>Setup</h2>
@@ -125,7 +124,7 @@ export const DocsVersionControl = () => {
 
 			<h2>Removing git configuration</h2>
 			<p>
-				Click <strong>Remove Git Config</strong> to detach the function from
+				Click <strong>Remove Git</strong> to detach the function from
 				its repository. Existing files in <code>/app/</code> are left
 				untouched. The file manager becomes available immediately.
 			</p>

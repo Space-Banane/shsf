@@ -9,7 +9,7 @@ export const DocsPage = () => (
 				<p className="mt-4 text-lg leading-8 text-text/80">Start with the basics, then follow the guides in order or jump to a related topic.</p>
 			</header>
 
-			{(["Getting started", "Building functions", "Advanced"] as const).map((category) => (
+			{(["Getting started", "Building functions", "Advanced", "Troubleshooting"] as const).map((category) => (
 				<section key={category} className="mb-12" aria-labelledby={`${category}-heading`}>
 					<h2 id={`${category}-heading`} className="mb-4 text-xl font-semibold text-primary">{category}</h2>
 					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

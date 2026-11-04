@@ -12,17 +12,20 @@ export const DocsCloneFunction = () => {
 
 			<h2>How to clone</h2>
 			<ol>
-				<li>Open the function you want to clone.</li>
 				<li>
-					Click the <strong>Clone</strong> button in the function toolbar. The{" "}
+					Go to <strong>Functions</strong> and hover the function you want to
+					clone.
+				</li>
+				<li>
+					Click the <strong>Clone</strong> icon. The{" "}
 					<em>Clone Function</em> modal opens.
 				</li>
 				<li>
-					<strong>New Name</strong> (optional) — enter a custom name or leave
+					<strong>New name</strong> (optional) — enter a custom name or leave
 					blank to default to <code>original-name-copy</code>.
 				</li>
 				<li>
-					<strong>Target Namespace</strong> — select any namespace you own,
+					<strong>Target namespace</strong> — select any namespace you own,
 					including the source function's namespace.
 				</li>
 				<li>

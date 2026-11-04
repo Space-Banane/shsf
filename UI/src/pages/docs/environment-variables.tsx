@@ -15,13 +15,13 @@ export const EnvironmentVariablesPage = () => {
 			<p>SHSF supports environment variables at two levels:</p>
 			<ul>
 				<li>
-					<strong>Account-wide</strong> — set once in <em>Account Settings</em>{" "}
+					<strong>Account-wide</strong> — set once under <em>Account &rarr; Shared environment</em>{" "}
 					and injected into every function you own. Useful for shared API keys
 					or base URLs.
 				</li>
 				<li>
 					<strong>Function-level</strong> — set in the function's{" "}
-					<em>Environment Variables</em> tab. These override account-wide values
+					<em>Environment Variables</em> modal (<strong>Env</strong> in the Actions card). These override account-wide values
 					with the same name.
 				</li>
 			</ul>
@@ -36,12 +36,12 @@ export const EnvironmentVariablesPage = () => {
 			<h2>Setting variables</h2>
 			<ol>
 				<li>
-					(Optional) Go to <strong>Account &gt; Environment Variables</strong>{" "}
+					(Optional) Go to <strong>Account &rarr; Shared environment</strong>{" "}
 					to add shared values available across all functions.
 				</li>
 				<li>
-					Open your function and navigate to the{" "}
-					<strong>Environment Variables</strong> tab.
+					Open your function and click <strong>Env</strong> in the{" "}
+					<strong>Actions</strong> card.
 				</li>
 				<li>
 					Click <strong>Add Variable</strong>, enter the key and value, and save.

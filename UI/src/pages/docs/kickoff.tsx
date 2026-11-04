@@ -29,8 +29,9 @@ export const DOCSKICKOFF = () => {
 				>
 					OpenRouter
 				</a>{" "}
-				using the <code>qwen/qwen3-coder-next</code> model. You need a personal
-				OpenRouter API key:
+				by default using the <code>qwen/qwen3-coder-next</code> model. You can
+				also use OpenAI or any OpenAI-compatible endpoint. The steps below set
+				up OpenRouter:
 			</p>
 			<ol>
 				<li>
@@ -46,14 +47,16 @@ export const DOCSKICKOFF = () => {
 					.
 				</li>
 				<li>
-					Go to <strong>Account Settings</strong> in SHSF and paste the key into
-					the <strong>OpenRouter API Key</strong> field.
+					Go to <strong>Account &rarr; AI generation</strong> in SHSF, pick the
+					provider, and paste the key into the <strong>API key</strong> field.
+					Click <strong>Validate &amp; save</strong>. Code generation needs a
+					model that supports tool calls.
 				</li>
 			</ol>
 			<Callout variant="note" title="Button is disabled without a key">
 				<p>
-					If no OpenRouter key is configured, the AI Generate (⚡) button in the
-					file manager toolbar is disabled.
+					If no AI provider is configured, the ⚡ <strong>KICKOFF</strong> button in
+					the file manager menu is disabled.
 				</p>
 			</Callout>
 
@@ -78,8 +81,7 @@ export const DOCSKICKOFF = () => {
 			<ol>
 				<li>Open any function in the dashboard.</li>
 				<li>
-					Click the <strong>AI Generate (⚡)</strong> button in the file manager
-					toolbar.
+					Click the <strong>⚡ KICKOFF</strong> button in the file manager menu.
 				</li>
 				<li>Select a mode — KICKOFF or REVISION.</li>
 				<li>
@@ -89,7 +91,7 @@ export const DOCSKICKOFF = () => {
 					Type your prompt (up to 4096 characters) describing what you need.
 				</li>
 				<li>
-					Click <strong>Generate</strong>. The AI calls <code>write_file</code>{" "}
+					Click <strong>Generate</strong> (on the final step). The AI calls <code>write_file</code>{" "}
 					for each file it produces. Files are saved directly.
 				</li>
 				<li>Review the written files, then test your function.</li>

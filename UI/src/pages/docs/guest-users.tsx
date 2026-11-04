@@ -37,7 +37,7 @@ export const GuestUsersDocPage = () => {
 
 			<h2>Creating a guest user</h2>
 			<ol>
-				<li>Open your function and go to the <strong>Guest Users</strong> tab.</li>
+				<li>Open your function and click <strong>Guests</strong> in the <strong>Actions</strong> card (the <em>Manage Guest Users</em> modal).</li>
 				<li>Click <strong>Create Guest User</strong>.</li>
 				<li>
 					Enter an email address, display name, and a strong password. These
@@ -80,7 +80,7 @@ export const GuestUsersDocPage = () => {
 			<ul>
 				<li>
 					View all guest users for a function in the{" "}
-					<strong>Guest Users</strong> tab.
+					<em>Manage Guest Users</em> modal.
 				</li>
 				<li>
 					Delete a guest user to immediately revoke their access.

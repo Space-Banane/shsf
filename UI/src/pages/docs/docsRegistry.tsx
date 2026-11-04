@@ -27,12 +27,13 @@ import { ServeOnlyHtmlPage } from "./serve-only";
 import { UserInterfacesPage } from "./user-interfaces";
 import { CLIDocPage } from "./cli";
 import { DocsVersionControl } from "./version-control";
+import { TroubleshootingDocPage } from "./troubleshooting";
 
 export type DocumentationEntry = {
 	key: string;
 	title: string;
 	description: string;
-	category: "Getting started" | "Building functions" | "Advanced";
+	category: "Getting started" | "Building functions" | "Advanced" | "Troubleshooting";
 	path: `/docs/${string}`;
 	related: string[];
 	component: FC;
@@ -68,11 +69,12 @@ const documentationDefinitions: DocumentationDefinition[] = [
 	{ key: "version-control", title: "VERSION // CONTROL", description: "Deploy from a Git repo — clone, manual pull, periodic pull, monorepo source directories.", category: "Advanced", path: "/docs/version-control", related: ["cli", "clone-function"] },
 	{ key: "clone-function", title: "Cloning Functions", description: "Duplicate a function with all files, settings, and env vars — aliases, git config, and logs excluded.", category: "Advanced", path: "/docs/clone-function", related: ["version-control", "opencv-install"] },
 	{ key: "opencv-install", title: "OpenCV Installation", description: "Auto-install python3-opencv on first init via a marker file — computer vision in Python functions.", category: "Advanced", path: "/docs/opencv-install", related: ["ffmpeg-install", "go-runtime"] },
+	{ key: "troubleshooting", title: "Troubleshooting", description: "Fix startup failures, HTTP errors from /exec/, CORS problems, and misbehaving functions.", category: "Troubleshooting", path: "/docs/troubleshooting", related: ["getting-started", "secure-headers"] },
 	{ key: "call-functions", title: "Calling Functions", description: "Invoke another function you own with the built-in callF helper — Python, Node.js, and Go included.", category: "Advanced", path: "/docs/call-functions", related: ["nodejs-runtime", "go-runtime"] },
 ];
 
 const components: Record<string, FC> = {
-	"getting-started": DocsGettingStarted, "my-first-function": MyFirstFunctionDoc, "data-passing": DataPassingPage, "custom-responses": CustomResponsesPage, "environment-variables": EnvironmentVariablesPage, "secure-headers": SecureHeadersPage, "persistent-data": PersistentDataPage, redirects: RedirectsPage, "raw-body": RawBodyPage, "user-interfaces": UserInterfacesPage, "docker-mount": DockerMountPage, "serve-only": ServeOnlyHtmlPage, "access-tokens": AccessTokensDocPage, cli: CLIDocPage, "db-com": DatabaseComDocPage, routing: RoutingDocPage, "custom-cors": CustomCorsDocPage, "guest-users": GuestUsersDocPage, "execution-alias": ExecutionAliasPage, "ffmpeg-install": FfmpegInstallPage, "go-runtime": DocsGoRuntime, "nodejs-runtime": DocsNodeJsRuntime, kickoff: DOCSKICKOFF, "log-analysis": LogAnalysisDocPage, "version-control": DocsVersionControl, "clone-function": DocsCloneFunction, "opencv-install": OpencvInstallPage, "call-functions": CallFunctionsDocPage,
+	"getting-started": DocsGettingStarted, "my-first-function": MyFirstFunctionDoc, "data-passing": DataPassingPage, "custom-responses": CustomResponsesPage, "environment-variables": EnvironmentVariablesPage, "secure-headers": SecureHeadersPage, "persistent-data": PersistentDataPage, redirects: RedirectsPage, "raw-body": RawBodyPage, "user-interfaces": UserInterfacesPage, "docker-mount": DockerMountPage, "serve-only": ServeOnlyHtmlPage, "access-tokens": AccessTokensDocPage, cli: CLIDocPage, "db-com": DatabaseComDocPage, routing: RoutingDocPage, "custom-cors": CustomCorsDocPage, "guest-users": GuestUsersDocPage, "execution-alias": ExecutionAliasPage, "ffmpeg-install": FfmpegInstallPage, "go-runtime": DocsGoRuntime, "nodejs-runtime": DocsNodeJsRuntime, kickoff: DOCSKICKOFF, "log-analysis": LogAnalysisDocPage, "version-control": DocsVersionControl, "clone-function": DocsCloneFunction, "opencv-install": OpencvInstallPage, "call-functions": CallFunctionsDocPage, troubleshooting: TroubleshootingDocPage,
 };
 
 export const documentation: DocumentationEntry[] = documentationDefinitions.map((entry) => ({ ...entry, component: components[entry.key] }));

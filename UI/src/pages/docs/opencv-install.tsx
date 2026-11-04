@@ -100,9 +100,8 @@ def main(args):
 			</pre>
 			<p>
 				You can also trigger a reinstall from the UI: open the{" "}
-				<strong>Update Function</strong> modal (when OpenCV is enabled a{" "}
-				<strong>Trigger Reinstall</strong> button appears) or use the{" "}
-				<strong>OpenCV</strong> button on the function detail page.
+				<strong>Update Function</strong> modal (when <strong>Install OpenCV</strong>{" "}
+				is enabled a <strong>Trigger Reinstall</strong> button appears).
 			</p>
 
 		</DocsContentShell>

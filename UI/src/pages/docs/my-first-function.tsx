@@ -61,8 +61,10 @@ def main(args):
 
 			<h2>3. Add the webhook URL as an environment variable</h2>
 			<p>
-				Go to the <strong>Environment Variables</strong> tab in your function
-				dashboard. Click <strong>Add Variable</strong>, set the name to{" "}
+				Open your function and click <strong>Env</strong> in the{" "}
+				<strong>Actions</strong> card to open the{" "}
+				<strong>Environment Variables</strong> modal. Click{" "}
+				<strong>Add Variable</strong>, set the name to{" "}
 				<code>DISCORD_WEBHOOK_URL</code>, and paste your Discord webhook URL as
 				the value.
 			</p>
@@ -82,7 +84,7 @@ def main(args):
 
 			<h2>5. Test the function</h2>
 			<p>
-				Click the <strong>Run</strong> button in the function toolbar. The first
+				Click <strong>Run Function</strong> in the editor toolbar. The first
 				run triggers dependency installation — this may take a moment. Once the
 				container reports <em>"Container ready"</em>, subsequent runs are fast.
 				If the webhook URL is valid you'll see the Discord message appear.
@@ -97,8 +99,8 @@ def main(args):
 
 			<h2>6. Schedule it — every Monday at midnight</h2>
 			<p>
-				Go to the <strong>Triggers</strong> tab and click{" "}
-				<strong>Create Trigger</strong>. Give it a name like{" "}
+				In the <strong>Triggers</strong> card click{" "}
+				<strong>New Trigger</strong>. Give it a name like{" "}
 				<em>monday-greeting</em> and set the cron expression to:
 			</p>
 			<pre>
@@ -107,7 +109,9 @@ def main(args):
 			<p>
 				Leave the JSON payload blank, make sure <strong>Enabled</strong> is
 				checked, and click <strong>Create Trigger</strong>. SHSF will now
-				invoke the function automatically every Monday at midnight UTC.
+				invoke the function automatically every Monday at midnight in the
+				server's timezone (the bundled <code>docker-compose.yml</code> sets{" "}
+				<code>TZ=Europe/Berlin</code>).
 			</p>
 			<Callout variant="tip" title="Preset schedules">
 				<p>
@@ -116,6 +120,10 @@ def main(args):
 				</p>
 			</Callout>
 
+			<p>
+				Something not working? See{" "}
+				<a href="/docs/troubleshooting" className="text-blue-400 hover:text-blue-300">Troubleshooting</a>.
+			</p>
 		</DocsContentShell>
 	);
 };
