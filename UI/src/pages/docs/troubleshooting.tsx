@@ -93,6 +93,7 @@ export const TroubleshootingDocPage = () => (
 			<li>
 				<strong>Trigger didn't fire</strong> — confirm it is <strong>Enabled</strong> and
 				the cron expression is valid; invalid expressions are disabled automatically.
+				Times use the server timezone. See <a href="/docs/triggers">Scheduled Triggers</a>.
 			</li>
 		</ul>
 

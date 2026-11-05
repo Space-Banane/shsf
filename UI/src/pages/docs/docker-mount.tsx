@@ -35,14 +35,15 @@ export const DockerMountPage = () => {
 			<h2>How to enable</h2>
 			<p>
 				When creating or updating a function, expand the{" "}
-				<strong>Advanced Settings</strong> section and toggle{" "}
+				<strong>Advanced Settings</strong> (<strong>Security &amp; Advanced</strong>{" "}
+				in the Update Function modal) section and toggle{" "}
 				<strong>Mount Docker Socket</strong> on.
 			</p>
 			<Callout variant="note" title="Requires admin permission">
 				<p>
-					An SHSF administrator may need to grant your account permission to use
-					the Docker mount feature. If the toggle is missing or disabled, contact
-					your instance admin.
+					Your account needs the Docker mount permission, which an SHSF
+					administrator grants. Without it, the toggle is still shown, but saving
+					the function fails with a <code>403</code>. Ask your instance admin.
 				</p>
 			</Callout>
 

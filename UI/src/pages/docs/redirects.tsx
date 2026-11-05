@@ -73,11 +73,11 @@ def main(args):
     if not code or code == "default":
         return {"_shsf": "v2", "_code": 400, "_res": {"error": "no code"}}
 
-    target = db.get("links", code)
-    if not target:
+    # get() raises for unknown keys, so check first
+    if not db.exists("links", code):
         return {"_shsf": "v2", "_code": 404, "_res": {"error": "not found"}}
 
-    return {"_shsf": "v2", "_code": 302, "_location": target}`}</code>
+    return {"_shsf": "v2", "_code": 302, "_location": db.get("links", code)}`}</code>
 			</pre>
 
 			<h2>Rules</h2>
@@ -88,8 +88,8 @@ def main(args):
 					redirect.
 				</li>
 				<li>
-					<code>_location</code> must be a valid URL string; if it is missing or
-					not a string, no redirect occurs.
+					Always set <code>_location</code>. If it is missing, a 301 or 302
+					still redirects, to <code>/</code>.
 				</li>
 				<li>
 					<code>_headers</code> are applied before the redirect fires — you can

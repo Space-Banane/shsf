@@ -19,13 +19,14 @@ export const FfmpegInstallPage = () => {
 			<CodeCaption>Init script (simplified)</CodeCaption>
 			<pre>
 				<code>{`if [ ! -f ".already_installed_ffmpeg" ]; then
-    command -v ffmpeg >/dev/null 2>&1 || (apt update && apt-get install -y ffmpeg)
-    touch /app/.already_installed_ffmpeg
+    command -v ffmpeg >/dev/null 2>&1 || (apt update && apt-get install -y ffmpeg && touch /app/.already_installed_ffmpeg)
 fi`}</code>
 			</pre>
 			<p>
-				The marker file <code>/app/.already_installed_ffmpeg</code> prevents
-				reinstalling on every invocation. Because it lives in{" "}
+				After a successful install, the marker file{" "}
+				<code>/app/.already_installed_ffmpeg</code> prevents reinstalling on
+				every invocation. If the image already has ffmpeg, the install and the
+				marker are skipped. If the install fails, it is retried on the next init. Because it lives in{" "}
 				<code>/app/</code>, it persists across container restarts.
 			</p>
 			<Callout variant="note" title="First run is slower">
@@ -38,7 +39,8 @@ fi`}</code>
 			<h2>How to enable</h2>
 			<p>
 				When creating or updating a function, expand{" "}
-				<strong>Advanced Settings</strong> and toggle{" "}
+				<strong>Advanced Settings</strong> (<strong>Security &amp; Advanced</strong>{" "}
+				in the Update Function modal) and toggle{" "}
 				<strong>Install FFmpeg</strong> on.
 			</p>
 

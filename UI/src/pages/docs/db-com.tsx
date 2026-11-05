@@ -15,7 +15,9 @@ export const DatabaseComDocPage = () => {
 				<p>
 					SHSF injects the helper when your function refers to it.
 					For Python, import <code>_db_com</code>. For Go, import{" "}
-					<code>myfunction/dbcom</code>. For Node.js, require{" "}
+					<code>&lt;module&gt;/dbcom</code>, where <code>&lt;module&gt;</code> is
+					the name in your <code>go.mod</code>. Without a <code>go.mod</code>, SHSF
+					generates one named <code>shsf_function_&lt;function-id&gt;</code>. For Node.js, require{" "}
 					<code>./_db_com</code>. No <code>pip install</code>,{" "}
 					<code>go get</code>, or <code>npm install</code> needed.
 				</p>
@@ -64,7 +66,8 @@ print(value)`}</code>
 			</p>
 			<pre>
 				<code>{`item = db.get_item("my-bucket", "username")
-# item = {"key": "username", "value": "alice", "expires_at": None, ...}`}</code>
+# item = {"key": "username", "value": "alice", "expiresAt": None,
+#         "id": 12, "storageId": 3, "createdAt": "...", "updatedAt": "..."}`}</code>
 			</pre>
 
 			<h3>list_items</h3>
@@ -107,7 +110,8 @@ for s in storages:
 			<h2>Go API</h2>
 			<CodeCaption>Go — import and initialise</CodeCaption>
 			<pre>
-				<code>{`import "myfunction/dbcom"
+				<code>{`// go.mod: module myfunction
+import "myfunction/dbcom"
 
 db := dbcom.New()`}</code>
 			</pre>
@@ -117,24 +121,22 @@ db := dbcom.New()`}</code>
 			<pre>
 				<code>{`package main
 
-import (
-    "fmt"
-    "myfunction/dbcom"
-)
+import "myfunction/dbcom"
 
 func main_user(args interface{}) (interface{}, error) {
     db := dbcom.New()
 
     // Create the "hits" storage once before invoking this function.
 
-    // Increment a counter
-    prev, _ := db.Get("hits", "home")
+    // Increment a counter. Get returns an error for a missing key.
     count := 0
-    if prev != nil {
+    if db.Exists("hits", "home") {
+        prev, err := db.Get("hits", "home")
+        if err != nil { return nil, err }
         count = int(prev.(float64))
     }
     count++
-    _, err = db.Set("hits", "home", count, nil)
+    _, err := db.Set("hits", "home", count, nil)
     if err != nil { return nil, err }
 
     return map[string]interface{}{"hits": count}, nil
@@ -170,9 +172,9 @@ async function main(args) {
 
     // Create the "hits" storage once before invoking this function.
 
-    // Increment a counter
-    const prev = db.get('hits', 'home');
-    const count = (typeof prev === 'number' ? prev : 0) + 1;
+    // Increment a counter. get() throws for a missing key.
+    const prev = db.exists('hits', 'home') ? db.get('hits', 'home') : 0;
+    const count = prev + 1;
     db.set('hits', 'home', count);
 
     return { hits: count };
@@ -198,11 +200,13 @@ const exists = db.exists('hits', 'home');         // boolean`}</code>
 					Use short, descriptive storage names and keys — they are case-sensitive.
 				</li>
 				<li>
-					Always handle <code>None</code> / <code>nil</code> returns from{" "}
-					<code>get</code> — a key that doesn't exist returns nothing.
+					Check <code>exists</code> before <code>get</code>. Reading a key
+					that does not exist (or has expired) raises <code>DatabaseError</code>{" "}
+					in Python and Node.js and returns an error in Go.
 				</li>
 				<li>
-					Set <code>expires_at</code> for session tokens, rate-limit counters,
+					Set an expiry (<code>expires_at</code> in Python, <code>expiresAt</code>{" "}
+					in Go and Node.js) for session tokens, rate-limit counters,
 					and any data with a known lifetime.
 				</li>
 				<li>

@@ -7,15 +7,25 @@ export const CustomCorsDocPage = () => {
 			<DocHeader title="Custom CORS">
 				SHSF and its own UI are always allowed to call your function. For
 				calls from other origins — your frontend, a third-party app — you can
-				configure a per-function allowlist of trusted origins. Requests from
-				any origin not on the list are blocked by the browser's CORS policy.
+				configure a per-function allowlist of trusted origins. The server
+				rejects requests from any other origin with a <code>403</code>.
 			</DocHeader>
 
-			<Callout variant="warning" title="Wildcard * is not supported">
+			<Callout variant="warning" title="Use exact origins, not *">
 				<p>
-					For security reasons, the <code>*</code> wildcard origin is not
-					accepted. You must specify exact origins (including scheme and port if
-					non-standard).
+					SHSF compares the request's <code>Origin</code> header with each entry
+					as an exact string. A <code>*</code> entry can be saved but never
+					matches anything. Write the full origin, including the scheme and any
+					non-standard port.
+				</p>
+			</Callout>
+
+			<Callout variant="note" title="Only the function URL uses the allowlist">
+				<p>
+					The allowlist applies to the function URL shown on the function page,{" "}
+					<code>/api/exec/&lt;namespace-id&gt;/&lt;execution-id&gt;</code>. Browser
+					calls to <code>/exec/&lt;alias&gt;</code> only accept origins in the
+					instance's <code>CORS_URLS</code>.
 				</p>
 			</Callout>
 
@@ -23,8 +33,8 @@ export const CustomCorsDocPage = () => {
 			<p>
 				Open the <strong>Create Function</strong> or{" "}
 				<strong>Update Function</strong> modal and find the{" "}
-				<strong>CORS Origins</strong> section. Enter each allowed origin on its
-				own line or separated by commas.
+				<strong>CORS Origins</strong> field. Type one origin and click{" "}
+				<strong>Add</strong> (or press Enter). Repeat for each origin.
 			</p>
 			<CodeCaption>Example origins</CodeCaption>
 			<pre>
@@ -33,8 +43,9 @@ https://admin.myapp.com
 http://localhost:3000`}</code>
 			</pre>
 			<p>
-				With this config, only requests from those three origins will include
-				the correct CORS headers. All others will be blocked at the browser.
+				With this config, browser requests from those three origins are
+				allowed. Requests from any other origin get a <code>403</code> response
+				with the message <em>SERVER CORS Policy: This origin is not allowed access</em>.
 			</p>
 
 			<h2>You can also use the CLI</h2>
@@ -62,8 +73,8 @@ shsf cors list --id func_42a7c1`}</code>
 					instance CORS URLs are permitted.
 				</li>
 				<li>
-					CORS controls browser behaviour — server-to-server calls are not
-					affected by CORS headers.
+					The check only runs when a request has an <code>Origin</code>{" "}
+					header. Server-to-server calls without one are not affected.
 				</li>
 			</ul>
 

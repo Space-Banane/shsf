@@ -12,13 +12,16 @@ export const DataPassingPage = () => {
 
 			<h2>The args object</h2>
 			<p>
-				SHSF builds the payload before calling your function. The shape differs
-				slightly between GET and POST requests:
+				SHSF builds the payload before calling your function. GET requests get
+				the shape below. Every other method (POST, PUT, PATCH, DELETE, ...) also
+				gets <code>body</code> and <code>raw_body</code>, and <code>method</code>{" "}
+				holds the real verb. HTTP calls always include <code>ran_by: "exec"</code>.
 			</p>
 
 			<CodeCaption>GET request — args fields</CodeCaption>
 			<pre>
 				<code>{`{
+  "ran_by":    "exec",
   "headers":   { "user-agent": "...", ... },   // all request headers (lowercase keys)
   "queries":   { "page": "2", ... },           // URL query parameters
   "route":     "default",                       // path after the function URL (or "default")
@@ -27,9 +30,10 @@ export const DataPassingPage = () => {
 }`}</code>
 			</pre>
 
-			<CodeCaption>POST request — adds body and raw_body</CodeCaption>
+			<CodeCaption>POST and other non-GET requests — add body and raw_body</CodeCaption>
 			<pre>
 				<code>{`{
+  "ran_by":    "exec",
   "headers":   { "content-type": "application/json", ... },
   "queries":   { ... },
   "route":     "default",
@@ -109,9 +113,11 @@ GET /exec/my-func/a/b/c        → route = "a/b/c"`}</code>
 
 			<h2>Passing data from a cron trigger</h2>
 			<p>
-				When a trigger fires it calls your function with a POST-style payload.
-				Any JSON you enter in the trigger's <em>Body</em> field becomes
-				the <code>body</code> string in <code>args</code>.
+				A trigger does not send an HTTP request. The top-level keys of the
+				trigger's JSON payload are merged directly into <code>args</code>, next
+				to <code>ran_by</code> (<code>"cron"</code> for scheduled runs,{" "}
+				<code>"trigger"</code> for manual runs) and <code>triggerId</code>. There
+				is no <code>body</code>. See <a href="/docs/triggers">Scheduled Triggers</a>.
 			</p>
 			<CodeCaption>Trigger payload (set in trigger config)</CodeCaption>
 			<pre>
@@ -119,12 +125,9 @@ GET /exec/my-func/a/b/c        → route = "a/b/c"`}</code>
 			</pre>
 			<CodeCaption>Reading it in your function</CodeCaption>
 			<pre>
-				<code>{`import json
-
-def main(args):
-    data = json.loads(args.get("body", "{}"))
-    event = data.get("event")
-    print(f"Triggered by: {event}")`}</code>
+				<code>{`def main(args):
+    event = args.get("event")
+    print(f"Triggered by: {args['ran_by']} ({event})")`}</code>
 			</pre>
 
 		</DocsContentShell>

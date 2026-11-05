@@ -17,7 +17,7 @@ export const ExecutionAliasPage = () => {
 					Alphanumeric characters, hyphens (<code>-</code>), and underscores
 					(<code>_</code>) only
 				</li>
-				<li>Case-sensitive and globally unique across all SHSF functions</li>
+				<li>Globally unique across all SHSF functions. Uniqueness and lookup ignore case, so <code>My-Api</code> and <code>my-api</code> are the same alias</li>
 				<li>Not copied when cloning — assign a new alias to each clone</li>
 			</ul>
 
