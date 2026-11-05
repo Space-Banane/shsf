@@ -66,7 +66,8 @@ export const DOCSKICKOFF = () => {
 			<p>
 				Starts with a blank slate. The AI creates <strong>up to 5 files</strong>{" "}
 				— source code plus the dependency files that match your runtime:{" "}
-				<code>requirements.txt</code> or <code>go.mod</code>/<code>go.sum</code>.
+				<code>requirements.txt</code>, <code>go.mod</code>/<code>go.sum</code>,
+				or <code>package.json</code>.
 				Best for new functions.
 			</p>
 
@@ -120,7 +121,7 @@ HTTP status code. Handle network errors gracefully.`}</code>
 			</pre>
 			<h3>Tips</h3>
 			<ul>
-				<li>Specify the language (Python or Go) if you have a preference.</li>
+				<li>The AI writes code for the function's runtime (Python, Go, or Node.js), so pick the image before you generate.</li>
 				<li>
 					Mention third-party libraries you want — the AI will add them to the
 					right dependency file.
@@ -139,7 +140,8 @@ HTTP status code. Handle network errors gracefully.`}</code>
 			<ul>
 				<li>
 					Entry points: <code>def main(args)</code> (Python),{" "}
-					<code>func main_user</code> (Go)
+					<code>func main_user</code> (Go), and{" "}
+					<code>module.exports = {"{ main }"}</code> with CommonJS (Node.js)
 				</li>
 				<li>
 					All <code>args</code> fields: <code>body</code>, <code>queries</code>,{" "}
@@ -148,20 +150,21 @@ HTTP status code. Handle network errors gracefully.`}</code>
 				</li>
 				<li>SHSF v2 response envelope and redirects</li>
 				<li>
-					Environment variables via <code>os.getenv</code> /{" "}
-					<code>os.Getenv</code>
+					Environment variables via <code>os.getenv</code>,{" "}
+					<code>os.Getenv</code>, or <code>process.env</code>
 				</li>
 				<li>
 					Persistent storage at <code>/app/</code>; ephemeral at{" "}
 					<code>/tmp/</code>
 				</li>
 				<li>
-					SHSF db_com (<code>_db_com.py</code> / <code>myfunction/dbcom</code>)
+					SHSF db_com (<code>_db_com</code> in Python and Node.js,{" "}
+					<code>&lt;module&gt;/dbcom</code> in Go)
 				</li>
 				<li>Deep-path routing via <code>args["route"]</code> (e.g. <code>"users/42"</code> for <code>/exec/func/users/42</code>)</li>
 				<li>
 					Reserved filenames it must never produce: <code>_runner.py</code>,{" "}
-					<code>_runner.js</code>, <code>init.sh</code>
+					<code>_runner.js</code>, <code>_shsf_runner.js</code>, <code>init.sh</code>
 				</li>
 			</ul>
 
@@ -174,8 +177,9 @@ HTTP status code. Handle network errors gracefully.`}</code>
 					function root.
 				</li>
 				<li>
-					Generated files must match the runtime's allowed types (e.g. Python
-					functions cannot get <code>.go</code> files).
+					Python, Go, and Node.js functions accept any file name at the root,
+					including non-code assets. Serve-only HTML functions accept only{" "}
+					<code>.html</code> files.
 				</li>
 				<li>
 					KICKOFF is not aware of your function's execution logs — describe

@@ -77,7 +77,7 @@ export const CustomResponsesPage = () => {
 			<CodeCaption>Example (Python)</CodeCaption>
 			<pre>
 				<code>{`def main(args):
-    with open("index.html", "r") as f:
+    with open("/app/index.html", "r") as f:
         html = f.read()
     return {
         "_shsf": "v2",
@@ -89,8 +89,9 @@ export const CustomResponsesPage = () => {
 
 			<h2>Returning binary data</h2>
 			<p>
-				Python functions can return <code>bytes</code> or <code>bytearray</code>{" "}
-				inside <code>_res</code>. SHSF transports the raw bytes back to the
+				Return raw bytes inside <code>_res</code>: <code>bytes</code> or{" "}
+				<code>bytearray</code> in Python, a <code>Buffer</code> in Node.js, or{" "}
+				<code>[]byte</code> in Go. SHSF transports the raw bytes back to the
 				caller automatically.
 			</p>
 			<CodeCaption>Example — returning image bytes</CodeCaption>

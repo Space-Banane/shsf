@@ -70,24 +70,25 @@ def main(args):
 			</pre>
 
 			<h2>Parsing multipart form data</h2>
-			<CodeCaption>Python — multipart upload with the cgi module</CodeCaption>
+			<CodeCaption>Python — multipart upload with the email module (works on Python 3.13+)</CodeCaption>
 			<pre>
-				<code>{`import cgi, io
+				<code>{`import os
+from email.parser import BytesParser
+from email.policy import HTTP
 
 def main(args):
     raw = args.get("raw_body", "").encode("latin-1")
-    headers = args.get("headers", {})
-    content_type = headers.get("content-type", "")
+    content_type = args.get("headers", {}).get("content-type", "")
+    message = BytesParser(policy=HTTP).parsebytes(
+        b"Content-Type: " + content_type.encode() + b"\\r\\n\\r\\n" + raw
+    )
 
-    environ = {"REQUEST_METHOD": "POST", "CONTENT_TYPE": content_type,
-               "CONTENT_LENGTH": str(len(raw))}
-    form = cgi.FieldStorage(fp=io.BytesIO(raw), environ=environ)
-
-    if "file" in form:
-        file_item = form["file"]
-        with open(f"/app/{file_item.filename}", "wb") as f:
-            f.write(file_item.file.read())
-        return {"uploaded": file_item.filename}
+    for part in message.iter_parts():
+        if part.get_param("name", header="content-disposition") == "file":
+            filename = os.path.basename(part.get_filename() or "upload.bin")
+            with open(f"/app/{filename}", "wb") as f:
+                f.write(part.get_payload(decode=True))
+            return {"uploaded": filename}
     return {"_shsf": "v2", "_code": 400, "_res": {"error": "no file field"}}`}</code>
 			</pre>
 

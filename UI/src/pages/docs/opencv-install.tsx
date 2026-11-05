@@ -25,8 +25,7 @@ export const OpencvInstallPage = () => {
 			<CodeCaption>Init script (simplified)</CodeCaption>
 			<pre>
 				<code>{`if [ ! -f ".already_installed_opencv" ]; then
-    python3 -c "import cv2" 2>/dev/null || (apt update && apt install -y python3-opencv)
-    touch /app/.already_installed_opencv
+    python3 -c "import cv2" 2>/dev/null || (apt update && apt install -y python3-opencv && touch /app/.already_installed_opencv)
 fi`}</code>
 			</pre>
 			<p>
@@ -38,7 +37,8 @@ fi`}</code>
 			<h2>How to enable</h2>
 			<p>
 				When creating or updating a function, expand{" "}
-				<strong>Advanced Settings</strong> and toggle{" "}
+				<strong>Advanced Settings</strong> (<strong>Security &amp; Advanced</strong>{" "}
+				in the Update Function modal) and toggle{" "}
 				<strong>Install OpenCV</strong> on.
 			</p>
 

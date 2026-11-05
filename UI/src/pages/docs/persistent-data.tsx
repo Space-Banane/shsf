@@ -43,10 +43,12 @@ export const PersistentDataPage = () => {
 
     return {"invocations": count}`}</code>
 			</pre>
-			<Callout variant="note" title="File manager shows /app/ contents">
+			<Callout variant="note" title="Runtime files are not in the file manager">
 				<p>
-					Files written at runtime appear in the SHSF file manager, making it
-					easy to inspect or delete them from the UI.
+					The file manager lists the source files you created or imported, not
+					files your code writes to <code>/app/</code> at runtime. To inspect
+					runtime data, return or log it from the function, or store it with
+					db_com, which the Storage page can display.
 				</p>
 			</Callout>
 

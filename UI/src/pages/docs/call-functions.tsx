@@ -18,11 +18,14 @@ export const CallFunctionsDocPage = () => (
 
 		<h2>Python</h2>
 		<CodeCaption>main.py</CodeCaption>
-		<pre><code>{`from _call_func import callF
+		<pre><code>{`import json
+from _call_func import callF
 
 def main(args):
+    # HTTP request bodies arrive as a string
+    body = json.loads(args.get("body") or "{}")
     result = callF("create-invoice", {
-        "customerId": args["body"]["customerId"],
+        "customerId": body["customerId"],
         "amount": 499,
     })
     return {"invoice": result}`}</code></pre>
@@ -32,8 +35,10 @@ def main(args):
 		<pre><code>{`const { callF } = require("./_call_func");
 
 async function main(args) {
+    // HTTP request bodies arrive as a string
+    const body = JSON.parse(args.body || "{}");
     const result = await callF("create-invoice", {
-        customerId: args.body.customerId,
+        customerId: body.customerId,
         amount: 499,
     });
     return { invoice: result };
@@ -59,15 +64,19 @@ func main_user(args interface{}) (interface{}, error) {
 
 		<h2>Arguments and result</h2>
 		<p>
-			The second argument becomes the target function&apos;s <code>args.body</code>.
-			<code>callF</code> waits for the target to finish, then returns its normal
+			The second argument becomes the target function&apos;s <code>args.body</code>{" "}
+			as-is, so the target receives an object rather than the JSON string an HTTP
+			call delivers. <code>callF</code> waits for the target to finish, then returns its normal
 			result. Errors from the target are raised or returned according to the runtime.
 		</p>
 
 		<Callout variant="warning" title="Avoid recursion">
 			<p>
-				Do not call a function from itself, directly or through a cycle. Calls share
-				the caller&apos;s timeout budget, so recursive chains will eventually time out.
+				Do not call a function from itself, directly or through a cycle. The target
+				runs with its own timeout, while the caller waits up to the <code>callF</code>{" "}
+				timeout (30 seconds by default, set by the third argument). Each caller keeps
+				its container busy while it waits, so a cycle ties up resources until the
+				callers time out.
 			</p>
 		</Callout>
 

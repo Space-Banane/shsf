@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { documentation, documentationRoutes, getDocumentationNavigation, validateDocumentationRoutes } from "./docsRegistry";
 
 vi.mock("react-router-dom", () => ({ useLocation: () => ({ pathname: "/docs/getting-started" }) }), { virtual: true });
@@ -21,6 +22,29 @@ describe("documentation registry", () => {
 		expect(first.next).toBe(documentation[1]);
 		expect(middle.previous).toBe(documentation[0]);
 		expect(last.next).toBeUndefined();
+	});
+
+	it("adds Troubleshooting to every other page's related guides", () => {
+		for (const entry of documentation) {
+			const keys = getDocumentationNavigation(entry.path).related.map((related) => related.key);
+			expect(keys.includes("troubleshooting")).toBe(entry.key !== "troubleshooting");
+		}
+	});
+
+	it("only documents API routes the backend defines", () => {
+		const routesDir = resolve(__dirname, "../../../../Backend/src/routes");
+		const backendRoutes = readdirSync(routesDir, { recursive: true, encoding: "utf8" })
+			.filter((file) => file.endsWith(".ts"))
+			.flatMap((file) => [...readFileSync(resolve(routesDir, file), "utf8").matchAll(/\.http\("[A-Z]+",\s*"(\/api\/[^"]+)"/g)].map((match) => match[1]))
+			.map((route) => new RegExp(`^${route.replace(/\{[^}]+\}/g, "[^/]+")}$`));
+		const unknown = readdirSync(__dirname)
+			.filter((file) => file.endsWith(".tsx"))
+			.flatMap((file) => [...readFileSync(`${__dirname}/${file}`, "utf8").matchAll(/(\/api\/[\w{}&#;./-]*\w)/g)].map((match) => ({ file, route: match[1].replace(/&#123;\w+&#125;/g, "x").replace(/\{\w+\}/g, "x") })))
+			.filter(({ route }) => !route.startsWith("/api/exec/") && !backendRoutes.some((pattern) => pattern.test(route)))
+			.map(({ file, route }) => `${file}: ${route}`);
+
+		expect(backendRoutes.length).toBeGreaterThan(50);
+		expect(unknown).toEqual([]);
 	});
 
 	it("only links to registered documentation pages", () => {
