@@ -27,6 +27,33 @@ const renderLoginPage = () => render(
 	</UserContext.Provider>,
 );
 
+describe("LoginPage manual login", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockLocation.mockReturnValue({ state: null });
+		Object.defineProperty(global, "fetch", { writable: true, value: fetchMock });
+	});
+
+	it("posts the typed email and password when Sign In is clicked", async () => {
+		fetchMock
+			.mockResolvedValueOnce({ json: async () => ({ isDemo: false }) })
+			.mockResolvedValueOnce({ json: async () => ({ status: "OK" }) });
+
+		renderLoginPage();
+
+		fireEvent.change(screen.getByPlaceholderText("your@email.com"), { target: { value: "me@example.com" } });
+		fireEvent.change(screen.getByPlaceholderText("••••••••••••"), { target: { value: "hunter2hunter2" } });
+		fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
+
+		await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith("/api/account/login", expect.objectContaining({
+			method: "POST",
+			body: JSON.stringify({ email: "me@example.com", password: "hunter2hunter2" }),
+		})));
+		expect(screen.queryByText(/An error occurred during login/)).not.toBeInTheDocument();
+		expect(refreshUser).toHaveBeenCalledTimes(1);
+	});
+});
+
 describe("LoginPage demo login", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
