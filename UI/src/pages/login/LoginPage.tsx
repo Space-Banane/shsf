@@ -131,7 +131,7 @@ function LoginPage() {
 						/>
 					</div>
 					<button
-						onClick={handleLogin}
+						onClick={() => handleLogin()}
 						disabled={loading || !email || !password}
 						className="w-full py-2.5 bg-primary text-background text-sm font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
 					>
