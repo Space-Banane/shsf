@@ -23,7 +23,7 @@ Backend/        Node.js + TypeScript API (rjweb-server)
     migrations/       Committed SQL migration history
   prisma.config.ts    Prisma 7 CLI config
 
-UI/             React frontend (CRA, Tailwind, no external state lib)
+UI/             React frontend (Vite, Tailwind, no external state lib)
   src/
     pages/      Route-level components
     components/ Shared UI components
@@ -82,7 +82,7 @@ pnpm migrate
 # Give a short descriptive slug when prompted, e.g. "add_user_oauth_provider"
 ```
 
-Commit the generated `migration.sql` in the same commit as the schema change.
+Commit the generated migration SQL in the same commit as the schema change.
 
 ### Rule 2 – `prisma db push` is banned
 
@@ -96,7 +96,7 @@ pnpm migrate
 
 ### Rule 3 – Never mutate applied migration files
 
-Once committed, a `migration.sql` is immutable. Fix mistakes with a new migration.
+Once committed, a migration file is immutable. Fix mistakes with a new migration.
 
 ### Rule 4 – Production deploys use `migrate deploy`
 
@@ -121,61 +121,55 @@ cd Backend && pnpm generate
 | CLI datasource config | `Backend/prisma.config.ts` |
 | Runtime client | `Backend/src/index.ts` → `new PrismaClient({ adapter })` |
 
-- Database URL: set via `prisma.config.ts` using `env("DATABASE_URL")`, **not** in `schema.prisma`.
+- Database URL: set via `Backend/prisma.config.ts` using `env("DATABASE_URL")`, **not** in `Backend/prisma/schema.prisma`.
 - `PrismaClient` uses `new PrismaMariaDb(...)` as driver adapter — do not remove or bypass it.
 
 ---
 
 ## Key subsystems — read before touching
 
-### Auth (`src/lib/Authentication.ts`)
+### Auth (`Backend/src/lib/Authentication.ts`)
 Session-cookie auth, entirely in-house. No third-party provider. Never add unauthenticated routes or bypass session checks without explicit instruction.
 
-### Function runner (`src/lib/Runner.ts`)
-`src/lib/Runner.ts` is the public entry point for function execution — always import from here. The implementation is split across several co-located modules:
-- `Runner.ts` — exported API (`executeFunction`, `buildPayloadFromGET/POST`, `installDependencies`, `buildDotnetFunction`, container lifecycle, `persistFunctionExecutionLog`)
-- `RunnerRuntimeScripts.ts` — pure generator functions for per-runtime runner and init scripts (no I/O)
-- `RunnerScripts.ts` — DB communication template strings and `getOrCreateFunctionDbToken`
-- `DotnetProjectResolver.ts` — .NET `.sln`/`.csproj` project resolution
-- `RunnerUtils.ts` — small utility and filesystem helpers
-- `RunnerTypes.ts` — shared types and constants
+### Function runner (`Backend/src/lib/Runner.ts`)
+`Backend/src/lib/Runner.ts` is the public entry point for function execution — always import from here. The implementation is split across several co-located modules:
+- `Backend/src/lib/Runner.ts` — exported API (`executeFunction`, `buildPayloadFromGET` and `buildPayloadFromPOST`, `installDependencies`, container lifecycle, `persistFunctionExecutionLog`)
+- `Backend/src/lib/RunnerRuntimeScripts.ts` — pure generator functions for per-runtime runner and init scripts (no I/O)
+- `Backend/src/lib/RunnerScripts.ts` — DB communication template strings and `getOrCreateFunctionDbToken`
+- `Backend/src/lib/RunnerUtils.ts` — small utility and filesystem helpers
+- `Backend/src/lib/RunnerTypes.ts` — shared types and constants
 
 Every function invocation flows through here. Be conservative with changes and always run the full test suite after edits.
 
 ### Inter-function calls (`callF`)
-Functions can call other functions owned by the same user via the `callF` built-in. At runtime a per-execution pair of directories (`callfunc-requests/`, `callfunc-responses/`) under the execution transport dir are used; `Runner.ts` starts a `startCallFuncBridge` alongside the storage bridge to service these requests. The helper scripts (`_call_func.py`, `_call_func.js`, `callfunc/callfunc.go`) are injected unconditionally into every function's app dir. The target function is looked up by name scoped to the same `userId`, and the payload's `ran_by` field is set to `func_<callerFunctionId>`. Do not bypass this scoping — it is the sole authz boundary for cross-function calls.
+Functions can call other functions owned by the same user via the `callF` built-in. At runtime a per-execution pair of directories (callfunc-requests and callfunc-responses) under the execution transport dir are used; `Backend/src/lib/Runner.ts` starts a `startCallFuncBridge` alongside the storage bridge to service these requests. The runtime-specific callF helper is injected into every function's app directory. The target function is looked up by name scoped to the same `userId`, and the payload's `ran_by` field is set to `func_<callerFunctionId>`. Do not bypass this scoping — it is the sole authz boundary for cross-function calls.
 
-### Git-backed storage (`src/lib/GitOps.ts`, `GitEditGuards.ts`)
+### Git-backed storage (`Backend/src/lib/GitOps.ts`, `Backend/src/lib/GitEditGuards.ts`)
 Function source files are stored under git version control. All mutations must go through the guard layer — do not write function files directly.
 
 ### AI / code generation
 The `ai_kicked_off` flag on `Function` tracks whether AI generation has been triggered. Keep this flag and the import/AI-gen flags consistent across schema, API routes, and UI components. When touching AI-related code, verify all three layers remain in sync.
 
-### Log analysis (`src/lib/LogAnalysis.ts`, `src/lib/OpenRouterDecisions.ts`)
-Opt-in advisory analysis of execution logs through OpenRouter's Decisions API. Effective only when the account (`User.logAnalysisEnabled` + `logAnalysisModel`) and the function's logging config (`analyze: true`) are both on. `persistFunctionExecutionLog` enqueues a `LogAnalysis` row; the `log-analysis` system cron drains it. Never send unsanitized logs (always go through `buildDecisionsRequest`), never log keys or request bodies, never hardcode a model, and never let analysis change a log's exit code or `result`. Keep `OpenRouterDecisions.ts` separate from the chat-completion code in `AIProvider.ts`.
+### Log analysis (`Backend/src/lib/LogAnalysis.ts`, `Backend/src/lib/OpenRouterDecisions.ts`)
+Opt-in advisory analysis of execution logs through OpenRouter's Decisions API. Effective only when the account (`User.logAnalysisEnabled` + `logAnalysisModel`) and the function's logging config (`analyze: true`) are both on. `persistFunctionExecutionLog` enqueues a `LogAnalysis` row; the `log-analysis` system cron drains it. Never send unsanitized logs (always go through `buildDecisionsRequest`), never log keys or request bodies, never hardcode a model, and never let analysis change a log's exit code or `result`. Keep `Backend/src/lib/OpenRouterDecisions.ts` separate from the chat-completion code in `Backend/src/lib/AIProvider.ts`.
 
 ### UI modals – Ctrl+Enter submits
 All modals must support **Ctrl+Enter submission** using the `useShiftEnterSubmit` hook from `UI/src/hooks/useShiftEnterSubmit.ts`. When a user presses Ctrl+Enter (or Cmd+Enter on Mac) inside a modal, the primary action (create, update, delete, confirm) must fire. Import the hook and call `useShiftEnterSubmit(() => handleSubmit(), isOpen && !isLoading)` in every modal with a submit action. Do not use other keyboard shortcuts for submission.
 
 ---
 
-## Keeping AGENTS.md and CLAUDE.md in sync – MANDATORY
+## Maintain these instructions
 
-`AGENTS.md` (all AI agents) and `CLAUDE.md` (Claude Code) must always reflect the same rules. Whenever you make a change that affects either file — adding a subsystem, changing a workflow step, updating a banned command, etc. — **update both files in the same commit**.
-
-Rules:
-- Any rule added to one file must be added to the other in equivalent form.
-- Any rule removed or amended in one file must be removed or amended in the other.
-- Do not let the two files diverge. If you notice they are out of sync, fix the gap before proceeding with your task.
+When a change adds, renames, or removes a path, script, or subsystem named here, update its section in the same PR. The `scripts/check-agent-docs.mjs` check validates references and the generated copy. Run `node scripts/check-agent-docs.mjs` locally. Run `node scripts/check-agent-docs.mjs --write` to regenerate the copy.
 
 ---
 
 ## General coding rules
 
 - TypeScript strict mode is on. No `any` without a comment explaining why.
-- Do not use `console.log`, `console.warn`, or `console.error` in the Backend. Use `createLogger(component)` from `src/lib/logger.ts` (pino-based) instead.
+- Do not use `console.log`, `console.warn`, or `console.error` in the Backend. Use `createLogger(component)` from `Backend/src/lib/logger.ts` (pino-based) instead.
 - UI uses React built-ins for state — do not introduce Zustand, Redux, or similar.
-- Add new route handlers under `src/routes/`, shared logic under `src/lib/`.
+- Add new route handlers under `Backend/src/routes/`, shared logic under `Backend/src/lib/`.
 - Follow existing naming and file-structure conventions; don't invent new top-level folders.
 
 ---
