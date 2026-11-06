@@ -63,15 +63,10 @@ cd shsf
 
 ```bash
 cp example.env .env
+sed -i "s/^INSTANCE_SECRET=.*/INSTANCE_SECRET=$(openssl rand -hex 32)/" .env
 ```
 
-Edit `.env` and set the required variables:
-
-Generate the instance secret before starting a production deployment:
-
-```bash
-openssl rand -hex 32
-```
+The second command writes a random `INSTANCE_SECRET` (required in production). The other defaults work for `http://localhost:5000`; for a real deployment, also set `DOMAIN`, `UI_URL`, `REACT_APP_API_URL` and `CORS_URLS` to your public hostname.
 
 | Variable | Description |
 |---|---|
@@ -85,7 +80,7 @@ openssl rand -hex 32
 | `OPENROUTER_API_KEY` | Optional instance-wide OpenRouter key, used for AI generation and for log analysis when a user has no OpenRouter key of their own |
 | `IS_DEMO` | Set to `true` only for a disposable public demo; seeds `demo@shsf.local` / `demo-password` and an example function |
 
-An optional MariaDB service block is included (commented out) in `docker-compose.yml` if you do not have an external database.
+The default `DATABASE_URL` points at a host named `db`. If you have no external database, uncomment the `db` service in `docker-compose.yml`; its credentials match the default URL. Migrations run automatically on startup.
 
 ### 3 — Start the stack
 
@@ -127,6 +122,8 @@ This keeps Docker bind mounts valid on Windows while using the standard `/opt/sh
    - Click **Run** in the UI
    - `POST /api/function/{id}/execute` (or use your execution alias)
    - Set up a **cron trigger** for scheduled runs
+
+   A new function's container is pulled and initialised on first use. Until that finishes, runs return `Function is not ready yet.` (503); wait a moment and run again.
 5. **Configure extras** — CORS, rate limits, caching, Git sync, environment variables, Docker options, and more are all available in the function settings panel.
 
 ---
@@ -216,24 +213,44 @@ The `args` payload includes `body` (parsed request body), `query` (query string 
 
 - Node.js 24.20.0+ (the CI and Docker image use Node 24)
 - pnpm 11.5.2 (activated automatically by Corepack from the root `packageManager` field)
-- A running MariaDB instance
-- Docker (for function execution)
+- Docker (for the dev database and for function execution)
 
 ### Starting locally
 
-```bash
-# Backend (terminal 1)
-cd Backend
-cp ../example.env .env # fill in DATABASE_URL etc.
-pnpm install
-pnpm dev               # esbuild watch + node
+From the repository root:
 
-# UI (terminal 2)
-cd UI
-pnpm install
-pnpm tailwind:watch    # Tailwind CSS watch (separate terminal or background)
-pnpm dev               # Vite dev server on port 443
+```bash
+corepack enable
+pnpm full-install                                # Backend + UI dependencies
+docker compose -f docker-compose.dev.yml up -d --wait db   # MariaDB on 127.0.0.1:3306
+
+cp example.env Backend/.env
+sed -i 's#@db:#@localhost:#' Backend/.env        # the dev database is reached from the host
+
+cd Backend
+pnpm generate          # Prisma client; pnpm dev crashes without it
+pnpm migrate:deploy    # create the tables; the server errors on missing tables without it
+pnpm dev               # API on http://localhost:5000 (rebuild + restart to pick up changes)
 ```
+
+In a second terminal:
+
+```bash
+cd UI
+pnpm tailwind:build    # creates public/styles.css (gitignored); use tailwind:watch while editing styles
+pnpm dev               # Vite on http://localhost:443, proxies /api to the backend on port 5000
+```
+
+Open `http://localhost:443` and register; the first account becomes admin. `pnpm dev` only builds the backend once, so restart it after backend changes.
+
+Common failures:
+
+| Symptom | Fix |
+|---|---|
+| `Cannot find module '.prisma/client/default'` | Run `pnpm generate` in `Backend/` |
+| `Table 'shsf.InstanceSetting' doesn't exist` | Run `pnpm migrate:deploy` in `Backend/` |
+| `Invalid environment variables` | The message lists each bad variable; compare `Backend/.env` with `example.env` |
+| UI has no styling | Run `pnpm tailwind:build` in `UI/` |
 
 ### Before committing
 
