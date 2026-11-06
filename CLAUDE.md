@@ -133,7 +133,10 @@ Session-cookie auth, entirely in-house. No third-party provider. Never add unaut
 
 ### Function runner (`Backend/src/lib/Runner.ts`)
 `Backend/src/lib/Runner.ts` is the public entry point for function execution — always import from here. The implementation is split across several co-located modules:
-- `Backend/src/lib/Runner.ts` — exported API (`executeFunction`, `buildPayloadFromGET` and `buildPayloadFromPOST`, `installDependencies`, container lifecycle, `persistFunctionExecutionLog`)
+- `Backend/src/lib/Runner.ts` — public API and payload/dependency helpers
+- `Backend/src/lib/RunnerInvocation.ts`, `Backend/src/lib/RunnerSource.ts`, `Backend/src/lib/RunnerContainer.ts`, `Backend/src/lib/RunnerCleanup.ts` — invocation, source preparation, container lifecycle, and cleanup
+- `Backend/src/lib/RunnerRuntimeAdapter.ts` — runtime execution commands
+- `Backend/src/lib/RunnerExecutionLog.ts` — execution log persistence
 - `Backend/src/lib/RunnerRuntimeScripts.ts` — pure generator functions for per-runtime runner and init scripts (no I/O)
 - `Backend/src/lib/RunnerScripts.ts` — DB communication template strings and `getOrCreateFunctionDbToken`
 - `Backend/src/lib/RunnerUtils.ts` — small utility and filesystem helpers
@@ -142,7 +145,7 @@ Session-cookie auth, entirely in-house. No third-party provider. Never add unaut
 Every function invocation flows through here. Be conservative with changes and always run the full test suite after edits.
 
 ### Inter-function calls (`callF`)
-Functions can call other functions owned by the same user via the `callF` built-in. At runtime a per-execution pair of directories (callfunc-requests and callfunc-responses) under the execution transport dir are used; `Backend/src/lib/Runner.ts` starts a `startCallFuncBridge` alongside the storage bridge to service these requests. The runtime-specific callF helper is injected into every function's app directory. The target function is looked up by name scoped to the same `userId`, and the payload's `ran_by` field is set to `func_<callerFunctionId>`. Do not bypass this scoping — it is the sole authz boundary for cross-function calls.
+Functions can call other functions owned by the same user via the `callF` built-in. At runtime a per-execution pair of directories (callfunc-requests and callfunc-responses) under the execution transport dir are used; `Backend/src/lib/RunnerInvocation.ts` starts a `startCallFuncBridge` alongside the storage bridge to service these requests. The runtime-specific callF helper is injected into every function's app directory. The target function is looked up by name scoped to the same `userId`, and the payload's `ran_by` field is set to `func_<callerFunctionId>`. Do not bypass this scoping — it is the sole authz boundary for cross-function calls.
 
 ### Git-backed storage (`Backend/src/lib/GitOps.ts`, `Backend/src/lib/GitEditGuards.ts`)
 Function source files are stored under git version control. All mutations must go through the guard layer — do not write function files directly.
