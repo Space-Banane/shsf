@@ -32,8 +32,14 @@ export const DocsGettingStarted = () => {
 				required values will stop the server with a clear error.
 			</p>
 			<pre>
-				<code>cp example.env .env</code>
+				<code>{`cp example.env .env
+sed -i "s/^INSTANCE_SECRET=.*/INSTANCE_SECRET=$(openssl rand -hex 32)/" .env`}</code>
 			</pre>
+			<p>
+				The second command writes a random <code>INSTANCE_SECRET</code>, which
+				production requires. The other defaults work for{" "}
+				<code>http://localhost:5000</code>.
+			</p>
 
 			<CodeCaption>.env — the values that ship in example.env</CodeCaption>
 			<pre>
@@ -43,8 +49,8 @@ PORT=5000
 # Database connection string (MariaDB/MySQL)
 DATABASE_URL=mysql://user:password@db:3306/shsf
 
-# Domain name for your deployment
-DOMAIN=shsf.example.com
+# Cookie domain. Use "localhost" locally; set your real hostname when deploying.
+DOMAIN=localhost
 
 # Public UI URL
 UI_URL=http://localhost:5000
@@ -53,7 +59,7 @@ UI_URL=http://localhost:5000
 REACT_APP_API_URL=http://localhost:5000
 
 # Comma-separated list of allowed CORS origins
-CORS_URLS=http://localhost:5000,https://shsf.example.com
+CORS_URLS=http://localhost:5000
 
 # Global request rate limit window, in milliseconds (0 = disabled)
 RATELIMIT=5000
@@ -122,9 +128,9 @@ IS_DEMO=false`}</code>
 			<h2>3. Set up the database</h2>
 			<p>
 				Point <code>DATABASE_URL</code> at your own MariaDB/MySQL server, or
-				uncomment the <code>database</code> service in{" "}
-				<code>docker-compose.yml</code> to run one alongside SHSF (then use{" "}
-				<code>database</code> as the host in <code>DATABASE_URL</code>). Migrations are
+				uncomment the <code>db</code> service in{" "}
+				<code>docker-compose.yml</code> to run one alongside SHSF; its credentials
+				match the default <code>DATABASE_URL</code> (host <code>db</code>). Migrations are
 				applied automatically on startup.
 			</p>
 

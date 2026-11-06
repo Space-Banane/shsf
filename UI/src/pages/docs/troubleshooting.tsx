@@ -22,8 +22,8 @@ export const TroubleshootingDocPage = () => (
 			</li>
 			<li>
 				<strong>Cannot reach the database</strong> — check <code>DATABASE_URL</code>.
-				If you run the bundled <code>database</code> service, use{" "}
-				<code>database</code> as the host.
+				If you run the bundled <code>db</code> service, the host must be{" "}
+				<code>db</code> (the default).
 			</li>
 			<li>
 				<strong>Functions never start</strong> — the backend needs{" "}
@@ -76,6 +76,10 @@ export const TroubleshootingDocPage = () => (
 
 		<h2>Function runs but misbehaves</h2>
 		<ul>
+			<li>
+				<strong>"Function is not ready yet."</strong> — a new function's container is
+				still being pulled and initialised. Wait a moment and run it again.
+			</li>
 			<li>
 				<strong>Dependency import errors</strong> — add{" "}
 				<code>requirements.txt</code>, <code>go.mod</code> or <code>package.json</code>.

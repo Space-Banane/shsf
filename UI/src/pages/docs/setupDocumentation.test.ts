@@ -13,7 +13,7 @@ describe("setup documentation", () => {
 		expect(existsSync(resolve(repositoryRoot, environmentTemplate))).toBe(true);
 		expect(readme).toContain("git clone " + repositoryUrl);
 		expect(readme).toContain("cp " + environmentTemplate + " .env");
-		expect(readme).toContain("cp ../" + environmentTemplate + " .env");
+		expect(readme).toContain("cp " + environmentTemplate + " Backend/.env");
 		expect(gettingStartedGuide).toContain("git clone " + repositoryUrl);
 		expect(gettingStartedGuide).toContain("cp " + environmentTemplate + " .env");
 	});

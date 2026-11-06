@@ -14,20 +14,20 @@ services:
    - /var/run/docker.sock:/var/run/docker.sock
    - /opt/shsf_data:/opt/shsf_data
 
- # To use a local MariaDB database, uncomment the following service and update your .env DATABASE_URL to use 'db' as the host:
- # database:
- #   image: mariadb:latest
+ # No external database? Uncomment this service. The default DATABASE_URL in example.env already points at host 'db'.
+ # db:
+ #   image: mariadb:11.8
+ #   restart: always
  #   environment:
- #     MYSQL_ROOT_PASSWORD: example
- #     MYSQL_DATABASE: shsf
- #     MYSQL_USER: user
- #     MYSQL_PASSWORD: password
+ #     MARIADB_ROOT_PASSWORD: example
+ #     MARIADB_DATABASE: shsf
+ #     MARIADB_USER: user
+ #     MARIADB_PASSWORD: password
  #   volumes:
  #     - ./db:/var/lib/mysql
- #   ports:
- #     - "3306:3306"
  #   healthcheck:
- #     test: ["CMD", "sh", "-c", "mysqladmin ping -h localhost"]
- #     interval: 30s
- #     timeout: 10s
- #     retries: 3
+ #     test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+ #     interval: 5s
+ #     timeout: 5s
+ #     retries: 20
+ #     start_period: 10s

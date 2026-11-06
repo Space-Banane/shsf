@@ -28,6 +28,8 @@ services:
       MARIADB_DATABASE: shsf
       MARIADB_USER: user
       MARIADB_PASSWORD: password
+    ports:
+      - "127.0.0.1:3306:3306"
     volumes:
       - shsf_dev_db:/var/lib/mysql
     healthcheck:
