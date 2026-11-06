@@ -25,6 +25,7 @@ describe("setup documentation", () => {
 
 		for (const doc of [readme, gettingStartedGuide]) {
 			expect(doc).toContain("docker compose --profile db up -d");
+			expect(doc).toMatch(/v2\.20 or newer/);
 			expect(doc).not.toMatch(/sed -i\s+["']/);
 		}
 	});

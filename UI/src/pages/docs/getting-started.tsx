@@ -16,7 +16,8 @@ export const DocsGettingStarted = () => {
 					<strong>Docker host</strong>. Functions run as sibling containers on
 					the host's Docker daemon, so the backend needs access to{" "}
 					<code>/var/run/docker.sock</code> (already wired up in the provided{" "}
-					<code>docker-compose.yml</code>).
+					<code>docker-compose.yml</code>). That file needs Docker Compose{" "}
+					<strong>v2.20 or newer</strong> (<code>docker compose version</code>).
 				</p>
 			</Callout>
 
