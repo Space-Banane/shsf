@@ -16,7 +16,8 @@ export const DocsGettingStarted = () => {
 					<strong>Docker host</strong>. Functions run as sibling containers on
 					the host's Docker daemon, so the backend needs access to{" "}
 					<code>/var/run/docker.sock</code> (already wired up in the provided{" "}
-					<code>docker-compose.yml</code>).
+					<code>docker-compose.yml</code>). That file needs Docker Compose{" "}
+					<strong>v2.20 or newer</strong> (<code>docker compose version</code>).
 				</p>
 			</Callout>
 
@@ -33,7 +34,7 @@ export const DocsGettingStarted = () => {
 			</p>
 			<pre>
 				<code>{`cp example.env .env
-sed -i "s/^INSTANCE_SECRET=.*/INSTANCE_SECRET=$(openssl rand -hex 32)/" .env`}</code>
+sed -i.bak "s/^INSTANCE_SECRET=.*/INSTANCE_SECRET=$(openssl rand -hex 32)/" .env && rm .env.bak`}</code>
 			</pre>
 			<p>
 				The second command writes a random <code>INSTANCE_SECRET</code>, which
@@ -128,15 +129,16 @@ IS_DEMO=false`}</code>
 			<h2>3. Set up the database</h2>
 			<p>
 				Point <code>DATABASE_URL</code> at your own MariaDB/MySQL server, or
-				uncomment the <code>db</code> service in{" "}
-				<code>docker-compose.yml</code> to run one alongside SHSF; its credentials
-				match the default <code>DATABASE_URL</code> (host <code>db</code>). Migrations are
-				applied automatically on startup.
+				start the bundled <code>db</code> service with{" "}
+				<code>--profile db</code> (next step); its credentials match the default{" "}
+				<code>DATABASE_URL</code> (host <code>db</code>) and the backend waits for it to
+				be healthy. Migrations are applied automatically on startup.
 			</p>
 
 			<h2>4. Start the stack</h2>
 			<pre>
-				<code>docker compose up -d</code>
+				<code>{`docker compose --profile db up -d   # bundled MariaDB
+docker compose up -d                # external database`}</code>
 			</pre>
 			<Callout variant="success" title="Give it a moment">
 				<p>
@@ -184,7 +186,7 @@ IS_DEMO=false`}</code>
 			<pre>
 				<code>{`git pull
 docker compose pull
-docker compose up -d`}</code>
+docker compose up -d   # add --profile db if you use the bundled database`}</code>
 			</pre>
 			<Callout variant="warning" title="Back up first">
 				<p>

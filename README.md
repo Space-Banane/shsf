@@ -43,7 +43,7 @@
 
 | Requirement | Notes |
 |---|---|
-| Docker + Compose plugin | `docker compose` v2 |
+| Docker + Compose plugin | `docker compose` v2.20 or newer (`depends_on … required` needs it) |
 | MySQL / MariaDB | External or via the optional compose service |
 | 512 MB RAM minimum | More recommended if running many concurrent functions |
 | A modern browser | Chrome, Firefox, Edge, Safari |
@@ -63,7 +63,7 @@ cd shsf
 
 ```bash
 cp example.env .env
-sed -i "s/^INSTANCE_SECRET=.*/INSTANCE_SECRET=$(openssl rand -hex 32)/" .env
+sed -i.bak "s/^INSTANCE_SECRET=.*/INSTANCE_SECRET=$(openssl rand -hex 32)/" .env && rm .env.bak
 ```
 
 The second command writes a random `INSTANCE_SECRET` (required in production). The other defaults work for `http://localhost:5000`; for a real deployment, also set `DOMAIN`, `UI_URL`, `REACT_APP_API_URL` and `CORS_URLS` to your public hostname.
@@ -80,12 +80,13 @@ The second command writes a random `INSTANCE_SECRET` (required in production). T
 | `OPENROUTER_API_KEY` | Optional instance-wide OpenRouter key, used for AI generation and for log analysis when a user has no OpenRouter key of their own |
 | `IS_DEMO` | Set to `true` only for a disposable public demo; seeds `demo@shsf.local` / `demo-password` and an example function |
 
-The default `DATABASE_URL` points at a host named `db`. If you have no external database, uncomment the `db` service in `docker-compose.yml`; its credentials match the default URL. Migrations run automatically on startup.
+The default `DATABASE_URL` points at a host named `db`. If you have no external database, start the bundled `db` service with `--profile db` (below); its credentials match the default URL, and the backend waits for it to be healthy. Migrations run automatically on startup.
 
 ### 3 — Start the stack
 
 ```bash
-docker compose up -d
+docker compose --profile db up -d   # bundled MariaDB
+docker compose up -d                # external database (set DATABASE_URL)
 ```
 
 ### 4 — Access the web UI
@@ -123,7 +124,7 @@ This keeps Docker bind mounts valid on Windows while using the standard `/opt/sh
    - `POST /api/function/{id}/execute` (or use your execution alias)
    - Set up a **cron trigger** for scheduled runs
 
-   A new function's container is pulled and initialised on first use. Until that finishes, runs return `Function is not ready yet.` (503); wait a moment and run again.
+   A new function's container is pulled and initialised on first use. Until that finishes, runs return `Function is not ready yet.` (`_code` 503 in the response envelope); wait a moment and run again.
 5. **Configure extras** — CORS, rate limits, caching, Git sync, environment variables, Docker options, and more are all available in the function settings panel.
 
 ---
@@ -225,7 +226,7 @@ pnpm full-install                                # Backend + UI dependencies
 docker compose -f docker-compose.dev.yml up -d --wait db   # MariaDB on 127.0.0.1:3306
 
 cp example.env Backend/.env
-sed -i 's#@db:#@localhost:#' Backend/.env        # the dev database is reached from the host
+sed -i.bak 's#@db:#@localhost:#' Backend/.env && rm Backend/.env.bak   # the dev database is reached from the host
 
 cd Backend
 pnpm generate          # Prisma client; pnpm dev crashes without it

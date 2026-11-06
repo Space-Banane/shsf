@@ -10,24 +10,31 @@ services:
   environment:
    - NODE_ENV=production
    - TZ=Europe/Berlin
+  depends_on:
+   db:
+    condition: service_healthy
+    required: false # only applies when the db profile is enabled
   volumes:
    - /var/run/docker.sock:/var/run/docker.sock
    - /opt/shsf_data:/opt/shsf_data
 
- # No external database? Uncomment this service. The default DATABASE_URL in example.env already points at host 'db'.
- # db:
- #   image: mariadb:11.8
- #   restart: always
- #   environment:
- #     MARIADB_ROOT_PASSWORD: example
- #     MARIADB_DATABASE: shsf
- #     MARIADB_USER: user
- #     MARIADB_PASSWORD: password
- #   volumes:
- #     - ./db:/var/lib/mysql
- #   healthcheck:
- #     test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
- #     interval: 5s
- #     timeout: 5s
- #     retries: 20
- #     start_period: 10s
+ # Bundled database, used when started with `docker compose --profile db up -d`.
+ # The default DATABASE_URL in example.env already points at host 'db'.
+ # With an external database, leave the profile off and set DATABASE_URL.
+ db:
+  image: mariadb:11.8
+  profiles: ["db"]
+  restart: always
+  environment:
+   MARIADB_ROOT_PASSWORD: example
+   MARIADB_DATABASE: shsf
+   MARIADB_USER: user
+   MARIADB_PASSWORD: password
+  volumes:
+   - ./db:/var/lib/mysql
+  healthcheck:
+   test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+   interval: 5s
+   timeout: 5s
+   retries: 20
+   start_period: 10s
