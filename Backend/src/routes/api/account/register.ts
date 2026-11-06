@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "crypto";
-import { isIP } from "node:net";
 import { COOKIE, DOMAIN, fileRouter, prisma } from "../../..";
 import { Cookie } from "rjweb-server";
 import * as bcrypt from "bcrypt";
+import { env } from "../../../lib/env";
+import { getSessionCookieDomain } from "../../../lib/Authentication";
 import { getRegistrationDisabled } from "../../../lib/DataManager";
 
 export = new fileRouter.Path("/").http(
@@ -12,7 +13,7 @@ export = new fileRouter.Path("/").http(
 		http
 			.ratelimit((limit) => limit.hits(1).window(20000).penalty(2000))
 			.onRequest(async (ctr) => {
-				if (await getRegistrationDisabled()) {
+				if ((env.SSO && !env.SSO.localLoginEnabled) || await getRegistrationDisabled()) {
 					return ctr
 						.status(ctr.$status.BAD_REQUEST)
 						.print("Registration is disabled");
@@ -33,7 +34,7 @@ export = new fileRouter.Path("/").http(
 					return ctr.status(ctr.$status.BAD_REQUEST).print("Passwords do not match");
 				}
 
-				if (ctr.cookies.has(COOKIE)) {
+				if (ctr.cookies.has(COOKIE) && ctr.getAuth().success) {
 					return ctr.status(ctr.$status.BAD_REQUEST).print({
 						message: "You are already logged in",
 						status: "FAILED",
@@ -105,22 +106,10 @@ export = new fileRouter.Path("/").http(
 					});
 				if (!user) return;
 
-				let newdomain = "";
-				if (DOMAIN === "localhost" || isIP(DOMAIN)) {
-					newdomain = DOMAIN;
-				} else {
-					if (DOMAIN.split(".").length > 2) {
-						// we are on a subdomain
-						newdomain = DOMAIN.split(".").slice(1).join("."); // Ex. "sub.domain.com" => "domain.com"
-					} else {
-						newdomain = "." + DOMAIN;
-					}
-				}
-
 				ctr.cookies.set(
 					COOKIE,
 					new Cookie(hash, {
-						domain: newdomain,
+						domain: getSessionCookieDomain(DOMAIN),
 						expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30), // 30 days
 					}),
 				);

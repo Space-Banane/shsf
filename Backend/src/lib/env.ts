@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { join } from "path";
 import { z } from "zod";
+import { parseSsoConfig } from "./SsoConfig";
 
 export const DEFAULT_INSTANCE_SECRET = "default_insecure_secret_please_set";
 export const MIN_INSTANCE_SECRET_LENGTH = 32;
@@ -81,7 +82,7 @@ export function parseEnvironment(input: NodeJS.ProcessEnv = process.env) {
 		throw new Error(`Invalid environment variables:\n${formatted}`);
 	}
 
-	return result.data;
+	return { ...result.data, SSO: parseSsoConfig(input) };
 }
 
 export const env = parseEnvironment();

@@ -42,6 +42,16 @@ jobs:
         name: Test & Lint
         needs: build
         runs-on: ubuntu-latest
+        container: node:24-bookworm
+        services:
+            mariadb:
+                image: mariadb:11.8
+                env:
+                    MARIADB_ROOT_PASSWORD: test-only
+                    MARIADB_DATABASE: shsf_test
+                options: >-
+                    --health-cmd="healthcheck.sh --connect --innodb_initialized"
+                    --health-interval=5s --health-timeout=5s --health-retries=20
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
@@ -70,8 +80,16 @@ jobs:
             - name: Generate Prisma client
               run: cd Backend && pnpm generate
 
-            - name: Backend unit tests
+            - name: Apply test database migrations
+              run: cd Backend && pnpm migrate:deploy
+              env:
+                  DATABASE_URL: mysql://root:test-only@mariadb:3306/shsf_test
+
+            - name: Backend tests including OIDC and sharing integration
               run: cd Backend && pnpm test
+              env:
+                  SSO_TEST_DATABASE_URL: mysql://root:test-only@mariadb:3306/shsf_test
+                  SHARING_TEST_DATABASE_URL: mysql://root:test-only@mariadb:3306/shsf_test
 
             - name: UI ESLint
               run: cd UI && pnpm lint

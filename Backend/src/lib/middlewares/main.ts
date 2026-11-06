@@ -1,7 +1,7 @@
 import { Middleware } from "rjweb-server";
 import { createLogger } from "../logger";
 import { env } from "../env";
-import { IGNORE_PATHS, INJECT_HEADERS } from "../static";
+import { IGNORE_PATHS, INJECT_HEADERS, requestLogUrl } from "../static";
 
 const log = createLogger("HTTP");
 
@@ -13,7 +13,7 @@ export const mainMiddleware = new Middleware<{}, {}>("Main Middleware", "1.0.0")
 	.httpRequest(async (_config, _server, _context, ctr) => {
 		if (env.REQUEST_DEBUGGING && !IGNORE_PATHS.some((p) => ctr.url.href.startsWith(p))) {
 			log.info(
-				{ method: ctr.url.method, url: ctr.url.href, ip: ctr.client.ip.usual() },
+				{ method: ctr.url.method, url: requestLogUrl(ctr.url), ip: ctr.client.ip.usual() },
 				"Received request",
 			);
 		}
@@ -25,7 +25,7 @@ export const mainMiddleware = new Middleware<{}, {}>("Main Middleware", "1.0.0")
 	.httpRequestFinish(async (_config, _server, _context, ctr, ms) => {
 		if (env.RESPONSE_DEBUGGING && !IGNORE_PATHS.some((p) => ctr.url.href.startsWith(p))) {
 			log.info(
-				{ method: ctr.url.method, url: ctr.url.href, duration: ms.toFixed(2) },
+				{ method: ctr.url.method, url: requestLogUrl(ctr.url), duration: ms.toFixed(2) },
 				"Sent response",
 			);
 		}

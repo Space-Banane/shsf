@@ -116,3 +116,66 @@ describe("LoginPage demo login", () => {
 		await waitFor(() => expect(demoButton).not.toBeDisabled());
 	});
 });
+
+describe("LoginPage SSO", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockLocation.mockReturnValue({ state: null, search: "" });
+		Object.defineProperty(global, "fetch", { writable: true, value: fetchMock });
+	});
+
+	it("offers the configured provider alongside local and demo login", async () => {
+		fetchMock.mockResolvedValueOnce({ json: async () => ({
+			isDemo: true,
+			sso: { name: "Company" },
+			localLoginEnabled: true,
+		}) });
+
+		renderLoginPage();
+
+		expect(await screen.findByRole("link", { name: "Sign in with Company" })).toHaveAttribute("href", "/api/account/sso/login");
+		expect(screen.getByRole("button", { name: "Sign In" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Log in as demo user" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "Create one" })).toHaveAttribute("href", "/register");
+	});
+
+	it.each([null, undefined])("keeps local login when SSO is %s and the local setting is missing", async (sso) => {
+		fetchMock.mockResolvedValueOnce({ json: async () => ({ isDemo: true, sso }) });
+
+		renderLoginPage();
+
+		expect(await screen.findByRole("button", { name: "Log in as demo user" })).toBeInTheDocument();
+		expect(screen.queryByRole("link", { name: /Sign in with/ })).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Sign In" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "Create one" })).toBeInTheDocument();
+	});
+
+	it("hides local credentials, demo login, and signup when local login is disabled", async () => {
+		fetchMock.mockResolvedValueOnce({ json: async () => ({
+			isDemo: true,
+			sso: { name: "Company" },
+			localLoginEnabled: false,
+		}) });
+
+		renderLoginPage();
+
+		expect(await screen.findByRole("link", { name: "Sign in with Company" })).toHaveAttribute("href", "/api/account/sso/login");
+		expect(screen.queryByPlaceholderText("your@email.com")).not.toBeInTheDocument();
+		expect(screen.queryByPlaceholderText("••••••••••••")).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Sign In" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Log in as demo user" })).not.toBeInTheDocument();
+		expect(screen.queryByText("Public demo instance")).not.toBeInTheDocument();
+		expect(screen.queryByRole("link", { name: "Create one" })).not.toBeInTheDocument();
+	});
+
+	it("shows a generic failure without reflecting provider error details", async () => {
+		mockLocation.mockReturnValue({ state: null, search: "?sso=failed&error_description=private-provider-detail" });
+		fetchMock.mockResolvedValueOnce({ json: async () => ({ sso: { name: "Company" } }) });
+
+		renderLoginPage();
+
+		expect(await screen.findByRole("link", { name: "Sign in with Company" })).toBeInTheDocument();
+		expect(screen.getByRole("alert")).toHaveTextContent("Sign-in failed. Please try again.");
+		expect(screen.queryByText(/private-provider-detail/)).not.toBeInTheDocument();
+	});
+});

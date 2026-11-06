@@ -1,0 +1,23 @@
+# OIDC design for issue 65
+
+Existing flow: login/register create User and Session records. checkAuthentication resolves sessions and access tokens for middleware and route handlers. Sharing.ts builds database filters using GroupMember; syncSsoGroupMembership maps (provider, external group id) to local Group ids. Local account passwords are already nullable.
+
+Alternatives evaluated directly because the architecture skill's model presets are unavailable:
+- Store encrypted refresh tokens, periodically refresh claims, and revoke sessions on refresh failure. More moving parts and provider-specific group/disable semantics.
+- Reauthenticate through OIDC at a bounded interval. No stored provider tokens; one expiry check protects sessions and access tokens of SSO-managed users. Selected for the smallest complete implementation.
+
+Contract:
+- One optional OIDC provider, disabled by default. openid-client handles discovery, authorization code + S256 PKCE, issuer/audience/time/state/nonce/signature validation. HTTPS required except explicit loopback development mode. Node CA trust configurable via NODE_EXTRA_CA_CERTS; never disable certificate validation. Finite request timeout.
+- SsoConfig.ts parses environment using zod. Maps flat claim names for verified email, name, groups, roles. Group config maps immutable external ids to local display names. Separate admin-role allowlist; no matching role means User. No automatic email linking.
+- Sso.ts exposes startSsoLogin() -> {url,cookie}, completeSsoLogin(callbackUrl,cookie) -> {hash,expiresAt}. Encrypted HttpOnly SameSite=Lax cookie holds state/nonce/verifier, policy digest and issued time; 5-minute lifetime. Callback clears it and exchanges a one-use code, verifies signature, provisions user + syncs membership + session in one database transaction.
+- User stores nullable SHA256(JSON([issuer,subject])) ssoIdentity unique, nullable ssoPolicy hash and ssoValidUntil and ssoLoginStartedAt. Case-sensitive subject semantics survive case-insensitive MariaDB collation through hash. Session has nullable expiresAt, set only for SSO. No raw provider tokens persisted. User default role remains User even first signup.
+- Policy hash covers issuer, client id, claim/group/role mapping and lifespan. SSO-managed users are accepted only when provider is enabled, policy matches, and validUntil is future. Each SSO session additionally enforces its own fixed expiry. SSO access tokens obey the same identity freshness, so they cannot retain stale group or role access. Local users, API keys and guests stay unchanged with SSO off.
+- Default freshness 300 seconds, configurable 60..3600. Fresh login replaces SSO memberships; expired users cannot authenticate. Unmapped groups leave groups and grants intact. No implicit deletion. IdP must deny new authorization/token grants to disabled users; authorization requests force fresh authentication with max_age=0. No background sync, back-channel logout or SAML in this change.
+- Optional local-auth disable blocks local login and registration; default is enabled. No linking SSO identities to existing local emails. SSO users cannot authenticate locally even if an admin assigns a password.
+- Existing sync helper gains optional transaction client, audit writes use same client. Serializable provisioning orders accepted callbacks by the encrypted challenge start time and retries specific transaction conflicts. Group insert uses stable provider key derived from issuer and conflict-safe names. Default helper behavior remains compatible.
+- Public config adds sso: null | {name} and localLoginEnabled. Login page shows provider link to /api/account/sso/login and generic ?sso=failed error. Callback redirects only to configured UI root or /login?sso=failed, never user-supplied URLs.
+- Authentication middleware permits SSO start/callback, /api/config, and public UI/assets with an expired session cookie, so users can reauthenticate. Request/response debug logs omit SSO queries; route errors never log thrown provider errors or raw claims.
+
+UI contract: preserve existing login layout, typography and colors; a normal provider sign-in link with keyboard focus, local form remains unless disabled. No new visual system.
+
+Verification: real HTTP mock OIDC server signs tokens and enforces PKCE/one-time codes. Tests use real MariaDB transactions/migrations, exercise callbacks over HTTP, membership/shares, conflicts, expiration, policy changes, local login/API keys, bad state/nonce/signatures and provider failures. UI tests cover availability and local fallback. Full existing suites, UI lint, backend lint/build, UI build, agent-doc check.

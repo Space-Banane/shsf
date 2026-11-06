@@ -2,7 +2,7 @@ import { useState, useContext, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { UserContext } from "../../App";
 import { BASE_URL } from "../..";
-import { apiFetch } from "../../services/api";
+import { apiFetch, isRecord } from "../../services/api";
 
 const fetch = apiFetch;
 
@@ -32,6 +32,8 @@ function LoginPage() {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
 	const [isDemo, setIsDemo] = useState(false);
+	const [ssoName, setSsoName] = useState<string | null>(null);
+	const [localLoginEnabled, setLocalLoginEnabled] = useState(true);
 	const navigate = useNavigate();
 	const location = useLocation();
 	const { user, refreshUser } = useContext(UserContext);
@@ -45,12 +47,17 @@ function LoginPage() {
 	useEffect(() => {
 		fetch(BASE_URL + "/api/config")
 			.then((response) => response.json())
-			.then((config: { isDemo?: boolean }) => setIsDemo(config.isDemo === true))
+			.then((config: unknown) => {
+				if (!isRecord(config)) return;
+				setIsDemo(config.isDemo === true);
+				setLocalLoginEnabled(config.localLoginEnabled !== false);
+				setSsoName(isRecord(config.sso) && typeof config.sso.name === "string" ? config.sso.name : null);
+			})
 			.catch(() => setIsDemo(false));
 	}, []);
 
 	const handleLogin = async (loginEmail = email, loginPassword = password) => {
-		if (loading) return;
+		if (loading || !localLoginEnabled) return;
 
 		setError("");
 		setLoading(true);
@@ -76,6 +83,9 @@ function LoginPage() {
 	};
 
 	const successMessage = locationState?.message;
+	const errorMessage = error || (new URLSearchParams(location.search).get("sso") === "failed"
+		? "Sign-in failed. Please try again."
+		: "");
 	const inputClass = "w-full px-3 py-2.5 bg-background border border-white/[0.07] rounded-lg text-text text-sm focus:border-primary/50 focus:outline-none placeholder:text-muted/60";
 
 	return (
@@ -88,7 +98,7 @@ function LoginPage() {
 				</div>
 
 				<div className="bg-surface border border-white/[0.07] rounded-xl p-6 shadow-2xl space-y-4">
-					{isDemo && (
+					{localLoginEnabled && isDemo && (
 						<div className="px-3 py-2.5 bg-primary/10 border border-primary/20 rounded-lg text-sm text-text">
 							<p className="font-medium">Public demo instance</p>
 							<p className="text-muted mt-1">Sign in with <span className="font-mono text-text">{DEMO_CREDENTIALS.email}</span> / <span className="font-mono text-text">{DEMO_CREDENTIALS.password}</span>.</p>
@@ -99,63 +109,77 @@ function LoginPage() {
 							{successMessage}
 						</div>
 					)}
-					{error && (
-						<div className="px-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-							{error}
+					{errorMessage && (
+						<div role="alert" className="px-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+							{errorMessage}
 						</div>
 					)}
-					<div>
-						<label className="block text-xs font-medium text-muted mb-1.5">Email</label>
-						<input
-							type="email"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-							className={inputClass}
-							placeholder="your@email.com"
-							disabled={loading}
-							autoFocus
-						/>
-					</div>
-					<div>
-						<label className="block text-xs font-medium text-muted mb-1.5">Password</label>
-						<input
-							type="password"
-							value={password}
-							onChange={(e) => setPassword(e.target.value)}
-							className={inputClass}
-							placeholder="••••••••••••"
-							disabled={loading}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" && !loading && email && password) handleLogin();
-							}}
-						/>
-					</div>
-					<button
-						onClick={() => handleLogin()}
-						disabled={loading || !email || !password}
-						className="w-full py-2.5 bg-primary text-background text-sm font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-					>
-						{loading ? (
-							<><div className="w-4 h-4 border-2 border-background/30 border-t-background rounded-full animate-spin" /> Signing in…</>
-						) : "Sign In"}
-					</button>
-					{isDemo && (
-						<button
-							onClick={() => handleLogin(DEMO_CREDENTIALS.email, DEMO_CREDENTIALS.password)}
-							disabled={loading}
-							className="w-full py-2.5 border border-primary/50 text-primary text-sm font-semibold rounded-lg hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+					{ssoName && (
+						<a
+							href={`${BASE_URL}/api/account/sso/login`}
+							className="block w-full px-3 py-2.5 border border-primary/50 text-primary text-center text-sm font-semibold rounded-lg hover:bg-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary transition-colors break-words"
 						>
-							{loading ? "Signing in…" : "Log in as demo user"}
-						</button>
+							Sign in with {ssoName}
+						</a>
+					)}
+					{localLoginEnabled && (
+						<>
+							<div>
+								<label className="block text-xs font-medium text-muted mb-1.5">Email</label>
+								<input
+									type="email"
+									value={email}
+									onChange={(e) => setEmail(e.target.value)}
+									className={inputClass}
+									placeholder="your@email.com"
+									disabled={loading}
+									autoFocus
+								/>
+							</div>
+							<div>
+								<label className="block text-xs font-medium text-muted mb-1.5">Password</label>
+								<input
+									type="password"
+									value={password}
+									onChange={(e) => setPassword(e.target.value)}
+									className={inputClass}
+									placeholder="••••••••••••"
+									disabled={loading}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" && !loading && email && password) handleLogin();
+									}}
+								/>
+							</div>
+							<button
+								onClick={() => handleLogin()}
+								disabled={loading || !email || !password}
+								className="w-full py-2.5 bg-primary text-background text-sm font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+							>
+								{loading ? (
+									<><div className="w-4 h-4 border-2 border-background/30 border-t-background rounded-full animate-spin" /> Signing in…</>
+								) : "Sign In"}
+							</button>
+							{isDemo && (
+								<button
+									onClick={() => handleLogin(DEMO_CREDENTIALS.email, DEMO_CREDENTIALS.password)}
+									disabled={loading}
+									className="w-full py-2.5 border border-primary/50 text-primary text-sm font-semibold rounded-lg hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+								>
+									{loading ? "Signing in…" : "Log in as demo user"}
+								</button>
+							)}
+						</>
 					)}
 				</div>
 
-				<p className="text-center text-sm text-muted mt-4">
-					Don't have an account?{" "}
-					<a href="/register" className="text-primary hover:text-primary/80 transition-colors">
-						Create one
-					</a>
-				</p>
+				{localLoginEnabled && (
+					<p className="text-center text-sm text-muted mt-4">
+						Don't have an account?{" "}
+						<a href="/register" className="text-primary hover:text-primary/80 transition-colors">
+							Create one
+						</a>
+					</p>
+				)}
 				<div className="flex justify-center gap-6 mt-4 text-xs text-muted/50">
 					<a href="/docs" className="hover:text-muted transition-colors">Documentation</a>
 					<a href="/" className="hover:text-muted transition-colors">Home</a>

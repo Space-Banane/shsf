@@ -12,5 +12,5 @@ export = new fileRouter.Path("/").http("GET", "/api/config", (http) =>
 			operationId: "getPublicRuntimeConfig",
 			responses: { 200: { description: "Public runtime configuration" } },
 		})
-		.onRequest(async (ctr) => ctr.print({ isDemo: env.IS_DEMO })),
+		.onRequest(async (ctr) => ctr.print({ isDemo: env.IS_DEMO, sso: env.SSO ? { name: env.SSO.name } : null, localLoginEnabled: env.SSO?.localLoginEnabled ?? true })),
 );
