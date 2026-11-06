@@ -56,6 +56,11 @@ jobs:
                   cache: "pnpm"
                   cache-dependency-path: "**/pnpm-lock.yaml"
 
+            - name: Check agent documentation
+              run: |
+                  node scripts/check-agent-docs.mjs
+                  node --test scripts/check-agent-docs.test.mjs
+
             - name: Install dependencies
               run: pnpm full-install
 
