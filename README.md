@@ -43,7 +43,7 @@
 
 | Requirement | Notes |
 |---|---|
-| Docker + Compose plugin | `docker compose` v2 |
+| Docker + Compose plugin | `docker compose` v2.20 or newer (`depends_on … required` needs it) |
 | MySQL / MariaDB | External or via the optional compose service |
 | 512 MB RAM minimum | More recommended if running many concurrent functions |
 | A modern browser | Chrome, Firefox, Edge, Safari |
