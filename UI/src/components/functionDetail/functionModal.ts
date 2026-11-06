@@ -6,6 +6,7 @@ export type FunctionModal =
 	| { type: "env" }
 	| { type: "guests" }
 	| { type: "git" }
+	| { type: "share" }
 	| { type: "ai" }
 	| { type: "loadDefault" }
 	| { type: "dependencies" }

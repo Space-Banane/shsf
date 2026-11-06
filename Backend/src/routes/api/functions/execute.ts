@@ -1,3 +1,4 @@
+import { functionAccessWhere } from "../../../lib/Sharing";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import { executeFunction } from "../../../lib/Runner";
@@ -101,18 +102,6 @@ export = new fileRouter.Path("/")
 						: "POST",
 				};
 
-				const functionData = await prisma.function.findFirst({
-					where: {
-						id: functionId,
-					},
-				});
-				if (!functionData) {
-					return ctr.status(ctr.$status.NOT_FOUND).print({
-						status: 404,
-						message: "Function not found",
-					});
-				}
-
 				const authCheck = await checkAuthentication(
 					ctr.cookies.get(COOKIE),
 					ctr.headers.get(API_KEY_HEADER),
@@ -134,10 +123,14 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				if (functionData.userId !== authCheck.user.id) {
-					return ctr.status(ctr.$status.FORBIDDEN).print({
-						status: 403,
-						message: "You do not have access to this function",
+				// Shared functions run as their owner; the caller only needs execute access.
+				const functionData = await prisma.function.findFirst({
+					where: { id: functionId, ...functionAccessWhere(authCheck.user.id, "execute") },
+				});
+				if (!functionData) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "Function not found",
 					});
 				}
 

@@ -1,3 +1,4 @@
+import { functionAccessWhere } from "../../../lib/Sharing";
 import {
 	API_KEY_HEADER,
 	COOKIE,
@@ -69,7 +70,7 @@ export = new fileRouter.Path("/").http(
 				const functionData = await prisma.function.findFirst({
 					where: {
 						id: functionId,
-						userId: authCheck.user.id,
+						...functionAccessWhere(authCheck.user.id, "edit"),
 					},
 				});
 				if (!functionData) {

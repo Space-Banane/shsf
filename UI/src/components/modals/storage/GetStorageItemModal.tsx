@@ -24,7 +24,7 @@ function GetStorageItemModal({ isOpen, onClose, selectedStorage }: GetStorageIte
 		setError("");
 		setResult(null);
 		try {
-			const res = await getStorageItem(selectedStorage.name, key);
+			const res = await getStorageItem(selectedStorage, key);
 			if (res.status === "OK") setResult(res.data);
 			else setError(res.message || "Item not found");
 		} catch {

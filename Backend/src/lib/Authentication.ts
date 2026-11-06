@@ -1,6 +1,7 @@
 import { AccessToken, Function, FunctionFile, Session, User } from "@prisma/client";
 import { prisma, INSTANCE_SECRET, REACT_APP_API_URL, UI_URL } from "..";
 import { getLinkStatus } from "./DataManager";
+import { functionAccessWhere } from "./Sharing";
 import { Cookie } from "rjweb-server";
 
 export async function checkAuthentication(
@@ -145,6 +146,16 @@ export async function checkHttpExecutionPermission(
 				permissionToExecute = {
 					state: true,
 					reason: "Provided API Key and owns the function",
+				};
+			} else if (
+				await prisma.function.findFirst({
+					where: { id: functionData.id, ...functionAccessWhere(authState.user.id, "execute") },
+					select: { id: true },
+				})
+			) {
+				permissionToExecute = {
+					state: true,
+					reason: "Provided API Key with shared execute access",
 				};
 			} else {
 				permissionToExecute = {

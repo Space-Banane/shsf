@@ -1,3 +1,4 @@
+import { functionAccessWhere } from "../../../lib/Sharing";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import {
@@ -209,7 +210,7 @@ export = new fileRouter.Path("/")
 				}
 
 				const functionData = await prisma.function.findFirst({
-					where: { id: parseInt(id), userId: authCheck.user.id },
+					where: { id: parseInt(id), ...functionAccessWhere(authCheck.user.id, "view") },
 				});
 				if (!functionData) {
 					return ctr.status(ctr.$status.NOT_FOUND).print({
@@ -396,7 +397,7 @@ export = new fileRouter.Path("/")
 				const functionId = parseInt(id);
 
 				const functionData = await prisma.function.findFirst({
-					where: { id: functionId, userId: authCheck.user.id },
+					where: { id: functionId, ...functionAccessWhere(authCheck.user.id, "edit") },
 				});
 				if (!functionData) {
 					return ctr.status(ctr.$status.NOT_FOUND).print({

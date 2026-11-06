@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({
 	session: { findFirst: vi.fn() },
 	accessToken: { findFirst: vi.fn(), update: vi.fn() },
+	function: { findFirst: vi.fn() },
 	guestUser: { findMany: vi.fn() },
 	guestSession: { findFirst: vi.fn(), delete: vi.fn() },
 }));
@@ -35,11 +36,17 @@ describe("authentication boundaries", () => {
 		expect(db.accessToken.update).toHaveBeenCalledWith({ where: { id: 3 }, data: { expired: true } });
 	});
 
-	it("only permits an access key belonging to the function owner", async () => {
+	it("only permits an access key belonging to the function owner or a recipient with execute access", async () => {
 		const ctr = { headers: new Map([["x-access-key", "key"]]), cookies: new Map() };
 		const func = { id: 1, userId: 7, guest_access: false, secure_header: null } as Parameters<typeof checkHttpExecutionPermission>[1];
-		db.accessToken.findFirst.mockResolvedValueOnce({ user: { id: 8 }, expired: false }).mockResolvedValueOnce({ user: { id: 7 }, expired: false });
+		db.function.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 1 });
+		db.accessToken.findFirst
+			.mockResolvedValueOnce({ user: { id: 8 }, expired: false })
+			.mockResolvedValueOnce({ user: { id: 7 }, expired: false })
+			.mockResolvedValueOnce({ user: { id: 9 }, expired: false });
 		expect(await checkHttpExecutionPermission(ctr, func, 2, "exec")).toEqual({ state: false, reason: "Provided Access Token, but does not own the function" });
 		expect(await checkHttpExecutionPermission(ctr, func, 2, "exec")).toEqual({ state: true, reason: "Provided API Key and owns the function" });
+		expect(await checkHttpExecutionPermission(ctr, func, 2, "exec")).toEqual({ state: true, reason: "Provided API Key with shared execute access" });
+		expect(db.function.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: 1 }) }));
 	});
 });

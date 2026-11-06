@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { PUBLIC_BASE_URL } from "../..";
+import { can } from "../../services/backend.sharing";
 import type { XFunction } from "../../types/Prisma";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { ActionButton } from "../buttons/ActionButton";
@@ -72,6 +73,7 @@ function UrlRow({
 }
 
 export function FunctionUrlCard({ functionData }: { functionData: XFunction }) {
+	if (!can(functionData.access, "execute") || !functionData.executionId) return null;
 	const functionUrl = getFunctionUrl(functionData);
 
 	return (

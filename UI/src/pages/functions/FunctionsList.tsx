@@ -10,6 +10,9 @@ import CloneFunctionModal from "../../components/modals/functions/CloneFunctionM
 import RenameNamespaceModal from "../../components/modals/namespaces/RenameNamespaceModal";
 import DeleteNamespaceModal from "../../components/modals/namespaces/DeleteNamespaceModal";
 import DeleteFunctionModal from "../../components/modals/functions/DeleteFunctionModal";
+import ShareModal from "../../components/modals/sharing/ShareModal";
+import SharedBadge from "../../components/ui/SharedBadge";
+import type { ShareResourceType } from "../../services/backend.sharing";
 import { deleteFunction } from "../../services/backend.functions";
 import ImportFunctionModal from "../../components/modals/functions/ImportFunctionModal";
 import MassReplaceModal from "../../components/modals/functionFiles/MassReplaceModal";
@@ -31,6 +34,7 @@ function FunctionsList() {
 	const [isFunctionModalOpen, setFunctionModalOpen] = useState(false);
 	const [isAIModalOpen, setAIModalOpen] = useState(false);
 	const [isDeleteFunctionModalOpen, setDeleteFunctionModalOpen] = useState(false);
+	const [shareTarget, setShareTarget] = useState<{ type: ShareResourceType; id: number; name: string } | null>(null);
 	const [isCloneFunctionModalOpen, setCloneFunctionModalOpen] = useState(false);
 	const [isImportModalOpen, setImportModalOpen] = useState(false);
 	const [isMassReplaceModalOpen, setMassReplaceModalOpen] = useState(false);
@@ -327,6 +331,7 @@ function FunctionsList() {
 								onRename={(ns) => { setSelectedNamespace(ns); setRenameNamespaceModalOpen(true); }}
 								onDelete={(ns) => { setSelectedNamespace(ns); setDeleteNamespaceModalOpen(true); }}
 								onDeleteFunction={(func) => { setSelectedFunction(func); setDeleteFunctionModalOpen(true); }}
+								onShare={setShareTarget}
 								onCloneFunction={(func) => { setSelectedFunctionForClone(func); setCloneFunctionModalOpen(true); }}
 							/>
 						))}
@@ -355,6 +360,7 @@ function FunctionsList() {
 			/>
 			<RenameNamespaceModal isOpen={isRenameNamespaceModalOpen} onClose={() => setRenameNamespaceModalOpen(false)} onRename={refreshData} namespaceId={selectedNamespace?.id || null} currentName={selectedNamespace?.name || ""} />
 			<DeleteNamespaceModal isOpen={isDeleteNamespaceModalOpen} onClose={() => setDeleteNamespaceModalOpen(false)} onDelete={refreshData} namespaceId={selectedNamespace?.id || null} namespaceName={selectedNamespace?.name || ""} />
+			{shareTarget && <ShareModal isOpen onClose={() => setShareTarget(null)} type={shareTarget.type} resourceId={shareTarget.id} resourceName={shareTarget.name} />}
 			<DeleteFunctionModal isOpen={isDeleteFunctionModalOpen} onClose={() => setDeleteFunctionModalOpen(false)} onDelete={handleDeleteFunction} functionId={selectedFunction?.id || null} functionName={selectedFunction?.name || ""} />
 			<ImportFunctionModal isOpen={isImportModalOpen} onClose={() => { setImportModalOpen(false); refreshData(); }} />
 			<MassReplaceModal isOpen={isMassReplaceModalOpen} onClose={() => setMassReplaceModalOpen(false)} onSuccess={(msg) => { toast.success(msg); refreshData(); }} />
@@ -399,6 +405,7 @@ function NamespaceCard({
 	onDelete,
 	onDeleteFunction,
 	onCloneFunction,
+	onShare,
 }: {
 	namespace: Namespace;
 	isExpanded: boolean;
@@ -407,8 +414,10 @@ function NamespaceCard({
 	onDelete: (ns: { id: number; name: string }) => void;
 	onDeleteFunction: (func: { id: number; name: string }) => void;
 	onCloneFunction: (func: { id: number; name: string }) => void;
+	onShare: (target: { type: ShareResourceType; id: number; name: string }) => void;
 }) {
 	const functions = namespace.functions ?? [];
+	const owned = !namespace.shared;
 
 	return (
 		<div className="bg-surface border border-white/[0.07] rounded-xl overflow-hidden hover:border-primary/20 transition-colors">
@@ -424,8 +433,17 @@ function NamespaceCard({
 					<Icon name={isExpanded ? "folder-open" : "folder"} className="w-4 h-4 text-primary/60" />
 					<span className="text-sm font-semibold text-text">{namespace.name}</span>
 					<span className="text-xs text-muted">{functions.length}</span>
+					{namespace.shared && <SharedBadge owner={namespace.owner?.displayName} access={namespace.partial ? undefined : namespace.access} />}
 				</div>
-				<div className="flex items-center gap-1">
+				{owned && <div className="flex items-center gap-1">
+					<button
+						onClick={(e) => { e.stopPropagation(); onShare({ type: "namespace", id: namespace.id, name: namespace.name }); }}
+						className="p-1.5 text-muted hover:text-text hover:bg-white/[0.06] rounded transition-colors"
+						title="Share"
+						aria-label={`Share namespace ${namespace.name}`}
+					>
+						<Icon name="users" className="w-3.5 h-3.5" />
+					</button>
 					<button
 						onClick={(e) => { e.stopPropagation(); onRename({ id: namespace.id, name: namespace.name }); }}
 						className="p-1.5 text-muted hover:text-text hover:bg-white/[0.06] rounded transition-colors"
@@ -440,7 +458,7 @@ function NamespaceCard({
 					>
 						<Icon name="trash" className="w-3.5 h-3.5" />
 					</button>
-				</div>
+				</div>}
 			</div>
 
 			{isExpanded && (
@@ -458,6 +476,7 @@ function NamespaceCard({
 										func={func}
 										onDelete={() => onDeleteFunction({ id: func.id, name: func.name })}
 										onClone={() => onCloneFunction({ id: func.id, name: func.name })}
+										onShare={() => onShare({ type: "function", id: func.id, name: func.name })}
 									/>
 								))}
 						</div>
@@ -472,10 +491,12 @@ function FunctionRow({
 	func,
 	onDelete,
 	onClone,
+	onShare,
 }: {
 	func: XFunction;
 	onDelete: () => void;
 	onClone: () => void;
+	onShare: () => void;
 }) {
 	return (
 		<a
@@ -491,12 +512,21 @@ function FunctionRow({
 					{func.imported && <Badge color="blue">Imported</Badge>}
 					{func.ai_kicked_off && <Badge color="emerald">AI</Badge>}
 					{func.startup_file.endsWith(".html") && <Badge color="blue">HTML</Badge>}
+					{func.shared && <SharedBadge owner={func.owner?.displayName} access={func.access} />}
 				</div>
 				{func.description && (
 					<span className="text-xs text-muted truncate hidden sm:block">{func.description}</span>
 				)}
 			</div>
-			<div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-3">
+			{!func.shared && <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-3">
+				<button
+					onClick={(e) => { e.stopPropagation(); e.preventDefault(); onShare(); }}
+					className="p-1.5 text-muted hover:text-text hover:bg-white/[0.06] rounded transition-colors"
+					title="Share"
+					aria-label={`Share function ${func.name}`}
+				>
+					<Icon name="users" className="w-3.5 h-3.5" />
+				</button>
 				<button
 					onClick={(e) => { e.stopPropagation(); e.preventDefault(); onClone(); }}
 					className="p-1.5 text-muted hover:text-text hover:bg-white/[0.06] rounded transition-colors"
@@ -511,7 +541,7 @@ function FunctionRow({
 				>
 					<Icon name="trash" className="w-3.5 h-3.5" />
 				</button>
-			</div>
+			</div>}
 		</a>
 	);
 }

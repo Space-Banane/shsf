@@ -29,7 +29,7 @@ function DeleteStorageItemModal({
 		setIsLoading(true);
 		setError("");
 		try {
-			const res = await deleteStorageItem(selectedStorage.name, deleteItemKey);
+			const res = await deleteStorageItem(selectedStorage, deleteItemKey);
 			if (res.status === "OK") { onSuccess(); onClose(); }
 			else setError(res.message || "Failed to delete item");
 		} catch {

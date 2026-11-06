@@ -1,3 +1,12 @@
+import {
+	describeFunctionAccess,
+	describeNamespaceAccess,
+	functionAccessInclude,
+	functionAccessWhere,
+	namespaceAccessInclude,
+	namespaceAccessWhere,
+	redactFunctionForAccess,
+} from "../../lib/Sharing";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import { checkAuthentication } from "../../lib/Authentication";
 import { cleanupFunctionContainer } from "../../lib/Runner";
@@ -123,16 +132,47 @@ export = new fileRouter.Path("/")
 
 				const includeFunctions = ctr.queries.get("include_functions") === "true";
 
+				const userId = authCheck.user.id;
 				const namespaces = await prisma.namespace.findMany({
-					where: {
-						userId: authCheck.user.id,
-					},
-					include: includeFunctions ? { functions: true } : undefined,
+					where: namespaceAccessWhere(userId, "view"),
+					include: namespaceAccessInclude(userId),
 				});
+				const data: (ReturnType<typeof describeNamespaceAccess<(typeof namespaces)[number]>> & {
+					partial?: boolean;
+				})[] = namespaces.map((ns) => describeNamespaceAccess(userId, ns));
+
+				// A function shared on its own shows up under its owner's namespace,
+				// marked partial: the recipient sees only the functions shared with them.
+				const known = new Set(data.map((ns) => ns.id));
+				const loose = await prisma.namespace.findMany({
+					where: { id: { notIn: [...known] }, functions: { some: functionAccessWhere(userId, "view") } },
+					include: { user: { select: { id: true, displayName: true, email: true } } },
+				});
+				for (const { user, ...ns } of loose) {
+					data.push({ ...ns, access: "view", shared: true, owner: user, partial: true });
+				}
+
+				if (includeFunctions) {
+					const functions = await prisma.function.findMany({
+						where: functionAccessWhere(userId, "view"),
+						include: functionAccessInclude(userId),
+					});
+					const described = functions.map((fn) => {
+						const d = describeFunctionAccess(userId, fn);
+						return redactFunctionForAccess(d, d.access);
+					});
+					return ctr.print({
+						status: "OK",
+						data: data.map((ns) => ({
+							...ns,
+							functions: described.filter((fn) => fn.namespaceId === ns.id),
+						})),
+					});
+				}
 
 				return ctr.print({
 					status: "OK",
-					data: namespaces,
+					data,
 				});
 			}),
 	)
@@ -184,8 +224,9 @@ export = new fileRouter.Path("/")
 				const namespace = await prisma.namespace.findFirst({
 					where: {
 						id: namespaceId,
-						userId: authCheck.user.id,
+						...namespaceAccessWhere(authCheck.user.id, "view"),
 					},
+					include: namespaceAccessInclude(authCheck.user.id),
 				});
 
 				if (!namespace) {
@@ -194,7 +235,7 @@ export = new fileRouter.Path("/")
 
 				return ctr.print({
 					status: "OK",
-					data: namespace,
+					data: describeNamespaceAccess(authCheck.user.id, namespace),
 				});
 			}),
 	)

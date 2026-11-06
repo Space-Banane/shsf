@@ -2,6 +2,23 @@ import type { ExecutionLogAnalysis } from "./Analytics";
 
 type UserRole = "Admin" | "User";
 
+/** Caller's effective access, returned by the backend on shareable resources. */
+type Access = "view" | "execute" | "edit" | "owner";
+type SharePermission = Exclude<Access, "owner">;
+
+interface ResourceOwner {
+	id: number;
+	displayName: string;
+	email: string;
+}
+
+/** Present on namespaces, functions, and storages returned by list/get endpoints. */
+interface SharedFields {
+	access?: Access;
+	shared?: boolean;
+	owner?: ResourceOwner;
+}
+
 interface Session {
 	id: number;
 	hash: string;
@@ -12,13 +29,13 @@ interface Session {
 	updatedAt: Date;
 }
 
-interface XFunction {
+interface XFunction extends SharedFields {
 	id: number;
 	name: string;
 	description: string;
 	image: string;
-	executionId: string;
-	executionAlias?: string;
+	executionId: string | null;
+	executionAlias?: string | null;
 
 	userId: number;
 
@@ -98,7 +115,7 @@ interface User {
 	namespaces?: Namespace[];
 }
 
-interface Namespace {
+interface Namespace extends SharedFields {
 	id: number;
 	name: string;
 
@@ -108,6 +125,8 @@ interface Namespace {
 	updatedAt: Date;
 
 	functions?: XFunction[];
+	/** Shared via individual functions only: the caller sees just those functions. */
+	partial?: boolean;
 }
 
 interface Trigger {
@@ -199,6 +218,9 @@ type Token = {
 };
 
 export type {
+	Access,
+	SharePermission,
+	ResourceOwner,
 	User,
 	Session,
 	XFunction,
@@ -212,7 +234,7 @@ export type {
 	Token,
 };
 export { ImagesAsArray, ImagesAsArraySet, getImageDisplayName, getImageFamily };
-interface FunctionStorage {
+interface FunctionStorage extends SharedFields {
 	id: number;
 	name: string;
 	purpose: string;

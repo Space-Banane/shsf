@@ -49,6 +49,7 @@ function UpdateFunctionModal({
 	lastLogs,
 }: UpdateFunctionModalProps) {
 	const confirm = useConfirm();
+	const isOwner = !functionData?.access || functionData.access === "owner";
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
 	const [image, setImage] = useState<Image>("python:3.9");
@@ -353,7 +354,7 @@ function UpdateFunctionModal({
 								value={name}
 								onChange={(e) => setName(e.target.value)}
 								className={inputClass}
-								disabled={isLoading}
+								disabled={isLoading || !isOwner}
 							/>
 						</div>
 						<div>
@@ -385,7 +386,7 @@ function UpdateFunctionModal({
 							value={namespaceSelectValue}
 							onChange={(e) => setSelectedNamespaceId(e.target.value ? Number(e.target.value) : undefined)}
 							className={selectClass}
-							disabled={isLoading || namespaces.length === 0}
+							disabled={isLoading || !isOwner || namespaces.length === 0}
 						>
 							{namespaces.length === 0 && <option value="">Loading namespaces...</option>}
 							{namespaces.map((ns) => (
@@ -492,7 +493,7 @@ function UpdateFunctionModal({
 							id="docker-mount-update"
 							checked={dockerMount}
 							onChange={(checked) => { void handleDockerMountChange(checked); }}
-							disabled={isLoading || isHtmlFunction}
+							disabled={isLoading || !isOwner || isHtmlFunction}
 							label="Mount Docker Socket"
 							description="Mounts /var/run/docker.sock (Security risk!)"
 						/>

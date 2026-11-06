@@ -65,7 +65,7 @@ function AddStorageItemModal({
 		try {
 			const payload: any = { key, value: parsedValue !== undefined ? parsedValue : value };
 			if (expiresAt) payload.expiresAt = expiresAt;
-			const res = await setStorageItem(selectedStorage.name, payload);
+			const res = await setStorageItem(selectedStorage, payload);
 			if (res.status === "OK") {
 				setKey(""); setValue(""); setExpiresAt("");
 				onSuccess();

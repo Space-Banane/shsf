@@ -33,6 +33,9 @@ interface EditorToolbarProps {
 	onSave: () => void;
 	onExport: () => void;
 	onRun: () => void;
+	/** Caller's effective access; below edit hides mutations, below execute disables Run. */
+	canEdit?: boolean;
+	canExecute?: boolean;
 }
 
 export function EditorToolbar({
@@ -61,6 +64,8 @@ export function EditorToolbar({
 	onSave,
 	onExport,
 	onRun,
+	canEdit = true,
+	canExecute = true,
 }: EditorToolbarProps) {
 	const gitManaged = Boolean(functionData.git_url);
 	const supportsDependencyManager =
@@ -148,7 +153,7 @@ export function EditorToolbar({
 			</div>
 
 			<div className="flex flex-wrap items-center justify-end gap-2 border-t border-primary/10 pt-4">
-				{!htmlOnly && supportsDependencyManager && (
+				{canEdit && !htmlOnly && supportsDependencyManager && (
 					<button
 						className={secondaryButton}
 						onClick={onManageDependencies}
@@ -163,7 +168,7 @@ export function EditorToolbar({
 					</button>
 				)}
 				{/* A git-backed function's files aren't loaded here, so offer the install anyway. */}
-				{(hasRequirementsFile || gitManaged) && (
+				{canEdit && (hasRequirementsFile || gitManaged) && (
 					<button
 						className="h-9 px-3 text-sm rounded-lg bg-blue-600/90 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 						onClick={onInstallDependencies}
@@ -172,14 +177,14 @@ export function EditorToolbar({
 						{installing ? "Installing..." : "Install requirements.txt"}
 					</button>
 				)}
-				<button
+				{canEdit && <button
 					className={secondaryButton}
 					onClick={onLoadDefaults}
 					disabled={!activeFileName || saving || running || gitManaged}
 				>
 					{saving ? "Loading..." : "Load Defaults"}
-				</button>
-				<button
+				</button>}
+				{canEdit && <button
 					className={secondaryButton}
 					onClick={onSave}
 					disabled={!canSave}
@@ -188,14 +193,15 @@ export function EditorToolbar({
 					}
 				>
 					{saving ? "Saving..." : "Save"}
-				</button>
+				</button>}
 				<button className={secondaryButton} onClick={onExport}>
 					Export
 				</button>
 				<button
 					className="h-9 px-3 text-sm rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:shadow-[0_0_20px_rgba(34,211,238,0.2)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 					onClick={onRun}
-					disabled={running || saving}
+					disabled={running || saving || !canExecute}
+					title={canExecute ? undefined : "You have view-only access to this function"}
 				>
 					{running ? "Running..." : "Run Function"}
 				</button>
