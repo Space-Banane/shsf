@@ -94,7 +94,7 @@ def main(args):
 					On the very first execution SHSF builds the virtualenv from
 					scratch. The next run picks up the cached venv and starts almost
 					instantly. A run started before the container finishes initialising
-					returns <em>"Function is not ready yet."</em> (503) — wait a moment and
+					returns <em>"Function is not ready yet."</em> (<code>_code</code> 503 in the response envelope) — wait a moment and
 					run it again.
 				</p>
 			</Callout>

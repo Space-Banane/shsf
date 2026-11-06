@@ -124,7 +124,7 @@ This keeps Docker bind mounts valid on Windows while using the standard `/opt/sh
    - `POST /api/function/{id}/execute` (or use your execution alias)
    - Set up a **cron trigger** for scheduled runs
 
-   A new function's container is pulled and initialised on first use. Until that finishes, runs return `Function is not ready yet.` (503); wait a moment and run again.
+   A new function's container is pulled and initialised on first use. Until that finishes, runs return `Function is not ready yet.` (`_code` 503 in the response envelope); wait a moment and run again.
 5. **Configure extras** — CORS, rate limits, caching, Git sync, environment variables, Docker options, and more are all available in the function settings panel.
 
 ---
