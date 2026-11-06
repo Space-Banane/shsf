@@ -17,4 +17,15 @@ describe("setup documentation", () => {
 		expect(gettingStartedGuide).toContain("git clone " + repositoryUrl);
 		expect(gettingStartedGuide).toContain("cp " + environmentTemplate + " .env");
 	});
+
+	it("documents the bundled database profile and portable sed in both places", () => {
+		const repositoryRoot = resolve(process.cwd(), "..");
+		const readme = readFileSync(resolve(repositoryRoot, "README.md"), "utf8");
+		const gettingStartedGuide = readFileSync(resolve(__dirname, "getting-started.tsx"), "utf8");
+
+		for (const doc of [readme, gettingStartedGuide]) {
+			expect(doc).toContain("docker compose --profile db up -d");
+			expect(doc).not.toMatch(/sed -i\s+["']/);
+		}
+	});
 });
