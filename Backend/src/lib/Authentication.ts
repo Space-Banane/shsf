@@ -3,6 +3,9 @@ import { prisma, INSTANCE_SECRET, REACT_APP_API_URL, UI_URL } from "..";
 import { getLinkStatus } from "./DataManager";
 import { functionAccessWhere } from "./Sharing";
 import { Cookie } from "rjweb-server";
+import { isIP } from "node:net";
+import { env } from "./env";
+import { ssoUserIsActive } from "./SsoConfig";
 
 export async function checkAuthentication(
 	sessionHash: Session["hash"] | null,
@@ -40,7 +43,7 @@ export async function checkAuthentication(
 			include: { user: true },
 		});
 
-		if (!session) {
+		if (!session || (session.expiresAt && session.expiresAt.getTime() <= Date.now()) || !ssoUserIsActive(session.user, env.SSO)) {
 			return {
 				success: false,
 				message: "Invalid session",
@@ -60,7 +63,7 @@ export async function checkAuthentication(
 			include: { user: true },
 		});
 
-		if (!apiKeyRecord) {
+		if (!apiKeyRecord || !ssoUserIsActive(apiKeyRecord.user, env.SSO)) {
 			return {
 				success: false,
 				message: "Invalid API key",
@@ -294,4 +297,9 @@ export async function GlobalAuthCheck(
 	}
 
 	return { success: true, linked_email: linkStatus.global_user_email };
+}
+/** Keep local and OIDC sessions in the same cookie scope so either login replaces the other. */
+export function getSessionCookieDomain(domain: string): string {
+	if (domain === "localhost" || isIP(domain)) return domain;
+	return domain.split(".").length > 2 ? domain.split(".").slice(1).join(".") : "." + domain;
 }

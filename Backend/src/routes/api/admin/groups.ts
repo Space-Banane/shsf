@@ -86,8 +86,18 @@ export = new fileRouter.Path("/")
 				return ctr.status(ctr.$status.BAD_REQUEST).print({ status: "FAILED", message: "ssoProvider and ssoGroupId must be set together." });
 			}
 			try {
-				const group = await prisma.group.update({ where: { id }, data, select: groupSelect });
-				await audit(auth.admin.id, "group.update", "group", id, { fields: Object.keys(data) });
+				const group = await prisma.$transaction(async (tx) => {
+					// Lock the group before dropping memberships tied to its old identity.
+					const current = await tx.group.findUniqueOrThrow({ where: { id } });
+					await tx.group.update({ where: { id }, data });
+					if ((data.ssoProvider !== undefined && data.ssoProvider !== current.ssoProvider) ||
+						(data.ssoGroupId !== undefined && data.ssoGroupId !== current.ssoGroupId)) {
+						const removed = await tx.groupMember.deleteMany({ where: { groupId: id, source: "sso" } });
+						await audit(auth.admin.id, "group.member.remove", "group", id, { source: "sso", count: removed.count, reason: "mapping changed" }, tx);
+					}
+					await audit(auth.admin.id, "group.update", "group", id, { fields: Object.keys(data) }, tx);
+					return tx.group.findUniqueOrThrow({ where: { id }, select: groupSelect });
+				});
 				return ctr.print({ status: "OK", data: group });
 			} catch {
 				return ctr.status(ctr.$status.CONFLICT).print({ status: "FAILED", message: "Group name or SSO mapping already in use." });

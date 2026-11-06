@@ -80,7 +80,11 @@ export const authEnforcementMiddleware = new Middleware<{}, {}>(
 		const data = context.data(authResolutionMiddleware) as AuthContext;
 		const auth = data.auth;
 
-		if (!auth || auth.success || !auth.tokenProvided) {
+		const loginPath = ctr.url.method === "GET" && ["/api/config", "/api/account/sso/login", "/api/account/sso/callback"].includes(ctr.url.path);
+		const localLoginPath = ctr.url.method === "POST" && ["/api/account/login", "/api/account/register"].includes(ctr.url.path);
+		const publicUi = (ctr.url.method === "GET" || ctr.url.method === "HEAD") &&
+			!ctr.url.path.startsWith("/api") && !ctr.url.path.startsWith("/exec/");
+		if (publicUi || loginPath || localLoginPath || !auth || auth.success || !auth.tokenProvided) {
 			return;
 		}
 

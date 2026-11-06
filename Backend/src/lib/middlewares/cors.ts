@@ -3,6 +3,7 @@ import { prisma } from "../..";
 import { persistFunctionExecutionLog } from "../Runner";
 import { createLogger } from "../logger";
 import { env } from "../env";
+import { requestLogUrl } from "../static";
 
 const corsLog = createLogger("CORS");
 const httpLog = createLogger("HTTP");
@@ -21,10 +22,10 @@ export const corsMiddleware = new Middleware<{}, {}>("Custom CORS", "1.0.3")
 	})
 	.httpRequest(async (_config, _server, _context, ctr, end) => {
 		httpLog.info(
-			`[${ctr.headers.get("x-shsf-dev") === "true" ? "shsf.dev" : "direct"}] ${ctr.client.ip} [${ctr.url.method}] ${ctr.url.href}`,
+			`[${ctr.headers.get("x-shsf-dev") === "true" ? "shsf.dev" : "direct"}] ${ctr.client.ip} [${ctr.url.method}] ${requestLogUrl(ctr.url)}`,
 		);
 
-		if (env.RATELIMIT === 0) {
+		if (env.RATELIMIT === 0 && !ctr.url.path.startsWith("/api/account/sso/")) {
 			ctr.skipRateLimit();
 		}
 
