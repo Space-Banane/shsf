@@ -22,7 +22,7 @@ function ClearStorageModal({ isOpen, onClose, onSuccess, selectedStorage }: Clea
 		setIsLoading(true);
 		setError("");
 		try {
-			const res = await clearStorageItems(selectedStorage.name);
+			const res = await clearStorageItems(selectedStorage);
 			if (res.status === "OK") { onSuccess(); onClose(); }
 			else setError(res.message || "Failed to clear items");
 		} catch {

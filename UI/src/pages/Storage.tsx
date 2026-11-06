@@ -12,6 +12,9 @@ import AddStorageItemModal from "../components/modals/storage/AddStorageItemModa
 import DeleteStorageItemModal from "../components/modals/storage/DeleteStorageItemModal";
 import GetStorageItemModal from "../components/modals/storage/GetStorageItemModal";
 import { Icon } from "../components/ui/Icon";
+import SharedBadge from "../components/ui/SharedBadge";
+import ShareModal from "../components/modals/sharing/ShareModal";
+import { can } from "../services/backend.sharing";
 import { useLocation, useNavigate } from "react-router-dom";
 
 interface StorageExplorerLocationState {
@@ -38,11 +41,13 @@ function StoragePage() {
 	const [deleteItemKey, setDeleteItemKey] = useState<string | null>(null);
 	const [showGetItemModal, setShowGetItemModal] = useState(false);
 	const [editingItem, setEditingItem] = useState<StorageItem | null>(null);
+	const [shareTarget, setShareTarget] = useState<Storage | null>(null);
 	const selectedStorageId = (location.state as StorageExplorerLocationState | null)
 		?.storageExplorer?.selectedStorageId;
 	const selectedStorage = typeof selectedStorageId === "number"
 		? storages.find((storage) => storage.id === selectedStorageId) ?? null
 		: null;
+	const canEditSelected = can(selectedStorage?.access, "edit");
 
 	const loadStorages = async () => {
 		setLoading(true);
@@ -59,7 +64,7 @@ function StoragePage() {
 		setItemLoading(true);
 		setItemError("");
 		try {
-			const res = await listStorageItems(storage.name);
+			const res = await listStorageItems(storage);
 			if (res.status === "OK") setItems(res.data);
 			else setItemError(res.message || "Failed to load items");
 		} catch { setItemError("Failed to load items"); }
@@ -100,6 +105,12 @@ function StoragePage() {
 							{selectedStorage.purpose && (
 								<p className="text-sm text-muted mt-0.5">{selectedStorage.purpose}</p>
 							)}
+							{selectedStorage.shared && (
+								<p className="mt-1 flex items-center gap-2 text-xs text-muted">
+									<SharedBadge access={selectedStorage.access} />
+									Owned by {selectedStorage.owner?.displayName} ({selectedStorage.owner?.email})
+								</p>
+							)}
 						</div>
 					</div>
 
@@ -110,15 +121,17 @@ function StoragePage() {
 								<button className={btnSecondary} onClick={() => setShowGetItemModal(true)}>
 									Get Item
 								</button>
-								<button className={btnSecondary} onClick={() => setShowClearModal(true)}>
-									Clear All
-								</button>
-								<button
-									className={btnPrimary}
-									onClick={() => { setEditingItem(null); setShowAddItemModal(true); }}
-								>
-									+ Add Item
-								</button>
+								{canEditSelected && <>
+									<button className={btnSecondary} onClick={() => setShowClearModal(true)}>
+										Clear All
+									</button>
+									<button
+										className={btnPrimary}
+										onClick={() => { setEditingItem(null); setShowAddItemModal(true); }}
+									>
+										+ Add Item
+									</button>
+								</>}
 							</div>
 						</div>
 
@@ -150,7 +163,7 @@ function StoragePage() {
 													{item.expiresAt ? new Date(item.expiresAt).toLocaleString() : <span className="text-muted/40">Never</span>}
 												</td>
 												<td className="px-5 py-3">
-													<div className="flex items-center justify-end gap-1">
+													{canEditSelected && <div className="flex items-center justify-end gap-1">
 														<button
 															className="p-1.5 text-muted hover:text-text hover:bg-white/[0.06] rounded transition-colors"
 															title="Edit"
@@ -165,7 +178,7 @@ function StoragePage() {
 														>
 															<Icon name="trash" className="w-3.5 h-3.5" />
 														</button>
-													</div>
+													</div>}
 												</td>
 											</tr>
 										))}
@@ -216,18 +229,31 @@ function StoragePage() {
 											>
 												<Icon name="circle-stack" className="w-4 h-4 text-primary/50 shrink-0" />
 												<div className="flex-1 min-w-0">
-													<p className="text-sm font-medium text-text group-hover:text-primary transition-colors">{storage.name}</p>
+													<p className="flex items-center gap-2 text-sm font-medium text-text group-hover:text-primary transition-colors">
+														{storage.name}
+														{storage.shared && <SharedBadge owner={storage.owner?.displayName} access={storage.access} />}
+													</p>
 													{storage.purpose && <p className="text-xs text-muted truncate">{storage.purpose}</p>}
 												</div>
 												<Icon name="chevron-right" className="w-4 h-4 text-muted/40 shrink-0" />
 											</button>
-											<button
-												className="p-1.5 text-muted hover:text-red-400 hover:bg-red-500/10 rounded transition-colors opacity-0 group-hover:opacity-100"
-												title="Delete"
-												onClick={() => { setDeleteTarget(storage); setShowDeleteModal(true); }}
-											>
-												<Icon name="trash" className="w-3.5 h-3.5" />
-											</button>
+											{!storage.shared && <>
+												<button
+													className="p-1.5 text-muted hover:text-text hover:bg-white/[0.06] rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+													title="Share"
+													aria-label={`Share storage ${storage.name}`}
+													onClick={() => setShareTarget(storage)}
+												>
+													<Icon name="users" className="w-3.5 h-3.5" />
+												</button>
+												<button
+													className="p-1.5 text-muted hover:text-red-400 hover:bg-red-500/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+													title="Delete"
+													onClick={() => { setDeleteTarget(storage); setShowDeleteModal(true); }}
+												>
+													<Icon name="trash" className="w-3.5 h-3.5" />
+												</button>
+											</>}
 										</div>
 									</li>
 								))}
@@ -237,6 +263,7 @@ function StoragePage() {
 				</>
 			)}
 
+			{shareTarget && <ShareModal isOpen onClose={() => setShareTarget(null)} type="storage" resourceId={shareTarget.id} resourceName={shareTarget.name} />}
 			<CreateStorageModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onSuccess={loadStorages} />
 			<DeleteStorageModal
 				isOpen={showDeleteModal}

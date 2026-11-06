@@ -8,6 +8,10 @@ interface FunctionActionsCardProps {
 	onOpenEnv: () => void;
 	onOpenGuests: () => void;
 	onOpenVersionControl: () => void;
+	onOpenShare: () => void;
+	/** Owner sees every action; edit recipients get settings/env/git; others none. */
+	canEdit: boolean;
+	isOwner: boolean;
 }
 
 export function FunctionActionsCard({
@@ -17,7 +21,11 @@ export function FunctionActionsCard({
 	onOpenEnv,
 	onOpenGuests,
 	onOpenVersionControl,
+	onOpenShare,
+	canEdit,
+	isOwner,
 }: FunctionActionsCardProps) {
+	if (!canEdit) return null;
 	return (
 		<div className="bg-surface border border-white/[0.07] rounded-xl p-4">
 			<h2 className="text-lg font-bold text-primary mb-3 flex items-center gap-2">
@@ -38,12 +46,18 @@ export function FunctionActionsCard({
 					variant="secondary"
 					onClick={onOpenEnv}
 				/>
-				<ActionButton
+				{isOwner && <ActionButton
 					icon="👥"
 					label="Guests"
 					variant="secondary"
 					onClick={onOpenGuests}
-				/>
+				/>}
+				{isOwner && <ActionButton
+					icon="🤝"
+					label="Share"
+					variant="secondary"
+					onClick={onOpenShare}
+				/>}
 				<ActionButton
 					icon="🔀"
 					label="Version Control"

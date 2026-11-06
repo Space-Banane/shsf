@@ -60,6 +60,8 @@ model User {
   accessTokens AccessToken[]
   storages     FunctionStorage[]
   guestUsers   GuestUser[]
+  groupMemberships GroupMember[]
+  receivedShares   ResourceShare[] @relation("ShareRecipient")
 }
 
 model Session {
@@ -138,6 +140,7 @@ model Function {
   triggers   FunctionTrigger[]
   TriggerLog TriggerLog[]
   caches     FunctionCache[]
+  shares     ResourceShare[]
 }
 
 model FunctionCache {
@@ -189,6 +192,7 @@ model Namespace {
   updatedAt DateTime @updatedAt
 
   functions Function[]
+  shares    ResourceShare[]
 }
 
 model FunctionTrigger {
@@ -292,7 +296,8 @@ model FunctionStorage {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items FunctionStorageItem[]
+  items  FunctionStorageItem[]
+  shares ResourceShare[]
 }
 
 model FunctionStorageItem {
@@ -336,4 +341,92 @@ model GuestSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   expiresAt DateTime
+}
+
+enum SharePermission {
+  view
+  execute
+  edit
+}
+
+enum GroupMemberSource {
+  local
+  sso
+}
+
+// Admin-managed user group. SSO groups (#65) map onto a local group through
+// (ssoProvider, ssoGroupId); grants always reference Group.id, so disabling SSO
+// leaves groups and shares intact.
+model Group {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique @db.VarChar(128)
+  description String? @db.VarChar(256)
+
+  ssoProvider String? @db.VarChar(128)
+  ssoGroupId  String? @db.VarChar(256)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members GroupMember[]
+  shares  ResourceShare[]
+
+  @@unique([ssoProvider, ssoGroupId])
+}
+
+model GroupMember {
+  groupId Int
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId  Int
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  source  GroupMemberSource @default(local)
+
+  createdAt DateTime @default(now())
+
+  @@id([groupId, userId])
+  @@index([userId])
+}
+
+// One grant: exactly one resource (namespace, function, or storage) shared with
+// exactly one recipient (user or group). Namespace grants apply to every
+// function in the namespace. Ownership never moves.
+model ResourceShare {
+  id Int @id @default(autoincrement())
+
+  namespaceId Int?
+  namespace   Namespace?       @relation(fields: [namespaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  functionId  Int?
+  function    Function?        @relation(fields: [functionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  storageId   Int?
+  storage     FunctionStorage? @relation(fields: [storageId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  userId  Int?
+  user    User?  @relation("ShareRecipient", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  groupId Int?
+  group   Group? @relation(fields: [groupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  permission SharePermission
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([namespaceId, userId])
+  @@unique([namespaceId, groupId])
+  @@unique([functionId, userId])
+  @@unique([functionId, groupId])
+  @@unique([storageId, userId])
+  @@unique([storageId, groupId])
+}
+
+// Security-relevant changes (group membership, shares). Never store secrets here.
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  actorId    Int? // No FK: entries outlive deleted users
+  action     String   @db.VarChar(64)
+  targetType String   @db.VarChar(32)
+  targetId   Int?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }

@@ -14,6 +14,7 @@ import GitVersionControlModal from "../modals/functions/GitVersionControlModal";
 import UpdateEnvModal from "../modals/functions/UpdateEnvModal";
 import UpdateFunctionModal from "../modals/functions/UpdateFunctionModal";
 import GuestManagement from "../modals/guests/GuestManagement";
+import ShareModal from "../modals/sharing/ShareModal";
 import type { useFunctionFiles } from "../../hooks/useFunctionFiles";
 import type { useFunctionLogs } from "../../hooks/useFunctionLogs";
 import type { useFunctionTriggers } from "../../hooks/useFunctionTriggers";
@@ -191,6 +192,13 @@ export function FunctionModals({
 				isOpen={modal?.type === "guests"}
 				onClose={onClose}
 				functionId={functionData.id}
+			/>
+			<ShareModal
+				isOpen={modal?.type === "share"}
+				onClose={onClose}
+				type="function"
+				resourceId={functionData.id}
+				resourceName={functionData.name}
 			/>
 			<GitVersionControlModal
 				isOpen={modal?.type === "git"}

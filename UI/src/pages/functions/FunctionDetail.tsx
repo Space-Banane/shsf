@@ -29,6 +29,8 @@ import { getNamespace } from "../../services/backend.namespaces";
 import { getTriggers } from "../../services/backend.triggers";
 import type { Namespace, XFunction } from "../../types/Prisma";
 import { exportFunctionToFile } from "../../utils/functionExport";
+import { can } from "../../services/backend.sharing";
+import SharedBadge from "../../components/ui/SharedBadge";
 import {
 	buildCliPullCommand,
 	getDefaultLanguage,
@@ -55,6 +57,8 @@ function FunctionDetail() {
 
 	const htmlOnly = isHtmlOnlyFunction(functionData);
 	const gitManaged = Boolean(functionData?.git_url);
+	const canEdit = can(functionData?.access, "edit");
+	const canExecute = can(functionData?.access, "execute");
 	const aiEnabled = Boolean(user?.apiKeyConfigured);
 	const closeModal = useCallback(() => setModal(null), []);
 
@@ -63,7 +67,7 @@ function FunctionDetail() {
 	const files = useFunctionFiles({
 		functionId,
 		htmlOnly,
-		readOnly: gitManaged,
+		readOnly: gitManaged || !canEdit,
 		busy: execution.running,
 		editorViewState: editorView,
 	});
@@ -234,6 +238,15 @@ function FunctionDetail() {
 				triggerCount={triggers.triggers.length}
 				httpEnabled={functionData.allow_http}
 			/>
+			{functionData.shared && (
+				<div role="status" className="mb-4 flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-4 py-2 text-sm text-yellow-200">
+					<SharedBadge access={functionData.access} />
+					<span>
+						Owned by {functionData.owner?.displayName} ({functionData.owner?.email}).
+						{!canEdit && " You can view this function but not change it."}
+					</span>
+				</div>
+			)}
 
 			<div className="flex flex-col xl:flex-row gap-6 w-full">
 				<FunctionSidebar
@@ -292,6 +305,8 @@ function FunctionDetail() {
 							})
 						}
 						onRun={execution.run}
+						canEdit={canEdit}
+						canExecute={canExecute}
 					/>
 
 					<CodeEditorPanel
@@ -302,6 +317,7 @@ function FunctionDetail() {
 						onChange={files.setCode}
 						onMount={handleEditorMount}
 						onOpenVersionControl={() => setModal({ type: "git" })}
+						readOnly={!canEdit}
 					/>
 
 					<ConsoleCard

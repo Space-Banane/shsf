@@ -1,3 +1,4 @@
+import { type Access, functionAccessWhere } from "../../lib/Sharing";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
 import {
 	getFunctionExecInfo,
@@ -41,9 +42,9 @@ async function isHtmlOnlyFunction(functionId: number): Promise<boolean> {
 		.endsWith(HTML_FILE_EXTENSION);
 }
 
-async function getOwnedFunction(functionId: number, userId: number) {
+async function getAccessibleFunction(functionId: number, userId: number, need: Access) {
 	return prisma.function.findFirst({
-		where: { id: functionId, userId },
+		where: { id: functionId, ...functionAccessWhere(userId, need) },
 		select: { id: true },
 	});
 }
@@ -210,7 +211,7 @@ export = new fileRouter.Path("/")
 						message: "Invalid function id",
 					});
 				}
-				if (!(await getOwnedFunction(functionId, authCheck.user.id))) {
+				if (!(await getAccessibleFunction(functionId, authCheck.user.id, "edit"))) {
 					return ctr.status(ctr.$status.NOT_FOUND).print({
 						status: 404,
 						message: "Function not found",
@@ -379,7 +380,7 @@ export = new fileRouter.Path("/")
 				const functionData = await prisma.function.findFirst({
 					where: {
 						id: functionId,
-						userId: authCheck.user.id,
+						...functionAccessWhere(authCheck.user.id, "view"),
 					},
 					select: { git_url: true },
 				});
@@ -427,7 +428,7 @@ export = new fileRouter.Path("/")
 					.status(ctr.$status.BAD_REQUEST)
 					.print({ status: 400, message: "Invalid function id" });
 			}
-			if (!(await getOwnedFunction(functionId, authCheck.user.id))) {
+			if (!(await getAccessibleFunction(functionId, authCheck.user.id, "view"))) {
 				return ctr
 					.status(ctr.$status.NOT_FOUND)
 					.print({ status: 404, message: "Function not found" });
@@ -466,7 +467,7 @@ export = new fileRouter.Path("/")
 				return ctr
 					.status(ctr.$status.BAD_REQUEST)
 					.print({ status: 400, message: "Invalid function id" });
-			if (!(await getOwnedFunction(functionId, authCheck.user.id)))
+			if (!(await getAccessibleFunction(functionId, authCheck.user.id, "edit")))
 				return ctr
 					.status(ctr.$status.NOT_FOUND)
 					.print({ status: 404, message: "Function not found" });
@@ -529,7 +530,7 @@ export = new fileRouter.Path("/")
 				return ctr
 					.status(ctr.$status.BAD_REQUEST)
 					.print({ status: 400, message: "Invalid function id" });
-			if (!(await getOwnedFunction(functionId, authCheck.user.id)))
+			if (!(await getAccessibleFunction(functionId, authCheck.user.id, "edit")))
 				return ctr
 					.status(ctr.$status.NOT_FOUND)
 					.print({ status: 404, message: "Function not found" });
@@ -695,7 +696,7 @@ export = new fileRouter.Path("/")
 				return ctr
 					.status(ctr.$status.BAD_REQUEST)
 					.print({ status: 400, message: "Invalid function id" });
-			if (!(await getOwnedFunction(functionId, authCheck.user.id)))
+			if (!(await getAccessibleFunction(functionId, authCheck.user.id, "edit")))
 				return ctr
 					.status(ctr.$status.NOT_FOUND)
 					.print({ status: 404, message: "Function not found" });
@@ -805,7 +806,7 @@ export = new fileRouter.Path("/")
 						message: "Invalid function id or file id",
 					});
 				}
-				if (!(await getOwnedFunction(functionId, authCheck.user.id))) {
+				if (!(await getAccessibleFunction(functionId, authCheck.user.id, "edit"))) {
 					return ctr.status(ctr.$status.NOT_FOUND).print({
 						status: 404,
 						message: "Function not found",
@@ -988,7 +989,7 @@ export = new fileRouter.Path("/")
 						message: "Invalid function id or file id",
 					});
 				}
-				if (!(await getOwnedFunction(functionId, authCheck.user.id))) {
+				if (!(await getAccessibleFunction(functionId, authCheck.user.id, "edit"))) {
 					return ctr.status(ctr.$status.NOT_FOUND).print({
 						status: 404,
 						message: "Function not found",
@@ -1236,6 +1237,9 @@ export = new fileRouter.Path("/")
 							message: "Invalid function id or file id",
 						});
 					}
+					if (!(await getAccessibleFunction(functionId, authCheck.user.id, "edit"))) {
+						return ctr.status(ctr.$status.NOT_FOUND).print({ status: 404, message: "Function not found" });
+					}
 
 					const gitBlock = await getGitEditBlock(functionId, prisma);
 					if (gitBlock) {
@@ -1244,8 +1248,8 @@ export = new fileRouter.Path("/")
 						});
 					}
 
-					const fileToFill = await prisma.functionFile.findUnique({
-						where: { id: fileIdInt },
+					const fileToFill = await prisma.functionFile.findFirst({
+						where: { id: fileIdInt, functionId },
 					});
 
 					if (!fileToFill) {

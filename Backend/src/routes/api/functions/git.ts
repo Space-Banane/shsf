@@ -1,3 +1,4 @@
+import { functionAccessWhere } from "../../../lib/Sharing";
 import {
 	API_KEY_HEADER,
 	COOKIE,
@@ -84,7 +85,7 @@ export = new fileRouter.Path("/")
 				}
 
 				const functionData = await prisma.function.findFirst({
-					where: { id: parseInt(id), userId: authCheck.user.id },
+					where: { id: parseInt(id), ...functionAccessWhere(authCheck.user.id, "view") },
 				});
 				if (!functionData) {
 					return ctr
@@ -174,7 +175,7 @@ export = new fileRouter.Path("/")
 				const functionId = parseInt(id);
 
 				const functionData = await prisma.function.findFirst({
-					where: { id: functionId, userId: authCheck.user.id },
+					where: { id: functionId, ...functionAccessWhere(authCheck.user.id, "edit") },
 				});
 				if (!functionData) {
 					return ctr
@@ -201,7 +202,8 @@ export = new fileRouter.Path("/")
 				const logLines: string[] = [];
 
 				let savedPassword: string | null = null;
-				if (functionData.git_password) {
+				const sameRepository = body.git_url === functionData.git_url;
+				if (sameRepository && functionData.git_password) {
 					savedPassword = decryptSecret(functionData.git_password, INSTANCE_SECRET);
 					if (savedPassword === null) {
 						return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
@@ -318,7 +320,7 @@ export = new fileRouter.Path("/")
 								? body.git_password
 									? encryptSecret(body.git_password, INSTANCE_SECRET)
 									: null
-								: functionData.git_password,
+								: sameRepository ? functionData.git_password : null,
 						git_source_dir: sourceDir,
 						git_branch: branch,
 					},
@@ -376,7 +378,7 @@ export = new fileRouter.Path("/")
 				const functionId = parseInt(id);
 
 				const functionData = await prisma.function.findFirst({
-					where: { id: functionId, userId: authCheck.user.id },
+					where: { id: functionId, ...functionAccessWhere(authCheck.user.id, "edit") },
 				});
 				if (!functionData) {
 					return ctr
@@ -486,7 +488,7 @@ export = new fileRouter.Path("/")
 				const functionId = parseInt(id);
 
 				const functionData = await prisma.function.findFirst({
-					where: { id: functionId, userId: authCheck.user.id },
+					where: { id: functionId, ...functionAccessWhere(authCheck.user.id, "edit") },
 				});
 				if (!functionData) {
 					return ctr
@@ -649,7 +651,7 @@ export = new fileRouter.Path("/")
 				const functionId = parseInt(id);
 
 				const functionData = await prisma.function.findFirst({
-					where: { id: functionId, userId: authCheck.user.id },
+					where: { id: functionId, ...functionAccessWhere(authCheck.user.id, "edit") },
 				});
 				if (!functionData) {
 					return ctr
@@ -743,7 +745,7 @@ export = new fileRouter.Path("/")
 				const functionId = parseInt(id);
 
 				const functionData = await prisma.function.findFirst({
-					where: { id: functionId, userId: authCheck.user.id },
+					where: { id: functionId, ...functionAccessWhere(authCheck.user.id, "edit") },
 				});
 				if (!functionData) {
 					return ctr
@@ -773,7 +775,7 @@ export = new fileRouter.Path("/")
 				}
 
 				let savedPassword: string | null = null;
-				if (functionData.git_password) {
+				if (resolvedGitUrl === functionData.git_url && functionData.git_password) {
 					savedPassword = decryptSecret(
 						functionData.git_password,
 						INSTANCE_SECRET,
@@ -886,7 +888,7 @@ export = new fileRouter.Path("/")
 				const functionId = parseInt(id);
 
 				const functionData = await prisma.function.findFirst({
-					where: { id: functionId, userId: authCheck.user.id },
+					where: { id: functionId, ...functionAccessWhere(authCheck.user.id, "edit") },
 				});
 				if (!functionData) {
 					return ctr
@@ -917,7 +919,7 @@ export = new fileRouter.Path("/")
 				}
 
 				let savedPassword: string | null = null;
-				if (functionData.git_password) {
+				if (resolvedGitUrl === functionData.git_url && functionData.git_password) {
 					savedPassword = decryptSecret(
 						functionData.git_password,
 						INSTANCE_SECRET,

@@ -13,6 +13,7 @@ import { TriggersCard } from "../cards/TriggersCard";
 import { FunctionActionsCard } from "./FunctionActionsCard";
 import { FunctionUrlCard } from "./FunctionUrlCard";
 import type { FunctionModal } from "./functionModal";
+import { can } from "../../services/backend.sharing";
 
 const HTML_ONLY_REASON = "This function is set to only serve an .html file";
 
@@ -47,6 +48,8 @@ export function FunctionSidebar({
 	const [showTimingDetails, setShowTimingDetails] = useState(false);
 	const [showLogsDetails, setShowLogsDetails] = useState(false);
 
+	const canEdit = can(functionData.access, "edit");
+
 	return (
 		<div className="w-full xl:w-72 shrink-0 space-y-4">
 			<FunctionActionsCard
@@ -56,6 +59,9 @@ export function FunctionSidebar({
 				onOpenEnv={() => onOpenModal({ type: "env" })}
 				onOpenGuests={() => onOpenModal({ type: "guests" })}
 				onOpenVersionControl={() => onOpenModal({ type: "git" })}
+				onOpenShare={() => onOpenModal({ type: "share" })}
+				canEdit={canEdit}
+				isOwner={can(functionData.access, "owner")}
 			/>
 
 			<FunctionUrlCard functionData={functionData} />
@@ -98,13 +104,17 @@ export function FunctionSidebar({
 				onAIGenerate={() => onOpenModal({ type: "ai" })}
 				aiDisabled={!aiEnabled}
 				aiDisabledReason="Enable AI in Account Settings to use AI KICKOFF."
-				disabled={Boolean(functionData.git_url)}
-				disabledReason="Git source active — file manager disabled. Use Version Control to manage files."
+				disabled={Boolean(functionData.git_url) || !canEdit}
+				disabledReason={
+					canEdit
+						? "Git source active — file manager disabled. Use Version Control to manage files."
+						: "You have read-only access to this shared function."
+				}
 			/>
 
 			<TriggersCard
 				triggers={triggers}
-				disabled={htmlOnly}
+				disabled={htmlOnly || !canEdit}
 				disabledReason={HTML_ONLY_REASON}
 				showDetails={showTriggersDetails}
 				onToggleDetails={() => setShowTriggersDetails((open) => !open)}

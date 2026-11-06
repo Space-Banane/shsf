@@ -22,7 +22,7 @@ function DeleteStorageModal({ isOpen, onClose, onSuccess, target }: DeleteStorag
 		setIsLoading(true);
 		setError("");
 		try {
-			const res = await deleteStorage(target.name);
+			const res = await deleteStorage(target);
 			if (res.status === "OK") { onSuccess(); onClose(); }
 			else setError(res.message || "Failed to delete storage");
 		} catch {

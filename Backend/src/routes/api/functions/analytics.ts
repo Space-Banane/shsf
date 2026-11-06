@@ -1,3 +1,4 @@
+import { functionAccessWhere } from "../../../lib/Sharing";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import {
@@ -40,7 +41,7 @@ export = new fileRouter.Path("/")
 							gte: rangeStart,
 						},
 						function: {
-							userId: authCheck.user.id,
+							...functionAccessWhere(authCheck.user.id, "view"),
 						},
 					},
 					include: {
@@ -99,7 +100,7 @@ export = new fileRouter.Path("/")
 				const functionData = await prisma.function.findFirst({
 					where: {
 						id,
-						userId: authCheck.user.id,
+						...functionAccessWhere(authCheck.user.id, "view"),
 					},
 					select: {
 						id: true,

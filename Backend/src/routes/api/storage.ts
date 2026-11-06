@@ -5,6 +5,13 @@ import {
 	functionStorageService,
 } from "../../lib/FunctionStorageService";
 import { OpenAPITags } from "../../lib/openapi";
+import { prisma } from "../..";
+import {
+	type Access,
+	describeStorageAccess,
+	storageAccessInclude,
+	storageAccessWhere,
+} from "../../lib/Sharing";
 
 // rjweb's route context is inferred inside chained route builders; this helper
 // keeps route bodies small while preserving the framework-provided shape.
@@ -24,6 +31,27 @@ async function getStorageAuthUser(ctr: any) {
 		ctr.skipRateLimit();
 	}
 	return { userId: authCheck.user.id };
+}
+
+// Storage is addressed by name within its owner's account. `?owner=<userId>`
+// selects a storage shared by another user; access is checked here and the
+// service then runs scoped to that owner. Returns null when not permitted, so
+// unauthorized storages are indistinguishable from missing ones.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function resolveStorageOwner(ctr: any, userId: number, storageName: string, need: Access) {
+	const owner = Number(ctr.queries.get("owner"));
+	if (!Number.isInteger(owner) || owner <= 0 || owner === userId) return userId;
+	if (need === "owner") return null;
+	const storage = await prisma.functionStorage.findFirst({
+		where: { name: storageName, user: owner, ...storageAccessWhere(userId, need) },
+		select: { id: true },
+	});
+	return storage ? owner : null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function printStorageNotFound(ctr: any) {
+	return ctr.status(404).print({ status: 404, message: "Storage not found" });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -146,8 +174,14 @@ export = new fileRouter.Path("/")
 			.onRequest(async (ctr) => {
 				const auth = await getStorageAuthUser(ctr);
 				if ("error" in auth) return auth.error;
-				const storages = await functionStorageService.listStorages(auth.userId);
-				return ctr.print({ status: "OK", data: storages });
+				const storages = await prisma.functionStorage.findMany({
+					where: storageAccessWhere(auth.userId, "view"),
+					include: storageAccessInclude(auth.userId),
+				});
+				return ctr.print({
+					status: "OK",
+					data: storages.map((s) => describeStorageAccess(auth.userId, s)),
+				});
 			}),
 	)
 
@@ -183,10 +217,12 @@ export = new fileRouter.Path("/")
 				}
 				const auth = await getStorageAuthUser(ctr);
 				if ("error" in auth) return auth.error;
+				const ownerId = await resolveStorageOwner(ctr, auth.userId, storageName, "owner");
+				if (ownerId === null) return printStorageNotFound(ctr);
 
 				try {
 					const result = await functionStorageService.deleteStorage(
-						auth.userId,
+						ownerId,
 						storageName,
 					);
 					return ctr.print({ status: "OK", message: result.message });
@@ -228,10 +264,12 @@ export = new fileRouter.Path("/")
 				}
 				const auth = await getStorageAuthUser(ctr);
 				if ("error" in auth) return auth.error;
+				const ownerId = await resolveStorageOwner(ctr, auth.userId, storageName, "edit");
+				if (ownerId === null) return printStorageNotFound(ctr);
 
 				try {
 					const result = await functionStorageService.clearStorageItems(
-						auth.userId,
+						ownerId,
 						storageName,
 					);
 					return ctr.print({ status: "OK", message: result.message });
@@ -316,10 +354,12 @@ export = new fileRouter.Path("/")
 				}
 				const auth = await getStorageAuthUser(ctr);
 				if ("error" in auth) return auth.error;
+				const ownerId = await resolveStorageOwner(ctr, auth.userId, storageName, "edit");
+				if (ownerId === null) return printStorageNotFound(ctr);
 
 				try {
 					const item = await functionStorageService.setStorageItem(
-						auth.userId,
+						ownerId,
 						storageName,
 						{
 							key: data.key,
@@ -367,10 +407,12 @@ export = new fileRouter.Path("/")
 				}
 				const auth = await getStorageAuthUser(ctr);
 				if ("error" in auth) return auth.error;
+				const ownerId = await resolveStorageOwner(ctr, auth.userId, storageName, "view");
+				if (ownerId === null) return printStorageNotFound(ctr);
 
 				try {
 					const item = await functionStorageService.getStorageItem(
-						auth.userId,
+						ownerId,
 						storageName,
 						key,
 					);
@@ -413,10 +455,12 @@ export = new fileRouter.Path("/")
 				}
 				const auth = await getStorageAuthUser(ctr);
 				if ("error" in auth) return auth.error;
+				const ownerId = await resolveStorageOwner(ctr, auth.userId, storageName, "view");
+				if (ownerId === null) return printStorageNotFound(ctr);
 
 				try {
 					const items = await functionStorageService.listStorageItems(
-						auth.userId,
+						ownerId,
 						storageName,
 					);
 					return ctr.print({ status: "OK", data: items });
@@ -459,10 +503,12 @@ export = new fileRouter.Path("/")
 				}
 				const auth = await getStorageAuthUser(ctr);
 				if ("error" in auth) return auth.error;
+				const ownerId = await resolveStorageOwner(ctr, auth.userId, storageName, "edit");
+				if (ownerId === null) return printStorageNotFound(ctr);
 
 				try {
 					const result = await functionStorageService.deleteStorageItem(
-						auth.userId,
+						ownerId,
 						storageName,
 						key,
 					);

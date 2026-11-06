@@ -1,3 +1,4 @@
+import { functionAccessWhere } from "../../../lib/Sharing";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import { OpenAPITags } from "../../../lib/openapi";
@@ -57,7 +58,7 @@ export = new fileRouter.Path("/")
 				const fn = await prisma.function.findFirst({
 					where: {
 						id: functionId,
-						userId: authCheck.user.id,
+						...functionAccessWhere(authCheck.user.id, "view"),
 					},
 					select: { cors_origins: true },
 				});
@@ -155,7 +156,7 @@ export = new fileRouter.Path("/")
 				const fn = await prisma.function.findFirst({
 					where: {
 						id: functionId,
-						userId: authCheck.user.id,
+						...functionAccessWhere(authCheck.user.id, "edit"),
 					},
 				});
 				if (!fn) {

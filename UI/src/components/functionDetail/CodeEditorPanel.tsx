@@ -8,6 +8,7 @@ interface CodeEditorPanelProps {
 	onChange: (value: string) => void;
 	onMount: OnMount;
 	onOpenVersionControl: () => void;
+	readOnly?: boolean;
 }
 
 export function CodeEditorPanel({
@@ -18,6 +19,7 @@ export function CodeEditorPanel({
 	onChange,
 	onMount,
 	onOpenVersionControl,
+	readOnly = false,
 }: CodeEditorPanelProps) {
 	return (
 		<div className="bg-surface border border-white/[0.07] rounded-xl overflow-hidden">
@@ -57,7 +59,7 @@ export function CodeEditorPanel({
 						onChange={(value) => onChange(value || "")}
 						onMount={onMount}
 						options={{
-							readOnly: gitManaged,
+							readOnly: gitManaged || readOnly,
 							minimap: { enabled: true },
 							scrollBeyondLastLine: false,
 							fontSize: 13,

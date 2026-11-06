@@ -16,6 +16,7 @@ import {
 	getInstanceUUID,
 	type LinkStatus,
 } from "../services/backend.global";
+import GroupsTab from "../components/admin/GroupsTab";
 import {
 	adminListUsers,
 	adminCreateUser,
@@ -1266,12 +1267,13 @@ function UpdatesTab() {
 
 // ─── Main AdminPage ─────────────────────────────────────────────────────────────
 
-type Tab = "overview" | "access" | "users" | "runtimes" | "stats" | "updates";
+type Tab = "overview" | "access" | "users" | "groups" | "runtimes" | "stats" | "updates";
 
 const TABS: { id: Tab; label: string; description: string }[] = [
 	{ id: "overview", label: "Connectivity", description: "Link management & server secret" },
 	{ id: "access", label: "Access Control", description: "Registration, guest & external access" },
 	{ id: "users", label: "Users", description: "Create, edit, and delete user accounts" },
+	{ id: "groups", label: "Groups", description: "User groups, SSO mapping, and sharing audit log" },
 	{ id: "runtimes", label: "Runtimes", description: "Enable or disable runtime images" },
 	{ id: "stats", label: "Statistics", description: "Execution stats and resource usage" },
 	{ id: "updates", label: "Updates", description: "Check for and apply image updates" },
@@ -1311,6 +1313,7 @@ export const AdminPage = () => {
 			{activeTab === "overview" && <OverviewTab />}
 			{activeTab === "access" && <AccessControlTab />}
 			{activeTab === "users" && <UsersTab />}
+			{activeTab === "groups" && <GroupsTab />}
 			{activeTab === "runtimes" && <RuntimesTab />}
 			{activeTab === "stats" && <StatisticsTab />}
 			{activeTab === "updates" && <UpdatesTab />}

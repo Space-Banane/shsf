@@ -1,3 +1,9 @@
+import {
+	describeFunctionAccess,
+	functionAccessInclude,
+	functionAccessWhere,
+	redactFunctionForAccess,
+} from "../../../lib/Sharing";
 import { randomUUID } from "crypto";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
@@ -581,7 +587,7 @@ export = new fileRouter.Path("/")
 				const sort = ctr.queries.get("sort");
 				const order: "asc" | "desc" = ctr.queries.get("order") === "desc" ? "desc" : "asc";
 				const where = {
-					userId: authCheck.user.id,
+					...functionAccessWhere(authCheck.user.id, "view"),
 					...(search ? { OR: [{ name: { contains: search } }, { description: { contains: search } }] } : {}),
 					...(Number.isInteger(namespaceId) && namespaceId > 0 ? { namespaceId } : {}),
 					...(runtime ? { image: { startsWith: `${runtime}:` } } : {}),
@@ -596,20 +602,16 @@ export = new fileRouter.Path("/")
 						orderBy,
 						skip: paged ? (page - 1) * limit : undefined,
 						take: paged ? limit : undefined,
-						include: {
-							namespace: {
-								select: {
-									name: true,
-									id: true,
-								},
-							},
-						},
+						include: functionAccessInclude(authCheck.user.id),
 					}),
 				]);
 
 				return ctr.print({
 					status: "OK",
-					data: functions,
+					data: functions.map((fn) => {
+						const described = describeFunctionAccess(authCheck.user.id, fn);
+						return redactFunctionForAccess(described, described.access);
+					}),
 					...(paged ? { pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } : {}),
 				});
 			}),
@@ -694,16 +696,9 @@ export = new fileRouter.Path("/")
 				const functionData = await prisma.function.findFirst({
 					where: {
 						id: functionId,
-						userId: authCheck.user.id,
+						...functionAccessWhere(authCheck.user.id, "view"),
 					},
-					include: {
-						namespace: {
-							select: {
-								name: true,
-								id: true,
-							},
-						},
-					},
+					include: functionAccessInclude(authCheck.user.id),
 				});
 				if (!functionData) {
 					return ctr.status(ctr.$status.NOT_FOUND).print({
@@ -712,9 +707,10 @@ export = new fileRouter.Path("/")
 					});
 				}
 
+				const described = describeFunctionAccess(authCheck.user.id, functionData);
 				return ctr.print({
 					status: "OK",
-					data: functionData,
+					data: redactFunctionForAccess(described, described.access),
 				});
 			}),
 	)
@@ -788,7 +784,7 @@ export = new fileRouter.Path("/")
 				const logs = await prisma.triggerLog.findMany({
 					where: {
 						functionId: functionId,
-						function: { userId: authCheck.user.id },
+						function: functionAccessWhere(authCheck.user.id, "view"),
 						createdAt: {
 							gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7), // 7 days
 						},
@@ -984,7 +980,7 @@ export = new fileRouter.Path("/")
 				const existingFunction = await prisma.function.findFirst({
 					where: {
 						id: functionId,
-						userId: authCheck.user.id,
+						...functionAccessWhere(authCheck.user.id, "edit"),
 					},
 				});
 
@@ -992,6 +988,20 @@ export = new fileRouter.Path("/")
 					return ctr.status(ctr.$status.NOT_FOUND).print({
 						status: 404,
 						message: "Function not found",
+					});
+				}
+
+				// Recipients with edit access may change code and settings, but not
+				// ownership-level properties (placement, host privileges, guest exposure).
+				if (
+					existingFunction.userId !== authCheck.user.id &&
+					((data.name !== undefined && data.name !== existingFunction.name) ||
+						(data.namespaceId !== undefined && data.namespaceId !== existingFunction.namespaceId) ||
+						(data.docker_mount !== undefined && data.docker_mount !== existingFunction.docker_mount))
+				) {
+					return ctr.status(ctr.$status.FORBIDDEN).print({
+						status: 403,
+						message: "Only the function owner can rename or move it or change Docker socket mount.",
 					});
 				}
 
@@ -1037,7 +1047,7 @@ export = new fileRouter.Path("/")
 				}
 
 				let namespaceChange: number | undefined;
-				if (data.namespaceId !== undefined) {
+				if (data.namespaceId !== undefined && existingFunction.userId === authCheck.user.id) {
 					const namespaceRecord = await prisma.namespace.findFirst({
 						where: {
 							id: data.namespaceId,
@@ -1226,7 +1236,7 @@ export = new fileRouter.Path("/")
 
 				const response: PatchFunctionResponse = {
 					status: "OK",
-					data: updatedFunction,
+					data: redactFunctionForAccess(updatedFunction, existingFunction.userId === authCheck.user.id ? "owner" : "edit"),
 					...(relaunchTriggered && {
 						relaunch:
 							"Container relaunch started (will be recreated on next execution).",
@@ -1295,7 +1305,7 @@ export = new fileRouter.Path("/")
 				const functionData = await prisma.function.findFirst({
 					where: {
 						id: functionId,
-						userId: authCheck.user.id,
+						...functionAccessWhere(authCheck.user.id, "view"),
 					},
 				});
 				if (!functionData) {

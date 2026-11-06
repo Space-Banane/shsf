@@ -24,6 +24,13 @@ describe("FunctionUrlCard", () => {
 		expect(copyTextToClipboard).toHaveBeenCalledWith("http://shsf.test/api/exec/2/abc");
 	});
 
+	it("hides execution URLs from view-only recipients", () => {
+		const { container, rerender } = render(<FunctionUrlCard functionData={fn({ access: "view", executionAlias: "private-alias" })} />);
+		expect(container).toBeEmptyDOMElement();
+		rerender(<FunctionUrlCard functionData={fn({ access: "execute" })} />);
+		expect(screen.getByLabelText("Function URL")).toHaveValue("http://shsf.test/api/exec/2/abc");
+	});
+
 	it("tells the user to copy manually when the clipboard is unavailable", async () => {
 		vi.mocked(copyTextToClipboard).mockRejectedValueOnce(new Error("denied"));
 		render(<FunctionUrlCard functionData={fn()} />);
