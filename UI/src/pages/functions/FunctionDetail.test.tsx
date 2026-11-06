@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import FunctionDetail from "./FunctionDetail";
-import { getFiles, getFolders } from "../../services/backend.files";
-import { getFunctionById } from "../../services/backend.functions";
+import { createOrUpdateFile, getFiles, getFolders } from "../../services/backend.files";
+import { executeFunctionStreaming, getFunctionById } from "../../services/backend.functions";
 import { getNamespace } from "../../services/backend.namespaces";
 import { getTriggers } from "../../services/backend.triggers";
 import type { FunctionFile, XFunction } from "../../types/Prisma";
@@ -123,6 +123,22 @@ describe("FunctionDetail route", () => {
 
 		expect(screen.getByText("Unsaved")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+	});
+
+	it("saves an edit and displays the output of a subsequent run", async () => {
+		mockBackend();
+		vi.mocked(createOrUpdateFile).mockResolvedValue({ status: "OK", data: file(1, "main.py", "print(2)") });
+		vi.mocked(executeFunctionStreaming).mockImplementation(async (_id, onChunk) => {
+			onChunk({ type: "output", content: "run output: 2\n" });
+			onChunk({ type: "end", exitCode: 0 });
+		});
+		renderRoute();
+		fireEvent.change(await screen.findByLabelText("editor"), { target: { value: "print(2)" } });
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument());
+		expect(createOrUpdateFile).toHaveBeenCalledWith(1, { filename: "main.py", code: "print(2)" });
+		fireEvent.click(screen.getByRole("button", { name: "Run Function" }));
+		expect(await screen.findByText("run output: 2")).toBeInTheDocument();
 	});
 
 	it("asks before navigating away with unsaved edits and stays when declined", async () => {

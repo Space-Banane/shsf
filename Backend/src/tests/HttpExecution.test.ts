@@ -76,6 +76,32 @@ describe("executeLoadedHttpFunction", () => {
 		vi.clearAllMocks();
 	});
 
+	it("rejects unauthorized HTTP execution before building or running the payload", async () => {
+		const ctr = createCtr();
+		const buildPayloadFromGET = vi.fn();
+		const executeFunction = vi.fn();
+
+		await executeLoadedHttpFunction({
+			ctr,
+			functionData: baseFunctionData as any,
+			method: "GET",
+			namespaceId: 7,
+			permissionFunctionId: "exec-123",
+			executionAliasOrId: "exec-123",
+			useCache: false,
+			dependencies: {
+				checkHttpExecutionPermission: vi.fn().mockResolvedValue({ state: false, reason: "Invalid secure header" }),
+				buildPayloadFromGET,
+				executeFunction,
+			},
+		});
+
+		expect(ctr.status).toHaveBeenCalledWith(403);
+		expect(ctr.print).toHaveBeenCalledWith({ status: 403, message: "Invalid secure header" });
+		expect(buildPayloadFromGET).not.toHaveBeenCalled();
+		expect(executeFunction).not.toHaveBeenCalled();
+	});
+
 	it("returns 429 before payload build or execution when over limit", async () => {
 		const ctr = createCtr();
 		const buildPayloadFromGET = vi.fn();
