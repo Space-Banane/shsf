@@ -437,3 +437,51 @@ model AuditLog {
 
   @@index([createdAt])
 }
+
+enum UpdateOperationStatus {
+  running
+  completed
+  failed
+  cancelled
+  rolled_back
+}
+
+enum UpdateOperationPhase {
+  preflight
+  pull
+  replacement
+  migration
+  verification
+  completion
+  rollback
+  failure
+}
+
+// Durable record of one self-update. Survives the restart that the update
+// itself causes; see Backend/src/lib/Updater.ts.
+model UpdateOperation {
+  id      String                @id @default(uuid()) @db.VarChar(36)
+  status  UpdateOperationStatus @default(running)
+  phase   UpdateOperationPhase  @default(preflight)
+  trigger String                @db.VarChar(16) // manual | auto
+
+  imageRef    String? @db.VarChar(512) // Tracked image reference that was pulled
+  fromImageId String? @db.VarChar(80)
+  fromDigest  String? @db.VarChar(255)
+  toImageId   String? @db.VarChar(80)
+  toDigest    String? @db.VarChar(255)
+
+  helperContainerId String? @db.VarChar(80)
+  exitCode          Int?
+  error             String? @db.Text
+  log               String? @db.Text // Backend-side progress lines
+  helperOutput      String? @db.Text // Captured stdout/stderr of the helper container
+
+  startedAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  finishedAt DateTime?
+  deadlineAt DateTime
+
+  @@index([status])
+  @@index([startedAt])
+}

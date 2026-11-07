@@ -16,8 +16,7 @@ import { executionMiddleware } from "./lib/middlewares/execution";
 import { makeResponse } from "./lib/response";
 import { ERROR_MESSAGES } from "./lib/errors";
 import { startSystemCrons } from "./lib/SystemCrons";
-import { reconcileUpdateState } from "./lib/Updater";
-import { getUpdateLastCheck } from "./lib/DataManager";
+import { initUpdater } from "./lib/Updater";
 import { ensureDemoData, DEMO_EMAIL } from "./lib/Demo";
 
 export const VERSION: {
@@ -129,9 +128,8 @@ if (env.NODE_ENV !== "test") {
 
 			logger.info({ port, uuid }, "SHSF API running");
 
-			// Restore last update-check result into memory so the Admin UI has it immediately
-			const lastCheck = await getUpdateLastCheck();
-			if (lastCheck) await reconcileUpdateState(lastCheck);
+			// Resume or fail updates interrupted by this restart, and refresh the stored check result
+			await initUpdater();
 
 			startSystemCrons({ prisma, executeFunction, performGitPull });
 		})

@@ -4,7 +4,7 @@ import type { executeFunction as executeFunctionImpl } from "./Runner";
 import type { performGitPull as performGitPullImpl } from "./GitOps";
 import { createLogger } from "./logger";
 import { getAutoUpdateEnabled } from "./DataManager";
-import { getUpdateState, checkForUpdate, applyUpdate } from "./Updater";
+import { checkForUpdate, applyUpdate, hasFailedAttempt } from "./Updater";
 import { processLogAnalysisQueue } from "./LogAnalysis";
 import { env } from "./env";
 
@@ -321,20 +321,17 @@ export async function processAutoUpdate() {
 	const enabled = await getAutoUpdateEnabled();
 	if (!enabled) return;
 
-	const current = getUpdateState();
-	if (current.phase !== "idle") {
-		updateLog.debug({ phase: current.phase }, "Skipping auto-update — operation in progress");
-		return;
-	}
-
 	updateLog.info("Running scheduled update check");
 	try {
 		const result = await checkForUpdate();
-		if (result.updateAvailable) {
-			updateLog.info({ newImageId: result.newImageId }, "Update available — applying automatically");
-			await applyUpdate();
-		} else {
+		if (!result.updateAvailable || !result.newImageId) {
 			updateLog.info("No update available");
+		} else if (await hasFailedAttempt(result.newImageId)) {
+			// Without this, a release that always fails its readiness checks would be retried every 6 hours.
+			updateLog.warn({ newImageId: result.newImageId }, "Skipping auto-update: this image already failed and was rolled back");
+		} else {
+			updateLog.info({ newImageId: result.newImageId }, "Update available — applying automatically");
+			await applyUpdate("auto");
 		}
 	} catch (err) {
 		updateLog.error({ err }, "Scheduled update check/apply failed");

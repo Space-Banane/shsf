@@ -32,12 +32,17 @@ import {
 	getDisabledImages,
 	setDisabledImages as apiSetDisabledImages,
 	getUpdateStatus,
+	getUpdateOperation,
+	cancelUpdateOperation,
 	setAutoUpdate as apiSetAutoUpdate,
 	triggerUpdateCheck,
 	triggerUpdateApply,
 	type AdminUser,
 	type AdminStats,
 	type UpdateStatus,
+	type UpdateOperation,
+	type UpdateOperationPhase,
+	type UpdateOperationStatus,
 } from "../services/backend.admin";
 
 const fetch = apiFetch;
@@ -1024,21 +1029,48 @@ function StatisticsTab() {
 
 // ─── Tab: Updates ──────────────────────────────────────────────────────────────
 
+const OPERATION_PHASE_LABELS: Record<UpdateOperationPhase, string> = {
+	preflight: "Preflight checks",
+	pull: "Pulling image",
+	replacement: "Replacing the service",
+	migration: "Starting and migrating",
+	verification: "Verifying readiness",
+	completion: "Completing",
+	rollback: "Rolling back to the previous version",
+	failure: "Failed",
+};
+
+const OPERATION_STATUS_BADGES: Record<UpdateOperationStatus, { label: string; variant: "success" | "warning" | "danger" | "default" }> = {
+	running: { label: "In progress", variant: "warning" },
+	completed: { label: "Completed", variant: "success" },
+	failed: { label: "Failed", variant: "danger" },
+	cancelled: { label: "Cancelled", variant: "default" },
+	rolled_back: { label: "Rolled back", variant: "danger" },
+};
+
+// Polling is finite: it stops at a terminal state, or shortly after the
+// operation's server-side deadline (the backend marks it failed by then).
+const POLL_MS = 3000;
+const POLL_GRACE_MS = 2 * 60_000;
+
 function UpdatesTab() {
 	const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
 	const [loadError, setLoadError] = useState<string | null>(null);
+	const [detail, setDetail] = useState<UpdateOperation | null>(null);
+	const [showLogs, setShowLogs] = useState(false);
 
 	const [checking, setChecking] = useState(false);
 	const [checkError, setCheckError] = useState<string | null>(null);
-
 	const [applying, setApplying] = useState(false);
-	const [applyMessage, setApplyMessage] = useState<string | null>(null);
 	const [applyError, setApplyError] = useState<string | null>(null);
-	const [restarting, setRestarting] = useState(false);
+	const [unreachable, setUnreachable] = useState(false);
 
 	const [autoUpdateLoading, setAutoUpdateLoading] = useState(false);
-	const updateBusy = updateStatus !== null && updateStatus.phase !== "idle";
-	const updateError = updateStatus?.error;
+
+	const operation = updateStatus?.operation ?? null;
+	const running = operation?.status === "running";
+	const operationId = operation?.id;
+	const deadlineAt = operation?.deadlineAt;
 
 	const load = useCallback(async (silent = false) => {
 		if (!silent) setLoadError(null);
@@ -1047,46 +1079,47 @@ function UpdatesTab() {
 			if (data.status === "OK") {
 				setUpdateStatus(data);
 				setLoadError(null);
+				setUnreachable(false);
 			} else if (!silent) setLoadError("Failed to load update status.");
 		} catch {
-			if (!silent) setLoadError("Failed to load update status.");
+			// Expected while the backend restarts during the replacement.
+			if (silent) setUnreachable(true);
+			else setLoadError("Failed to load update status.");
 		}
 	}, []);
 
-	useEffect(() => { load(); }, [load]);
+	useEffect(() => { void load(); }, [load]);
 
-	// Poll until the replacement process reports idle. The old process can
-	// still answer /health during the helper delay, so health polling alone is
-	// not sufficient to detect that the restart has actually completed.
 	useEffect(() => {
-		if (!restarting && !updateBusy) return;
-		const id = setInterval(() => { void load(true); }, 2000);
+		if (!running || !deadlineAt) return;
+		const stopAt = new Date(deadlineAt).getTime() + POLL_GRACE_MS;
+		const id = setInterval(() => {
+			if (Date.now() > stopAt) { clearInterval(id); return; }
+			void load(true);
+		}, POLL_MS);
 		return () => clearInterval(id);
-	}, [restarting, updateBusy, load]);
+	}, [running, deadlineAt, load]);
 
+	// Logs are fetched on demand and refreshed only while the operation is running.
 	useEffect(() => {
-		if (restarting && updateStatus?.phase === "idle") {
-			setRestarting(false);
-			if (updateError) {
-				setApplyError(updateError);
-				setApplyMessage(null);
-			} else {
-				setApplyMessage("Service is back online with the new version.");
-			}
-		}
-	}, [restarting, updateStatus?.phase, updateError]);
+		if (!showLogs || !operationId) return;
+		let cancelled = false;
+		const fetchDetail = () => getUpdateOperation(operationId)
+			.then((r) => { if (!cancelled && r.status === "OK") setDetail(r.operation); })
+			.catch(() => undefined);
+		void fetchDetail();
+		if (!running) return () => { cancelled = true; };
+		const id = setInterval(fetchDetail, POLL_MS);
+		return () => { cancelled = true; clearInterval(id); };
+	}, [showLogs, operationId, running, operation?.phase]);
 
 	const handleCheck = async () => {
 		setChecking(true);
 		setCheckError(null);
-		setApplyMessage(null);
 		try {
 			const data = await triggerUpdateCheck();
-			if (data.status === "OK") {
-				await load();
-			} else {
-				setCheckError(data.message);
-			}
+			if (data.status === "OK") await load();
+			else setCheckError(data.message);
 		} catch {
 			setCheckError("Update check failed.");
 		} finally {
@@ -1097,27 +1130,22 @@ function UpdatesTab() {
 	const handleApply = async () => {
 		setApplying(true);
 		setApplyError(null);
-		setApplyMessage(null);
 		try {
 			const data = await triggerUpdateApply();
-			if (data.status === "OK") {
-				setApplyMessage(data.message + " Waiting for service to restart…");
-				setRestarting(true);
-				setUpdateStatus((prev) => prev ? {
-					...prev,
-					phase: "applying",
-					updateAvailable: false,
-					newImageId: null,
-					error: null,
-				} : prev);
-			} else {
-				setApplyError(data.message);
-			}
+			if (data.status === "OK") await load();
+			else setApplyError(data.message);
 		} catch {
-			setApplyError("Failed to apply update.");
+			setApplyError("Failed to start the update.");
 		} finally {
 			setApplying(false);
 		}
+	};
+
+	const handleCancel = async () => {
+		if (!operationId) return;
+		const data = await cancelUpdateOperation(operationId).catch(() => null);
+		if (data && data.status === "FAILED") setApplyError(data.message);
+		await load();
 	};
 
 	const toggleAutoUpdate = async () => {
@@ -1133,8 +1161,11 @@ function UpdatesTab() {
 		}
 	};
 
-	const isIdle = !updateStatus || updateStatus.phase === "idle";
-	const isBusy = checking || applying || restarting || !isIdle;
+	const isBusy = checking || applying || running || (updateStatus?.checking ?? false);
+	const badge = operation ? OPERATION_STATUS_BADGES[operation.status] : null;
+	const logText = detail && detail.id === operationId
+		? [detail.log, detail.helperOutput?.replace(/\r/g, "")].filter(Boolean).join("\n\n")
+		: "";
 
 	return (
 		<div className="space-y-4">
@@ -1157,12 +1188,8 @@ function UpdatesTab() {
 							<code className="font-mono text-xs text-text/80 bg-background/60 px-2 py-0.5 rounded">
 								{updateStatus.currentImageId ?? "unknown"}
 							</code>
-							{updateStatus.updateAvailable === true && (
-								<Badge variant="warning">Update available</Badge>
-							)}
-							{updateStatus.updateAvailable === false && (
-								<Badge variant="success">Up to date</Badge>
-							)}
+							{updateStatus.updateAvailable === true && <Badge variant="warning">Update available</Badge>}
+							{updateStatus.updateAvailable === false && <Badge variant="success">Up to date</Badge>}
 						</div>
 
 						{updateStatus.newImageId && (
@@ -1179,40 +1206,59 @@ function UpdatesTab() {
 								Last checked: {new Date(updateStatus.lastCheckedAt).toLocaleString()}
 							</p>
 						)}
-
-						{updateStatus.phase !== "idle" && (
-							<div className="flex items-center gap-2 mt-2">
-								<span className="inline-block h-2 w-2 rounded-full bg-primary/70 animate-pulse" />
-								<span className="text-sm text-primary/80">
-									{updateStatus.phase === "checking" && "Pulling image and checking for update…"}
-									{updateStatus.phase === "applying" && "Recreating container…"}
-								</span>
-							</div>
-						)}
-
-						{restarting && (
-							<div className="flex items-center gap-2 mt-2">
-								<span className="inline-block h-2 w-2 rounded-full bg-yellow-400 animate-pulse" />
-								<span className="text-sm text-yellow-400/80">Waiting for service to come back online…</span>
-							</div>
-						)}
-
-						{updateStatus.error && (
-							<p className="text-sm text-red-400 mt-1">{updateStatus.error}</p>
-						)}
-
-						{applyMessage && (
-							<p className="text-sm text-green-400 mt-1">{applyMessage}</p>
-						)}
 					</div>
 				)}
 			</div>
+
+			{/* Latest operation */}
+			{operation && badge && (
+				<div className={cardClass}>
+					<h2 className="text-base font-semibold text-primary mb-2 flex items-center gap-2">
+						Latest Update
+						<Badge variant={badge.variant}>{badge.label}</Badge>
+					</h2>
+					<div className="space-y-1 text-sm">
+						{running && (
+							<div className="flex items-center gap-2">
+								<span className="inline-block h-2 w-2 rounded-full bg-primary/70 animate-pulse" />
+								<span className="text-primary/80">{OPERATION_PHASE_LABELS[operation.phase]}…</span>
+							</div>
+						)}
+						{running && unreachable && (
+							<p className="text-yellow-400/80">The service is restarting; this page will reconnect on its own.</p>
+						)}
+						{operation.status === "completed" && (
+							<p className="text-green-400">The new version passed its readiness checks.</p>
+						)}
+						{operation.status === "rolled_back" && (
+							<p className="text-red-400">The update was rolled back automatically. The previous version is running again.</p>
+						)}
+						{operation.error && <p className="text-red-400 break-words">{operation.error}</p>}
+						<p className="text-xs text-text/40">
+							Started {new Date(operation.startedAt).toLocaleString()}
+							{operation.finishedAt && ` · finished ${new Date(operation.finishedAt).toLocaleString()}`}
+							{operation.exitCode !== null && ` · helper exit code ${operation.exitCode}`}
+						</p>
+					</div>
+					<button
+						onClick={() => setShowLogs((v) => !v)}
+						className="mt-3 text-xs text-primary/80 hover:text-primary underline"
+					>
+						{showLogs ? "Hide logs" : "Show logs"}
+					</button>
+					{showLogs && (
+						<pre className="mt-2 max-h-72 overflow-auto rounded bg-background/60 p-3 text-xs text-text/70 whitespace-pre-wrap break-words">
+							{logText || "No output captured yet."}
+						</pre>
+					)}
+				</div>
+			)}
 
 			{/* Actions */}
 			<div className={cardClass}>
 				<h2 className="text-base font-semibold text-primary mb-1">Update Actions</h2>
 				<p className="text-text/60 text-sm mb-4">
-					"Check" compares the running image with the selected tag in the registry. "Update Now" pulls and force-recreates the Docker Compose project — the service will be briefly unavailable.
+					"Check" compares the running image with the selected tag in the registry. "Update Now" replaces only the SHSF service with the new image and rolls back automatically if the new version does not become ready — the service will be briefly unavailable.
 				</p>
 
 				{checkError && <p className="text-sm text-red-400 mb-3">{checkError}</p>}
@@ -1224,7 +1270,7 @@ function UpdatesTab() {
 						disabled={isBusy}
 						className="px-3 py-1.5 bg-primary/20 border border-primary/30 hover:bg-primary/30 disabled:opacity-50 text-primary rounded-lg text-sm font-medium transition-all duration-200"
 					>
-						{checking || (!isIdle && updateStatus?.phase === "checking") ? "Checking…" : "Check for Update"}
+						{checking || updateStatus?.checking ? "Checking…" : "Check for Update"}
 					</button>
 
 					{updateStatus?.updateAvailable && (
@@ -1233,7 +1279,16 @@ function UpdatesTab() {
 							disabled={isBusy}
 							className="px-3 py-1.5 bg-yellow-500/20 border border-yellow-500/30 hover:bg-yellow-500/30 disabled:opacity-50 text-yellow-400 rounded-lg text-sm font-medium transition-all duration-200"
 						>
-							{applying || (!isIdle && updateStatus.phase === "applying") ? "Applying…" : "Update Now"}
+							{applying || running ? "Updating…" : "Update Now"}
+						</button>
+					)}
+
+					{running && operation?.phase === "pull" && (
+						<button
+							onClick={handleCancel}
+							className="px-3 py-1.5 bg-background/60 border border-text/20 hover:bg-background text-text/80 rounded-lg text-sm font-medium transition-all duration-200"
+						>
+							Cancel
 						</button>
 					)}
 				</div>
@@ -1243,7 +1298,7 @@ function UpdatesTab() {
 			<div className={cardClass}>
 				<h2 className="text-base font-semibold text-primary mb-1 flex items-center gap-2">
 					Auto-Update
-					<HelpTooltip content="When enabled, SHSF checks for a new image every 6 hours and force-recreates the Docker Compose project if one is found." placement="right" />
+					<HelpTooltip content="When enabled, SHSF checks for a new image every 6 hours and replaces the SHSF service if one is found. An image that already failed is not retried." placement="right" />
 				</h2>
 				<p className="text-text/60 text-sm mb-3">Automatically pull and apply new images every 6 hours.</p>
 				{updateStatus === null ? (

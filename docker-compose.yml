@@ -1,7 +1,10 @@
 services:
  backend:
-  image: registry.reversed.dev/shsf/core:latest
-  pull_policy: always
+  # `prod` follows the main branch. For a fully immutable deployment set SHSF_IMAGE to a
+  # `sha-<commit>` tag. The in-app updater tracks this reference and, after an update,
+  # pins the running service to the new image ID (see "Updating" in the README).
+  image: ${SHSF_IMAGE:-registry.reversed.dev/shsf/core:prod}
+  pull_policy: missing
   restart: always
   env_file:
    - .env
