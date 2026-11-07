@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Prisma, SharePermission } from "@prisma/client";
 import { prisma } from "..";
 import { createLogger } from "./logger";
@@ -153,9 +154,10 @@ export async function audit(
 	targetType: string,
 	targetId: number | null,
 	details?: Prisma.InputJsonValue,
+	client: Prisma.TransactionClient = prisma,
 ) {
 	log.info({ actorId, action, targetType, targetId }, "audit");
-	await prisma.auditLog.create({ data: { actorId, action, targetType, targetId, details } });
+	await client.auditLog.create({ data: { actorId, action, targetType, targetId, details } });
 }
 
 export type SsoGroup = { id: string; name: string };
@@ -167,37 +169,38 @@ export type SsoGroup = { id: string; name: string };
  * touched, so disabling SSO leaves local groups and every share intact.
  * Admins link an existing local group by setting its ssoProvider/ssoGroupId.
  */
-export async function syncSsoGroupMembership(provider: string, userId: number, groups: SsoGroup[]) {
+export async function syncSsoGroupMembership(provider: string, userId: number, groups: SsoGroup[], client: Prisma.TransactionClient = prisma) {
 	const groupIds = new Set<number>();
-	for (const g of groups) {
-		let group = await prisma.group.findUnique({
+	for (const g of [...groups].sort((a, b) => a.id.localeCompare(b.id))) {
+		let group = await client.group.findUnique({
 			where: { ssoProvider_ssoGroupId: { ssoProvider: provider, ssoGroupId: g.id } },
 		});
 		if (!group) {
 			// Never auto-link by name: a same-named local group may belong to someone else.
-			const nameTaken = await prisma.group.findUnique({ where: { name: g.name } });
-			group = await prisma.group.create({
+			const nameTaken = await client.group.findUnique({ where: { name: g.name } });
+			group = await client.group.create({
 				data: {
-					name: nameTaken ? `${g.name} (${provider}:${g.id})`.slice(0, 128) : g.name.slice(0, 128),
+					name: nameTaken ? `${g.name.slice(0, 60)} (${createHash("sha256").update(JSON.stringify([provider, g.id])).digest("hex")})` : g.name.slice(0, 128),
 					ssoProvider: provider,
 					ssoGroupId: g.id,
 				},
 			});
-			await audit(null, "group.create", "group", group.id, { name: group.name, provider });
+			await audit(null, "group.create", "group", group.id, { name: group.name, provider }, client);
 		}
+		if (group.ssoProvider !== provider || group.ssoGroupId !== g.id) throw new Error("SSO group identity mismatch");
 		groupIds.add(group.id);
 	}
 
-	const existing = await prisma.groupMember.findMany({ where: { userId, group: { ssoProvider: provider } } });
+	const existing = await client.groupMember.findMany({ where: { userId, group: { ssoProvider: provider } } });
 	const have = new Set(existing.map((m) => m.groupId));
 	for (const groupId of [...groupIds].filter((id) => !have.has(id))) {
-		await prisma.groupMember.create({ data: { groupId, userId, source: "sso" } });
-		await audit(null, "group.member.add", "group", groupId, { userId, source: "sso", provider });
+		await client.groupMember.create({ data: { groupId, userId, source: "sso" } });
+		await audit(null, "group.member.add", "group", groupId, { userId, source: "sso", provider }, client);
 	}
 	const stale = existing.filter((m) => m.source === "sso" && !groupIds.has(m.groupId));
 	for (const m of stale) {
-		await prisma.groupMember.delete({ where: { groupId_userId: { groupId: m.groupId, userId } } });
-		await audit(null, "group.member.remove", "group", m.groupId, { userId, source: "sso", provider });
+		await client.groupMember.delete({ where: { groupId_userId: { groupId: m.groupId, userId } } });
+		await audit(null, "group.member.remove", "group", m.groupId, { userId, source: "sso", provider }, client);
 	}
 	return [...groupIds];
 }

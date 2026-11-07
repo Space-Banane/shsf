@@ -338,3 +338,7 @@ Bug reports and feature requests are welcome via the Gitea issue tracker.
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
+
+### Optional single sign-on
+
+[Configure OIDC sign-in](docs/sso.md) to authenticate through an identity provider and synchronize its groups with SHSF resource sharing. Local sign-in remains available by default.

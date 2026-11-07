@@ -18,6 +18,7 @@
 		"file-type": "^22.1.1",
 		"lru-cache": "^11.5.3",
 		"mariadb": "^3.5.4",
+		"openid-client": "^6.8.9",
 		"pino": "^10.4.0",
 		"pino-pretty": "^13.2.0",
 		"prisma": "^7.10.0",

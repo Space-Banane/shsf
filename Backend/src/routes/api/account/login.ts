@@ -1,13 +1,15 @@
 import { createHash } from "crypto";
-import { isIP } from "node:net";
 import { COOKIE, DOMAIN, fileRouter, prisma } from "../../..";
 import { Cookie } from "rjweb-server";
 import * as bcrypt from "bcrypt";
+import { env } from "../../../lib/env";
+import { getSessionCookieDomain } from "../../../lib/Authentication";
 
 export = new fileRouter.Path("/").http("POST", "/api/account/login", (http) =>
 	http
 		.ratelimit((limit) => limit.hits(3).window(10000).penalty(0))
 		.onRequest(async (ctr) => {
+			if (env.SSO && !env.SSO.localLoginEnabled) return ctr.status(403).print({ status: "FAILED", message: "Local login is disabled" });
 			const [data, error] = await ctr.bindBody((z) =>
 				z.object({
 					email: z.string().email().max(200),
@@ -18,7 +20,7 @@ export = new fileRouter.Path("/").http("POST", "/api/account/login", (http) =>
 			if (!data)
 				return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-			if (ctr.cookies.has(COOKIE)) {
+			if (ctr.cookies.has(COOKIE) && ctr.getAuth().success) {
 				return ctr.status(ctr.$status.BAD_REQUEST).print({
 					message: "You are already logged in",
 					status: "FAILED",
@@ -31,7 +33,7 @@ export = new fileRouter.Path("/").http("POST", "/api/account/login", (http) =>
 				},
 			});
 
-			if (!user) {
+			if (!user || user.ssoIdentity) {
 				return ctr.status(ctr.$status.UNAUTHORIZED).print({
 					message: "Invalid Credentials",
 					status: "FAILED",
@@ -65,22 +67,10 @@ export = new fileRouter.Path("/").http("POST", "/api/account/login", (http) =>
 				},
 			});
 
-			let newdomain = "";
-			if (DOMAIN === "localhost" || isIP(DOMAIN)) {
-				newdomain = DOMAIN;
-			} else {
-				if (DOMAIN.split(".").length > 2) {
-					// we are on a subdomain
-					newdomain = DOMAIN.split(".").slice(1).join("."); // Ex. "sub.domain.com" => "domain.com"
-				} else {
-					newdomain = "." + DOMAIN;
-				}
-			}
-
 			ctr.cookies.set(
 				COOKIE,
 				new Cookie(hash, {
-					domain: newdomain,
+					domain: getSessionCookieDomain(DOMAIN),
 					expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30), // 30 days
 				}),
 			);
