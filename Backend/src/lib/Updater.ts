@@ -425,9 +425,16 @@ export async function monitorOperation(id: string): Promise<void> {
 					...(progress.phase && progress.phase !== row.phase ? { phase: progress.phase } : {}),
 				});
 
-				// "created" is a helper that has not been started yet, not a finished one.
+				// The monitor only starts after helper.start() succeeded (or from recovery, which skips
+				// operations still launching), so a "created" helper means the backend died between
+				// create and start. Nothing was replaced; fail now instead of blocking updates until the deadline.
 				const status = helper.info.State.Status;
-				if (!helper.info.State.Running && status !== "created") {
+				if (status === "created") {
+					await finish(id, "failed", { error: "The backend restarted before the update helper was started" });
+					void docker.getContainer(row.helperContainerId).remove({ force: true }).catch(() => undefined);
+					return;
+				}
+				if (!helper.info.State.Running) {
 					await settle(id, row, helper.info.State.ExitCode, progress);
 					void docker.getContainer(row.helperContainerId).remove({ force: true }).catch(() => undefined);
 					return;

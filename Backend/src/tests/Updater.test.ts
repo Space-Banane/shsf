@@ -334,13 +334,21 @@ describe("operation lifecycle", () => {
 		expect(status(op.id)).toBe("completed");
 	}, 15_000);
 
-	it("does not treat a created-but-not-started helper as finished", async () => {
-		const op = await running({ deadlineAt: new Date(Date.now() - 1000) });
+	it("fails immediately and removes a helper that was created but never started (crash window)", async () => {
+		const op = await running();
 		docker.status = "created";
 		await monitorOperation(op.id);
-		// Only the deadline may end it; it must not be settled as an exit-0 failure or removed.
-		expect(rows.store.get(op.id)?.error).toContain("minute limit");
-		expect(docker.removed).toBe(0);
+		expect(status(op.id)).toBe("failed");
+		expect(rows.store.get(op.id)?.error).toContain("before the update helper was started");
+		await vi.waitFor(() => expect(docker.removed).toBe(1));
+	});
+
+	it("recovery after a restart fails an operation whose helper was created but not started", async () => {
+		const op = await running();
+		docker.status = "created";
+		await recoverOperations();
+		await vi.waitFor(() => expect(status(op.id)).toBe("failed"));
+		expect(rows.store.get(op.id)?.error).toContain("before the update helper was started");
 	});
 
 	it("fails a still-running helper once the operation deadline passed (timeout)", async () => {
