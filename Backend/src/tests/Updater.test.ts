@@ -1,3 +1,7 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	MISSING_LAYOUT_HELP,
@@ -215,6 +219,29 @@ describe("buildHelperScript", () => {
 			layout: { ...layout, configFiles: ["/srv/shsf/a.yml", "/srv/shsf/b.yml"], envFiles: ["/srv/shsf/prod.env"] },
 		});
 		expect(script).toContain("-f '/srv/shsf/a.yml' -f '/srv/shsf/b.yml' --env-file '/srv/shsf/prod.env'");
+	});
+
+	it("writes a multi-line Compose override with real line breaks", () => {
+		const dir = mkdtempSync(join(tmpdir(), "shsf-override-"));
+		try {
+			const script = buildHelperScript(base);
+			const fn = /^write_override\(\) \{\n[\s\S]*?\n\}$/m.exec(script)?.[0];
+			expect(fn).toBeDefined();
+			const out = join(dir, "override.yml");
+			const harness = [
+				`SERVICE='backend'`,
+				`REF='registry.example.com/shsf/core:prod'`,
+				`OVERRIDE='${out}'`,
+				fn,
+				`write_override '${ID_B}'`,
+			].join("\n");
+			execFileSync("sh", ["-c", harness]);
+			expect(readFileSync(out, "utf8")).toBe(
+				`services:\n  backend:\n    image: ${ID_B}\n    labels:\n      shsf.update.ref: "registry.example.com/shsf/core:prod"\n`,
+			);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	it("quotes values and rejects unsafe ones", () => {
