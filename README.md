@@ -95,6 +95,30 @@ Open `http://localhost:<PORT>` in your browser. The first registered account is 
 
 ---
 
+### Updating
+
+Admins update from **Admin → Updates**, or automatically every 6 hours when auto-update is on. An update never claims success early: it returns an operation ID and is only `completed` after the new version passes its readiness checks.
+
+1. **Preflight** – reads the Compose layout from the container's labels (or `UPDATE_COMPOSE_*`) and the tracked image reference (`UPDATE_IMAGE`, default: the image reference the service was created from).
+2. **Pull** – pulls the tracked image (with `UPDATE_REGISTRY_*` credentials if set) and resolves it to an immutable image ID.
+3. **Replace** – a short-lived `docker:cli` helper recreates **only the SHSF service** (`--no-deps --force-recreate`), pinned to that image ID through a generated Compose override. The database and other services are untouched.
+4. **Verify** – the new container must stay running without restarts, be healthy (if it has a healthcheck) and answer `GET /ready` (database reachable, after `prisma migrate deploy`) three polls in a row.
+5. **Roll back** – on any failure the previous image ID is restored the same way and the operation ends as `rolled_back` (or `failed` if the rollback itself fails). Auto-update does not retry an image that already failed.
+
+State, phases, exit codes and the helper's stdout/stderr are stored in the `UpdateOperation` table, survive the restart the update causes, and are shown in the UI. An operation interrupted before the replacement started is marked `failed` on the next boot. Cancel is possible until the replacement begins.
+
+| Stage | Limit |
+|---|---|
+| Image pull (target and helper image) | 10 min each |
+| `docker compose up` for the service | 180 s |
+| Start + migrations + readiness, per attempt | 300 s |
+| Whole operation | 45 min |
+| UI polling | every 3 s, only while an operation runs, stops shortly after its deadline |
+
+**Custom layouts** – set `UPDATE_COMPOSE_PROJECT`, `UPDATE_COMPOSE_SERVICE`, `UPDATE_COMPOSE_PROJECT_DIR`, `UPDATE_COMPOSE_FILES` and optionally `UPDATE_COMPOSE_ENV_FILES` (host paths, comma separated, inside the project directory). Containers started without Compose need these too. See `example.env`.
+
+**Immutable images** – `docker-compose.yml` defaults to the `prod` tag and no longer uses `latest`. Set `SHSF_IMAGE` (e.g. in `.env`) to a `sha-<commit>` tag to pin an exact build; every CI image is also published under that tag.
+
 ### API reference
 
 Each SHSF instance publishes its OpenAPI document at `/api/openapi.json`. For a

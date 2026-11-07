@@ -171,10 +171,32 @@ export async function setDisabledImages(disabledImages: string[]): Promise<{ sta
 
 // --- Updates ---
 
+export type UpdateOperationStatus = "running" | "completed" | "failed" | "cancelled" | "rolled_back";
+export type UpdateOperationPhase =
+	| "preflight" | "pull" | "replacement" | "migration" | "verification" | "completion" | "rollback" | "failure";
+
+export interface UpdateOperation {
+	id: string;
+	status: UpdateOperationStatus;
+	phase: UpdateOperationPhase;
+	trigger: string;
+	imageRef: string | null;
+	fromImageId: string | null;
+	toImageId: string | null;
+	exitCode: number | null;
+	error: string | null;
+	startedAt: string;
+	finishedAt: string | null;
+	deadlineAt: string;
+	log?: string;
+	helperOutput?: string;
+}
+
 export interface UpdateStatus {
 	autoUpdateEnabled: boolean;
-	phase: "idle" | "checking" | "applying";
-	error: string | null;
+	checking: boolean;
+	applying: boolean;
+	operation: UpdateOperation | null;
 	lastCheckedAt: string | null;
 	updateAvailable: boolean | null;
 	currentImageId: string | null;
@@ -209,13 +231,28 @@ export async function triggerUpdateCheck(): Promise<
 }
 
 export async function triggerUpdateApply(): Promise<
-	{ status: "OK"; method: string; message: string } |
+	{ status: "OK"; operationId: string; message: string } |
 	{ status: "FAILED"; message: string }
 > {
 	const res = await fetch(`${BASE_URL}/api/admin/update/apply`, {
 		method: "POST",
 		credentials: "include",
-		timeoutMs: 5 * 60_000,
+		timeoutMs: 30_000,
+	});
+	return res.json();
+}
+
+export async function getUpdateOperation(id: string): Promise<
+	{ status: "OK"; operation: UpdateOperation } | { status: "FAILED"; message: string }
+> {
+	const res = await fetch(`${BASE_URL}/api/admin/update/operations/${encodeURIComponent(id)}`, { credentials: "include" });
+	return res.json();
+}
+
+export async function cancelUpdateOperation(id: string): Promise<{ status: "OK" } | { status: "FAILED"; message: string }> {
+	const res = await fetch(`${BASE_URL}/api/admin/update/operations/${encodeURIComponent(id)}/cancel`, {
+		method: "POST",
+		credentials: "include",
 	});
 	return res.json();
 }

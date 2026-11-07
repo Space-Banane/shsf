@@ -31,6 +31,18 @@ const baseSchema = z.object({
 		.string()
 		.default("false")
 		.transform((v) => v === "true"),
+	// Self-updater. Everything is optional: by default the tracked image and the
+	// Compose layout are read from the running container's own labels.
+	UPDATE_IMAGE: z.string().optional(),
+	UPDATE_HELPER_IMAGE: z.string().min(1).default("docker:28-cli"),
+	UPDATE_REGISTRY_USERNAME: z.string().optional(),
+	UPDATE_REGISTRY_PASSWORD: z.string().optional(),
+	UPDATE_REGISTRY_SERVER: z.string().optional(),
+	UPDATE_COMPOSE_PROJECT: z.string().optional(),
+	UPDATE_COMPOSE_PROJECT_DIR: z.string().optional(),
+	UPDATE_COMPOSE_FILES: z.string().optional(),
+	UPDATE_COMPOSE_ENV_FILES: z.string().optional(),
+	UPDATE_COMPOSE_SERVICE: z.string().optional(),
 	REQUEST_DEBUGGING: z
 		.enum(["true", "false"])
 		.transform((v) => v === "true")
