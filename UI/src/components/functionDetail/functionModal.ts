@@ -10,6 +10,7 @@ export type FunctionModal =
 	| { type: "ai" }
 	| { type: "loadDefault" }
 	| { type: "dependencies" }
+	| { type: "logs" }
 	| { type: "createFile"; parentPath: string }
 	| {
 			type: "folder";

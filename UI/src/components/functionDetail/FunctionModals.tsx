@@ -181,8 +181,8 @@ export function FunctionModals({
 				triggerName={modal?.type === "deleteTrigger" ? modal.trigger.name : ""}
 			/>
 			<TriggerLogsModal
-				isOpen={logs.modalOpen}
-				onClose={() => logs.setModalOpen(false)}
+				isOpen={modal?.type === "logs"}
+				onClose={onClose}
 				logs={logs.logs}
 				isLoading={logs.isLoading}
 				functionId={functionData.id}
