@@ -98,15 +98,36 @@ describe("useFunctionTriggers", () => {
 });
 
 describe("useFunctionLogs", () => {
+	let hidden = false;
+
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.useFakeTimers();
+		hidden = false;
+		Object.defineProperty(document, "hidden", {
+			configurable: true,
+			get: () => hidden,
+		});
 		vi.mocked(getLogsByFuncId).mockResolvedValue({ status: "OK", data: [] });
 	});
-	afterEach(() => vi.useRealTimers());
+	afterEach(() => {
+		vi.useRealTimers();
+		Object.defineProperty(document, "hidden", {
+			configurable: true,
+			value: false,
+		});
+	});
 
-	it("loads immediately, then polls every 10 seconds", async () => {
+	it("does not poll while the log view is closed", async () => {
 		renderHook(() => useFunctionLogs(1, false));
+
+		await act(async () => void vi.advanceTimersByTime(30_000));
+		expect(getLogsByFuncId).not.toHaveBeenCalled();
+	});
+
+	it("loads immediately, then polls every 10 seconds while the card is expanded", async () => {
+		const { result } = renderHook(() => useFunctionLogs(1, false));
+		act(() => result.current.setExpanded(true));
 		await act(async () => {});
 		expect(getLogsByFuncId).toHaveBeenCalledTimes(1);
 
@@ -114,26 +135,64 @@ describe("useFunctionLogs", () => {
 		expect(getLogsByFuncId).toHaveBeenCalledTimes(2);
 	});
 
-	it("pauses polling while the logs modal is open and resumes when it closes", async () => {
+	it("polls while the logs modal is open and stops when it closes", async () => {
 		const { result } = renderHook(() => useFunctionLogs(1, false));
-		await act(async () => {});
 		act(() => result.current.setModalOpen(true));
+		await act(async () => {});
+		expect(getLogsByFuncId).toHaveBeenCalledTimes(1);
+
+		await act(async () => void vi.advanceTimersByTime(10_000));
+		expect(getLogsByFuncId).toHaveBeenCalledTimes(2);
+
+		act(() => result.current.setModalOpen(false));
 		vi.mocked(getLogsByFuncId).mockClear();
 
 		await act(async () => void vi.advanceTimersByTime(30_000));
 		expect(getLogsByFuncId).not.toHaveBeenCalled();
+	});
 
-		act(() => result.current.setModalOpen(false));
+	it("pauses polling while the tab is hidden and refreshes when it is visible again", async () => {
+		const { result } = renderHook(() => useFunctionLogs(1, false));
+		act(() => result.current.setExpanded(true));
 		await act(async () => {});
+		vi.mocked(getLogsByFuncId).mockClear();
+
+		hidden = true;
+		await act(async () => {
+			document.dispatchEvent(new Event("visibilitychange"));
+		});
+		await act(async () => void vi.advanceTimersByTime(30_000));
+		expect(getLogsByFuncId).not.toHaveBeenCalled();
+
+		hidden = false;
+		await act(async () => {
+			document.dispatchEvent(new Event("visibilitychange"));
+		});
 		expect(getLogsByFuncId).toHaveBeenCalledTimes(1);
 	});
 
-	it("refreshes once a run settles", async () => {
+	it("does not toggle the loading spinner for background refreshes", async () => {
+		const { result } = renderHook(() => useFunctionLogs(1, false));
+		act(() => result.current.setExpanded(true));
+		await act(async () => {});
+		expect(result.current.isLoading).toBe(false);
+
+		vi.mocked(getLogsByFuncId).mockResolvedValue({
+			status: "OK",
+			data: [{ id: 1 }] as never,
+		});
+		await act(async () => void vi.advanceTimersByTime(10_000));
+
+		expect(getLogsByFuncId).toHaveBeenCalledTimes(2);
+		expect(result.current.isLoading).toBe(false);
+	});
+
+	it("refreshes silently once a run settles, even while the log view is closed", async () => {
 		const { rerender } = renderHook(({ settled }) => useFunctionLogs(1, settled), {
 			initialProps: { settled: false },
 		});
 		await act(async () => {});
-		vi.mocked(getLogsByFuncId).mockClear();
+		expect(getLogsByFuncId).not.toHaveBeenCalled();
 
 		rerender({ settled: true });
 		await act(async () => {});
@@ -146,6 +205,7 @@ describe("useFunctionLogs", () => {
 			data: [{ id: 1 }] as never,
 		});
 		const { result } = renderHook(() => useFunctionLogs(1, false));
+		act(() => result.current.setExpanded(true));
 		await act(async () => {});
 		expect(result.current.logs).toEqual([{ id: 1 }]);
 		expect(result.current.isLoading).toBe(false);
