@@ -45,4 +45,17 @@ describe("parseEnvironment", () => {
 		);
 		expect(parseEnvironment({ NODE_ENV: "test" }).INSTANCE_SECRET).toBe(DEFAULT_INSTANCE_SECRET);
 	});
+
+	it("accepts a zero retention window and rejects unreasonable ones", () => {
+		const base = {
+			...productionEnvironment,
+			INSTANCE_SECRET: "a".repeat(MIN_INSTANCE_SECRET_LENGTH),
+		};
+
+		expect(parseEnvironment({ ...base, RETENTION_LOG_DAYS: "0" }).RETENTION_LOG_DAYS).toBe(0);
+		expect(parseEnvironment({ ...base, RETENTION_AUDIT_DAYS: "0" }).RETENTION_AUDIT_DAYS).toBe(0);
+		expect(() => parseEnvironment({ ...base, RETENTION_LOG_DAYS: "36501" })).toThrow(
+			"RETENTION_LOG_DAYS",
+		);
+	});
 });

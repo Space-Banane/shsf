@@ -207,7 +207,7 @@ export async function checkHttpExecutionPermission(
 						state: false,
 						reason: "Guest session has expired",
 					};
-					await prisma.guestSession.delete({ where: { id: guestSession.id } });
+					await prisma.guestSession.deleteMany({ where: { id: guestSession.id } });
 					ctr.cookies.set(
 						`shsf_guest_${namespaceId}_${functionId}`,
 						new Cookie("", {
