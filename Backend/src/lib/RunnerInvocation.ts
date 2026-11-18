@@ -10,13 +10,51 @@ import { getFunctionAppDir, getFunctionExecutionDir } from "./StoragePaths";
 import { ServeOnlyFileNotFoundHTML } from "./RunnerTypes";
 import type { FunctionExecutionErrorType, TimingEntry } from "./RunnerTypes";
 import { getRuntimeType, isHtmlStartupFile, parseExecutionPayloadRoute, resolveServeOnlyHtmlFileName, findFileByNameIgnoreCase } from "./RunnerUtils";
-import { getRunnerTransportPaths, prepareRunnerTransport, readRunnerResult, startStorageRpcBridge, startCallFuncBridge } from "./RunnerTransport";
+import { getRunnerTransportPaths, prepareRunnerTransport, readRunnerResult, startStorageRpcBridge, startCallFuncBridge, type CallFuncExecutor } from "./RunnerTransport";
 import { getRuntimeCommand } from "./RunnerRuntimeAdapter";
 import { generateExecutionCommand } from "./RunnerRuntimeScripts";
 import { prepareRunnerSource } from "./RunnerSource";
 import { getRuntimeEnvironment, prepareRunnerContainer } from "./RunnerContainer";
 import { persistFunctionExecutionLog } from "./RunnerExecutionLog";
 const log = createLogger("Runner");
+
+/**
+ * Resolve a callF target. The owner scope is the sole authz boundary for
+ * cross-function calls: a caller can only reach functions owned by the same user.
+ */
+export async function resolveCallTarget(functionName: string, ownerUserId: number) {
+	return prisma.function.findFirst({
+		where: { name: functionName, userId: ownerUserId },
+		include: { files: true },
+	});
+}
+
+export function createCallFuncExecutor(
+	caller: Pick<Function, "id" | "userId">,
+	execute: typeof executeFunction = executeFunction,
+): CallFuncExecutor {
+	return async (functionName, args) => {
+		const target = await resolveCallTarget(functionName, caller.userId);
+		if (!target) {
+			throw new Error(`Function "${functionName}" not found`);
+		}
+		const callPayload = JSON.stringify({
+			ran_by: `func_${caller.id}`,
+			body: args,
+		});
+		const result = await execute(
+			target.id,
+			target,
+			target.files,
+			{ enabled: false },
+			callPayload,
+		);
+		if (result && typeof result.exit_code === "number" && result.exit_code !== 0) {
+			throw new Error(`Function "${functionName}" exited with code ${result.exit_code}`);
+		}
+		return result?.result ?? null;
+	};
+}
 
 export async function executeFunction(
 	id: number,
@@ -174,30 +212,7 @@ export async function executeFunction(
 		const callFuncBridge = startCallFuncBridge({
 			requestDir: transportPaths.callFuncRequestDir,
 			responseDir: transportPaths.callFuncResponseDir,
-			execute: async (functionName, args) => {
-				const target = await prisma.function.findFirst({
-					where: { name: functionName, userId: functionData.userId },
-					include: { files: true },
-				});
-				if (!target) {
-					throw new Error(`Function "${functionName}" not found`);
-				}
-				const callPayload = JSON.stringify({
-					ran_by: `func_${functionData.id}`,
-					body: args,
-				});
-				const result = await executeFunction(
-					target.id,
-					target,
-					target.files,
-					{ enabled: false },
-					callPayload,
-				);
-				if (result && typeof result.exit_code === "number" && result.exit_code !== 0) {
-					throw new Error(`Function "${functionName}" exited with code ${result.exit_code}`);
-				}
-				return result?.result ?? null;
-			},
+			execute: createCallFuncExecutor(functionData),
 		});
 
 		const execOutput = { stdout: "", stderr: "" };

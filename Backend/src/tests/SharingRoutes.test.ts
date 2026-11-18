@@ -15,14 +15,52 @@ interface TestContext {
 	bindBody: (schema: (builder: typeof z) => ZodType) => Promise<[unknown, unknown]>;
 }
 
+type Share = {
+	permission: "view" | "execute" | "edit";
+	userId?: number;
+	group?: { members: { userId: number }[] };
+};
+
+type WhereCondition = Record<string, unknown>;
+
+function asConditions(condition: unknown): WhereCondition[] {
+	return Array.isArray(condition) ? (condition as WhereCondition[]) : [condition as WhereCondition];
+}
+
+/**
+ * Evaluate the Prisma `where` fragment the routes build against a fixture.
+ * This keeps the route tests honest: access is decided by the real
+ * `functionAccessWhere` output (including permission ranks and group/namespace
+ * grants), not by string-matching `where.AND` or a test-only `access` field.
+ */
+function matchesWhere(record: Record<string, unknown>, where?: WhereCondition): boolean {
+	if (!where) return true;
+	return Object.entries(where).every(([key, condition]) => {
+		if (key === "AND") return asConditions(condition).every((part) => matchesWhere(record, part));
+		if (key === "OR") return asConditions(condition).some((part) => matchesWhere(record, part));
+		const value = record[key];
+		if (condition !== null && typeof condition === "object" && !Array.isArray(condition)) {
+			const nested = condition as WhereCondition;
+			if ("some" in nested) {
+				const items = Array.isArray(value) ? value : [];
+				return items.some((item) => matchesWhere(item as Record<string, unknown>, nested.some as WhereCondition));
+			}
+			if ("in" in nested) return Array.isArray(nested.in) && nested.in.includes(value);
+			return value !== null && typeof value === "object" && matchesWhere(value as Record<string, unknown>, nested);
+		}
+		return value === condition;
+	});
+}
+
 const harness = vi.hoisted(() => ({
 	handlers: new Map<string, (context: TestContext) => Promise<unknown>>(),
 	userId: 2,
-	access: "edit",
 	fn: {
 		id: 10, userId: 1, namespaceId: 3, name: "original", description: "original description",
 		image: "python:3.12", startup_file: "main.py", docker_mount: false,
 		git_url: "https://git.example/owner/repo.git", git_username: "owner", git_password: "",
+		shares: [{ userId: 2, permission: "edit" }] as Share[],
+		namespace: { id: 3, name: "shared", shares: [] as Share[] },
 	},
 	file: { id: 20, functionId: 10, name: "main.py", content: "original code" },
 	findFunction: vi.fn(), findFile: vi.fn(), updateFunction: vi.fn(), updateFile: vi.fn(),
@@ -80,17 +118,16 @@ async function request(route: string, body: unknown, params = { id: "10", fileId
 beforeEach(() => {
 	vi.clearAllMocks();
 	harness.userId = 2;
-	harness.access = "edit";
+	harness.fn.shares = [{ userId: 2, permission: "edit" }];
+	harness.fn.namespace.shares = [];
 	harness.file.content = "original code";
 	harness.fn.name = "original";
 	harness.fn.description = "original description";
 	harness.fn.git_url = "https://git.example/owner/repo.git";
 	harness.fn.git_username = "owner";
 	harness.fn.git_password = encryptSecret("owner-git-token", "sharing-route-test-secret");
-	harness.findFunction.mockImplementation(async ({ where }: { where: { id: number; AND?: unknown } }) => {
-		if (where.id !== harness.fn.id || (where.AND && harness.access !== "edit" && harness.userId !== 1)) return null;
-		return { ...harness.fn };
-	});
+	harness.findFunction.mockImplementation(async ({ where }: { where: WhereCondition }) =>
+		matchesWhere(harness.fn, where) ? { ...harness.fn } : null);
 	harness.findFile.mockImplementation(async ({ where }: { where: { id: number; functionId?: number } }) =>
 		where.id === harness.file.id && (where.functionId === undefined || where.functionId === harness.file.functionId)
 			? { ...harness.file } : null);
@@ -102,7 +139,7 @@ beforeEach(() => {
 describe("shared function authorization regressions", () => {
 	const fillRoute = "POST /api/function/{id}/file/{fileId}/load-fill_default";
 	it.each(["view", "none"])("denies template writes with %s access", async (access) => {
-		harness.access = access;
+		harness.fn.shares = access === "view" ? [{ userId: 2, permission: "view" }] : [];
 		const { response, context } = await request(fillRoute, { defaultToLoad: "python_http_api" });
 		expect(context.status).toHaveBeenCalledWith(404);
 		expect(response).toMatchObject({ status: 404 });
@@ -127,6 +164,33 @@ describe("shared function authorization regressions", () => {
 		expect(context.status).toHaveBeenCalledWith(403);
 		expect(response).toMatchObject({ status: 403 });
 		expect(harness.fn.name).toBe("original");
+	});
+	it.each(["view", "execute"])("does not upgrade a %s grant to edit", async (permission) => {
+		harness.fn.shares = [{ userId: 2, permission: permission as Share["permission"] }];
+		const { response, context } = await request("PATCH /api/function/{id}", { description: "edited description" });
+		expect(context.status).toHaveBeenCalledWith(404);
+		expect(response).toMatchObject({ status: 404 });
+		expect(harness.fn.description).toBe("original description");
+	});
+	it("lets a group member with edit access update", async () => {
+		harness.fn.shares = [{ group: { members: [{ userId: 2 }] }, permission: "edit" }];
+		const { response } = await request("PATCH /api/function/{id}", { description: "edited description" });
+		expect(response).toMatchObject({ status: "OK", data: { description: "edited description" } });
+		expect(harness.fn.description).toBe("edited description");
+	});
+	it("inherits edit access from a shared namespace", async () => {
+		harness.fn.shares = [];
+		harness.fn.namespace.shares = [{ userId: 2, permission: "edit" }];
+		const { response } = await request("PATCH /api/function/{id}", { description: "edited description" });
+		expect(response).toMatchObject({ status: "OK", data: { description: "edited description" } });
+	});
+	it("does not upgrade namespace view access to edit", async () => {
+		harness.fn.shares = [];
+		harness.fn.namespace.shares = [{ userId: 2, permission: "view" }];
+		const { response, context } = await request("PATCH /api/function/{id}", { description: "edited description" });
+		expect(context.status).toHaveBeenCalledWith(404);
+		expect(response).toMatchObject({ status: 404 });
+		expect(harness.fn.description).toBe("original description");
 	});
 	it("redacts credentials from successful editor updates", async () => {
 		const { response } = await request("PATCH /api/function/{id}", { description: "edited description" });
