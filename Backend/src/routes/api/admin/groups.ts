@@ -1,10 +1,9 @@
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
+import { fileRouter, prisma } from "../../..";
 import { audit } from "../../../lib/Sharing";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rjweb route context
 async function requireAdmin(ctr: any) {
-	const authCheck = await checkAuthentication(ctr.cookies.get(COOKIE), ctr.headers.get(API_KEY_HEADER));
+	const authCheck = ctr.getAuth();
 	if (!authCheck.success) {
 		return { error: ctr.status(ctr.$status.UNAUTHORIZED).print({ status: "FAILED", message: authCheck.message }) };
 	}

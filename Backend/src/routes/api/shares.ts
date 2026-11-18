@@ -1,10 +1,5 @@
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
-import { checkAuthentication } from "../../lib/Authentication";
-import {
-	RESOURCE_PERMISSIONS,
-	type ShareResourceType,
-	audit,
-} from "../../lib/Sharing";
+import { fileRouter, prisma } from "../..";
+import { RESOURCE_PERMISSIONS, type ShareResourceType, audit } from "../../lib/Sharing";
 import { paginationMeta, parsePagination } from "../../lib/Pagination";
 
 const TYPES: ShareResourceType[] = ["namespace", "function", "storage"];
@@ -12,7 +7,7 @@ const FK = { namespace: "namespaceId", function: "functionId", storage: "storage
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rjweb route context
 async function getUser(ctr: any) {
-	const authCheck = await checkAuthentication(ctr.cookies.get(COOKIE), ctr.headers.get(API_KEY_HEADER));
+	const authCheck = ctr.getAuth();
 	if (!authCheck.success) {
 		return { error: ctr.status(ctr.$status.UNAUTHORIZED).print({ status: 401, message: authCheck.message }) };
 	}

@@ -1,11 +1,5 @@
 import { functionAccessWhere } from "../../../lib/Sharing";
-import {
-	API_KEY_HEADER,
-	COOKIE,
-	fileRouter,
-	prisma,
-} from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
+import { fileRouter, prisma } from "../../..";
 import Docker from "dockerode";
 import { createLogger } from "../../../lib/logger";
 
@@ -100,10 +94,7 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -188,10 +179,7 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({

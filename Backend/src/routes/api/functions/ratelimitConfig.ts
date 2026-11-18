@@ -1,18 +1,6 @@
 import { functionAccessWhere } from "../../../lib/Sharing";
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
-import {
-	EXECUTION_RATELIMIT_IDENTITIES,
-	ExecutionRateLimitIdentity,
-	FunctionRateLimitConfig,
-	FunctionRateLimitMatcher,
-	FunctionRateLimitPolicy,
-	FunctionRateLimitRule,
-	getRateLimitConfigFromData,
-	hasConfiguredRateLimitBuckets,
-	normalizeFunctionRateLimitConfig,
-	setRateLimitConfig,
-} from "../../../lib/FunctionRateLimit";
+import { fileRouter, prisma } from "../../..";
+import { EXECUTION_RATELIMIT_IDENTITIES, ExecutionRateLimitIdentity, FunctionRateLimitConfig, FunctionRateLimitMatcher, FunctionRateLimitPolicy, FunctionRateLimitRule, getRateLimitConfigFromData, hasConfiguredRateLimitBuckets, normalizeFunctionRateLimitConfig, setRateLimitConfig } from "../../../lib/FunctionRateLimit";
 import { OpenAPITags } from "../../../lib/openapi";
 
 type RateLimitRuleBody = {
@@ -190,10 +178,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
 						status: "ERROR",
@@ -304,10 +289,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
 						status: "ERROR",

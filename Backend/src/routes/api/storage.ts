@@ -1,27 +1,15 @@
-import { API_KEY_HEADER, COOKIE, fileRouter } from "../..";
-import { checkAuthentication } from "../../lib/Authentication";
-import {
-	StorageServiceError,
-	functionStorageService,
-} from "../../lib/FunctionStorageService";
+import { fileRouter } from "../..";
+import { StorageServiceError, functionStorageService } from "../../lib/FunctionStorageService";
 import { OpenAPITags } from "../../lib/openapi";
 import { prisma } from "../..";
 import { paginationMeta, parsePagination } from "../../lib/Pagination";
-import {
-	type Access,
-	describeStorageAccess,
-	storageAccessInclude,
-	storageAccessWhere,
-} from "../../lib/Sharing";
+import { type Access, describeStorageAccess, storageAccessInclude, storageAccessWhere } from "../../lib/Sharing";
 
 // rjweb's route context is inferred inside chained route builders; this helper
 // keeps route bodies small while preserving the framework-provided shape.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getStorageAuthUser(ctr: any) {
-	const authCheck = await checkAuthentication(
-		ctr.cookies.get(COOKIE),
-		ctr.headers.get(API_KEY_HEADER),
-	);
+	const authCheck = ctr.getAuth();
 	if (!authCheck.success) {
 		return { error: ctr.print({ status: 401, message: authCheck.message }) };
 	}

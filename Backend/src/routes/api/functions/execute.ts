@@ -1,15 +1,7 @@
 import { functionAccessWhere } from "../../../lib/Sharing";
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
+import { fileRouter, prisma } from "../../..";
 import { executeFunction } from "../../../lib/Runner";
-import {
-	buildStreamCacheHitEvents,
-	getFunctionCache,
-	getPayloadHash,
-	handleFunctionResult,
-	setFunctionCache,
-	shouldStoreFunctionCache,
-} from "../../../lib/Caching";
+import { buildStreamCacheHitEvents, getFunctionCache, getPayloadHash, handleFunctionResult, setFunctionCache, shouldStoreFunctionCache } from "../../../lib/Caching";
 import { OpenAPITags } from "../../../lib/openapi";
 import { getExternalAccessDisabled } from "../../../lib/DataManager";
 import { createLogger } from "../../../lib/logger";
@@ -107,10 +99,7 @@ export = new fileRouter.Path("/")
 						: "POST",
 				};
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({

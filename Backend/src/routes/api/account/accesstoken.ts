@@ -1,6 +1,5 @@
 import { randomBytes } from "crypto";
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
+import { fileRouter, prisma } from "../../..";
 import { OpenAPITags } from "../../../lib/openapi";
 
 function maskToken(token: string) {
@@ -74,10 +73,7 @@ export = new fileRouter.Path("/")
 				if (!data)
 					return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
 						status: "FAILED",
@@ -199,10 +195,7 @@ export = new fileRouter.Path("/")
 				if (!data)
 					return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
 						status: "FAILED",
@@ -279,10 +272,7 @@ export = new fileRouter.Path("/")
 			})
 			.ratelimit((limit) => limit.hits(10).window(60000).penalty(5000))
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
 						status: "FAILED",
@@ -369,10 +359,7 @@ export = new fileRouter.Path("/")
 				if (!data)
 					return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
 						status: "FAILED",
@@ -456,10 +443,7 @@ export = new fileRouter.Path("/")
 			})
 			.ratelimit((limit) => limit.hits(20).window(60000).penalty(2000))
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
 						status: "FAILED",

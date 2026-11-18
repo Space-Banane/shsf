@@ -1,5 +1,4 @@
-import { API_KEY_HEADER, COOKIE, fileRouter } from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
+import { fileRouter } from "../../..";
 import { OpenAPITags } from "../../../lib/openapi";
 import { env } from "../../../lib/env";
 
@@ -37,10 +36,7 @@ export = new fileRouter.Path("/").http(
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({

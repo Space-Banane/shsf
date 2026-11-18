@@ -1,5 +1,4 @@
-import { API_KEY_HEADER, COOKIE, fileRouter, INSTANCE_SECRET } from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
+import { fileRouter, INSTANCE_SECRET } from "../../..";
 import { getLinkStatus } from "../../../lib/DataManager";
 import { OpenAPITags } from "../../../lib/openapi";
 
@@ -58,10 +57,7 @@ export = new fileRouter.Path("/").http(
 					typeof secretHeader === "string" && secretHeader === INSTANCE_SECRET;
 
 				if (!secretOk) {
-					const authCheck = await checkAuthentication(
-						ctr.cookies.get(COOKIE),
-						ctr.headers.get(API_KEY_HEADER),
-					);
+					const authCheck = ctr.getAuth();
 
 					if (!authCheck.success) {
 						return ctr.status(ctr.$status.UNAUTHORIZED).print({

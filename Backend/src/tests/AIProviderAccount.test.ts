@@ -7,6 +7,7 @@ import "../routes/api/account/manage";
 interface TestContext {
 	cookies: { get: () => null };
 	headers: { get: () => null };
+	getAuth: () => { success: true; method: "session"; user: typeof harness.user };
 	$status: { UNAUTHORIZED: number; BAD_REQUEST: number };
 	status: (code: number) => TestContext;
 	print: (body: unknown) => unknown;
@@ -56,6 +57,7 @@ vi.mock("../lib/AIProviderHttp", async (importOriginal) => ({
 async function settingsRequest(method: string, body?: unknown) {
 	const context: TestContext = {
 		cookies: { get: () => null }, headers: { get: () => null },
+		getAuth: () => ({ success: true, method: "session", user: harness.user }),
 		$status: { UNAUTHORIZED: 401, BAD_REQUEST: 400 },
 		status: vi.fn(() => context), print: vi.fn((response: unknown) => response),
 		bindBody: async (schema) => {

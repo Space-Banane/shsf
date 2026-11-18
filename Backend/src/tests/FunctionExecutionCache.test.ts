@@ -10,6 +10,7 @@ interface TestContext {
 		get: (name: string) => string | null;
 		set: ReturnType<typeof vi.fn>;
 	};
+	getAuth: () => { success: true; method: "session"; user: { id: number } };
 	queries: {
 		get: (key: string) => string | null;
 		entries: () => IterableIterator<[string, string]>;
@@ -90,6 +91,7 @@ function createContext(
 				name.toLowerCase() === "content-type" ? "application/json" : null,
 			set: vi.fn(),
 		},
+		getAuth: () => ({ success: true, method: "session", user: { id: 1 } }),
 		queries: {
 			get: (key: string) => query[key] ?? null,
 			entries: () => new Map(Object.entries(query)).entries(),

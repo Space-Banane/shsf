@@ -1,6 +1,6 @@
 # OIDC design for issue 65
 
-Existing flow: login/register create User and Session records. checkAuthentication resolves sessions and access tokens for middleware and route handlers. Sharing.ts builds database filters using GroupMember; syncSsoGroupMembership maps (provider, external group id) to local Group ids. Local account passwords are already nullable.
+Existing flow: login/register create User and Session records. authResolutionMiddleware resolves sessions and access tokens once per request for middleware and route handlers, backed by checkAuthentication. Sharing.ts builds database filters using GroupMember; syncSsoGroupMembership maps (provider, external group id) to local Group ids. Local account passwords are already nullable.
 
 Alternatives evaluated directly because the architecture skill's model presets are unavailable:
 - Store encrypted refresh tokens, periodically refresh claims, and revoke sessions on refresh failure. More moving parts and provider-specific group/disable semantics.

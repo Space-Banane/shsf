@@ -1,22 +1,13 @@
-import {
-	describeFunctionAccess,
-	functionAccessInclude,
-	functionAccessWhere,
-	redactFunctionForAccess,
-} from "../../../lib/Sharing";
+import { describeFunctionAccess, functionAccessInclude, functionAccessWhere, redactFunctionForAccess } from "../../../lib/Sharing";
 import { randomUUID } from "crypto";
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
+import { fileRouter, prisma } from "../../..";
 import { createLogger } from "../../../lib/logger";
 import { getDisabledImages } from "../../../lib/DataManager";
 import { invalidateFunctionCache } from "../../../lib/Caching";
 import { serializeEnvironmentVariables } from "../../../lib/EnvironmentVariables";
 
 const log = createLogger("functions/manage");
-import {
-	cleanupFunctionContainer,
-	deleteContainerForFunction,
-} from "../../../lib/Runner";
+import { cleanupFunctionContainer, deleteContainerForFunction } from "../../../lib/Runner";
 import Docker from "dockerode";
 import { getFirstFileByLanguage } from "../../../lib/LangOps";
 import { getFunctionTemplate, getTemplatesForRuntime, readFunctionTemplate } from "../../../lib/FunctionTemplates";
@@ -323,10 +314,7 @@ export = new fileRouter.Path("/")
 					? await readFunctionTemplate(selectedTemplate)
 					: await getFirstFileByLanguage(getImageFamily(data.image), normalizedStartupFile);
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -458,10 +446,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -565,10 +550,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -667,10 +649,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -755,10 +734,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -966,10 +942,7 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -1289,10 +1262,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({

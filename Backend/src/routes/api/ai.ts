@@ -1,16 +1,10 @@
 import { functionAccessWhere } from "../../lib/Sharing";
-import { API_KEY_HEADER, COOKIE, fileRouter, INSTANCE_SECRET, prisma } from "../..";
-import { checkAuthentication } from "../../lib/Authentication";
+import { fileRouter, INSTANCE_SECRET, prisma } from "../..";
 import { OpenAPITags } from "../../lib/openapi";
 import { env } from "../../lib/env";
 import { AIDOC } from "../../lib/aidoc";
 import { getDefaultStartupFile } from "../../lib/LangOps";
-import {
-	createAICompletion,
-	DEFAULT_AI_PROVIDER_ENDPOINT,
-	DEFAULT_AI_PROVIDER_MODEL,
-	getAIProvider,
-} from "../../lib/AIProvider";
+import { createAICompletion, DEFAULT_AI_PROVIDER_ENDPOINT, DEFAULT_AI_PROVIDER_MODEL, getAIProvider } from "../../lib/AIProvider";
 import { encryptSecret } from "../../lib/GitOps";
 
 const Images: string[] = [
@@ -221,7 +215,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(ctr.cookies.get(COOKIE), ctr.headers.get(API_KEY_HEADER));
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) return ctr.print({ status: 401, message: authCheck.message });
 
 				const [body, error] = await ctr.bindBody((z) =>
@@ -375,10 +369,7 @@ Platform Rules:
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({ status: 401, message: authCheck.message });

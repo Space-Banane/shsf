@@ -1,5 +1,4 @@
-import { API_KEY_HEADER, COOKIE, fileRouter, INSTANCE_SECRET, prisma } from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
+import { fileRouter, INSTANCE_SECRET, prisma } from "../../..";
 import { getLinkLock, getLinkStatus, getUUID, setLinkStatus } from "../../../lib/DataManager";
 import { OpenAPITags } from "../../../lib/openapi";
 
@@ -252,10 +251,7 @@ export = new fileRouter.Path("/")
 					typeof secretHeader === "string" && secretHeader === INSTANCE_SECRET;
 
 				if (!secretOk) {
-					const authCheck = await checkAuthentication(
-						ctr.cookies.get(COOKIE),
-						ctr.headers.get(API_KEY_HEADER),
-					);
+					const authCheck = ctr.getAuth();
 
 					if (!authCheck.success || authCheck.user.role !== "Admin") {
 						return ctr.status(ctr.$status.UNAUTHORIZED).print({

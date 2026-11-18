@@ -1,12 +1,8 @@
 import { type Access, functionAccessWhere } from "../../lib/Sharing";
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
-import {
-	getFunctionExecInfo,
-	replaceApiBaseInContent,
-} from "../../lib/FileHelpers";
+import { fileRouter, prisma } from "../..";
+import { getFunctionExecInfo, replaceApiBaseInContent } from "../../lib/FileHelpers";
 import { getGitEditBlock } from "../../lib/GitEditGuards";
 import { invalidateFunctionCache } from "../../lib/Caching";
-import { checkAuthentication } from "../../lib/Authentication";
 import Docker from "dockerode";
 import path from "path";
 import * as fs from "fs/promises";
@@ -16,11 +12,7 @@ import { createLogger } from "../../lib/logger";
 import { FUNCTION_TEMPLATES, getFunctionTemplate, getTemplatesForRuntime, readFunctionTemplate } from "../../lib/FunctionTemplates";
 import { listGitAppFiles, readGitAppFile } from "../../lib/GitOps";
 import { isDependencyFilename } from "../../lib/FunctionDependencies";
-import {
-	getFunctionFilePath,
-	getParentFolderPaths,
-	isValidFunctionFilePath,
-} from "../../lib/FunctionFilePaths";
+import { getFunctionFilePath, getParentFolderPaths, isValidFunctionFilePath } from "../../lib/FunctionFilePaths";
 
 const log = createLogger("files");
 
@@ -157,10 +149,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -353,10 +342,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -451,10 +437,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -525,10 +508,7 @@ export = new fileRouter.Path("/")
 	)
 	.http("GET", "/api/function/{id}/folders", (http) =>
 		http.onRequest(async (ctr) => {
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success) {
 				return ctr.print({ status: 401, message: authCheck.message });
 			}
@@ -556,10 +536,7 @@ export = new fileRouter.Path("/")
 	)
 	.http("POST", "/api/function/{id}/folder", (http) =>
 		http.onRequest(async (ctr) => {
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success)
 				return ctr.print({ status: 401, message: authCheck.message });
 			const [data, error] = await ctr.bindBody((z) =>
@@ -613,10 +590,7 @@ export = new fileRouter.Path("/")
 	)
 	.http("PATCH", "/api/function/{id}/folder", (http) =>
 		http.onRequest(async (ctr) => {
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success)
 				return ctr.print({ status: 401, message: authCheck.message });
 			const [data, error] = await ctr.bindBody((z) =>
@@ -786,10 +760,7 @@ export = new fileRouter.Path("/")
 	)
 	.http("DELETE", "/api/function/{id}/folder", (http) =>
 		http.onRequest(async (ctr) => {
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success)
 				return ctr.print({ status: 401, message: authCheck.message });
 			const [data, error] = await ctr.bindBody((z) =>
@@ -887,10 +858,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -1051,10 +1019,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -1307,10 +1272,7 @@ export = new fileRouter.Path("/")
 					},
 				})
 				.onRequest(async (ctr) => {
-					const authCheck = await checkAuthentication(
-						ctr.cookies.get(COOKIE),
-						ctr.headers.get(API_KEY_HEADER),
-					);
+					const authCheck = ctr.getAuth();
 
 					if (!authCheck.success) {
 						return ctr.print({
@@ -1533,10 +1495,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({

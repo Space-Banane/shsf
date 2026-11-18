@@ -1,14 +1,10 @@
-import { API_KEY_HEADER, COOKIE, fileRouter } from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
+import { fileRouter } from "../../..";
 import { getExternalAccessDisabled, setExternalAccessDisabled } from "../../../lib/DataManager";
 
 export = new fileRouter.Path("/")
 	.http("GET", "/api/global/external-access-disabled", (http) =>
 		http.onRequest(async (ctr) => {
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success) return ctr.status(ctr.$status.UNAUTHORIZED).print({ status: "FAILED", message: authCheck.message });
 			if (authCheck.user.role !== "Admin") return ctr.status(ctr.$status.FORBIDDEN).print({ status: "FAILED", message: "Admins only." });
 			return ctr.print({ status: "OK", disabled: await getExternalAccessDisabled() });
@@ -16,10 +12,7 @@ export = new fileRouter.Path("/")
 	)
 	.http("PATCH", "/api/global/external-access-disabled", (http) =>
 		http.onRequest(async (ctr) => {
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success) return ctr.status(ctr.$status.UNAUTHORIZED).print({ status: "FAILED", message: authCheck.message });
 			if (authCheck.user.role !== "Admin") return ctr.status(ctr.$status.FORBIDDEN).print({ status: "FAILED", message: "Admins only." });
 
