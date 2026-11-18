@@ -3,20 +3,25 @@ import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import { executeFunction } from "../../../lib/Runner";
 import {
+	buildStreamCacheHitEvents,
 	getFunctionCache,
 	getPayloadHash,
 	handleFunctionResult,
 	setFunctionCache,
+	shouldStoreFunctionCache,
 } from "../../../lib/Caching";
 import { OpenAPITags } from "../../../lib/openapi";
 import { getExternalAccessDisabled } from "../../../lib/DataManager";
+import { createLogger } from "../../../lib/logger";
+
+const log = createLogger("functions/execute");
 
 export = new fileRouter.Path("/")
 	.http("POST", "/api/function/{id}/execute", (http) =>
 		http
 			.document({
 				description:
-					"Execute a function. Cache is applied only for non-stream executions when cache_enabled is true.",
+					"Execute a function. Cache is applied to streaming and non-stream executions when cache_enabled is true.",
 				tags: ["Functions"] as OpenAPITags[],
 				operationId: "executeFunction",
 				parameters: [
@@ -33,7 +38,7 @@ export = new fileRouter.Path("/")
 						required: false,
 						schema: { type: "string", enum: ["true", "false"], default: "true" },
 						description:
-							"When false, returns a single response and enables cache lookup/write if caching is configured.",
+							"When false, returns a single response. Caching applies to both modes when configured.",
 					},
 				],
 				requestBody: {
@@ -149,15 +154,27 @@ export = new fileRouter.Path("/")
 				const streamMode = ctr.queries.get("stream") !== "false";
 				const payloadHash = getPayloadHash(runPayload);
 
-				if (!streamMode && functionData.cache_enabled) {
+				if (functionData.cache_enabled) {
 					const cached = await getFunctionCache(functionData.id, payloadHash);
 					if (cached) {
-						return handleFunctionResult(ctr, JSON.parse(cached.result), true);
+						const cachedResult = JSON.parse(cached.result);
+						if (streamMode) {
+							ctr.headers.set("X-SHSF-Cache", "HIT");
+							return ctr.printChunked(async (print) => {
+								for (const event of buildStreamCacheHitEvents(cachedResult)) {
+									await print(JSON.stringify(event));
+								}
+							});
+						}
+						return handleFunctionResult(ctr, cachedResult, true);
 					}
 				}
 
 				try {
 					if (streamMode) {
+						if (functionData.cache_enabled) {
+							ctr.headers.set("X-SHSF-Cache", "MISS");
+						}
 						return ctr.printChunked((print) =>
 							new Promise<void>((end) => {
 								let output = "";
@@ -211,6 +228,18 @@ export = new fileRouter.Path("/")
 											}));
 											end();
 											return;
+										}
+										if (shouldStoreFunctionCache(functionData, result)) {
+											try {
+												await setFunctionCache(
+													functionData.id,
+													payloadHash,
+													result.result,
+													functionData.cache_ttl,
+												);
+											} catch (err) {
+												log.warn({ err, functionId }, "Failed to cache streaming execution result");
+											}
 										}
 										await print(
 											JSON.stringify({
@@ -274,7 +303,7 @@ export = new fileRouter.Path("/")
 							});
 						}
 
-						if (functionData.cache_enabled && result?.exit_code === 0 && result?.result) {
+						if (shouldStoreFunctionCache(functionData, result)) {
 							await setFunctionCache(
 								functionData.id,
 								payloadHash,

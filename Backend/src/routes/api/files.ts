@@ -5,6 +5,7 @@ import {
 	replaceApiBaseInContent,
 } from "../../lib/FileHelpers";
 import { getGitEditBlock } from "../../lib/GitEditGuards";
+import { invalidateFunctionCache } from "../../lib/Caching";
 import { checkAuthentication } from "../../lib/Authentication";
 import Docker from "dockerode";
 import path from "path";
@@ -273,6 +274,7 @@ export = new fileRouter.Path("/")
 					});
 				}
 				await createParentFolders(functionId, data.filename);
+				await invalidateFunctionCache(functionId);
 
 				// Also write the file to the host function app directory so persistent containers
 				// that use a bind mount will see the changes. Replace {{API_BASE}} at write time.

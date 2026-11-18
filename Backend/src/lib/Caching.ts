@@ -279,6 +279,33 @@ export function handleFunctionResult(
 }
 
 /**
+ * Formats a cached result as the events the streaming client expects: one
+ * output chunk followed by the end event, exactly like a fast execution.
+ */
+export function buildStreamCacheHitEvents(result: any) {
+	const output = typeof result === "string" ? result : JSON.stringify(result);
+	return [
+		{ type: "output", content: output },
+		{ type: "end", exitCode: 0, output, result, took: [] },
+	];
+}
+
+/**
+ * A result is cacheable only when caching is enabled and the runtime succeeded.
+ */
+export function shouldStoreFunctionCache(
+	functionData: { cache_enabled: boolean },
+	result: { exit_code?: number | null; result?: any } | null | undefined,
+) {
+	return Boolean(
+		functionData.cache_enabled &&
+		result &&
+		result.exit_code === 0 &&
+		result.result,
+	);
+}
+
+/**
  * Tries to retrieve a cached result for a function.
  */
 export async function getFunctionCache(functionId: number, hash: string) {
@@ -318,6 +345,18 @@ export async function setFunctionCache(
 			hash,
 			result: JSON.stringify(serializableResult),
 			expiresAt: new Date(Date.now() + (ttl || 60) * 1000),
+		},
+	});
+}
+
+/**
+ * Removes every cached result for a function. A source or settings change
+ * makes previously cached results stale regardless of their TTL.
+ */
+export async function invalidateFunctionCache(functionId: number) {
+	return await prisma.functionCache.deleteMany({
+		where: {
+			functionId,
 		},
 	});
 }
