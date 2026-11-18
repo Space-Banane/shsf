@@ -32,7 +32,7 @@ export const UserContext = createContext<{
 	refreshUser: () => {},
 });
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
 	const { user, loading, error, refreshUser } = useContext(UserContext);
 	const location = useLocation();
 
@@ -50,6 +50,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 	if (!user && !loading) {
 		return <Navigate to="/login" state={{ from: location }} replace />;
+	}
+
+	if (!loading && adminOnly && user?.role !== "Admin") {
+		return <Navigate to="/" replace />;
 	}
 
 	return <>{children}</>;
@@ -79,8 +83,8 @@ function NoMatch() {
 	);
 }
 
-const router = createBrowserRouter(
-	createRoutesFromElements(
+export function createAppRoutes() {
+	return createRoutesFromElements(
 		<Route element={<AppLayout />}>
 			{routes.map((route) => (
 				<Route
@@ -88,7 +92,7 @@ const router = createBrowserRouter(
 					path={route.path}
 					element={
 						route.requireAuth ? (
-							<ProtectedRoute>
+							<ProtectedRoute adminOnly={route.adminOnly}>
 								<route.component />
 							</ProtectedRoute>
 						) : (
@@ -99,8 +103,10 @@ const router = createBrowserRouter(
 			))}
 			<Route path="*" element={<NoMatch />} />
 		</Route>,
-	),
-);
+	);
+}
+
+const router = createBrowserRouter(createAppRoutes());
 
 function App() {
 	const [user, setUser] = useState<User | null>(null);

@@ -20,9 +20,10 @@ const DEMO_CREDENTIALS = {
 	password: "demo-password",
 };
 
-const getRedirectPath = (state: LoginLocationState | null | undefined) => {
+export const getRedirectPath = (state: LoginLocationState | null | undefined) => {
 	const pathname = state?.from?.pathname;
-	if (!pathname || !pathname.startsWith("/") || pathname === "/login") return "/";
+	const isProtocolRelative = pathname?.startsWith("//") || pathname?.startsWith("/\\");
+	if (!pathname || !pathname.startsWith("/") || isProtocolRelative || pathname === "/login") return "/";
 	return `${pathname}${state.from?.search ?? ""}${state.from?.hash ?? ""}`;
 };
 

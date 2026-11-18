@@ -1,5 +1,4 @@
 import React from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import IndexPage from "./pages/index/index";
 import LoginPage from "./pages/login/LoginPage";
 import RegisterPage from "./pages/register/RegisterPage";
@@ -119,59 +118,3 @@ export const routes: AppRoute[] = [
 		requireAuth: false,
 	},
 ];
-
-const ProtectedRoute = ({
-	user,
-	children,
-}: {
-	user: any;
-	children: React.ReactNode;
-}) => {
-	const location = useLocation();
-	if (!user) {
-		return <Navigate to="/login" state={{ from: location }} replace />;
-	}
-	return <>{children}</>;
-};
-
-function NoMatch() {
-	return (
-		<div className="p-4">
-			<h1 className="text-white text-2xl">404 - Not Found</h1>
-		</div>
-	);
-}
-
-const AppRoutes = ({
-	userProp,
-	refreshUserProp,
-}: {
-	userProp: any;
-	refreshUserProp: () => void;
-}) => {
-	const user = userProp;
-	const refreshUser = refreshUserProp;
-
-	return (
-		<Routes>
-			{routes.map((route) => (
-				<Route
-					key={route.name}
-					path={route.path}
-					element={
-						route.requireAuth ? (
-							<ProtectedRoute user={user}>
-								<route.component user={user} refreshUser={refreshUser} />
-							</ProtectedRoute>
-						) : (
-							<route.component user={user} refreshUser={refreshUser} />
-						)
-					}
-				/>
-			))}
-			<Route path="*" element={<NoMatch />} />
-		</Routes>
-	);
-};
-
-export default AppRoutes;
