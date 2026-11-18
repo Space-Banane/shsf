@@ -1,7 +1,7 @@
 import { Function } from "@prisma/client";
 import Docker from "dockerode";
 import { PassThrough } from "stream";
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import type { Dirent } from "fs";
 import * as fs from "fs/promises";
 import * as path from "path";
@@ -135,7 +135,9 @@ async function readInitFingerprint(funcAppDir: string): Promise<string | null> {
 
 async function writeInitFingerprint(funcAppDir: string, fingerprint: string): Promise<void> {
 	const markerPath = path.join(funcAppDir, INIT_FINGERPRINT_FILE);
-	const tempPath = `${markerPath}.tmp`;
+	// A unique temp name keeps concurrent invocations from renaming each
+	// other's pending marker and failing with ENOENT.
+	const tempPath = `${markerPath}.${randomUUID()}.tmp`;
 	await fs.mkdir(funcAppDir, { recursive: true });
 	await fs.writeFile(tempPath, fingerprint);
 	await fs.rename(tempPath, markerPath);
