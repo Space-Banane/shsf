@@ -294,14 +294,19 @@ async function installDependencies(
 
 async function getDependencyInstallStatus(
 	id: number,
+	jobId?: number,
 ): Promise<DependencyInstallStatusResponse | ErrorResponse> {
-	const response = await fetch(`${BASE_URL}/api/function/${id}/pip-install`, {
-		method: "GET",
-		headers: {
-			"Content-Type": "application/json",
+	const query = jobId === undefined ? "" : `?jobId=${jobId}`;
+	const response = await fetch(
+		`${BASE_URL}/api/function/${id}/pip-install${query}`,
+		{
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
 		},
-		credentials: "include",
-	});
+	);
 	return await response.json();
 }
 

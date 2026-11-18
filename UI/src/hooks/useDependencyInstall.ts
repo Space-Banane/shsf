@@ -46,7 +46,8 @@ export function useDependencyInstall(
 		while (current.status === "running") {
 			await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
 			if (cancelled.current) return null;
-			const response = await getDependencyInstallStatus(id);
+			// Poll the job this click started, not whatever is newest by then.
+			const response = await getDependencyInstallStatus(id, job.id);
 			if (response.status !== "OK") throw new Error(response.message);
 			if (!response.job) throw new Error("The install job is no longer available.");
 			current = response.job;

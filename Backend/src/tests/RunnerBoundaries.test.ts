@@ -132,6 +132,35 @@ describe("dependency installs", () => {
 
 		await expect(installDependencies(7, functionData, [])).resolves.toBe(true);
 		expect(exec.inspect).toHaveBeenCalled();
+		expect(container.exec).toHaveBeenCalledWith(
+			expect.objectContaining({
+				Cmd: expect.arrayContaining([
+					"timeout",
+					"--signal=TERM",
+					"--kill-after=1s",
+				]),
+			}),
+		);
+	});
+
+	it("reports a timeout when the in-container timeout kills the install", async () => {
+		const stream = new PassThrough();
+		const exec = {
+			start: vi.fn().mockImplementation(async () => {
+				process.nextTick(() => stream.end());
+				return stream;
+			}),
+			inspect: vi.fn().mockResolvedValue({ ExitCode: 124 }),
+		};
+		const container = {
+			inspect: vi.fn().mockResolvedValue({ State: { Running: true } }),
+			exec: vi.fn().mockResolvedValue(exec),
+		};
+		mocks.getContainer.mockReturnValue(container);
+
+		await expect(installDependencies(7, functionData, [])).resolves.toBe(
+			"timeout",
+		);
 	});
 
 	it("aborts and stops draining when the signal fires", async () => {

@@ -2,6 +2,7 @@ import { functionAccessWhere } from "../../../lib/Sharing";
 import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import { OpenAPITags } from "../../../lib/openapi";
+import { createLogger } from "../../../lib/logger";
 import {
 	getDependencyInstallStatus,
 	startDependencyInstall,
@@ -9,6 +10,8 @@ import {
 import { getFunctionAppDir } from "../../../lib/StoragePaths";
 import * as fsSync from "fs";
 import * as path from "path";
+
+const log = createLogger("functions/pip-install");
 
 export = new fileRouter.Path("/")
 	.http("GET", "/api/function/{id}/pip-install", (http) =>
@@ -27,6 +30,15 @@ export = new fileRouter.Path("/")
 							type: "integer",
 						},
 						description: "ID of the function",
+					},
+					{
+						in: "query",
+						name: "jobId",
+						required: false,
+						schema: {
+							type: "integer",
+						},
+						description: "Specific install job to look up",
 					},
 				],
 				responses: {
@@ -101,9 +113,23 @@ export = new fileRouter.Path("/")
 					});
 				}
 
+				// Polling a specific job keeps the result tied to the install the
+				// caller started, even if another install is queued meanwhile.
+				const jobIdParam = ctr.queries.get("jobId");
+				let jobId: number | undefined;
+				if (jobIdParam !== null) {
+					jobId = parseInt(jobIdParam);
+					if (isNaN(jobId)) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: "Invalid job id",
+						});
+					}
+				}
+
 				return ctr.print({
 					status: "OK",
-					job: await getDependencyInstallStatus(functionId),
+					job: await getDependencyInstallStatus(functionId, jobId),
 				});
 			}),
 	)
@@ -239,7 +265,11 @@ export = new fileRouter.Path("/")
 						status: "OK",
 						job,
 					});
-				} catch {
+				} catch (error) {
+					log.error(
+						{ err: error, functionId },
+						"Failed to start dependency install",
+					);
 					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
 						status: "FAILED",
 						code: "DEPENDENCY_ERROR",

@@ -68,6 +68,7 @@ describe("useDependencyInstall", () => {
 		});
 
 		expect(getDependencyInstallStatus).toHaveBeenCalledTimes(2);
+		expect(getDependencyInstallStatus).toHaveBeenCalledWith(4, runningJob.id);
 		expect(result.current.installing).toBe(false);
 		expect(result.current.result).toMatchObject({
 			title: "Dependencies Installed",

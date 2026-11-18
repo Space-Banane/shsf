@@ -26,25 +26,48 @@ function failedMessage(): string {
 	return "Dependencies could not be installed. Check requirements.txt and the function logs, then try again.";
 }
 
-/** Latest install job for a function, with expired running jobs marked failed. */
+function restartMessage(): string {
+	return "The server restarted during the installation. Run it again.";
+}
+
+/**
+ * Latest install job for a function (or one specific job), with running jobs
+ * that can no longer finish in this process marked failed.
+ */
 export async function getDependencyInstallStatus(
 	functionId: number,
+	jobId?: number,
 ): Promise<DependencyInstall | null> {
-	const job = await prisma.dependencyInstall.findFirst({
-		where: { functionId },
-		orderBy: { id: "desc" },
-	});
+	const job = jobId
+		? await prisma.dependencyInstall.findFirst({
+				where: { id: jobId, functionId },
+			})
+		: await prisma.dependencyInstall.findFirst({
+				where: { functionId },
+				orderBy: { id: "desc" },
+			});
 	if (!job || job.status !== "running") return job;
 
 	const deadline =
 		job.startedAt.getTime() + env.DEPENDENCY_INSTALL_TIMEOUT_MS + STALE_GRACE_MS;
-	if (Date.now() <= deadline) return job;
+	if (Date.now() > deadline) {
+		log.warn({ functionId, jobId: job.id }, "Marking stale dependency install as failed");
+		return finish(job.id, "failed", timeoutMessage());
+	}
 
-	log.warn({ functionId, jobId: job.id }, "Marking stale dependency install as failed");
-	return prisma.dependencyInstall.update({
-		where: { id: job.id },
-		data: { status: "failed", message: timeoutMessage(), finishedAt: new Date() },
-	});
+	// An install only runs in the process that created the job. A row older than
+	// this process was interrupted by a restart and would otherwise block new
+	// installs until the timeout elapses.
+	const processStartedAt = Date.now() - process.uptime() * 1000;
+	if (job.startedAt.getTime() < processStartedAt) {
+		log.warn(
+			{ functionId, jobId: job.id },
+			"Marking interrupted dependency install as failed",
+		);
+		return finish(job.id, "failed", restartMessage());
+	}
+
+	return job;
 }
 
 /**
@@ -95,14 +118,25 @@ async function runDependencyInstall(
 		() => controller.abort(),
 		env.DEPENDENCY_INSTALL_TIMEOUT_MS,
 	);
+	const aborted = new Promise<never>((_resolve, reject) => {
+		const onAbort = () => reject(new Error("Dependency installation aborted"));
+		if (controller.signal.aborted) onAbort();
+		else controller.signal.addEventListener("abort", onAbort, { once: true });
+	});
 
 	try {
-		const result = await installDependencies(functionId, functionData, files, {
-			signal: controller.signal,
-		});
+		// Race so the job is finalized even if a Docker/DB call ignores the signal.
+		const result = await Promise.race([
+			installDependencies(functionId, functionData, files, {
+				signal: controller.signal,
+			}),
+			aborted,
+		]);
 
 		if (result === true) {
 			await finish(jobId, "succeeded", "Dependencies installed successfully.");
+		} else if (result === "timeout") {
+			await finish(jobId, "failed", timeoutMessage());
 		} else if (result === 404) {
 			await finish(
 				jobId,

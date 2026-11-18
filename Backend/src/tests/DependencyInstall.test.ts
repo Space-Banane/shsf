@@ -135,6 +135,23 @@ describe("startDependencyInstall", () => {
 			vi.useRealTimers();
 		}
 	});
+
+	it("records the in-container timeout exit code as a timed-out job", async () => {
+		mocks.installDependencies.mockResolvedValue("timeout");
+
+		await startDependencyInstall(7, functionData, []);
+
+		await vi.waitFor(() =>
+			expect(mocks.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({
+						status: "failed",
+						message: expect.stringContaining("timed out"),
+					}),
+				}),
+			),
+		);
+	});
 });
 
 describe("getDependencyInstallStatus", () => {
@@ -144,6 +161,16 @@ describe("getDependencyInstallStatus", () => {
 
 		await expect(getDependencyInstallStatus(7)).resolves.toBe(running);
 		expect(mocks.update).not.toHaveBeenCalled();
+	});
+
+	it("looks up a specific job for the function", async () => {
+		const finished = jobRow({ id: 9, status: "succeeded" });
+		mocks.findFirst.mockResolvedValue(finished);
+
+		await expect(getDependencyInstallStatus(7, 9)).resolves.toBe(finished);
+		expect(mocks.findFirst).toHaveBeenCalledWith({
+			where: { id: 9, functionId: 7 },
+		});
 	});
 
 	it("fails a running job that outlived the timeout", async () => {
@@ -163,6 +190,26 @@ describe("getDependencyInstallStatus", () => {
 				data: expect.objectContaining({
 					status: "failed",
 					message: expect.stringContaining("timed out"),
+				}),
+			}),
+		);
+	});
+
+	it("fails a running job left behind by a restart", async () => {
+		mocks.findFirst.mockResolvedValue(
+			jobRow({
+				startedAt: new Date(Date.now() - process.uptime() * 1000 - 60_000),
+			}),
+		);
+
+		const job = await getDependencyInstallStatus(7);
+
+		expect(job?.status).toBe("failed");
+		expect(mocks.update).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					status: "failed",
+					message: expect.stringContaining("restarted"),
 				}),
 			}),
 		);
