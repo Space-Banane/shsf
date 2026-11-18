@@ -1,5 +1,8 @@
 import { createHash } from "crypto";
 import { prisma } from "..";
+import { createLogger } from "./logger";
+
+const log = createLogger("Caching");
 
 export const SHSF_BINARY_TRANSPORT = "base64-bytes-v1";
 
@@ -279,6 +282,30 @@ export function handleFunctionResult(
 }
 
 /**
+ * Formats a cached result as the events the streaming client expects. Only the
+ * return value is cached, not stdout, so a hit emits just the end event with an
+ * empty output instead of passing the return value off as program output.
+ */
+export function buildStreamCacheHitEvents(result: any) {
+	return [{ type: "end", exitCode: 0, output: "", result, took: [] }];
+}
+
+/**
+ * A result is cacheable only when caching is enabled and the runtime succeeded.
+ */
+export function shouldStoreFunctionCache(
+	functionData: { cache_enabled: boolean },
+	result: { exit_code?: number | null; result?: any } | null | undefined,
+) {
+	return Boolean(
+		functionData.cache_enabled &&
+		result &&
+		result.exit_code === 0 &&
+		result.result,
+	);
+}
+
+/**
  * Tries to retrieve a cached result for a function.
  */
 export async function getFunctionCache(functionId: number, hash: string) {
@@ -320,4 +347,22 @@ export async function setFunctionCache(
 			expiresAt: new Date(Date.now() + (ttl || 60) * 1000),
 		},
 	});
+}
+
+/**
+ * Removes every cached result for a function. A source or settings change
+ * makes previously cached results stale regardless of their TTL. Failure is
+ * logged and swallowed so cache maintenance cannot fail an applied change.
+ */
+export async function invalidateFunctionCache(functionId: number) {
+	try {
+		return await prisma.functionCache.deleteMany({
+			where: {
+				functionId,
+			},
+		});
+	} catch (err) {
+		log.warn({ err, functionId }, "Failed to invalidate function cache");
+		return { count: 0 };
+	}
 }

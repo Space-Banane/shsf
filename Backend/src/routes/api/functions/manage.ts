@@ -9,6 +9,7 @@ import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import { createLogger } from "../../../lib/logger";
 import { getDisabledImages } from "../../../lib/DataManager";
+import { invalidateFunctionCache } from "../../../lib/Caching";
 import { serializeEnvironmentVariables } from "../../../lib/EnvironmentVariables";
 
 const log = createLogger("functions/manage");
@@ -172,7 +173,7 @@ export = new fileRouter.Path("/")
 											retry_count: { type: "number", description: "Retry count" },
 											cache_enabled: {
 												type: "boolean",
-												description: "Enable response caching for non-stream execution",
+												description: "Enable response caching for function executions",
 											},
 											cache_ttl: {
 												type: "number",
@@ -849,7 +850,7 @@ export = new fileRouter.Path("/")
 											retry_count: { type: "number" },
 											cache_enabled: {
 												type: "boolean",
-												description: "Enable response caching for non-stream execution",
+												description: "Enable response caching for function executions",
 											},
 											cache_ttl: {
 												type: "number",
@@ -1226,6 +1227,19 @@ export = new fileRouter.Path("/")
 					},
 					data: updatedData,
 				});
+
+				const cacheRelevantChange =
+					data.image !== undefined ||
+					data.startup_file !== undefined ||
+					data.settings !== undefined ||
+					data.environment !== undefined ||
+					data.docker_mount !== undefined ||
+					data.network_restricted !== undefined ||
+					data.ffmpeg_install !== undefined ||
+					data.opencv_install !== undefined;
+				if (cacheRelevantChange) {
+					await invalidateFunctionCache(functionId);
+				}
 
 				// UI confirmation: inform if relaunch started
 				type PatchFunctionResponse = {
