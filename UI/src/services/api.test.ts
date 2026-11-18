@@ -1,4 +1,4 @@
-import { normalizeApiFailure } from "./api";
+import { apiFetch, normalizeApiFailure } from "./api";
 
 describe("API error messages", () => {
 	it.each([
@@ -40,5 +40,46 @@ describe("API error messages", () => {
 			code: "DEPENDENCY_TIMEOUT",
 			message: expect.stringContaining("Dependency installation"),
 		});
+	});
+});
+
+describe("apiFetch deadlines", () => {
+	const fetchMock = vi.fn<typeof fetch>();
+
+	beforeEach(() => {
+		fetchMock.mockReset();
+		vi.stubGlobal("fetch", fetchMock);
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+	});
+
+	it("keeps the timeout armed while a raw response body is read", async () => {
+		vi.useFakeTimers();
+		fetchMock.mockResolvedValue(
+			new Response(
+				new ReadableStream<Uint8Array>({
+					start(controller) {
+						controller.enqueue(new TextEncoder().encode("first"));
+					},
+				}),
+				{ status: 200 },
+			),
+		);
+
+		const response = await apiFetch("http://test.local/stream", {
+			rawResponse: true,
+			timeoutMs: 500,
+		});
+		const reader = response.body!.getReader();
+		await expect(reader.read()).resolves.toMatchObject({ done: false });
+
+		const stalled = expect(reader.read()).rejects.toMatchObject({
+			name: "AbortError",
+		});
+		await vi.advanceTimersByTimeAsync(500);
+		await stalled;
 	});
 });

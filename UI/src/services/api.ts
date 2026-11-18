@@ -230,6 +230,87 @@ async function normalizeResponse(response: Response): Promise<Response> {
 	return jsonResponse(failure, normalizedStatus);
 }
 
+/**
+ * Keeps the request deadline armed while a raw response body is consumed.
+ * The timer would otherwise be cleared as soon as the headers arrive, leaving
+ * a stalled stream (for example, a runner that died mid-execution) pending
+ * forever. The wrapper also reacts to caller aborts so in-flight reads stop.
+ */
+function trackResponseBody(
+	response: Response,
+	signal: AbortSignal,
+	release: () => void,
+): Response {
+	const body = response.body;
+	if (!body) {
+		release();
+		return response;
+	}
+
+	const reader = body.getReader();
+	let released = false;
+	const finish = () => {
+		if (released) return;
+		released = true;
+		signal.removeEventListener("abort", finish);
+		release();
+	};
+	signal.addEventListener("abort", finish, { once: true });
+
+	const stream = new ReadableStream<Uint8Array>({
+		async pull(controller) {
+			try {
+				const { value, done } = await readWithAbort(reader, signal);
+				if (done) {
+					finish();
+					controller.close();
+					return;
+				}
+				controller.enqueue(value);
+			} catch (error) {
+				finish();
+				void reader.cancel().catch(() => undefined);
+				controller.error(error);
+			}
+		},
+		cancel(reason) {
+			finish();
+			return reader.cancel(reason);
+		},
+	});
+
+	return new Response(stream, {
+		status: response.status,
+		statusText: response.statusText,
+		headers: response.headers,
+	});
+}
+
+function readWithAbort<T>(
+	reader: ReadableStreamDefaultReader<T>,
+	signal: AbortSignal,
+): Promise<ReadableStreamReadResult<T>> {
+	if (signal.aborted) {
+		return Promise.reject(new DOMException("The operation was aborted.", "AbortError"));
+	}
+
+	return new Promise((resolve, reject) => {
+		const onAbort = () =>
+			reject(new DOMException("The operation was aborted.", "AbortError"));
+		signal.addEventListener("abort", onAbort, { once: true });
+		reader.read().then(
+			(result) => {
+				signal.removeEventListener("abort", onAbort);
+				resolve(result);
+			},
+			(error) => {
+				signal.removeEventListener("abort", onAbort);
+				reject(error);
+			},
+		);
+	});
+}
+
 export async function apiFetch(
 	input: RequestInfo | URL,
 	init: ApiRequestInit = {},
@@ -239,11 +320,18 @@ export async function apiFetch(
 	let timedOut = false;
 	let externalAbort = false;
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	let bodyOwnsTimer = false;
 
 	const abortFromCaller = () => {
 		externalAbort = true;
 		controller.abort();
 	};
+
+	const releaseTimer = () => {
+		if (timer) clearTimeout(timer);
+		signal?.removeEventListener("abort", abortFromCaller);
+	};
+
 	if (signal) {
 		if (signal.aborted) abortFromCaller();
 		else signal.addEventListener("abort", abortFromCaller, { once: true });
@@ -260,7 +348,11 @@ export async function apiFetch(
 			...requestInit,
 			signal: controller.signal,
 		});
-		if (rawResponse && response.ok) return response;
+		if (rawResponse && response.ok) {
+			if (!response.body || !timer) return response;
+			bodyOwnsTimer = true;
+			return trackResponseBody(response, controller.signal, releaseTimer);
+		}
 		return await normalizeResponse(response);
 	} catch (error) {
 		if (externalAbort) throw error;
@@ -269,8 +361,7 @@ export async function apiFetch(
 		}
 		return jsonResponse(normalizeApiFailure(503, undefined, "NETWORK_ERROR"));
 	} finally {
-		if (timer) clearTimeout(timer);
-		signal?.removeEventListener("abort", abortFromCaller);
+		if (!bodyOwnsTimer) releaseTimer();
 	}
 }
 
