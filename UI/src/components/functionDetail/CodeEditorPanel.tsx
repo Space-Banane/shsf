@@ -10,6 +10,10 @@ interface CodeEditorPanelProps {
 	onMount: OnMount;
 	onOpenVersionControl: () => void;
 	readOnly?: boolean;
+	/** The open file's content is still being fetched from the server. */
+	loading?: boolean;
+	/** Fetching the open file's content failed. */
+	error?: string | null;
 }
 
 export function CodeEditorPanel({
@@ -21,6 +25,8 @@ export function CodeEditorPanel({
 	onMount,
 	onOpenVersionControl,
 	readOnly = false,
+	loading = false,
+	error = null,
 }: CodeEditorPanelProps) {
 	return (
 		<div className="bg-surface border border-white/[0.07] rounded-xl overflow-hidden">
@@ -50,6 +56,24 @@ export function CodeEditorPanel({
 							<p className="text-text/70 text-sm">Select a file from the sidebar</p>
 						</div>
 					</div>
+				) : loading ? (
+					<div className="absolute inset-0 flex items-center justify-center bg-background/50 text-center z-10">
+						<div className="space-y-3">
+							<div className="w-8 h-8 mx-auto border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+							<p className="text-text/70 text-sm">Loading file…</p>
+						</div>
+					</div>
+				) : error ? (
+					<div className="absolute inset-0 flex items-center justify-center bg-background/50 text-center z-10">
+						<div className="space-y-3 px-6">
+							<div className="text-5xl">⚠️</div>
+							<h3 className="text-lg font-bold text-primary">Could not load file</h3>
+							<p className="text-text/70 text-sm max-w-sm">{error}</p>
+							<p className="text-text/50 text-xs">
+								Select the file again to retry.
+							</p>
+						</div>
+					</div>
 				) : null}
 				{hasActiveFile && (
 					<Editor
@@ -60,7 +84,7 @@ export function CodeEditorPanel({
 						onChange={(value) => onChange(value || "")}
 						onMount={onMount}
 						options={{
-							readOnly: gitManaged || readOnly,
+							readOnly: gitManaged || readOnly || loading || Boolean(error),
 							minimap: { enabled: true },
 							scrollBeyondLastLine: false,
 							fontSize: 13,

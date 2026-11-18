@@ -14,7 +14,7 @@ import { OpenAPITags } from "../../lib/openapi";
 import { getFunctionAppDir } from "../../lib/StoragePaths";
 import { createLogger } from "../../lib/logger";
 import { FUNCTION_TEMPLATES, getFunctionTemplate, getTemplatesForRuntime, readFunctionTemplate } from "../../lib/FunctionTemplates";
-import { listGitAppFiles } from "../../lib/GitOps";
+import { listGitAppFiles, readGitAppFile } from "../../lib/GitOps";
 import { isDependencyFilename } from "../../lib/FunctionDependencies";
 import {
 	getFunctionFilePath,
@@ -407,11 +407,119 @@ export = new fileRouter.Path("/")
 					where: {
 						functionId: functionId,
 					},
+					select: {
+						id: true,
+						name: true,
+						updatedAt: true,
+					},
 				});
 
 				return ctr.print({
 					status: "OK",
 					data: files,
+				});
+			}),
+	)
+	.http("GET", "/api/function/{id}/file-content", (http) =>
+		http
+			.document({
+				description:
+					"Read the content of a single function file by name",
+				tags: ["Function Files"] as OpenAPITags[],
+				operationId: "getFunctionFileContent",
+				responses: {
+					200: {
+						description: "File content",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										data: {
+											type: "object",
+											properties: {
+												name: { type: "string" },
+												content: { type: "string" },
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+			.onRequest(async (ctr) => {
+				const authCheck = await checkAuthentication(
+					ctr.cookies.get(COOKIE),
+					ctr.headers.get(API_KEY_HEADER),
+				);
+
+				if (!authCheck.success) {
+					return ctr.print({
+						status: 401,
+						message: authCheck.message,
+					});
+				}
+
+				const functionId = Number(ctr.params.get("id"));
+				if (!Number.isInteger(functionId) || functionId <= 0) {
+					return ctr
+						.status(ctr.$status.BAD_REQUEST)
+						.print({ status: 400, message: "Invalid function id" });
+				}
+
+				const name = ctr.queries.get("name");
+				if (!name || !isValidFunctionFilePath(name)) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "A valid file name is required",
+					});
+				}
+
+				const functionData = await prisma.function.findFirst({
+					where: {
+						id: functionId,
+						...functionAccessWhere(authCheck.user.id, "view"),
+					},
+					select: { git_url: true },
+				});
+				if (!functionData) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "Function not found",
+					});
+				}
+
+				if (functionData.git_url?.trim()) {
+					const content = await readGitAppFile(functionId, name);
+					if (content === null) {
+						return ctr.status(ctr.$status.NOT_FOUND).print({
+							status: 404,
+							message: "File not found",
+						});
+					}
+					return ctr.print({
+						status: "OK",
+						data: { name, content },
+					});
+				}
+
+				const file = await prisma.functionFile.findFirst({
+					where: { functionId, name },
+					select: { name: true, content: true },
+				});
+				if (!file) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "File not found",
+					});
+				}
+
+				return ctr.print({
+					status: "OK",
+					data: file,
 				});
 			}),
 	)

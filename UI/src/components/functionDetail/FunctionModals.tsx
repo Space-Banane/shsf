@@ -65,6 +65,7 @@ export function FunctionModals({
 				functionId={functionData.id}
 				image={functionData.image}
 				files={files.files}
+				loadFileContent={files.readFileContent}
 				onSave={async (filename, content) => {
 					const result = await files.persistFile(filename, content);
 					if (!result.success) {

@@ -4,7 +4,6 @@ import type { useFunctionFiles } from "../../hooks/useFunctionFiles";
 import type { useFunctionLogs } from "../../hooks/useFunctionLogs";
 import type { TimingEntry } from "../../types/FunctionExecution";
 import type { Trigger, XFunction } from "../../types/Prisma";
-import { downloadTextFile } from "../../utils/functionFiles";
 import { FileManagerCard } from "../cards/FileManagerCard";
 import { LogsCard } from "../cards/LogCard";
 import { RateLimitCard } from "../cards/RateLimitCard";
@@ -90,7 +89,7 @@ export function FunctionSidebar({
 					})
 				}
 				onDeleteFolder={files.removeFolder}
-				onDownloadFile={(file) => downloadTextFile(file.name, file.content)}
+				onDownloadFile={files.downloadFile}
 				onRenameFile={(file) => onOpenModal({ type: "renameFile", file })}
 				onDeleteFile={(file) => onOpenModal({ type: "deleteFile", file })}
 				onDeleteSelectedFiles={files.confirmAndDeleteFiles}
