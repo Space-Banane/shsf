@@ -221,16 +221,17 @@ func main() {
 
 export function generatePythonRunnerScript(startupFile: string): string {
 	return `#!/bin/sh
+app_dir="$(cd "$(dirname "$0")" && pwd)"
 # Source environment variables if the file exists
-if [ -f /app/.shsf_env ]; then
-    . /app/.shsf_env
-    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
+if [ -f "$app_dir/.shsf_env" ]; then
+    . "$app_dir/.shsf_env"
+    echo "[SHSF RUNNER] Sourced environment from $app_dir/.shsf_env" >&2
 else
     echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
 fi
 
-# Execute the actual Python runner with payload and result file paths as arguments
-python3 - "$@" << 'PYTHON_SCRIPT_EOF'
+# Execute the actual Python runner with app, payload and result file paths as arguments
+python3 - "$app_dir" "$@" << 'PYTHON_SCRIPT_EOF'
 import json
 import sys
 import os
@@ -257,13 +258,14 @@ def _shsf_json_default(obj):
 	# Last-resort fallback keeps execution alive for unknown object types.
 	return repr(obj)
 
-# Get transport file paths from command line arguments
-if len(sys.argv) < 3:
+# Get app and transport file paths from command line arguments
+if len(sys.argv) < 4:
 	sys.stderr.write("Error: Payload or result file path not provided\\n")
 	sys.exit(1)
 
-payload_file_path = sys.argv[1]
-result_file_path = sys.argv[2]
+app_dir = sys.argv[1]
+payload_file_path = sys.argv[2]
+result_file_path = sys.argv[3]
 
 def _write_result_file(path, value):
     temp_path = path + ".tmp"
@@ -275,7 +277,7 @@ def _write_result_file(path, value):
 # Redirect stdout to stderr; function results are written to result.json.
 sys.stdout = sys.stderr
 
-sys.path.append('/app')
+sys.path.append(app_dir)
 target_module_name = "${startupFile.replace(".py", "")}"
 
 # Read payload from the specified file
@@ -455,6 +457,7 @@ const path = require('path');
 
 const payloadPath = process.argv[2];
 const resultPath = process.argv[3];
+const appDir = __dirname;
 
 if (!payloadPath || !resultPath) {
   process.stderr.write('Error: Payload or result file path not provided\\n');
@@ -503,7 +506,7 @@ async function run() {
 
   let userModule;
   try {
-    userModule = require('/app/${startupFile}');
+    userModule = require(path.join(appDir, '${startupFile}'));
   } catch (e) {
     process.stderr.write('Error loading module ${startupFile}: ' + e.message + '\\n' + (e.stack || '') + '\\n');
     process.exit(1);
@@ -533,16 +536,17 @@ run().catch(e => {
 
 export function generateNodeJsRunnerShScript(): string {
 	return `#!/bin/sh
+app_dir="$(cd "$(dirname "$0")" && pwd)"
 # Source environment variables if the file exists
-if [ -f /app/.shsf_env ]; then
-    . /app/.shsf_env
-    echo "[SHSF RUNNER] Sourced environment from /app/.shsf_env" >&2
+if [ -f "$app_dir/.shsf_env" ]; then
+    . "$app_dir/.shsf_env"
+    echo "[SHSF RUNNER] Sourced environment from $app_dir/.shsf_env" >&2
 else
     echo "[SHSF RUNNER] Warning: No .shsf_env file found" >&2
 fi
 
 # Execute the Node.js runner with payload and result file paths as arguments
-exec node /app/_shsf_runner.js "$@"
+exec node "$app_dir/_shsf_runner.js" "$@"
 `;
 }
 
