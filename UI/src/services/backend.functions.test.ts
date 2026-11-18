@@ -100,6 +100,23 @@ describe("function execution streaming", () => {
 		]);
 	});
 
+	it("frames objects when strings contain escaped quotes and backslashes", async () => {
+		const content = 'a\\"b}{c';
+		const first = JSON.stringify({ type: "output", content });
+		const second = JSON.stringify({ type: "output", content: "end" });
+		fetchMock.mockResolvedValue(
+			streamedResponse([encoder.encode(first + second)]),
+		);
+		const onChunk = vi.fn();
+
+		await executeFunctionStreaming(1, onChunk);
+
+		expect(onChunk.mock.calls.map(([data]) => data.content)).toEqual([
+			content,
+			"end",
+		]);
+	});
+
 	it("decodes a multi-byte character split across chunks", async () => {
 		const content = "👋🏽 日本語";
 		const payload = encoder.encode(

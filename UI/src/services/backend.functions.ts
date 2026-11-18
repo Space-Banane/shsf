@@ -383,6 +383,7 @@ async function executeFunctionStreaming(
 				signal,
 				timeoutMs: 15 * 60_000,
 				rawResponse: true,
+				bodyTimeout: true,
 			},
 		);
 
@@ -422,6 +423,7 @@ async function executeFunctionStreaming(
 			// Flush any character left in the decoder by a truncated stream.
 			consume(decoder.decode());
 		} finally {
+			await reader.cancel().catch(() => undefined);
 			reader.releaseLock();
 		}
 	} catch (error) {

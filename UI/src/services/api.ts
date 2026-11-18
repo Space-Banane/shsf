@@ -25,6 +25,8 @@ export interface ApiFailure {
 export interface ApiRequestInit extends RequestInit {
 	timeoutMs?: number;
 	rawResponse?: boolean;
+	/** Keep `timeoutMs` armed until a raw response body is fully consumed. */
+	bodyTimeout?: boolean;
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -315,7 +317,7 @@ export async function apiFetch(
 	input: RequestInfo | URL,
 	init: ApiRequestInit = {},
 ): Promise<Response> {
-	const { timeoutMs = DEFAULT_TIMEOUT_MS, rawResponse = false, signal, ...requestInit } = init;
+	const { timeoutMs = DEFAULT_TIMEOUT_MS, rawResponse = false, bodyTimeout = false, signal, ...requestInit } = init;
 	const controller = new AbortController();
 	let timedOut = false;
 	let externalAbort = false;
@@ -349,9 +351,10 @@ export async function apiFetch(
 			signal: controller.signal,
 		});
 		if (rawResponse && response.ok) {
-			if (!response.body || !timer) return response;
+			if (!response.body || !timer || !bodyTimeout) return response;
+			const tracked = trackResponseBody(response, controller.signal, releaseTimer);
 			bodyOwnsTimer = true;
-			return trackResponseBody(response, controller.signal, releaseTimer);
+			return tracked;
 		}
 		return await normalizeResponse(response);
 	} catch (error) {

@@ -56,21 +56,24 @@ describe("apiFetch deadlines", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("keeps the timeout armed while a raw response body is read", async () => {
-		vi.useFakeTimers();
-		fetchMock.mockResolvedValue(
-			new Response(
-				new ReadableStream<Uint8Array>({
-					start(controller) {
-						controller.enqueue(new TextEncoder().encode("first"));
-					},
-				}),
-				{ status: 200 },
-			),
+	function stalledResponse(): Response {
+		return new Response(
+			new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(new TextEncoder().encode("first"));
+				},
+			}),
+			{ status: 200 },
 		);
+	}
+
+	it("keeps the timeout armed while a tracked raw body is read", async () => {
+		vi.useFakeTimers();
+		fetchMock.mockResolvedValue(stalledResponse());
 
 		const response = await apiFetch("http://test.local/stream", {
 			rawResponse: true,
+			bodyTimeout: true,
 			timeoutMs: 500,
 		});
 		const reader = response.body!.getReader();
@@ -81,5 +84,64 @@ describe("apiFetch deadlines", () => {
 		});
 		await vi.advanceTimersByTimeAsync(500);
 		await stalled;
+	});
+
+	it("does not extend the deadline to raw bodies unless requested", async () => {
+		vi.useFakeTimers();
+		fetchMock.mockResolvedValue(stalledResponse());
+
+		const response = await apiFetch("http://test.local/export", {
+			rawResponse: true,
+			timeoutMs: 500,
+		});
+
+		expect(vi.getTimerCount()).toBe(0);
+		await response.body!.cancel();
+	});
+
+	it("releases the deadline when a tracked body closes", async () => {
+		vi.useFakeTimers();
+		fetchMock.mockResolvedValue(
+			new Response(new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(new TextEncoder().encode("done"));
+					controller.close();
+				},
+			}), { status: 200 }),
+		);
+
+		const response = await apiFetch("http://test.local/stream", {
+			rawResponse: true,
+			bodyTimeout: true,
+			timeoutMs: 500,
+		});
+		expect(vi.getTimerCount()).toBe(1);
+
+		await response.text();
+
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it("stops a tracked body read when the caller aborts", async () => {
+		vi.useFakeTimers();
+		fetchMock.mockResolvedValue(stalledResponse());
+		const controller = new AbortController();
+
+		const response = await apiFetch("http://test.local/stream", {
+			rawResponse: true,
+			bodyTimeout: true,
+			timeoutMs: 60_000,
+			signal: controller.signal,
+		});
+		const reader = response.body!.getReader();
+		await expect(reader.read()).resolves.toMatchObject({ done: false });
+
+		const stalled = expect(reader.read()).rejects.toMatchObject({
+			name: "AbortError",
+		});
+		controller.abort();
+		await stalled;
+
+		expect(vi.getTimerCount()).toBe(0);
 	});
 });
