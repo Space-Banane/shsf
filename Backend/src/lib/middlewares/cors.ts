@@ -21,9 +21,11 @@ export const corsMiddleware = new Middleware<{}, {}>("Custom CORS", "1.0.3")
 		corsLog.info("Custom CORS locked and loaded");
 	})
 	.httpRequest(async (_config, _server, _context, ctr, end) => {
-		httpLog.info(
-			`[${ctr.headers.get("x-shsf-dev") === "true" ? "shsf.dev" : "direct"}] ${ctr.client.ip} [${ctr.url.method}] ${requestLogUrl(ctr.url)}`,
-		);
+		if (env.REQUEST_DEBUGGING) {
+			httpLog.info(
+				`[${ctr.headers.get("x-shsf-dev") === "true" ? "shsf.dev" : "direct"}] ${ctr.client.ip} [${ctr.url.method}] ${requestLogUrl(ctr.url)}`,
+			);
+		}
 
 		if (env.RATELIMIT === 0 && !ctr.url.path.startsWith("/api/account/sso/")) {
 			ctr.skipRateLimit();
