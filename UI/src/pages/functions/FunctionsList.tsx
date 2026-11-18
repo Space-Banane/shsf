@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { UserContext } from "../../App";
@@ -20,6 +20,8 @@ import MassReplaceModal from "../../components/modals/functionFiles/MassReplaceM
 import AIGenerateModal from "../../components/modals/AIGenerateModal";
 import { Icon } from "../../components/ui/Icon";
 import { HelpTooltip } from "../../components/ui/Tooltip";
+
+const FILTER_DEBOUNCE_MS = 300;
 
 function parseFunctionFilters(params: URLSearchParams): FunctionListOptions {
 	const page = Number(params.get("page"));
@@ -65,7 +67,11 @@ function FunctionsList() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const filters = useMemo(() => parseFunctionFilters(searchParams), [searchParams]);
 	const [refreshToken, setRefreshToken] = useState(0);
+	const [searchInput, setSearchInput] = useState(filters.search ?? "");
+	const [tagInput, setTagInput] = useState(filters.tag ?? "");
 	const [loading, setLoading] = useState(true);
+	const [namespacesLoading, setNamespacesLoading] = useState(true);
+	const latestFunctionsRequest = useRef(0);
 	const { user } = useContext(UserContext);
 	const aiEnabled = Boolean(user?.apiKeyConfigured);
 	const [isNamespaceModalOpen, setNamespaceModalOpen] = useState(false);
@@ -83,23 +89,7 @@ function FunctionsList() {
 	const [selectedFunctionForClone, setSelectedFunctionForClone] = useState<{ id: number; name: string } | null>(null);
 	const [expandedNamespaces, setExpandedNamespaces] = useState<number[]>([]);
 
-	useEffect(() => {
-		setLoading(true);
-		Promise.all([getNamespaces(false), getFunctions(false, filters)]).then(([namespaceData, functionData]) => {
-			if (namespaceData.status === "OK") {
-				const loaded = namespaceData.data as Namespace[];
-				setNamespaces(loaded);
-				setExpandedNamespaces((prev) => prev.length ? prev : loaded.map((ns) => ns.id));
-			} else toast.error("Error fetching namespaces: " + namespaceData.message);
-			if (functionData.status === "OK") {
-				setFunctions(functionData.data as XFunction[]);
-				if (functionData.pagination) setPagination(functionData.pagination);
-			} else toast.error("Error fetching functions: " + functionData.message);
-			setLoading(false);
-		}).catch(() => { toast.error("Unable to load functions."); setLoading(false); });
-	}, [filters, refreshToken]);
-
-	const setFilters = (update: FunctionListOptions | ((current: FunctionListOptions) => FunctionListOptions)) => {
+	const setFilters = useCallback((update: FunctionListOptions | ((current: FunctionListOptions) => FunctionListOptions)) => {
 		setSearchParams((current) =>
 			serializeFunctionFilters(
 				typeof update === "function"
@@ -108,7 +98,75 @@ function FunctionsList() {
 			),
 			{ replace: true },
 		);
-	};
+	}, [setSearchParams]);
+
+	useEffect(() => {
+		let active = true;
+		setNamespacesLoading(true);
+		getNamespaces(false).then((namespaceData) => {
+			if (!active) return;
+			if (namespaceData.status === "OK") {
+				const loaded = namespaceData.data as Namespace[];
+				setNamespaces(loaded);
+				setExpandedNamespaces((prev) => prev.length ? prev : loaded.map((ns) => ns.id));
+			} else toast.error("Error fetching namespaces: " + namespaceData.message);
+			setNamespacesLoading(false);
+		}).catch(() => {
+			if (!active) return;
+			toast.error("Unable to load namespaces.");
+			setNamespacesLoading(false);
+		});
+		return () => { active = false; };
+	}, [refreshToken]);
+
+	useEffect(() => {
+		const requestId = ++latestFunctionsRequest.current;
+		setLoading(true);
+		getFunctions(false, filters).then((functionData) => {
+			if (requestId !== latestFunctionsRequest.current) return;
+			if (functionData.status === "OK") {
+				setFunctions(functionData.data as XFunction[]);
+				if (functionData.pagination) setPagination(functionData.pagination);
+			} else toast.error("Error fetching functions: " + functionData.message);
+			setLoading(false);
+		}).catch(() => {
+			if (requestId !== latestFunctionsRequest.current) return;
+			toast.error("Unable to load functions.");
+			setLoading(false);
+		});
+	}, [filters, refreshToken]);
+
+	useEffect(() => {
+		setSearchInput(filters.search ?? "");
+	}, [filters.search]);
+
+	useEffect(() => {
+		setTagInput(filters.tag ?? "");
+	}, [filters.tag]);
+
+	useEffect(() => {
+		if (searchInput === (filters.search ?? "")) return;
+		const timer = setTimeout(() => {
+			setFilters((current) => ({
+				...current,
+				search: searchInput || undefined,
+				page: 1,
+			}));
+		}, FILTER_DEBOUNCE_MS);
+		return () => clearTimeout(timer);
+	}, [searchInput, filters.search, setFilters]);
+
+	useEffect(() => {
+		if (tagInput === (filters.tag ?? "")) return;
+		const timer = setTimeout(() => {
+			setFilters((current) => ({
+				...current,
+				tag: tagInput || undefined,
+				page: 1,
+			}));
+		}, FILTER_DEBOUNCE_MS);
+		return () => clearTimeout(timer);
+	}, [tagInput, filters.tag, setFilters]);
 
 	const refreshData = () => {
 		setRefreshToken((token) => token + 1);
@@ -148,7 +206,7 @@ function FunctionsList() {
 		: totalFunctions === 0 && !hasFilters ? groupedNamespaces : [];
 	const controlClass = "h-9 min-w-0 rounded-lg border border-white/[0.08] bg-background/60 px-3 text-sm text-text outline-none transition-colors focus:border-primary/50";
 
-	if (loading && namespaces.length === 0) {
+	if ((loading || namespacesLoading) && namespaces.length === 0) {
 		return (
 			<div className="flex items-center justify-center py-24">
 				<div className="text-center space-y-3">
@@ -236,14 +294,8 @@ function FunctionsList() {
 								className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
 							/>
 							<input
-								value={filters.search ?? ""}
-								onChange={(e) =>
-									setFilters((current) => ({
-										...current,
-										search: e.target.value,
-										page: 1,
-									}))
-								}
+								value={searchInput}
+								onChange={(e) => setSearchInput(e.target.value)}
 								placeholder="Search functions…"
 								className={`${controlClass} w-full pl-9 placeholder:text-muted/60`}
 							/>
@@ -305,14 +357,8 @@ function FunctionsList() {
 						</select>
 						<input
 							aria-label="Tag filter"
-							value={filters.tag ?? ""}
-							onChange={(e) =>
-								setFilters((current) => ({
-									...current,
-									tag: e.target.value,
-									page: 1,
-								}))
-							}
+							value={tagInput}
+							onChange={(e) => setTagInput(e.target.value)}
 							placeholder="Filter by tag"
 							className={`${controlClass} placeholder:text-muted/60`}
 						/>
@@ -338,15 +384,17 @@ function FunctionsList() {
 						{hasFilters && (
 							<button
 								type="button"
-								onClick={() =>
+								onClick={() => {
+									setSearchInput("");
+									setTagInput("");
 									setFilters({
 										page: 1,
 										limit: 25,
 										sort: "name",
 										order: "asc",
 										status: "all",
-									})
-								}
+									});
+								}}
 								className="flex h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-sm text-muted transition-colors hover:bg-white/[0.05] hover:text-text"
 							>
 								<Icon name="x-mark" className="h-4 w-4" />
@@ -355,7 +403,8 @@ function FunctionsList() {
 						)}
 					</div>
 					{loading && (
-						<p className="mt-2 text-xs text-muted">
+						<p className="mt-2 flex items-center gap-1.5 text-xs text-muted">
+							<span className="h-3 w-3 animate-spin rounded-full border border-primary/20 border-t-primary" />
 							Updating results…
 						</p>
 					)}
