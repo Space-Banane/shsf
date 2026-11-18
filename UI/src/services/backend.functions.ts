@@ -58,6 +58,27 @@ interface ExecuteFunctionErrorResponse {
 	error?: string;
 }
 
+export type DependencyInstallStatus = "running" | "succeeded" | "failed";
+
+export interface DependencyInstallJob {
+	id: number;
+	functionId: number;
+	status: DependencyInstallStatus;
+	message: string | null;
+	startedAt: string;
+	finishedAt: string | null;
+}
+
+interface DependencyInstallResponse {
+	status: "OK";
+	job: DependencyInstallJob;
+}
+
+interface DependencyInstallStatusResponse {
+	status: "OK";
+	job: DependencyInstallJob | null;
+}
+
 interface getFunctionLogsOK {
 	status: "OK";
 	data: TriggerLog[];
@@ -259,15 +280,33 @@ async function executeFunction(
 
 async function installDependencies(
 	id: number,
-): Promise<OKResponse | ErrorResponse> {
+): Promise<DependencyInstallResponse | ErrorResponse> {
 	const response = await fetch(`${BASE_URL}/api/function/${id}/pip-install`, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
 		},
 		credentials: "include",
-		timeoutMs: 10 * 60_000,
+		timeoutMs: 30_000,
 	});
+	return await response.json();
+}
+
+async function getDependencyInstallStatus(
+	id: number,
+	jobId?: number,
+): Promise<DependencyInstallStatusResponse | ErrorResponse> {
+	const query = jobId === undefined ? "" : `?jobId=${jobId}`;
+	const response = await fetch(
+		`${BASE_URL}/api/function/${id}/pip-install${query}`,
+		{
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
+		},
+	);
 	return await response.json();
 }
 
@@ -697,6 +736,7 @@ export {
 	executeFunctionStreaming,
 	getLogsByFuncId,
 	installDependencies,
+	getDependencyInstallStatus,
 	reinstallFfmpeg,
 	reinstallOpencv,
 	getFunctionCorsOrigins,

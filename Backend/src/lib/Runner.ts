@@ -8,6 +8,7 @@ import { createLogger } from "./logger";
 import { getFunctionAppDir } from "./StoragePaths";
 import { generatePythonDependencyInstallScript } from "./RunnerRuntimeScripts";
 import { getRuntimeEnvironment } from "./RunnerContainer";
+import { env } from "./env";
 export { executeFunction } from "./RunnerInvocation";
 export { persistFunctionExecutionLog } from "./RunnerExecutionLog";
 export type { PersistedFunctionExecutionLogInput } from "./RunnerTypes";
@@ -69,13 +70,16 @@ export async function buildPayloadFromPOST(
 export async function installDependencies(
 	functionId: number,
 	functionData: any,
-	files: any[]
-): Promise<boolean | 404> {
+	files: any[],
+	options: { signal?: AbortSignal } = {},
+): Promise<boolean | 404 | "timeout"> {
 	const docker = new Docker();
 	const functionIdStr = String(functionId);
 	const containerName = `shsf_func_${functionIdStr}`;
+	const signal = options.signal;
 
 	try {
+		signal?.throwIfAborted();
 		const container = docker.getContainer(containerName);
 		const requirementsFile = files.find(
 			(file) => file.name === "requirements.txt",
@@ -93,6 +97,7 @@ export async function installDependencies(
 			await fs.writeFile(requirementsPath, requirementsFile.content);
 		}
 
+		signal?.throwIfAborted();
 		try {
 			const inspectInfo = await container.inspect();
 			if (!inspectInfo.State.Running) {
@@ -106,12 +111,25 @@ export async function installDependencies(
 			}
 		}
 
+		signal?.throwIfAborted();
 		const execEnv = await getRuntimeEnvironment(functionData);
 
+		signal?.throwIfAborted();
 		log.info({ functionId }, "Starting dependency installation");
 
+		// Bound the install inside the container as well: destroying the hijacked
+		// stream does not stop a non-TTY exec, and a leftover pip run would race
+		// the next install on the same venv.
+		const timeoutSeconds = Math.max(
+			1,
+			Math.ceil(env.DEPENDENCY_INSTALL_TIMEOUT_MS / 1000),
+		);
 		const exec = await container.exec({
 			Cmd: [
+				"timeout",
+				"--signal=TERM",
+				"--kill-after=1s",
+				String(timeoutSeconds),
 				"/bin/sh",
 				"-c",
 				generatePythonDependencyInstallScript(functionId),
@@ -124,18 +142,36 @@ export async function installDependencies(
 
 		log.debug({ functionId }, "Exec command created for dependency installation");
 
-		const execStream = await exec.start({ hijack: true, stdin: false });
+		signal?.throwIfAborted();
+		const execStream = await exec.start({
+			hijack: true,
+			stdin: false,
+			abortSignal: signal,
+		});
 
 		log.debug({ functionId }, "Exec stream started for dependency installation");
 
 		// Consume the stream to completion (required for exec to finish)
 		await new Promise<void>((resolve, reject) => {
-			execStream.on("end", () => {
+			const onAbort = () => {
+				execStream.destroy();
+				reject(new Error("Dependency installation aborted"));
+			};
+			if (signal?.aborted) {
+				onAbort();
+				return;
+			}
+			const onEnd = () => {
+				signal?.removeEventListener("abort", onAbort);
 				resolve();
-			});
-			execStream.on("error", (error) => {
+			};
+			const onError = (error: Error) => {
+				signal?.removeEventListener("abort", onAbort);
 				reject(error);
-			});
+			};
+			signal?.addEventListener("abort", onAbort, { once: true });
+			execStream.on("end", onEnd);
+			execStream.on("error", onError);
 			// Drain the stream
 			execStream.resume();
 		});
@@ -147,11 +183,18 @@ export async function installDependencies(
 		if (inspect.ExitCode === 0) {
 			log.info({ functionId }, "Dependency installation completed successfully");
 			return true;
+		} else if (inspect.ExitCode === 124 || inspect.ExitCode === 137) {
+			log.warn(
+				{ functionId, exitCode: inspect.ExitCode },
+				"Dependency installation timed out",
+			);
+			return "timeout";
 		} else {
 			log.error({ functionId, exitCode: inspect.ExitCode }, "Dependency installation failed");
 			return false;
 		}
 	} catch (error) {
+		if (signal?.aborted) throw error;
 		log.error({ err: error }, "Error installing dependencies");
 		return false;
 	}

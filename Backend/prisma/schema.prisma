@@ -144,12 +144,13 @@ model Function {
   cache_enabled Boolean @default(false)
   cache_ttl     Int     @default(60) // TTL in seconds
 
-  files      FunctionFile[]
-  folders    FunctionFolder[]
-  triggers   FunctionTrigger[]
-  TriggerLog TriggerLog[]
-  caches     FunctionCache[]
-  shares     ResourceShare[]
+  files              FunctionFile[]
+  folders            FunctionFolder[]
+  triggers           FunctionTrigger[]
+  TriggerLog         TriggerLog[]
+  caches             FunctionCache[]
+  shares             ResourceShare[]
+  dependencyInstalls DependencyInstall[]
 }
 
 model FunctionCache {
@@ -163,6 +164,28 @@ model FunctionCache {
 
   @@unique([functionId, hash])
   @@index([expiresAt])
+}
+
+enum DependencyInstallStatus {
+  running
+  succeeded
+  failed
+}
+
+// One row per manual dependency install. The API returns as soon as the row is
+// created and only starts a new install when the latest row is not running.
+model DependencyInstall {
+  id         Int                     @id @default(autoincrement())
+  functionId Int
+  function   Function                @relation(fields: [functionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  status     DependencyInstallStatus @default(running)
+  message    String?                 @db.VarChar(1024)
+  startedAt  DateTime                @default(now())
+  finishedAt DateTime?
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @updatedAt
+
+  @@index([functionId, status])
 }
 
 model FunctionFile {
