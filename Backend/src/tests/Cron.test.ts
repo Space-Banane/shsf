@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { validateCronExpression } from "../lib/Cron";
-import { processCrons, processGitPulls } from "../lib/SystemCrons";
+import { processCrons, processGitPulls, startSystemCrons } from "../lib/SystemCrons";
 
 describe("validateCronExpression", () => {
     it("returns true for a valid cron expression", async () => {
@@ -15,15 +15,23 @@ describe("validateCronExpression", () => {
 });
 
 describe("processCrons", () => {
-	const buildDependencies = (trigger: Record<string, unknown>) => {
+	const buildDependencies = (
+		trigger: Record<string, unknown>,
+		functionRow: Record<string, unknown> | null = { id: 7 },
+	) => {
 		const update = vi.fn().mockResolvedValue({});
 		const executeFunction = vi
 			.fn()
 			.mockResolvedValue({ exit_code: 0, logs: "", result: null, tooks: [] });
+		const findMany = vi.fn().mockResolvedValue([trigger]);
+		const findUnique = vi.fn().mockResolvedValue(functionRow);
 		const prisma = {
 			functionTrigger: {
-				findMany: vi.fn().mockResolvedValue([trigger]),
+				findMany,
 				update,
+			},
+			function: {
+				findUnique,
 			},
 			functionFile: {
 				findMany: vi.fn().mockResolvedValue([]),
@@ -37,7 +45,7 @@ describe("processCrons", () => {
 				typeof processCrons
 			>[0]["performGitPull"],
 		};
-		return { dependencies, update, executeFunction };
+		return { dependencies, update, executeFunction, findMany, findUnique };
 	};
 
 	it("fires overdue triggers instead of dropping them", async () => {
@@ -49,20 +57,63 @@ describe("processCrons", () => {
 			enabled: true,
 			nextRun: new Date(Date.now() - 60 * 60 * 1000), // missed an hour ago
 			data: null,
-			function: { id: 7 },
 		};
-		const { dependencies, update, executeFunction } = buildDependencies(overdue);
+		const { dependencies, update, executeFunction, findUnique } =
+			buildDependencies(overdue);
 
 		await processCrons(dependencies);
 		// the execution itself runs detached; wait for the microtask queue
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
+		expect(findUnique).toHaveBeenCalledWith({ where: { id: 7 } });
 		expect(executeFunction).toHaveBeenCalledTimes(1);
+		expect(executeFunction.mock.calls[0][1]).toEqual({ id: 7 });
 		const rescheduleCall = update.mock.calls.find(
 			(call) => call[0]?.data?.nextRun instanceof Date,
 		);
 		expect(rescheduleCall).toBeDefined();
 		expect(rescheduleCall![0].data.nextRun.getTime()).toBeGreaterThan(Date.now());
+	});
+
+	it("polls only the fields needed to decide what to run", async () => {
+		const overdue = {
+			id: 44,
+			functionId: 7,
+			cron: "*/5 * * * *",
+			enabled: true,
+			nextRun: new Date(Date.now() - 60 * 60 * 1000),
+			data: null,
+		};
+		const { dependencies, findMany } = buildDependencies(overdue);
+
+		await processCrons(dependencies);
+
+		const query = findMany.mock.calls[0][0];
+		expect(query.select).toEqual({
+			id: true,
+			functionId: true,
+			cron: true,
+			data: true,
+			nextRun: true,
+		});
+		expect(query.include).toBeUndefined();
+	});
+
+	it("skips execution when the function no longer exists", async () => {
+		const overdue = {
+			id: 45,
+			functionId: 8,
+			cron: "*/5 * * * *",
+			enabled: true,
+			nextRun: new Date(Date.now() - 60 * 60 * 1000),
+			data: null,
+		};
+		const { dependencies, executeFunction } = buildDependencies(overdue, null);
+
+		await processCrons(dependencies);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(executeFunction).not.toHaveBeenCalled();
 	});
 
 	it("initializes nextRun without executing when it is null", async () => {
@@ -74,7 +125,6 @@ describe("processCrons", () => {
 			enabled: true,
 			nextRun: null,
 			data: null,
-			function: { id: 7 },
 		};
 		const { dependencies, update, executeFunction } = buildDependencies(fresh);
 
@@ -88,6 +138,40 @@ describe("processCrons", () => {
 				data: { nextRun: expect.any(Date) },
 			}),
 		);
+	});
+});
+
+describe("startSystemCrons", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+	});
+
+	it("polls function crons no more than once every five seconds", async () => {
+		vi.useFakeTimers();
+		const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+		const prisma = {
+			functionTrigger: { findMany: vi.fn().mockResolvedValue([]) },
+		};
+		const dependencies: Parameters<typeof startSystemCrons>[0] = {
+			prisma: prisma as unknown as Parameters<typeof startSystemCrons>[0]["prisma"],
+			executeFunction: vi.fn() as unknown as Parameters<
+				typeof startSystemCrons
+			>[0]["executeFunction"],
+			performGitPull: vi.fn() as unknown as Parameters<
+				typeof startSystemCrons
+			>[0]["performGitPull"],
+		};
+
+		const handle = startSystemCrons(dependencies);
+		// Flush the immediate first tick so it schedules its next poll.
+		await vi.advanceTimersByTimeAsync(0);
+
+		const scheduledDelays = setTimeoutSpy.mock.calls.map((call) => call[1]);
+		expect(scheduledDelays).toContain(5000);
+		expect(scheduledDelays).not.toContain(1000);
+
+		handle.stop();
 	});
 });
 

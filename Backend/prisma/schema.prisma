@@ -221,6 +221,8 @@ model FunctionTrigger {
   lastRun   DateTime? // Last time the trigger was executed
   lastRunSuccessful Boolean? // Whether the most recent execution exited successfully
   nextRun   DateTime? // Next time the trigger is scheduled to run
+
+  @@index([enabled, nextRun])
 }
 
 model TriggerLog {
