@@ -1,5 +1,5 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import type { OnMount } from "@monaco-editor/react";
 import { UserContext } from "../../App";
@@ -27,7 +27,12 @@ import {
 } from "../../services/backend.functions";
 import { getNamespace } from "../../services/backend.namespaces";
 import { getTriggers } from "../../services/backend.triggers";
-import type { Namespace, XFunction } from "../../types/Prisma";
+import type {
+	FunctionFile,
+	Namespace,
+	Trigger,
+	XFunction,
+} from "../../types/Prisma";
 import { exportFunctionToFile } from "../../utils/functionExport";
 import { can } from "../../services/backend.sharing";
 import SharedBadge from "../../components/ui/SharedBadge";
@@ -38,6 +43,76 @@ import {
 } from "../../utils/functionFiles";
 
 const HTML_ONLY_REASON = "This function is set to only serve an .html file";
+const MODAL_PARAM_KEYS = ["modal", "parent", "mode", "target", "file", "trigger"] as const;
+
+function parseFunctionModal(
+	params: URLSearchParams,
+	files: FunctionFile[],
+	triggers: Trigger[],
+): FunctionModal | null {
+	const type = params.get("modal");
+	switch (type) {
+		case "settings":
+		case "env":
+		case "guests":
+		case "git":
+		case "share":
+		case "ai":
+		case "loadDefault":
+		case "dependencies":
+		case "createTrigger":
+		case "logs":
+			return { type };
+		case "createFile":
+			return { type, parentPath: params.get("parent") ?? "" };
+		case "folder":
+			return {
+				type,
+				mode: params.get("mode") === "rename" ? "rename" : "create",
+				parentPath: params.get("parent") ?? "",
+				targetPath: params.get("target") ?? "",
+			};
+		case "renameFile":
+		case "deleteFile": {
+			const file = files.find(
+				(candidate) => String(candidate.id) === params.get("file"),
+			);
+			return file ? { type, file } : null;
+		}
+		case "editTrigger":
+		case "deleteTrigger": {
+			const trigger = triggers.find(
+				(candidate) => String(candidate.id) === params.get("trigger"),
+			);
+			return trigger ? { type, trigger } : null;
+		}
+		default:
+			return null;
+	}
+}
+
+function writeFunctionModal(
+	modal: FunctionModal | null,
+	base: URLSearchParams,
+): URLSearchParams {
+	const params = new URLSearchParams(base);
+	for (const key of MODAL_PARAM_KEYS) params.delete(key);
+	if (!modal) return params;
+
+	params.set("modal", modal.type);
+	if (modal.type === "createFile") {
+		params.set("parent", modal.parentPath);
+	} else if (modal.type === "folder") {
+		params.set("mode", modal.mode);
+		params.set("parent", modal.parentPath);
+		params.set("target", modal.targetPath);
+	} else if (modal.type === "renameFile" || modal.type === "deleteFile") {
+		params.set("file", String(modal.file.id));
+	} else if (modal.type === "editTrigger" || modal.type === "deleteTrigger") {
+		params.set("trigger", String(modal.trigger.id));
+	}
+	return params;
+}
 
 /**
  * Route for a single function. It loads the function and composes the editor,
@@ -48,11 +123,11 @@ function FunctionDetail() {
 	const { id } = useParams<{ id: string }>();
 	const functionId = id ? parseInt(id) : null;
 	const { user } = useContext(UserContext);
+	const [searchParams, setSearchParams] = useSearchParams();
 
 	const [functionData, setFunctionData] = useState<XFunction | null>(null);
 	const [namespace, setNamespace] = useState<Namespace | null>(null);
 	const [loading, setLoading] = useState(true);
-	const [modal, setModal] = useState<FunctionModal | null>(null);
 	const [resultModalsEnabled, setResultModalsEnabled] = useState(true);
 
 	const htmlOnly = isHtmlOnlyFunction(functionData);
@@ -60,7 +135,6 @@ function FunctionDetail() {
 	const canEdit = can(functionData?.access, "edit");
 	const canExecute = can(functionData?.access, "execute");
 	const aiEnabled = Boolean(user?.apiKeyConfigured);
-	const closeModal = useCallback(() => setModal(null), []);
 
 	const editorView = useEditorViewState();
 	const execution = useFunctionExecution({ functionId, resultModalsEnabled });
@@ -78,6 +152,7 @@ function FunctionDetail() {
 	const logs = useFunctionLogs(
 		functionId,
 		!execution.running && execution.exitCode !== null,
+		searchParams.get("modal") === "logs",
 	);
 	const triggers = useFunctionTriggers(functionId, {
 		onRan: logs.refreshSilently,
@@ -86,6 +161,21 @@ function FunctionDetail() {
 		onFinished: () => void logs.refreshSilently(),
 	});
 	const output = useAutoScroll(execution.consoleOutput);
+	const modal = useMemo(
+		() => parseFunctionModal(searchParams, files.files, triggers.triggers),
+		[searchParams, files.files, triggers.triggers],
+	);
+	const openModal = useCallback(
+		(next: FunctionModal) => {
+			setSearchParams((current) => writeFunctionModal(next, current));
+		},
+		[setSearchParams],
+	);
+	const closeModal = useCallback(() => {
+		setSearchParams((current) => writeFunctionModal(null, current), {
+			replace: true,
+		});
+	}, [setSearchParams]);
 
 	// The backend runs the persisted files, so persist pending edits first. A
 	// failed save cancels the run instead of executing an older version.
@@ -180,21 +270,17 @@ function FunctionDetail() {
 		void loadData();
 	}, [loadData]);
 
-	// `?preopen=guests` deep-links straight into the guest dialog.
+	// `?preopen=guests` still works for links created before dialogs were URL-backed.
 	useEffect(() => {
-		const params = new URLSearchParams(window.location.search);
-		if (params.get("preopen") === "guests") setModal({ type: "guests" });
-
-		return () => {
-			params.delete("preopen");
-			const query = params.toString();
-			window.history.replaceState(
-				{},
-				"",
-				window.location.pathname + (query ? "?" + query : ""),
-			);
-		};
-	}, []);
+		if (!searchParams.has("preopen")) return;
+		const params = new URLSearchParams(searchParams);
+		const preopen = params.get("preopen");
+		params.delete("preopen");
+		if (preopen === "guests" && !params.has("modal")) {
+			params.set("modal", "guests");
+		}
+		setSearchParams(params, { replace: true });
+	}, [searchParams, setSearchParams]);
 
 	const updateEnvironment = async (env: { name: string; value: string }[]) => {
 		if (functionId === null) return false;
@@ -276,7 +362,7 @@ function FunctionDetail() {
 					triggers={triggers.triggers}
 					onRunTrigger={(trigger) => void triggers.run(trigger)}
 					tooks={execution.tooks}
-					onOpenModal={setModal}
+					onOpenModal={openModal}
 				/>
 
 				<div className="flex-1 min-w-0 space-y-4">
@@ -304,14 +390,14 @@ function FunctionDetail() {
 						onRunParamsChange={execution.setRunParams}
 						resultModalsEnabled={resultModalsEnabled}
 						onToggleResultModals={() => setResultModalsEnabled((on) => !on)}
-						onManageDependencies={() => setModal({ type: "dependencies" })}
+						onManageDependencies={() => openModal({ type: "dependencies" })}
 						onInstallDependencies={dependencies.install}
 						onLoadDefaults={() => {
 							if (!files.activeFile) {
 								toast.error("No file is currently selected.");
 								return;
 							}
-							setModal({ type: "loadDefault" });
+							openModal({ type: "loadDefault" });
 						}}
 						onSave={files.saveActiveFile}
 						onExport={() =>
@@ -333,7 +419,7 @@ function FunctionDetail() {
 						code={files.code}
 						onChange={files.setCode}
 						onMount={handleEditorMount}
-						onOpenVersionControl={() => setModal({ type: "git" })}
+						onOpenVersionControl={() => openModal({ type: "git" })}
 						readOnly={!canEdit}
 					/>
 

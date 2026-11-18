@@ -119,14 +119,14 @@ describe("useFunctionLogs", () => {
 	});
 
 	it("does not poll while the log view is closed", async () => {
-		renderHook(() => useFunctionLogs(1, false));
+		renderHook(() => useFunctionLogs(1, false, false));
 
 		await act(async () => void vi.advanceTimersByTime(30_000));
 		expect(getLogsByFuncId).not.toHaveBeenCalled();
 	});
 
 	it("loads immediately, then polls every 10 seconds while the card is expanded", async () => {
-		const { result } = renderHook(() => useFunctionLogs(1, false));
+		const { result } = renderHook(() => useFunctionLogs(1, false, false));
 		act(() => result.current.setExpanded(true));
 		await act(async () => {});
 		expect(getLogsByFuncId).toHaveBeenCalledTimes(1);
@@ -136,15 +136,18 @@ describe("useFunctionLogs", () => {
 	});
 
 	it("polls while the logs modal is open and stops when it closes", async () => {
-		const { result } = renderHook(() => useFunctionLogs(1, false));
-		act(() => result.current.setModalOpen(true));
+		const { rerender } = renderHook(
+			({ modalOpen }) => useFunctionLogs(1, false, modalOpen),
+			{ initialProps: { modalOpen: false } },
+		);
+		rerender({ modalOpen: true });
 		await act(async () => {});
 		expect(getLogsByFuncId).toHaveBeenCalledTimes(1);
 
 		await act(async () => void vi.advanceTimersByTime(10_000));
 		expect(getLogsByFuncId).toHaveBeenCalledTimes(2);
 
-		act(() => result.current.setModalOpen(false));
+		rerender({ modalOpen: false });
 		vi.mocked(getLogsByFuncId).mockClear();
 
 		await act(async () => void vi.advanceTimersByTime(30_000));
@@ -152,7 +155,7 @@ describe("useFunctionLogs", () => {
 	});
 
 	it("pauses polling while the tab is hidden and refreshes when it is visible again", async () => {
-		const { result } = renderHook(() => useFunctionLogs(1, false));
+		const { result } = renderHook(() => useFunctionLogs(1, false, false));
 		act(() => result.current.setExpanded(true));
 		await act(async () => {});
 		vi.mocked(getLogsByFuncId).mockClear();
@@ -172,7 +175,7 @@ describe("useFunctionLogs", () => {
 	});
 
 	it("does not toggle the loading spinner for background refreshes", async () => {
-		const { result } = renderHook(() => useFunctionLogs(1, false));
+		const { result } = renderHook(() => useFunctionLogs(1, false, false));
 		act(() => result.current.setExpanded(true));
 		await act(async () => {});
 		expect(result.current.isLoading).toBe(false);
@@ -188,7 +191,7 @@ describe("useFunctionLogs", () => {
 	});
 
 	it("refreshes silently once a run settles, even while the log view is closed", async () => {
-		const { rerender } = renderHook(({ settled }) => useFunctionLogs(1, settled), {
+		const { rerender } = renderHook(({ settled }) => useFunctionLogs(1, settled, false), {
 			initialProps: { settled: false },
 		});
 		await act(async () => {});
@@ -204,7 +207,7 @@ describe("useFunctionLogs", () => {
 			status: "OK",
 			data: [{ id: 1 }] as never,
 		});
-		const { result } = renderHook(() => useFunctionLogs(1, false));
+		const { result } = renderHook(() => useFunctionLogs(1, false, false));
 		act(() => result.current.setExpanded(true));
 		await act(async () => {});
 		expect(result.current.logs).toEqual([{ id: 1 }]);

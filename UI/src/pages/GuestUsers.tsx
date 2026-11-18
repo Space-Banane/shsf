@@ -119,7 +119,7 @@ export default function GuestUsersPage() {
 								{selectedGuest.permittedFunctions.map((fnId, idx) => (
 									<li key={fnId}>
 										<a
-											href={`/functions/${fnId}?preopen=guests`}
+											href={`/functions/${fnId}?modal=guests`}
 											className="flex items-center justify-between px-5 py-3 hover:bg-white/[0.03] transition-colors group"
 										>
 											<span className="text-sm font-medium text-text/85 group-hover:text-primary transition-colors">

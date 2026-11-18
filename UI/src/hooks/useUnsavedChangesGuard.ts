@@ -19,7 +19,13 @@ export function useUnsavedChangesGuard(hasUnsavedChanges: boolean) {
 		{ capture: true },
 	);
 
-	const blocker = useBlocker(hasUnsavedChanges);
+	// Search-only changes back the page's dialogs in the URL; they do not leave
+	// the page, so they must not trigger the discard-edits prompt.
+	const blocker = useBlocker(
+		({ currentLocation, nextLocation }) =>
+			hasUnsavedChanges &&
+			currentLocation.pathname !== nextLocation.pathname,
+	);
 
 	useEffect(() => {
 		if (blocker.state !== "blocked" || promptOpenRef.current) return;

@@ -139,7 +139,7 @@ export function FunctionSidebar({
 				showDetails={logs.expanded}
 				onToggleDetails={() => logs.setExpanded((open) => !open)}
 				onRefreshLogs={logs.refresh}
-				onViewLogs={() => logs.setModalOpen(true)}
+				onViewLogs={() => onOpenModal({ type: "logs" })}
 				functionId={functionData.id}
 				disabled={htmlOnly}
 				disabledReason={HTML_ONLY_REASON}
