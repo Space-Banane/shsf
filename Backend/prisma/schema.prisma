@@ -232,6 +232,8 @@ model TriggerLog {
   updatedAt DateTime @updatedAt
 
   analysis LogAnalysis?
+
+  @@index([createdAt])
 }
 
 enum LogAnalysisStatus {
