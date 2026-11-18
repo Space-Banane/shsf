@@ -69,10 +69,14 @@ export const server = new Server(
 		port: env.PORT,
 		bind: "0.0.0.0",
 		version: false,
-		performance: { lastModified: false, eTag: false },
+		// Last-Modified gives static files cheap validators and 304 responses.
+		// ETags are left off: hashing every response body costs more than it saves.
+		performance: { lastModified: true, eTag: false },
 		logging: { warn: true, debug: false, error: true },
 		proxy: {
 			enabled: true,
+			// Proxied requests are not compressed unless this is enabled.
+			compress: true,
 			credentials: {
 				authenticate: false,
 			},
@@ -102,8 +106,12 @@ if (hasUiBuild) {
 }
 
 server.notFound(async (ctr) => {
+	// A 404 (for example a stale hashed asset) must never be cached by browsers or CDNs.
+	ctr.headers.set("Cache-Control", "no-store");
 	const STATIC_EXT = /\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|map|json|txt|xml|webp|avif|mp4|webm)(\?.*)?$/i;
 	if (!ctr.url.path.startsWith("/api") && !STATIC_EXT.test(ctr.url.path) && hasUiIndex) {
+		// The SPA shell references hashed bundles, so it must be revalidated on every load.
+		ctr.headers.set("Cache-Control", "no-cache");
 		return ctr.status(200, "OK").printFile(uiIndexPath, { addTypes: true });
 	}
 

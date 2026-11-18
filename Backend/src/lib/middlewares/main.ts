@@ -1,7 +1,7 @@
 import { Middleware } from "rjweb-server";
 import { createLogger } from "../logger";
 import { env } from "../env";
-import { IGNORE_PATHS, INJECT_HEADERS, requestLogUrl } from "../static";
+import { IGNORE_PATHS, IMMUTABLE_CACHE_CONTROL, INJECT_HEADERS, isHashedAssetPath, requestLogUrl } from "../static";
 
 const log = createLogger("HTTP");
 
@@ -20,6 +20,10 @@ export const mainMiddleware = new Middleware<{}, {}>("Main Middleware", "1.0.0")
 
 		for (const [header, value] of Object.entries(INJECT_HEADERS)) {
 			ctr.headers.set(header, value);
+		}
+
+		if (isHashedAssetPath(ctr.url.path)) {
+			ctr.headers.set("Cache-Control", IMMUTABLE_CACHE_CONTROL);
 		}
 	})
 	.httpRequestFinish(async (_config, _server, _context, ctr, ms) => {

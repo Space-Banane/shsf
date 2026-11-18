@@ -58,4 +58,15 @@ describe("parseEnvironment", () => {
 			"RETENTION_LOG_DAYS",
 		);
 	});
+
+	it("defaults Prisma query logging to off and enables it explicitly", () => {
+		const base = {
+			...productionEnvironment,
+			INSTANCE_SECRET: "a".repeat(MIN_INSTANCE_SECRET_LENGTH),
+		};
+
+		expect(parseEnvironment(base).PRISMA_QUERY_LOGGING).toBe(false);
+		expect(parseEnvironment({ ...base, PRISMA_QUERY_LOGGING: "false" }).PRISMA_QUERY_LOGGING).toBe(false);
+		expect(parseEnvironment({ ...base, PRISMA_QUERY_LOGGING: "true" }).PRISMA_QUERY_LOGGING).toBe(true);
+	});
 });

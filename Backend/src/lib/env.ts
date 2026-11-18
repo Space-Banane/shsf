@@ -50,6 +50,12 @@ const baseSchema = z.object({
 	UPDATE_COMPOSE_FILES: z.string().optional(),
 	UPDATE_COMPOSE_ENV_FILES: z.string().optional(),
 	UPDATE_COMPOSE_SERVICE: z.string().optional(),
+	// Prisma query logging is off by default: every query at info level is pure
+	// overhead for a normal deployment and nothing consumes those events.
+	PRISMA_QUERY_LOGGING: z
+		.enum(["true", "false"])
+		.transform((v) => v === "true")
+		.default(false),
 	REQUEST_DEBUGGING: z
 		.enum(["true", "false"])
 		.transform((v) => v === "true")
