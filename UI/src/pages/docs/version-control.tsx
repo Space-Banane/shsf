@@ -129,6 +129,30 @@ export const DocsVersionControl = () => {
 				untouched. The file manager becomes available immediately.
 			</p>
 
+			<h2>File tree exclusions</h2>
+			<p>
+				The function file tree lists names and metadata only. Content is
+				loaded when you select a file. To keep large repositories fast to
+				open, the tree never descends into dependency or build output
+				directories:
+			</p>
+			<ul>
+				<li>
+					<code>.git</code>, <code>node_modules</code>, <code>vendor</code>
+				</li>
+				<li>
+					<code>dist</code>, <code>build</code>, <code>.next</code>,{" "}
+					<code>out</code>
+				</li>
+				<li>
+					<code>__pycache__</code>, <code>.venv</code>, <code>venv</code>
+				</li>
+			</ul>
+			<p>
+				Those paths still exist in the app directory and the runtime uses
+				them normally; they are only hidden from the file manager.
+			</p>
+
 			<h2>Monorepo pattern</h2>
 			<p>
 				Connect multiple functions to the same repository by using different

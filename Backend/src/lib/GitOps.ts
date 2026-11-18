@@ -8,6 +8,10 @@ import {
 	getFunctionAppDir as getStorageFunctionAppDir,
 	getGitRepoDir as getStorageGitRepoDir,
 } from "./StoragePaths";
+import {
+	getFunctionFilePath,
+	isValidFunctionFilePath,
+} from "./FunctionFilePaths";
 
 const execFileAsync = promisify(execFile);
 
@@ -116,22 +120,49 @@ export async function removeGitMetadata(appDir: string): Promise<void> {
 	}
 }
 
+export interface GitAppFileMetadata {
+	id: number;
+	name: string;
+	updatedAt: Date;
+}
+
+/**
+ * Directories the git file tree never lists or traverses.
+ *
+ * Git-backed functions may vendor their entire dependency tree or build output
+ * into the repository. Those directories are large, are not editable from the
+ * file manager (git mode is read-only), and are recreated by the runtime, so
+ * listing them would make opening a function needlessly slow. Keep this list in
+ * sync with the "File tree exclusions" section in the version-control docs.
+ */
+export const GIT_APP_EXCLUDED_DIRECTORIES = new Set([
+	".git",
+	"node_modules",
+	"vendor",
+	"dist",
+	"build",
+	".next",
+	"out",
+	"__pycache__",
+	".venv",
+	"venv",
+]);
+
 export async function listGitAppFiles(
 	functionId: number,
-): Promise<Array<{ id: number; name: string; content: string; functionId: number }>> {
+): Promise<GitAppFileMetadata[]> {
 	const appDir = getFuncAppDir(functionId);
-	const files: Array<{ id: number; name: string; content: string; functionId: number }> = [];
+	const files: GitAppFileMetadata[] = [];
 	let virtualId = -1;
 
 	async function walk(currentDir: string): Promise<void> {
 		const entries = await fs.readdir(currentDir, { withFileTypes: true });
 		for (const entry of entries) {
-			if (entry.name === ".git") {
-				continue;
-			}
-
 			const fullPath = path.join(currentDir, entry.name);
 			if (entry.isDirectory()) {
+				if (GIT_APP_EXCLUDED_DIRECTORIES.has(entry.name)) {
+					continue;
+				}
 				await walk(fullPath);
 				continue;
 			}
@@ -139,11 +170,11 @@ export async function listGitAppFiles(
 				continue;
 			}
 
+			const stat = await fs.stat(fullPath);
 			files.push({
 				id: virtualId--,
 				name: path.relative(appDir, fullPath).split(path.sep).join("/"),
-				content: await fs.readFile(fullPath, "utf8"),
-				functionId,
+				updatedAt: stat.mtime,
 			});
 		}
 	}
@@ -154,6 +185,33 @@ export async function listGitAppFiles(
 
 	await walk(appDir);
 	return files;
+}
+
+/**
+ * Reads one file from a git-backed function's app directory. Returns `null`
+ * for invalid paths, excluded directories, missing files, or anything that is
+ * not a regular file.
+ */
+export async function readGitAppFile(
+	functionId: number,
+	name: string,
+): Promise<string | null> {
+	if (!isValidFunctionFilePath(name)) return null;
+	if (name.split("/").some((segment) => GIT_APP_EXCLUDED_DIRECTORIES.has(segment))) {
+		return null;
+	}
+
+	const appDir = getFuncAppDir(functionId);
+	if (!fsSync.existsSync(appDir)) return null;
+
+	try {
+		const filePath = getFunctionFilePath(appDir, name);
+		const stat = await fs.stat(filePath);
+		if (!stat.isFile()) return null;
+		return await fs.readFile(filePath, "utf8");
+	} catch {
+		return null;
+	}
 }
 
 /**

@@ -20,6 +20,11 @@ interface CreateOrUpdateFileResponse {
 	data: FunctionFile;
 }
 
+interface FileContentResponse {
+	status: "OK";
+	data: { name: string; content: string };
+}
+
 interface FolderListResponse {
 	status: "OK";
 	data: FunctionFolder[];
@@ -38,6 +43,22 @@ async function getFiles(functionId: number) {
 	);
 
 	const data = (await response.json()) as FileListResponse | ErrorResponse;
+	return data;
+}
+
+async function getFileContent(functionId: number, filename: string) {
+	const response = await fetch(
+		`${BASE_URL}/api/function/${functionId}/file-content?name=${encodeURIComponent(filename)}`,
+		{
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
+		},
+	);
+
+	const data = (await response.json()) as FileContentResponse | ErrorResponse;
 	return data;
 }
 
@@ -199,6 +220,7 @@ async function loadPossibleDefaults() {
 
 export {
 	getFiles,
+	getFileContent,
 	getFolders,
 	createOrUpdateFile,
 	createFolder,
@@ -213,6 +235,7 @@ export type {
 	OKResponse,
 	ErrorResponse,
 	FileListResponse,
+	FileContentResponse,
 	CreateOrUpdateFileResponse,
 	FolderListResponse,
 	DefaultTemplate,

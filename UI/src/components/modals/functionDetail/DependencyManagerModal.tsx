@@ -18,6 +18,8 @@ interface DependencyManagerModalProps {
 	functionId: number;
 	image: string;
 	files: FunctionFile[];
+	/** Content is fetched on demand, so the modal asks for the selected file. */
+	loadFileContent: (file: FunctionFile) => Promise<string | null>;
 	onSave: (filename: string, content: string) => Promise<boolean>;
 }
 
@@ -73,6 +75,7 @@ function DependencyManagerModal({
 	functionId,
 	image,
 	files,
+	loadFileContent,
 	onSave,
 }: DependencyManagerModalProps) {
 	const runtime = getRuntime(image);
@@ -94,6 +97,8 @@ function DependencyManagerModal({
 	const [selectedFilename, setSelectedFilename] = useState("");
 	const [draft, setDraft] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [loadingContent, setLoadingContent] = useState(false);
+	const [contentError, setContentError] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [saved, setSaved] = useState(false);
 
@@ -108,16 +113,50 @@ function DependencyManagerModal({
 
 	useEffect(() => {
 		if (!isOpen || !runtime || !selectedFilename) return;
-		setDraft(
-			selectedFile?.content ??
-				getDefaultContent(runtime, selectedFilename, functionId, image),
+		const fallback = getDefaultContent(
+			runtime,
+			selectedFilename,
+			functionId,
+			image,
 		);
 		setError(null);
+		setContentError(null);
 		setSaved(false);
-	}, [functionId, image, isOpen, runtime, selectedFile, selectedFilename]);
+
+		if (!selectedFile) {
+			setDraft(fallback);
+			setLoadingContent(false);
+			return;
+		}
+
+		let cancelled = false;
+		setDraft(fallback);
+		setLoadingContent(true);
+		void loadFileContent(selectedFile).then((content) => {
+			if (cancelled) return;
+			if (content === null) {
+				setDraft("");
+				setContentError("The dependency file could not be loaded.");
+			} else {
+				setDraft(content);
+			}
+			setLoadingContent(false);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		functionId,
+		image,
+		isOpen,
+		loadFileContent,
+		runtime,
+		selectedFile,
+		selectedFilename,
+	]);
 
 	const handleSave = async () => {
-		if (!selectedFilename) return;
+		if (!selectedFilename || loadingContent || contentError) return;
 		setLoading(true);
 		setError(null);
 		setSaved(false);
@@ -132,7 +171,10 @@ function DependencyManagerModal({
 		}
 	};
 
-	useShiftEnterSubmit(() => handleSave(), isOpen && !loading);
+	useShiftEnterSubmit(
+		() => handleSave(),
+		isOpen && !loading && !loadingContent && !contentError,
+	);
 
 	if (!runtime) return null;
 
@@ -144,7 +186,7 @@ function DependencyManagerModal({
 			onClose={onClose}
 			title={`${runtimeLabel} Dependencies`}
 			maxWidth="xl"
-			isLoading={loading}
+			isLoading={loading || loadingContent}
 		>
 			<div className="space-y-5">
 				<div>
@@ -160,7 +202,7 @@ function DependencyManagerModal({
 					</p>
 				</div>
 
-				<ModalError message={error} />
+				<ModalError message={error ?? contentError} />
 				{saved && (
 					<div className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
 						{selectedFilename} saved.{" "}
@@ -178,7 +220,7 @@ function DependencyManagerModal({
 						className={inputClass}
 						value={selectedFilename}
 						onChange={(event) => setSelectedFilename(event.target.value)}
-						disabled={loading}
+						disabled={loading || loadingContent}
 					>
 						{dependencyFiles.map((filename) => (
 							<option key={filename} value={filename}>
@@ -198,7 +240,7 @@ function DependencyManagerModal({
 							setSaved(false);
 						}}
 						spellCheck={false}
-						disabled={loading}
+						disabled={loading || loadingContent || Boolean(contentError)}
 						aria-label={`${selectedFilename} content`}
 					/>
 					<p className="mt-1.5 text-xs text-muted/70">
@@ -210,7 +252,16 @@ function DependencyManagerModal({
 					<button className={cancelBtnClass} onClick={onClose} disabled={loading}>
 						Close
 					</button>
-					<button className={primaryBtnClass} onClick={handleSave} disabled={loading || !selectedFilename}>
+					<button
+						className={primaryBtnClass}
+						onClick={handleSave}
+						disabled={
+							loading ||
+							loadingContent ||
+							Boolean(contentError) ||
+							!selectedFilename
+						}
+					>
 						Save Dependencies
 					</button>
 				</ModalFooter>

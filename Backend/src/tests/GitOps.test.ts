@@ -3,7 +3,9 @@ import path from "path";
 import { afterEach, describe, it, expect } from "vitest";
 import {
 	buildAuthUrl,
+	GIT_APP_EXCLUDED_DIRECTORIES,
 	listGitAppFiles,
+	readGitAppFile,
 	removeGitMetadata,
 	stripCredentialsFromUrl,
 } from "../lib/GitOps";
@@ -61,7 +63,7 @@ describe("stripCredentialsFromUrl", () => {
 });
 
 describe("git app file helpers", () => {
-	it("lists files from the app directory without exposing .git contents", async () => {
+	it("lists file metadata without reading content or exposing .git", async () => {
 		const functionId = 900001;
 		testFunctionIds.add(functionId);
 		const appDir = getFunctionAppDir(functionId);
@@ -77,8 +79,50 @@ describe("git app file helpers", () => {
 			"main.py",
 			"src/helper.py",
 		]);
-		expect(files.find((file) => file.name === "main.py")?.content).toBe("print('hi')");
+		for (const file of files) {
+			expect(Object.keys(file).sort()).toEqual(["id", "name", "updatedAt"]);
+			expect(file.updatedAt).toBeInstanceOf(Date);
+		}
 		expect(files.some((file) => file.name.includes(".git"))).toBe(false);
+	});
+
+	it("skips dependency and build output directories", async () => {
+		const functionId = 900003;
+		testFunctionIds.add(functionId);
+		const appDir = getFunctionAppDir(functionId);
+		await fs.mkdir(path.join(appDir, "src"), { recursive: true });
+		await fs.writeFile(path.join(appDir, "main.py"), "print('hi')");
+		await fs.writeFile(path.join(appDir, "src", "helper.py"), "value = 1");
+		for (const directory of GIT_APP_EXCLUDED_DIRECTORIES) {
+			await fs.mkdir(path.join(appDir, directory), { recursive: true });
+			await fs.writeFile(
+				path.join(appDir, directory, "ignored.js"),
+				"module.exports = 1;",
+			);
+		}
+
+		const files = await listGitAppFiles(functionId);
+
+		expect(files.map((file) => file.name).sort()).toEqual([
+			"main.py",
+			"src/helper.py",
+		]);
+	});
+
+	it("reads a single file and refuses excluded or traversing paths", async () => {
+		const functionId = 900004;
+		testFunctionIds.add(functionId);
+		const appDir = getFunctionAppDir(functionId);
+		await fs.mkdir(path.join(appDir, "node_modules"), { recursive: true });
+		await fs.writeFile(path.join(appDir, "main.py"), "print('hi')");
+		await fs.writeFile(
+			path.join(appDir, "node_modules", "dep.js"),
+			"module.exports = 1;",
+		);
+
+		await expect(readGitAppFile(functionId, "main.py")).resolves.toBe("print('hi')");
+		await expect(readGitAppFile(functionId, "node_modules/dep.js")).resolves.toBeNull();
+		await expect(readGitAppFile(functionId, "../outside.py")).resolves.toBeNull();
 	});
 
 	it("removes git metadata while leaving app files in place", async () => {

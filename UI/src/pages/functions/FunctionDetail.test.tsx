@@ -1,7 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import FunctionDetail from "./FunctionDetail";
-import { createOrUpdateFile, getFiles, getFolders } from "../../services/backend.files";
+import {
+	createOrUpdateFile,
+	getFileContent,
+	getFiles,
+	getFolders,
+} from "../../services/backend.files";
 import { executeFunctionStreaming, getFunctionById } from "../../services/backend.functions";
 import { getNamespace } from "../../services/backend.namespaces";
 import { getTriggers } from "../../services/backend.triggers";
@@ -67,6 +72,12 @@ function mockBackend(overrides: Partial<XFunction> = {}, files = [file(1, "main.
 		data: { ...baseFunction, ...overrides },
 	} as never);
 	vi.mocked(getFiles).mockResolvedValue({ status: "OK", data: files });
+	vi.mocked(getFileContent).mockImplementation(async (_functionId, name) => {
+		const match = files.find((entry) => entry.name === name);
+		return match
+			? { status: "OK", data: { name, content: match.content } }
+			: { status: "FAILED", code: "NOT_FOUND", message: "File not found" };
+	});
 	vi.mocked(getFolders).mockResolvedValue({ status: "OK", data: [] });
 	vi.mocked(getTriggers).mockResolvedValue({ status: "OK", data: [] });
 	vi.mocked(getNamespace).mockResolvedValue({ status: "OK", data: { id: 2, name: "prod" } } as never);

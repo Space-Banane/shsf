@@ -400,13 +400,20 @@ function FunctionDetail() {
 							openModal({ type: "loadDefault" });
 						}}
 						onSave={files.saveActiveFile}
-						onExport={() =>
-							void exportFunctionToFile({
+						onExport={async () => {
+							const exportFiles = await files.readAllFileContents();
+							if (!exportFiles) {
+								toast.error(
+									"Error exporting: could not load every file.",
+								);
+								return;
+							}
+							await exportFunctionToFile({
 								functionData,
-								files: files.files,
+								files: exportFiles,
 								triggers: triggers.triggers,
-							})
-						}
+							});
+						}}
 						onRun={handleRun}
 						canEdit={canEdit}
 						canExecute={canExecute}
@@ -421,6 +428,10 @@ function FunctionDetail() {
 						onMount={handleEditorMount}
 						onOpenVersionControl={() => openModal({ type: "git" })}
 						readOnly={!canEdit}
+						loading={files.contentState === "loading"}
+						error={
+							files.contentState === "error" ? files.contentError : null
+						}
 					/>
 
 					<ConsoleCard

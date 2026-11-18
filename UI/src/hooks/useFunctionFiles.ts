@@ -6,6 +6,7 @@ import {
 	createOrUpdateFile,
 	deleteFile,
 	deleteFolder,
+	getFileContent,
 	getFiles,
 	getFolders,
 	loadDefaultContent,
@@ -13,7 +14,7 @@ import {
 	renameFolder,
 } from "../services/backend.files";
 import type { FunctionFile, FunctionFolder } from "../types/Prisma";
-import { isHtmlFilename } from "../utils/functionFiles";
+import { downloadTextFile, isHtmlFilename } from "../utils/functionFiles";
 import type { PersistFile } from "../utils/functionUpload";
 
 export interface EditorViewStateStore {
@@ -33,6 +34,12 @@ interface Options {
 export type FolderMode = "create" | "rename";
 
 /**
+ * Content is transferred separately from the file list, so the editor has to
+ * track whether the open file's text is in the client already.
+ */
+export type FileContentState = "idle" | "loading" | "ready" | "error";
+
+/**
  * Owns the function's files and folders together with the editor buffer: which
  * file is open, its unsaved text, and every create/rename/delete/save flow that
  * has to keep those three in sync.
@@ -49,6 +56,8 @@ export function useFunctionFiles({
 	const [activeFile, setActiveFile] = useState<FunctionFile | null>(null);
 	const [code, setCode] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
+	const [contentState, setContentState] = useState<FileContentState>("idle");
+	const [contentError, setContentError] = useState<string | null>(null);
 
 	// Async flows outlive the render that started them, so they read the open
 	// file through a ref instead of a stale closure.
@@ -58,48 +67,119 @@ export function useFunctionFiles({
 	filesRef.current = files;
 	const codeRef = useRef(code);
 	codeRef.current = code;
+	const contentStateRef = useRef(contentState);
+	contentStateRef.current = contentState;
+	// Each content load gets a token so a slow response for a file the user
+	// already left cannot overwrite the open editor.
+	const contentRequestRef = useRef(0);
 	const initialSelectionDone = useRef(false);
 
 	const savedActiveFile = activeFile
 		? (files.find((file) => file.id === activeFile.id) ?? activeFile)
 		: null;
 	const hasUnsavedChanges = Boolean(
-		activeFile && code !== (savedActiveFile?.content ?? ""),
+		activeFile &&
+			contentState === "ready" &&
+			code !== (savedActiveFile?.content ?? ""),
 	);
 	const canSave = Boolean(
 		activeFile && hasUnsavedChanges && !saving && !readOnly,
 	);
 
-	const openFile = useCallback((file: FunctionFile | null) => {
-		setActiveFile(file);
-		setCode(file ? file.content || "" : null);
+	const applyContent = useCallback((file: FunctionFile, content: string) => {
+		setFiles((previous) =>
+			previous.map((entry) =>
+				entry.id === file.id ? { ...entry, content } : entry,
+			),
+		);
+		setActiveFile((current) =>
+			current && current.id === file.id ? { ...current, content } : current,
+		);
+		setCode(content);
+		setContentState("ready");
 	}, []);
 
+	const loadContent = useCallback(
+		async (file: FunctionFile) => {
+			if (functionId === null) return false;
+			const token = ++contentRequestRef.current;
+			setContentState("loading");
+			setContentError(null);
+			setCode(null);
+
+			try {
+				const data = await getFileContent(functionId, file.name);
+				if (token !== contentRequestRef.current) return false;
+				if (data.status !== "OK") {
+					setContentState("error");
+					setContentError(data.message);
+					return false;
+				}
+				applyContent(file, data.data.content ?? "");
+				return true;
+			} catch (error) {
+				if (token !== contentRequestRef.current) return false;
+				console.error("Error loading file:", error);
+				setContentState("error");
+				setContentError("An error occurred while loading the file.");
+				return false;
+			}
+		},
+		[applyContent, functionId],
+	);
+
+	const openFile = useCallback(
+		(file: FunctionFile | null) => {
+			contentRequestRef.current += 1;
+			setActiveFile(file);
+			setContentError(null);
+			if (!file) {
+				setCode(null);
+				setContentState("idle");
+				return;
+			}
+			void loadContent(file);
+		},
+		[loadContent],
+	);
+
 	/**
-	 * Replaces the file list from the server. The open file stays open (and takes
-	 * the server's content unless the user has unsaved edits); if it no longer
-	 * exists, or nothing was ever opened, the startup file is selected.
+	 * Replaces the file list from the server. Content that was already loaded
+	 * is kept, so a metadata refresh never blanks the editor. The open file
+	 * stays open; if it no longer exists, or nothing was ever opened, the
+	 * startup file is selected and its content is fetched.
 	 */
 	const replaceFiles = useCallback(
 		(next: FunctionFile[], startupFile?: string | null) => {
-			const current = activeFileRef.current;
-			const updated = current && next.find((file) => file.id === current.id);
-			const previousSaved = current
-				? (filesRef.current.find((file) => file.id === current.id) ?? current)
-				: null;
-			setFiles(next);
+			const previous = filesRef.current;
+			const merged = next.map((file) => {
+				const existing = previous.find((entry) => entry.id === file.id);
+				return {
+					...file,
+					content: file.content ?? existing?.content ?? "",
+				};
+			});
+			setFiles(merged);
 
+			const current = activeFileRef.current;
+			const updated = current && merged.find((file) => file.id === current.id);
 			if (updated) {
-				if (codeRef.current === (previousSaved?.content ?? "")) {
-					setCode(updated.content || "");
-				}
 				setActiveFile(updated);
+				if (contentStateRef.current === "ready") {
+					const previousSaved =
+						previous.find((file) => file.id === current.id) ?? current;
+					if (codeRef.current === (previousSaved.content ?? "")) {
+						setCode(updated.content || "");
+					}
+				}
 				return;
 			}
 			if (!current && initialSelectionDone.current) return;
 
 			initialSelectionDone.current = true;
-			openFile(next.find((file) => file.name === startupFile) ?? next[0] ?? null);
+			const selected =
+				merged.find((file) => file.name === startupFile) ?? merged[0] ?? null;
+			openFile(selected);
 		},
 		[openFile],
 	);
@@ -110,15 +190,33 @@ export function useFunctionFiles({
 			getFiles(functionId),
 			getFolders(functionId),
 		]);
-		if (filesData.status === "OK") setFiles(filesData.data);
+		let merged: FunctionFile[] | null = null;
+		if (filesData.status === "OK") {
+			const previous = filesRef.current;
+			merged = filesData.data.map((file) => {
+				const existing = previous.find((entry) => entry.id === file.id);
+				return {
+					...file,
+					content: file.content ?? existing?.content ?? "",
+				};
+			});
+			setFiles(merged);
+			const current = activeFileRef.current;
+			const updated = current && merged.find((file) => file.id === current.id);
+			if (updated) setActiveFile(updated);
+		}
 		if (foldersData.status === "OK") setFolders(foldersData.data);
-		return filesData.status === "OK" ? filesData.data : null;
+		return merged;
 	}, [functionId]);
 
 	const selectFile = useCallback(
 		async (file: FunctionFile) => {
 			const current = activeFileRef.current;
-			if (file.id === current?.id) return;
+			if (file.id === current?.id) {
+				// Retrying the same file is how a failed content load recovers.
+				if (contentStateRef.current === "error") await loadContent(file);
+				return;
+			}
 
 			if (hasUnsavedChanges) {
 				const shouldSwitch = await confirm({
@@ -133,9 +231,11 @@ export function useFunctionFiles({
 			}
 
 			if (current) editorViewState.remember(current.id);
-			openFile(file);
+			openFile(
+				filesRef.current.find((entry) => entry.id === file.id) ?? file,
+			);
 		},
-		[confirm, editorViewState, hasUnsavedChanges, openFile],
+		[confirm, editorViewState, hasUnsavedChanges, loadContent, openFile],
 	);
 
 	const persistFile: PersistFile = useCallback(
@@ -192,7 +292,13 @@ export function useFunctionFiles({
 	);
 
 	const saveActiveFile = useCallback(async () => {
-		if (functionId === null || !activeFileRef.current) return false;
+		if (
+			functionId === null ||
+			!activeFileRef.current ||
+			contentStateRef.current !== "ready"
+		) {
+			return false;
+		}
 
 		setSaving(true);
 		try {
@@ -360,12 +466,31 @@ export function useFunctionFiles({
 					return false;
 				}
 
-				const refreshedFiles = await refreshExplorer();
-				const current = activeFileRef.current;
-				if (mode === "rename" && current?.name.startsWith(`${targetPath}/`)) {
-					const renamed = refreshedFiles?.find((file) => file.id === current.id);
-					if (renamed) setActiveFile(renamed);
+				if (mode === "create") {
+					await refreshExplorer();
+					return true;
 				}
+
+				// Renaming moves every descendant and the open file, so patch the
+				// tree locally instead of refetching every file's metadata.
+				const renamedPath = (value: string) =>
+					value === targetPath
+						? fullName
+						: value.startsWith(`${targetPath}/`)
+							? `${fullName}${value.slice(targetPath.length)}`
+							: value;
+				setFiles((previous) =>
+					previous.map((file) => ({ ...file, name: renamedPath(file.name) })),
+				);
+				setFolders((previous) =>
+					previous.map((folder) => ({
+						...folder,
+						name: renamedPath(folder.name),
+					})),
+				);
+				setActiveFile((current) =>
+					current ? { ...current, name: renamedPath(current.name) } : current,
+				);
 				return true;
 			} catch (error) {
 				console.error("Error updating folder:", error);
@@ -395,22 +520,49 @@ export function useFunctionFiles({
 					toast.error(`Error deleting folder: ${response.message}`);
 					return;
 				}
-				await refreshExplorer();
-				if (activeFileRef.current?.name.startsWith(`${folderName}/`)) {
-					openFile(null);
+
+				// The server deleted the folder and its files; drop the same
+				// entries locally instead of refetching every remaining file.
+				const current = activeFileRef.current;
+				const closesOpenFile =
+					current !== null && current.name.startsWith(`${folderName}/`);
+
+				for (const file of filesRef.current) {
+					if (file.name.startsWith(`${folderName}/`)) {
+						editorViewState.forget(file.id);
+					}
 				}
+				setFiles((previous) =>
+					previous.filter(
+						(file) => !file.name.startsWith(`${folderName}/`),
+					),
+				);
+				setFolders((previous) =>
+					previous.filter(
+						(folder) =>
+							folder.name !== folderName &&
+							!folder.name.startsWith(`${folderName}/`),
+					),
+				);
+				if (closesOpenFile) openFile(null);
 				toast.success(`Deleted ${folderName}.`);
 			} catch (error) {
 				console.error("Error deleting folder:", error);
 				toast.error("An error occurred while deleting the folder.");
 			}
 		},
-		[confirm, functionId, openFile, refreshExplorer],
+		[confirm, editorViewState, functionId, openFile],
 	);
 
 	const loadDefaultInto = useCallback(
 		async (defaultToLoad: string) => {
-			if (functionId === null || !activeFile) return false;
+			if (
+				functionId === null ||
+				!activeFile ||
+				contentStateRef.current !== "ready"
+			) {
+				return false;
+			}
 
 			setSaving(true);
 			try {
@@ -444,6 +596,46 @@ export function useFunctionFiles({
 		[activeFile, functionId],
 	);
 
+	/** Fetch one file's text without changing the open editor. */
+	const readFileContent = useCallback(
+		async (file: FunctionFile) => {
+			if (functionId === null) return null;
+			try {
+				const data = await getFileContent(functionId, file.name);
+				return data.status === "OK" ? data.data.content ?? "" : null;
+			} catch (error) {
+				console.error("Error reading file:", error);
+				return null;
+			}
+		},
+		[functionId],
+	);
+
+	const downloadFile = useCallback(
+		async (file: FunctionFile) => {
+			const content = await readFileContent(file);
+			if (content === null) {
+				toast.error(`Error downloading ${file.name}.`);
+				return;
+			}
+			downloadTextFile(file.name, content);
+		},
+		[readFileContent],
+	);
+
+	/** Load every file's content for an export; `null` if any file failed. */
+	const readAllFileContents = useCallback(async () => {
+		const loaded = await Promise.all(
+			filesRef.current.map(async (file) => {
+				const content = await readFileContent(file);
+				return content === null ? null : { ...file, content };
+			}),
+		);
+		return loaded.some((file) => file === null)
+			? null
+			: (loaded as FunctionFile[]);
+	}, [readFileContent]);
+
 	return {
 		files,
 		folders,
@@ -452,6 +644,8 @@ export function useFunctionFiles({
 		code,
 		setCode,
 		saving,
+		contentState,
+		contentError,
 		hasUnsavedChanges,
 		canSave,
 		replaceFiles,
@@ -466,5 +660,8 @@ export function useFunctionFiles({
 		submitFolder,
 		removeFolder,
 		loadDefaultInto,
+		downloadFile,
+		readFileContent,
+		readAllFileContents,
 	};
 }
