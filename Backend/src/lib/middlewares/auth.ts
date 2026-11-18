@@ -32,6 +32,13 @@ type AuthContext = {
 	auth?: AuthState;
 };
 
+// Only the API and function execution routes consume a session cookie or API
+// key. Static files and the SPA shell skip resolution so unauthenticated page
+// loads never pay for a database lookup.
+function pathCarriesCredentials(path: string): boolean {
+	return path.startsWith("/api") || path.startsWith("/exec/");
+}
+
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export const authResolutionMiddleware = new Middleware<{}, AuthContext>(
 	"Auth Resolution Middleware",
@@ -41,6 +48,8 @@ export const authResolutionMiddleware = new Middleware<{}, AuthContext>(
 		log.info("Auth resolution middleware loaded");
 	})
 	.httpRequest(async (_config, _server, context, ctr) => {
+		if (!pathCarriesCredentials(ctr.url.path)) return;
+
 		const cookieToken = ctr.cookies.get(COOKIE);
 		const apiKeyToken = ctr.headers.get(API_KEY_HEADER);
 		const tokenProvided = Boolean(cookieToken || apiKeyToken);

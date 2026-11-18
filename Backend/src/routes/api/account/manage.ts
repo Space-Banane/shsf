@@ -1,30 +1,13 @@
 import * as bcrypt from "bcrypt";
-import { API_KEY_HEADER, COOKIE, fileRouter, INSTANCE_SECRET, prisma } from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
-import {
-	parseStoredEnvironmentVariables,
-	serializeEnvironmentVariables,
-} from "../../../lib/EnvironmentVariables";
+import { COOKIE, fileRouter, INSTANCE_SECRET, prisma } from "../../..";
+import { parseStoredEnvironmentVariables, serializeEnvironmentVariables } from "../../../lib/EnvironmentVariables";
 import { cleanupFunctionContainer } from "../../../lib/Runner";
 import { OpenAPITags } from "../../../lib/openapi";
-import {
-	DEFAULT_AI_PROVIDER_ENDPOINT,
-	DEFAULT_AI_PROVIDER_MODEL,
-	getAIProvider,
-	normalizeAIProviderEndpoint,
-	parseAIProviderCapabilities,
-	parseAIProviderIgnoreInvalidModels,
-	parseAIProviderIgnoreTlsErrors,
-	validateAIProvider,
-} from "../../../lib/AIProvider";
+import { DEFAULT_AI_PROVIDER_ENDPOINT, DEFAULT_AI_PROVIDER_MODEL, getAIProvider, normalizeAIProviderEndpoint, parseAIProviderCapabilities, parseAIProviderIgnoreInvalidModels, parseAIProviderIgnoreTlsErrors, validateAIProvider } from "../../../lib/AIProvider";
 import { encryptSecret } from "../../../lib/GitOps";
 import { getAllowAIProviderInternal } from "../../../lib/DataManager";
 import { env } from "../../../lib/env";
-import {
-	getLogAnalysisAvailability,
-	resolveOpenRouterKey,
-	validateLogAnalysisModel,
-} from "../../../lib/LogAnalysis";
+import { getLogAnalysisAvailability, resolveOpenRouterKey, validateLogAnalysisModel } from "../../../lib/LogAnalysis";
 import { DecisionsError } from "../../../lib/OpenRouterDecisions";
 
 export = new fileRouter.Path("/")
@@ -66,10 +49,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
@@ -117,10 +97,7 @@ export = new fileRouter.Path("/")
 			})
 			.ratelimit((limit) => limit.hits(10).window(60000).penalty(5000))
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
@@ -305,10 +282,7 @@ export = new fileRouter.Path("/")
 			})
 			.ratelimit((limit) => limit.hits(5).window(60000).penalty(10000))
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
@@ -445,10 +419,7 @@ export = new fileRouter.Path("/")
 				if (!data)
 					return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({

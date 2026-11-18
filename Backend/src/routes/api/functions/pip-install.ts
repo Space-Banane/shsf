@@ -1,12 +1,8 @@
 import { functionAccessWhere } from "../../../lib/Sharing";
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
+import { fileRouter, prisma } from "../../..";
 import { OpenAPITags } from "../../../lib/openapi";
 import { createLogger } from "../../../lib/logger";
-import {
-	getDependencyInstallStatus,
-	startDependencyInstall,
-} from "../../../lib/DependencyInstall";
+import { getDependencyInstallStatus, startDependencyInstall } from "../../../lib/DependencyInstall";
 import { getFunctionAppDir } from "../../../lib/StoragePaths";
 import * as fsSync from "fs";
 import * as path from "path";
@@ -87,10 +83,7 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
@@ -196,10 +189,7 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({

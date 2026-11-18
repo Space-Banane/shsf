@@ -6,6 +6,7 @@ import "../routes/api/functions/manage";
 interface TestContext {
 	cookies: { get: () => null };
 	headers: { get: () => null };
+	getAuth: () => { success: true; method: "session"; user: { id: number } };
 	params: { get: (key: string) => string | undefined };
 	$status: Record<string, number>;
 	status: (code: number) => TestContext;
@@ -104,6 +105,7 @@ async function request(route: string, body: unknown) {
 	const context = {
 		cookies: { get: () => null },
 		headers: { get: () => null },
+		getAuth: () => ({ success: true, method: "session", user: { id: 1 } }),
 		params: { get: (key: string) => (key === "id" ? "10" : key === "fileId" ? "5" : undefined) },
 		$status: {
 			BAD_REQUEST: 400,

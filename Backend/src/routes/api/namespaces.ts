@@ -1,14 +1,5 @@
-import {
-	describeFunctionAccess,
-	describeNamespaceAccess,
-	functionAccessInclude,
-	functionAccessWhere,
-	namespaceAccessInclude,
-	namespaceAccessWhere,
-	redactFunctionForAccess,
-} from "../../lib/Sharing";
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../..";
-import { checkAuthentication } from "../../lib/Authentication";
+import { describeFunctionAccess, describeNamespaceAccess, functionAccessInclude, functionAccessWhere, namespaceAccessInclude, namespaceAccessWhere, redactFunctionForAccess } from "../../lib/Sharing";
+import { fileRouter, prisma } from "../..";
 import { cleanupFunctionContainer } from "../../lib/Runner";
 import { OpenAPITags } from "../../lib/openapi";
 
@@ -67,10 +58,7 @@ export = new fileRouter.Path("/")
 				if (!data)
 					return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -118,10 +106,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -200,10 +185,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -296,10 +278,7 @@ export = new fileRouter.Path("/")
 				if (!data)
 					return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({
@@ -358,10 +337,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({

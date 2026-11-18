@@ -1,12 +1,6 @@
 import { functionAccessWhere } from "../../../lib/Sharing";
-import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
-import {
-	buildAccountFunctionAnalytics,
-	buildSingleFunctionAnalytics,
-	getAnalyticsRangeStart,
-	normalizeAnalyticsRange,
-} from "../../../lib/FunctionAnalytics";
+import { fileRouter, prisma } from "../../..";
+import { buildAccountFunctionAnalytics, buildSingleFunctionAnalytics, getAnalyticsRangeStart, normalizeAnalyticsRange } from "../../../lib/FunctionAnalytics";
 
 export = new fileRouter.Path("/")
 	.http("GET", "/api/function-analytics", (http) =>
@@ -21,10 +15,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
@@ -77,10 +68,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({

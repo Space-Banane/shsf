@@ -1,6 +1,5 @@
-import { API_KEY_HEADER, COOKIE, fileRouter } from "../../..";
+import { fileRouter } from "../../..";
 import { env } from "../../../lib/env";
-import { checkAuthentication } from "../../../lib/Authentication";
 import * as bcrypt from "bcrypt";
 
 export = new fileRouter.Path("/").http(
@@ -10,10 +9,7 @@ export = new fileRouter.Path("/").http(
 		http
 			.ratelimit((limit) => limit.hits(3).window(10000).penalty(5000))
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 
 				if (!authCheck.success) {
 					return ctr.print({

@@ -1,30 +1,10 @@
 import { functionAccessWhere } from "../../../lib/Sharing";
-import {
-	API_KEY_HEADER,
-	COOKIE,
-	fileRouter,
-	prisma,
-	INSTANCE_SECRET,
-} from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
+import { fileRouter, prisma, INSTANCE_SECRET } from "../../..";
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs/promises";
 import * as fsSync from "fs";
-import {
-	buildAuthUrl,
-	clearAppDirectory,
-	encryptSecret,
-	decryptSecret,
-	getFuncAppDir,
-	getGitRepoDir,
-	syncSourceDirToApp,
-	performGitPull,
-	runGitCommand,
-	stripCredentialsFromUrl,
-	updateGitRemoteUrl,
-	removeGitMetadata,
-} from "../../../lib/GitOps";
+import { buildAuthUrl, clearAppDirectory, encryptSecret, decryptSecret, getFuncAppDir, getGitRepoDir, syncSourceDirToApp, performGitPull, runGitCommand, stripCredentialsFromUrl, updateGitRemoteUrl, removeGitMetadata } from "../../../lib/GitOps";
 import { OpenAPITags } from "../../../lib/openapi";
 
 function redactLogs(s: string): string {
@@ -69,10 +49,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.print({ status: 401, message: authCheck.message });
 				}
@@ -158,10 +135,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.print({ status: 401, message: authCheck.message });
 				}
@@ -361,10 +335,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.print({ status: 401, message: authCheck.message });
 				}
@@ -455,10 +426,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.print({ status: 401, message: authCheck.message });
 				}
@@ -634,10 +602,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.print({ status: 401, message: authCheck.message });
 				}
@@ -728,10 +693,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.print({ status: 401, message: authCheck.message });
 				}
@@ -871,10 +833,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.print({ status: 401, message: authCheck.message });
 				}

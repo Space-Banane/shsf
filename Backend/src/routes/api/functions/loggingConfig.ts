@@ -1,13 +1,8 @@
 import { functionAccessWhere } from "../../../lib/Sharing";
-import { API_KEY_HEADER, COOKIE, fileRouter, INSTANCE_SECRET, prisma } from "../../..";
+import { fileRouter, INSTANCE_SECRET, prisma } from "../../..";
 import { env } from "../../../lib/env";
 import { getLogAnalysisAvailability } from "../../../lib/LogAnalysis";
-import { checkAuthentication } from "../../../lib/Authentication";
-import {
-	getLoggingConfigFromData,
-	LoggingConfig,
-	setLoggingConfig,
-} from "../../../lib/FunctionLogging";
+import { getLoggingConfigFromData, LoggingConfig, setLoggingConfig } from "../../../lib/FunctionLogging";
 import { OpenAPITags } from "../../../lib/openapi";
 
 export = new fileRouter.Path("/")
@@ -58,10 +53,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
 						status: "ERROR",
@@ -156,10 +148,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
 						status: "ERROR",
@@ -267,10 +256,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
 						status: "ERROR",
@@ -353,10 +339,7 @@ export = new fileRouter.Path("/")
 				},
 			})
 			.onRequest(async (ctr) => {
-				const authCheck = await checkAuthentication(
-					ctr.cookies.get(COOKIE),
-					ctr.headers.get(API_KEY_HEADER),
-				);
+				const authCheck = ctr.getAuth();
 				if (!authCheck.success) {
 					return ctr.status(ctr.$status.UNAUTHORIZED).print({
 						status: "ERROR",

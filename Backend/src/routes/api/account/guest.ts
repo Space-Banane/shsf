@@ -1,12 +1,5 @@
 import { Cookie } from "rjweb-server";
-import {
-	API_KEY_HEADER,
-	COOKIE,
-	fileRouter,
-	prisma,
-	REACT_APP_API_URL,
-} from "../../..";
-import { checkAuthentication } from "../../../lib/Authentication";
+import { fileRouter, prisma, REACT_APP_API_URL } from "../../..";
 import * as bcrypt from "bcrypt";
 import { createLogger } from "../../../lib/logger";
 import { getGuestAccessDisabled } from "../../../lib/DataManager";
@@ -29,10 +22,7 @@ export = new fileRouter.Path("/")
 			if (!data)
 				return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success) {
 				return ctr.status(ctr.$status.UNAUTHORIZED).print({
 					status: "FAILED",
@@ -89,10 +79,7 @@ export = new fileRouter.Path("/")
 	// List all guest users for the authenticated owner
 	.http("GET", "/api/account/guest/list", (http) =>
 		http.onRequest(async (ctr) => {
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success) {
 				return ctr.status(ctr.$status.UNAUTHORIZED).print({
 					status: "FAILED",
@@ -148,10 +135,7 @@ export = new fileRouter.Path("/")
 			if (!data)
 				return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success) {
 				return ctr.status(ctr.$status.UNAUTHORIZED).print({
 					status: "FAILED",
@@ -202,10 +186,7 @@ export = new fileRouter.Path("/")
 			if (!data)
 				return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success) {
 				return ctr.status(ctr.$status.UNAUTHORIZED).print({
 					status: "FAILED",
@@ -246,10 +227,7 @@ export = new fileRouter.Path("/")
 			if (!data)
 				return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success) {
 				return ctr.status(ctr.$status.UNAUTHORIZED).print({
 					status: "FAILED",
@@ -320,10 +298,7 @@ export = new fileRouter.Path("/")
 			if (!data)
 				return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success) {
 				return ctr.status(ctr.$status.UNAUTHORIZED).print({
 					status: "FAILED",
@@ -395,10 +370,7 @@ export = new fileRouter.Path("/")
 			if (!data)
 				return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success) {
 				return ctr.status(ctr.$status.UNAUTHORIZED).print({
 					status: "FAILED",
@@ -427,10 +399,7 @@ export = new fileRouter.Path("/")
 				});
 			}
 
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success) {
 				return ctr.status(ctr.$status.UNAUTHORIZED).print({
 					status: "FAILED",
@@ -601,10 +570,7 @@ export = new fileRouter.Path("/")
 			if (!data)
 				return ctr.status(ctr.$status.BAD_REQUEST).print(error.toString());
 
-			const authCheck = await checkAuthentication(
-				ctr.cookies.get(COOKIE),
-				ctr.headers.get(API_KEY_HEADER),
-			);
+			const authCheck = ctr.getAuth();
 			if (!authCheck.success) {
 				return ctr.status(ctr.$status.UNAUTHORIZED).print({
 					status: "FAILED",

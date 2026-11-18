@@ -8,6 +8,7 @@ import "../routes/api/functions/git";
 interface TestContext {
 	cookies: { get: () => null };
 	headers: { get: () => null };
+	getAuth: () => { success: true; method: "session"; user: { id: number } };
 	params: { get: (key: string) => string | undefined };
 	$status: Record<string, number>;
 	status: (code: number) => TestContext;
@@ -102,6 +103,7 @@ vi.mock("../lib/GitOps", async (importOriginal) => ({
 async function request(route: string, body: unknown, params = { id: "10", fileId: "20" }) {
 	const context: TestContext = {
 		cookies: { get: () => null }, headers: { get: () => null },
+		getAuth: () => ({ success: true, method: "session", user: { id: harness.userId } }),
 		params: { get: (key) => params[key as keyof typeof params] },
 		$status: { BAD_REQUEST: 400, UNAUTHORIZED: 401, FORBIDDEN: 403, NOT_FOUND: 404, INTERNAL_SERVER_ERROR: 500 },
 		status: vi.fn(() => context), print: (response) => response,

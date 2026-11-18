@@ -4,6 +4,7 @@ import "../routes/api/files";
 interface TestContext {
 	cookies: { get: () => null };
 	headers: { get: () => null };
+	getAuth: () => { success: true; method: "session"; user: { id: number } };
 	params: { get: (key: string) => string | undefined };
 	queries: { get: (key: string) => string | undefined };
 	$status: Record<string, number>;
@@ -80,6 +81,7 @@ async function request(route: string, queries: Record<string, string> = {}) {
 	const context: TestContext = {
 		cookies: { get: () => null },
 		headers: { get: () => null },
+		getAuth: () => ({ success: true, method: "session", user: { id: 2 } }),
 		params: { get: (key) => (key === "id" ? "10" : undefined) },
 		queries: { get: (key) => queries[key] },
 		$status: {
