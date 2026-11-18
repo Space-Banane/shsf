@@ -133,12 +133,20 @@ function FunctionDetail() {
 	const [functionData, setFunctionData] = useState<XFunction | null>(null);
 	const [namespace, setNamespace] = useState<Namespace | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [loadFailed, setLoadFailed] = useState(false);
 	const [resultModalsEnabled, setResultModalsEnabled] = useState(true);
 
 	// Only trust the loaded name when it belongs to the id in the URL, so the
 	// tab never keeps the previous function's title while the next one loads.
 	const loadedTitle = functionData && functionData.id === functionId ? functionData.name : null;
-	usePageTitle(loadedTitle ?? (loading ? null : resolvePageTitle(pageTitleKeys.notFound)));
+	usePageTitle(
+		loadedTitle ??
+			(loading
+				? null
+				: resolvePageTitle(
+						loadFailed ? pageTitleKeys.functionFallback : pageTitleKeys.notFound,
+					)),
+	);
 
 	const htmlOnly = isHtmlOnlyFunction(functionData);
 	const gitManaged = Boolean(functionData?.git_url);
@@ -231,6 +239,7 @@ function FunctionDetail() {
 		if (functionId === null) return;
 
 		setLoading(true);
+		setLoadFailed(false);
 		try {
 			const [functionResult, filesResult, foldersResult, triggersResult] =
 				await Promise.all([
@@ -241,6 +250,7 @@ function FunctionDetail() {
 				]);
 
 			if (functionResult.status !== "OK") {
+				setLoadFailed(true);
 				toast.error("Error fetching function: " + functionResult.message);
 				return;
 			}
@@ -270,6 +280,7 @@ function FunctionDetail() {
 			}
 		} catch (error) {
 			console.error("Error fetching data:", error);
+			setLoadFailed(true);
 			toast.error("An error occurred while fetching data.");
 		} finally {
 			setLoading(false);

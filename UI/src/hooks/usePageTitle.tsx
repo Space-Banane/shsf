@@ -63,7 +63,7 @@ export function routePageTitle(routeName: string): string | null {
 
 export type PageTitleHandle = { pageTitle?: string | null };
 
-type TitleOverride = { locationKey: string; label: string | null };
+type TitleOverride = { pathname: string; label: string | null };
 
 const PageTitleContext = createContext<(label: string | null) => void>(() => {});
 
@@ -84,14 +84,15 @@ export function PageTitleProvider({
 
 	const setOverrideTitle = useCallback(
 		(label: string | null) => {
-			setOverride({ locationKey: location.key, label });
+			setOverride({ pathname: location.pathname, label });
 		},
-		[location.key],
+		[location.pathname],
 	);
 
 	// An override belongs to the route that registered it, so navigating away
 	// falls back to the new route's generic title instead of a stale name.
-	const activeLabel = override?.locationKey === location.key ? override.label : null;
+	// Query-only changes (such as opening a modal) keep the entity title.
+	const activeLabel = override?.pathname === location.pathname ? override.label : null;
 	const documentTitle = formatPageTitle(activeLabel ?? title);
 
 	useEffect(() => {

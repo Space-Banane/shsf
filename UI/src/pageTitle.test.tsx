@@ -88,6 +88,16 @@ describe("document title", () => {
 		expect(document.title).toBe("Unavailable · SHSF");
 	});
 
+	it("keeps the entity title when a modal query is added", async () => {
+		const router = renderRoute("/functions/12");
+
+		expect(document.title).toBe("worker · SHSF");
+		await act(async () => {
+			await router.navigate("/functions/12?modal=settings");
+		});
+		expect(document.title).toBe("worker · SHSF");
+	});
+
 	it("restores the previous title after navigating back", async () => {
 		const router = renderRoute("/functions");
 
