@@ -206,9 +206,17 @@ export async function readGitAppFile(
 
 	try {
 		const filePath = getFunctionFilePath(appDir, name);
-		const stat = await fs.stat(filePath);
+		// Resolve symlinks on both sides: the app directory is a git checkout and
+		// may contain links committed to the repository, so the string check in
+		// getFunctionFilePath alone cannot prove the target stays inside it.
+		const [realAppDir, realFilePath] = await Promise.all([
+			fs.realpath(appDir),
+			fs.realpath(filePath),
+		]);
+		if (!realFilePath.startsWith(`${realAppDir}${path.sep}`)) return null;
+		const stat = await fs.stat(realFilePath);
 		if (!stat.isFile()) return null;
-		return await fs.readFile(filePath, "utf8");
+		return await fs.readFile(realFilePath, "utf8");
 	} catch {
 		return null;
 	}

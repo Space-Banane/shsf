@@ -125,6 +125,25 @@ describe("git app file helpers", () => {
 		await expect(readGitAppFile(functionId, "../outside.py")).resolves.toBeNull();
 	});
 
+	it("refuses to follow symlinks out of the app directory", async () => {
+		const functionId = 900005;
+		testFunctionIds.add(functionId);
+		const appDir = getFunctionAppDir(functionId);
+		const outsideDir = getFunctionBaseDir(functionId);
+		await fs.mkdir(appDir, { recursive: true });
+		await fs.writeFile(path.join(outsideDir, "secret.txt"), "instance secret");
+		await fs.symlink(
+			path.join(outsideDir, "secret.txt"),
+			path.join(appDir, "leak.txt"),
+		);
+		await fs.symlink(outsideDir, path.join(appDir, "leakdir"));
+
+		await expect(readGitAppFile(functionId, "leak.txt")).resolves.toBeNull();
+		await expect(
+			readGitAppFile(functionId, "leakdir/secret.txt"),
+		).resolves.toBeNull();
+	});
+
 	it("removes git metadata while leaving app files in place", async () => {
 		const functionId = 900002;
 		testFunctionIds.add(functionId);
