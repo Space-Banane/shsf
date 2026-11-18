@@ -19,6 +19,11 @@ import { useFunctionExecution } from "../../hooks/useFunctionExecution";
 import { useFunctionFiles } from "../../hooks/useFunctionFiles";
 import { useFunctionLogs } from "../../hooks/useFunctionLogs";
 import { useFunctionTriggers } from "../../hooks/useFunctionTriggers";
+import {
+	pageTitleKeys,
+	resolvePageTitle,
+	usePageTitle,
+} from "../../hooks/usePageTitle";
 import { useUnsavedChangesGuard } from "../../hooks/useUnsavedChangesGuard";
 import { getFiles, getFolders } from "../../services/backend.files";
 import {
@@ -129,6 +134,11 @@ function FunctionDetail() {
 	const [namespace, setNamespace] = useState<Namespace | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [resultModalsEnabled, setResultModalsEnabled] = useState(true);
+
+	// Only trust the loaded name when it belongs to the id in the URL, so the
+	// tab never keeps the previous function's title while the next one loads.
+	const loadedTitle = functionData && functionData.id === functionId ? functionData.name : null;
+	usePageTitle(loadedTitle ?? (loading ? null : resolvePageTitle(pageTitleKeys.notFound)));
 
 	const htmlOnly = isHtmlOnlyFunction(functionData);
 	const gitManaged = Boolean(functionData?.git_url);

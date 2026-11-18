@@ -7,8 +7,17 @@ import {
 	createRoutesFromElements,
 	Route,
 	useLocation,
+	useMatches,
 } from "react-router-dom";
 import { routes } from "./Routes";
+import {
+	PageTitleProvider,
+	pageTitleKeys,
+	resolvePageTitle,
+	routePageTitle,
+	usePageTitle,
+	type PageTitleHandle,
+} from "./hooks/usePageTitle";
 import { User } from "./types/Prisma";
 import { BASE_URL } from ".";
 import { Footer } from "./components/ui/Footer";
@@ -32,20 +41,26 @@ export const UserContext = createContext<{
 	refreshUser: () => {},
 });
 
+function UnavailablePage({ error, onRetry }: { error: string; onRetry: () => void }) {
+	usePageTitle(resolvePageTitle(pageTitleKeys.unavailable));
+
+	return (
+		<div className="max-w-xl mx-auto mt-16 bg-surface border border-red-500/20 rounded-xl px-5 py-4">
+			<h1 className="text-base font-semibold text-text">SHSF is unavailable</h1>
+			<p className="text-sm text-red-400 mt-1">{error}</p>
+			<button className="mt-4 px-3 py-1.5 bg-primary text-background text-sm font-medium rounded-lg" onClick={onRetry}>
+				Try again
+			</button>
+		</div>
+	);
+}
+
 function ProtectedRoute({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
 	const { user, loading, error, refreshUser } = useContext(UserContext);
 	const location = useLocation();
 
 	if (!user && !loading && error) {
-		return (
-			<div className="max-w-xl mx-auto mt-16 bg-surface border border-red-500/20 rounded-xl px-5 py-4">
-				<h1 className="text-base font-semibold text-text">SHSF is unavailable</h1>
-				<p className="text-sm text-red-400 mt-1">{error}</p>
-				<button className="mt-4 px-3 py-1.5 bg-primary text-background text-sm font-medium rounded-lg" onClick={refreshUser}>
-					Try again
-				</button>
-			</div>
-		);
+		return <UnavailablePage error={error} onRetry={refreshUser} />;
 	}
 
 	if (!user && !loading) {
@@ -62,16 +77,22 @@ function ProtectedRoute({ children, adminOnly = false }: { children: React.React
 function AppLayout() {
 	const { user, loading, refreshUser } = useContext(UserContext);
 	const location = useLocation();
+	const matches = useMatches();
+	// The deepest match is the page; the layout route above it has no handle.
+	const handle = matches[matches.length - 1]?.handle as PageTitleHandle | undefined;
+	const pageTitle = handle?.pageTitle ?? null;
 
 	return (
-		<div className="min-h-screen flex flex-col bg-background">
-			<NavBar user={user} loading={loading} refreshUser={refreshUser} />
-			<ToastContainer theme="dark" autoClose={3500} limit={3} />
-			<main key={location.pathname} className="motion-fade-in flex-grow w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:w-11/12 xl:px-0 2xl:w-5/6 2xl:px-0 py-6">
-				<Outlet />
-			</main>
-			<Footer />
-		</div>
+		<PageTitleProvider title={pageTitle}>
+			<div className="min-h-screen flex flex-col bg-background">
+				<NavBar user={user} loading={loading} refreshUser={refreshUser} />
+				<ToastContainer theme="dark" autoClose={3500} limit={3} />
+				<main key={location.pathname} className="motion-fade-in flex-grow w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:w-11/12 xl:px-0 2xl:w-5/6 2xl:px-0 py-6">
+					<Outlet />
+				</main>
+				<Footer />
+			</div>
+		</PageTitleProvider>
 	);
 }
 
@@ -90,6 +111,7 @@ export function createAppRoutes() {
 				<Route
 					key={route.path}
 					path={route.path}
+					handle={{ pageTitle: routePageTitle(route.name) } satisfies PageTitleHandle}
 					element={
 						route.requireAuth ? (
 							<ProtectedRoute adminOnly={route.adminOnly}>
@@ -101,7 +123,11 @@ export function createAppRoutes() {
 					}
 				/>
 			))}
-			<Route path="*" element={<NoMatch />} />
+			<Route
+				path="*"
+				handle={{ pageTitle: resolvePageTitle(pageTitleKeys.notFound) } satisfies PageTitleHandle}
+				element={<NoMatch />}
+			/>
 		</Route>,
 	);
 }

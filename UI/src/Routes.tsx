@@ -72,7 +72,7 @@ export const routes: AppRoute[] = [
 	},
 	{
 		path: "/functions/:id",
-		name: "FunctionDetail",
+		name: "Function",
 		component: FunctionDetail,
 		requireAuth: true,
 	},
