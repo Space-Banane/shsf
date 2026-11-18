@@ -69,7 +69,9 @@ export function startSystemCrons(dependencies: SystemCronDependencies): SystemCr
 	const jobs: ScheduledJob[] = [
 		{
 			name: "function-crons",
-			intervalMs: 1000,
+			// Overdue triggers are caught up on the next tick, so a slower poll
+			// keeps the schedule accurate without scanning every second.
+			intervalMs: 5000,
 			runOnStart: true,
 			run: () => processCrons(dependencies),
 		},
@@ -135,8 +137,14 @@ export async function processCrons({ prisma, executeFunction }: SystemCronDepend
 			],
 			enabled: true,
 		},
-		include: {
-			function: true,
+		// Only the fields the poller needs; the function row (including env
+		// and secrets) is loaded at execution time instead of on every tick.
+		select: {
+			id: true,
+			functionId: true,
+			cron: true,
+			data: true,
+			nextRun: true,
 		},
 	});
 	for (const cron of crons) {
@@ -185,6 +193,15 @@ export async function processCrons({ prisma, executeFunction }: SystemCronDepend
 				});
 
 				cronLog.info({ cronId: cron.id }, "Cron executed");
+				const functionData = await prisma.function.findUnique({
+					where: { id: cron.functionId },
+				});
+
+				if (!functionData) {
+					cronLog.warn({ cronId: cron.id, functionId: cron.functionId }, "Cron function not found");
+					continue;
+				}
+
 				const files = await prisma.functionFile.findMany({
 					where: { functionId: cron.functionId },
 				});
@@ -205,7 +222,7 @@ export async function processCrons({ prisma, executeFunction }: SystemCronDepend
 					try {
 						const executionResult = await executeFunction(
 							cron.functionId,
-							cron.function,
+							functionData,
 							files,
 							{
 								enabled: false,
@@ -251,7 +268,7 @@ export async function processCrons({ prisma, executeFunction }: SystemCronDepend
 				}
 			}
 		} catch (error) {
-			cronLog.error({ err: error, cronId: cron.id, cronName: cron.name }, "Error processing cron");
+			cronLog.error({ err: error, cronId: cron.id }, "Error processing cron");
 		}
 	}
 }
