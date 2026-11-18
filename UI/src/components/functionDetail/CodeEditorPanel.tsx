@@ -1,4 +1,5 @@
 import Editor, { type OnMount } from "@monaco-editor/react";
+import "../../utils/monaco";
 
 interface CodeEditorPanelProps {
 	hasActiveFile: boolean;
