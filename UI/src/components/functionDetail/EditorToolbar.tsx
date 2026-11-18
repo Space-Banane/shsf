@@ -201,9 +201,19 @@ export function EditorToolbar({
 					className="h-9 px-3 text-sm rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:shadow-[0_0_20px_rgba(34,211,238,0.2)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
 					onClick={onRun}
 					disabled={running || saving || !canExecute}
-					title={canExecute ? undefined : "You have view-only access to this function"}
+					title={
+						!canExecute
+							? "You have view-only access to this function"
+							: hasUnsavedChanges
+								? "Saves the unsaved changes, then runs the function"
+								: undefined
+					}
 				>
-					{running ? "Running..." : "Run Function"}
+					{running
+						? "Running..."
+						: hasUnsavedChanges
+							? "Save & Run"
+							: "Run Function"}
 				</button>
 			</div>
 

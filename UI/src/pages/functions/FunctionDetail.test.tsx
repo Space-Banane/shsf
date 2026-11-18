@@ -141,6 +141,51 @@ describe("FunctionDetail route", () => {
 		expect(await screen.findByText("run output: 2")).toBeInTheDocument();
 	});
 
+	it("saves pending edits before running", async () => {
+		mockBackend();
+		vi.mocked(createOrUpdateFile).mockResolvedValue({ status: "OK", data: file(1, "main.py", "print(3)") });
+		vi.mocked(executeFunctionStreaming).mockImplementation(async (_id, onChunk) => {
+			onChunk({ type: "output", content: "run output: 3\n" });
+			onChunk({ type: "end", exitCode: 0 });
+		});
+		renderRoute();
+		fireEvent.change(await screen.findByLabelText("editor"), { target: { value: "print(3)" } });
+
+		fireEvent.click(screen.getByRole("button", { name: "Save & Run" }));
+
+		expect(await screen.findByText("run output: 3")).toBeInTheDocument();
+		expect(createOrUpdateFile).toHaveBeenCalledWith(1, { filename: "main.py", code: "print(3)" });
+		expect(vi.mocked(createOrUpdateFile).mock.invocationCallOrder[0]).toBeLessThan(
+			vi.mocked(executeFunctionStreaming).mock.invocationCallOrder[0],
+		);
+	});
+
+	it("cancels the run when the pre-run save fails", async () => {
+		mockBackend();
+		vi.mocked(createOrUpdateFile).mockResolvedValue({ status: 500, message: "denied" } as never);
+		renderRoute();
+		fireEvent.change(await screen.findByLabelText("editor"), { target: { value: "print(4)" } });
+
+		fireEvent.click(screen.getByRole("button", { name: "Save & Run" }));
+
+		await waitFor(() => expect(createOrUpdateFile).toHaveBeenCalled());
+		expect(executeFunctionStreaming).not.toHaveBeenCalled();
+		expect(screen.getByText("Unsaved")).toBeInTheDocument();
+	});
+
+	it("keeps Save available while a run is in flight", async () => {
+		mockBackend();
+		vi.mocked(executeFunctionStreaming).mockImplementation(() => new Promise(() => {}));
+		renderRoute();
+		const editor = await screen.findByLabelText("editor");
+
+		fireEvent.click(screen.getByRole("button", { name: "Run Function" }));
+		await screen.findByRole("button", { name: "Running..." });
+
+		fireEvent.change(editor, { target: { value: "print(9)" } });
+		expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+	});
+
 	it("asks before navigating away with unsaved edits and stays when declined", async () => {
 		mockBackend();
 		confirm.mockResolvedValue(false);
