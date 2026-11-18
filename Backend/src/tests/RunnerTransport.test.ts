@@ -8,7 +8,6 @@ import {
 	handleStorageRpcRequest,
 	prepareRunnerTransport,
 	readRunnerResult,
-	revokeLegacyFunctionDbTokens,
 	startCallFuncBridge,
 } from "../lib/RunnerTransport";
 import {
@@ -38,14 +37,6 @@ import {
 type TestStorageDb = NonNullable<
 	ConstructorParameters<typeof FunctionStorageService>[0]
 >;
-
-vi.mock("../index.js", () => ({
-	prisma: {
-		accessToken: {
-			deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
-		},
-	},
-}));
 
 describe("RunnerTransport result files", () => {
 	it("reads a valid result file", async () => {
@@ -364,19 +355,6 @@ describe("Python runtime scripts", () => {
 		expect(script).toContain('"$VENV_DIR/bin/python" -m pip install --no-cache-dir -r requirements.txt');
 		expect(script).toContain("req.hash");
 		expect(script).toContain(".shsf_env");
-	});
-});
-
-describe("legacy function DB token cleanup", () => {
-	it("deletes hidden legacy function DB tokens", async () => {
-		const { prisma } = await import("../index.js");
-		await revokeLegacyFunctionDbTokens();
-		expect(prisma.accessToken.deleteMany).toHaveBeenCalledWith({
-			where: {
-				name: "__function_db_access__",
-				hidden: true,
-			},
-		});
 	});
 });
 

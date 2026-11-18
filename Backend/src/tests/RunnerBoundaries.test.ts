@@ -1,7 +1,21 @@
 import type { Function, FunctionFile } from "@prisma/client";
 import type Docker from "dockerode";
 import { PassThrough } from "stream";
+import * as fs from "fs/promises";
+import * as os from "os";
+import * as path from "path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const appRoot = path.join(os.tmpdir(), `shsf-boundary-${process.pid}`);
+
+vi.mock("../lib/StoragePaths", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../lib/StoragePaths")>();
+	return {
+		...actual,
+		getFunctionAppDir: (id: number | string) => path.join(appRoot, String(id), "app"),
+		getFunctionExecutionsDir: (id: number | string) => path.join(appRoot, String(id), "executions"),
+	};
+});
 
 const mocks = vi.hoisted(() => ({ getContainer: vi.fn(), update: vi.fn(), findUnique: vi.fn() }));
 vi.mock("../index", () => ({ prisma: { function: { update: mocks.update }, user: { findUnique: mocks.findUnique } } }));
@@ -11,18 +25,62 @@ import { prepareRunnerContainer } from "../lib/RunnerContainer";
 import { deleteContainerForFunction } from "../lib/RunnerCleanup";
 import { executeFunction } from "../lib/Runner";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(async () => {
+	vi.clearAllMocks();
+	await fs.rm(appRoot, { recursive: true, force: true });
+	await fs.mkdir(path.join(appRoot, "7", "app"), { recursive: true });
+});
+
+function createReusableContainer() {
+	const stream = new PassThrough();
+	const initExec = {
+		start: vi.fn().mockResolvedValue(stream),
+		inspect: vi.fn().mockResolvedValue({ ExitCode: 0 }),
+	};
+	const container = {
+		inspect: vi.fn().mockResolvedValue({ State: { Running: true, StartedAt: "2026-01-01T00:00:00Z" } }),
+		logs: vi.fn().mockResolvedValue(Buffer.from("[SHSF] Container ready.")),
+		exec: vi.fn().mockResolvedValue(initExec),
+	};
+	const docker = {
+		getContainer: vi.fn().mockReturnValue(container),
+		modem: { demuxStream: vi.fn(() => process.nextTick(() => stream.emit("end"))) },
+	} as unknown as Docker;
+	return { container, docker };
+}
 
 describe("container lifecycle", () => {
 	it("reuses a ready container and reruns initialization", async () => {
-		const stream = new PassThrough();
-		const container = { inspect: vi.fn().mockResolvedValue({ State: { Running: true, StartedAt: "2026-01-01T00:00:00Z" } }), logs: vi.fn().mockResolvedValue(Buffer.from("[SHSF] Container ready.")), exec: vi.fn().mockResolvedValue({ start: vi.fn().mockResolvedValue(stream) }) };
-		const docker = { getContainer: vi.fn().mockReturnValue(container), modem: { demuxStream: vi.fn(() => process.nextTick(() => stream.emit("end"))) } } as unknown as Docker;
+		const { container, docker } = createReusableContainer();
 		const mark = vi.fn();
 		const result = await prepareRunnerContainer({ docker, functionData: { id: 7 } as Function, id: 7, functionIdStr: "7", containerName: "shsf_func_7", runtimeType: "python", mark, trace: vi.fn() });
 		expect(result).toEqual({ status: "ready", container });
 		expect(container.exec).toHaveBeenCalledWith({ Cmd: ["/bin/sh", "/app/init.sh"], AttachStdout: true, AttachStderr: true });
 		expect(mark).toHaveBeenCalledWith("Python init/install");
+	});
+
+	it("skips initialization when its inputs are unchanged", async () => {
+		const { container, docker } = createReusableContainer();
+		const mark = vi.fn();
+		const args = { docker, functionData: { id: 7 } as Function, id: 7, functionIdStr: "7", containerName: "shsf_func_7", runtimeType: "python" as const, mark, trace: vi.fn() };
+
+		await prepareRunnerContainer(args);
+		mark.mockClear();
+		await prepareRunnerContainer(args);
+
+		expect(container.exec).toHaveBeenCalledTimes(1);
+		expect(mark).toHaveBeenCalledWith("Init skipped (unchanged)");
+	});
+
+	it("reruns initialization when its inputs change", async () => {
+		const { container, docker } = createReusableContainer();
+		const args = { docker, functionData: { id: 7 } as Function, id: 7, functionIdStr: "7", containerName: "shsf_func_7", runtimeType: "python" as const, mark: vi.fn(), trace: vi.fn() };
+
+		await prepareRunnerContainer(args);
+		await fs.writeFile(path.join(appRoot, "7", "app", "requirements.txt"), "requests==2.0.0\n");
+		await prepareRunnerContainer(args);
+
+		expect(container.exec).toHaveBeenCalledTimes(2);
 	});
 
 	it("blocks invocation until the ready marker appears", async () => {

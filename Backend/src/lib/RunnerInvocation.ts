@@ -10,7 +10,7 @@ import { getFunctionAppDir, getFunctionExecutionDir } from "./StoragePaths";
 import { ServeOnlyFileNotFoundHTML } from "./RunnerTypes";
 import type { FunctionExecutionErrorType, TimingEntry } from "./RunnerTypes";
 import { getRuntimeType, isHtmlStartupFile, parseExecutionPayloadRoute, resolveServeOnlyHtmlFileName, findFileByNameIgnoreCase } from "./RunnerUtils";
-import { getRunnerTransportPaths, prepareRunnerTransport, readRunnerResult, revokeLegacyFunctionDbTokens, startStorageRpcBridge, startCallFuncBridge } from "./RunnerTransport";
+import { getRunnerTransportPaths, prepareRunnerTransport, readRunnerResult, startStorageRpcBridge, startCallFuncBridge } from "./RunnerTransport";
 import { getRuntimeCommand } from "./RunnerRuntimeAdapter";
 import { generateExecutionCommand } from "./RunnerRuntimeScripts";
 import { prepareRunnerSource } from "./RunnerSource";
@@ -109,9 +109,12 @@ export async function executeFunction(
 	let containerNotReady = false;
 
 	try {
-		await fs.mkdir(funcAppDir, { recursive: true });
-		await prepareRunnerTransport(transportPaths);
-		await revokeLegacyFunctionDbTokens();
+		// These setup steps are independent; overlap them.
+		const [execEnv] = await Promise.all([
+			getRuntimeEnvironment(functionData),
+			fs.mkdir(funcAppDir, { recursive: true }),
+			prepareRunnerTransport(transportPaths),
+		]);
 
 		await prepareRunnerSource({ functionData, files, funcAppDir, runtimeType, mark, trace });
 
@@ -131,7 +134,6 @@ export async function executeFunction(
 		// Now, execute the function logic using docker exec
 
 		await fs.writeFile(transportPaths.payloadPath, payload);
-		const execEnv = await getRuntimeEnvironment(functionData);
 
 		// Pass the unique payload file path as an argument to the runner script
 		const containerPayloadPath = `/executions/${executionId}/payload.json`;

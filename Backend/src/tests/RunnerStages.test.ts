@@ -35,6 +35,19 @@ describe("runner source preparation", () => {
 		expect(await fs.readFile(path.join(dir, "main"), "utf8")).toBe("git source");
 		expect(await fs.readFile(path.join(dir, "go.mod"), "utf8")).toBe("module existing\n");
 	});
+
+	it("does not rewrite unchanged source or scripts on a repeat run", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "runner-repeat-"));
+		dirs.push(dir);
+		const functionData = { id: 42, git_url: null, startup_file: "main", namespaceId: 1, executionId: "exec", ffmpeg_install: false, opencv_install: false } as Function;
+		const files = [{ name: "main.py", content: "def main():\n\treturn 1\n" }] as FunctionFile[];
+		await prepareRunnerSource({ functionData, files, funcAppDir: dir, runtimeType: "python", mark: vi.fn(), trace: vi.fn() });
+
+		const mark = vi.fn();
+		await prepareRunnerSource({ functionData, files, funcAppDir: dir, runtimeType: "python", mark, trace: vi.fn() });
+
+		expect(mark.mock.calls.map(([phase]) => phase)).toEqual(["User files unchanged", "Scripts unchanged"]);
+	});
 });
 
 describe("runner runtime adapter", () => {
