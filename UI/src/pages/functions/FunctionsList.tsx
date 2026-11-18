@@ -1,4 +1,5 @@
 import { useContext, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import { UserContext } from "../../App";
 import { getNamespaces } from "../../services/backend.namespaces";
@@ -499,8 +500,8 @@ function FunctionRow({
 	onShare: () => void;
 }) {
 	return (
-		<a
-			href={`/functions/${func.id}`}
+		<Link
+			to={`/functions/${func.id}`}
 			className="flex items-center justify-between px-10 py-2.5 hover:bg-white/[0.03] transition-colors group"
 		>
 			<div className="flex items-center gap-3 min-w-0">
@@ -542,7 +543,7 @@ function FunctionRow({
 					<Icon name="trash" className="w-3.5 h-3.5" />
 				</button>
 			</div>}
-		</a>
+		</Link>
 	);
 }
 
