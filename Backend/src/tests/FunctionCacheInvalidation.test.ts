@@ -21,6 +21,8 @@ const harness = vi.hoisted(() => ({
 	findFile: vi.fn(),
 	createFile: vi.fn(),
 	updateFile: vi.fn(),
+	deleteFile: vi.fn(),
+	countFile: vi.fn(),
 	updateFunction: vi.fn(),
 	function: {
 		id: 10, userId: 1, namespaceId: 3, name: "demo", description: "demo",
@@ -43,6 +45,8 @@ vi.mock("../index", () => ({
 			findUnique: harness.findFile,
 			create: harness.createFile,
 			update: harness.updateFile,
+			delete: harness.deleteFile,
+			count: harness.countFile,
 		},
 		functionFolder: {
 			createMany: vi.fn(),
@@ -100,7 +104,7 @@ async function request(route: string, body: unknown) {
 	const context = {
 		cookies: { get: () => null },
 		headers: { get: () => null },
-		params: { get: (key: string) => (key === "id" ? "10" : undefined) },
+		params: { get: (key: string) => (key === "id" ? "10" : key === "fileId" ? "5" : undefined) },
 		$status: {
 			BAD_REQUEST: 400,
 			UNAUTHORIZED: 401,
@@ -137,6 +141,8 @@ beforeEach(() => {
 			...data,
 		}),
 	);
+	harness.deleteFile.mockResolvedValue({ id: 5 });
+	harness.countFile.mockResolvedValue(2);
 	harness.invalidateCache.mockResolvedValue({ count: 1 });
 });
 
@@ -155,6 +161,46 @@ describe("function cache invalidation wiring", () => {
 		const { response } = await request("PATCH /api/function/{id}", {
 			settings: { cache_enabled: true },
 		});
+
+		expect(response).toMatchObject({ status: "OK" });
+		expect(harness.invalidateCache).toHaveBeenCalledWith(10);
+	});
+
+	it("invalidates the cache when a function file is deleted", async () => {
+		harness.findFile.mockResolvedValue({
+			id: 5,
+			functionId: 10,
+			name: "other.py",
+		});
+
+		const { response } = await request(
+			"DELETE /api/function/{id}/file/{fileId}",
+			{},
+		);
+
+		expect(response).toMatchObject({ status: "OK" });
+		expect(harness.deleteFile).toHaveBeenCalledWith({ where: { id: 5 } });
+		expect(harness.invalidateCache).toHaveBeenCalledWith(10);
+	});
+
+	it("invalidates the cache when a function file is renamed", async () => {
+		harness.findFile.mockImplementation(
+			async ({ where }: { where?: Record<string, unknown> }) =>
+				where?.id === 5 && !where.NOT
+					? { id: 5, functionId: 10, name: "main.py", content: "" }
+					: null,
+		);
+		harness.updateFile.mockResolvedValue({
+			id: 5,
+			functionId: 10,
+			name: "renamed.py",
+			content: "",
+		});
+
+		const { response } = await request(
+			"PATCH /api/function/{id}/file/{fileId}/rename",
+			{ newFilename: "renamed.py" },
+		);
 
 		expect(response).toMatchObject({ status: "OK" });
 		expect(harness.invalidateCache).toHaveBeenCalledWith(10);

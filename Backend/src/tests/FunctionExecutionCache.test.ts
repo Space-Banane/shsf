@@ -146,7 +146,7 @@ beforeEach(() => {
 });
 
 describe("streaming function cache", () => {
-	it("replays a cache hit as one output chunk plus an end event", async () => {
+	it("replays a cache hit as an end event without fabricating stdout", async () => {
 		harness.cache.findFirst.mockResolvedValue({
 			result: JSON.stringify({ cached: true }),
 		});
@@ -157,11 +157,10 @@ describe("streaming function cache", () => {
 		expect(harness.executeFunction).not.toHaveBeenCalled();
 		expect(harness.cache.findFirst).toHaveBeenCalledTimes(1);
 		expect(chunks.map((chunk) => JSON.parse(chunk))).toEqual([
-			{ type: "output", content: '{"cached":true}' },
 			{
 				type: "end",
 				exitCode: 0,
-				output: '{"cached":true}',
+				output: "",
 				result: { cached: true },
 				took: [],
 			},
@@ -224,5 +223,11 @@ describe("function cache invalidation", () => {
 		expect(harness.cache.deleteMany).toHaveBeenCalledWith({
 			where: { functionId: 10 },
 		});
+	});
+
+	it("does not throw when cache invalidation fails", async () => {
+		harness.cache.deleteMany.mockRejectedValue(new Error("database unavailable"));
+
+		await expect(invalidateFunctionCache(10)).resolves.toEqual({ count: 0 });
 	});
 });

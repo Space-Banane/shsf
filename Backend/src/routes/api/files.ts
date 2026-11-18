@@ -274,7 +274,6 @@ export = new fileRouter.Path("/")
 					});
 				}
 				await createParentFolders(functionId, data.filename);
-				await invalidateFunctionCache(functionId);
 
 				// Also write the file to the host function app directory so persistent containers
 				// that use a bind mount will see the changes. Replace {{API_BASE}} at write time.
@@ -316,6 +315,8 @@ export = new fileRouter.Path("/")
 				} catch (err) {
 					log.error({ err }, "Failed to write updated file to host");
 				}
+
+				await invalidateFunctionCache(functionId);
 
 				// host write logged above inside try
 
@@ -750,6 +751,7 @@ export = new fileRouter.Path("/")
 					"Failed to delete folder from disk",
 				);
 			}
+			await invalidateFunctionCache(functionId);
 			return ctr.print({ status: "OK", deletedFileCount: files.length });
 		}),
 	)
@@ -894,6 +896,7 @@ export = new fileRouter.Path("/")
 					}
 				}
 
+				await invalidateFunctionCache(functionId);
 				return ctr.print({
 					status: "OK",
 					message: "File deleted successfully",
@@ -1144,6 +1147,7 @@ export = new fileRouter.Path("/")
 					}
 				}
 
+				await invalidateFunctionCache(functionId);
 				return ctr.print({
 					status: "OK",
 					data: updatedFile,
@@ -1319,6 +1323,7 @@ export = new fileRouter.Path("/")
 								where: { id: fileIdInt },
 								data: { content: await readFunctionTemplate(catalogTemplate) },
 							});
+							await invalidateFunctionCache(functionId);
 							return ctr.print({ status: "OK", data: updatedFile });
 						} catch (err) {
 							log.error({ err, templateId: catalogTemplate.id }, "Error reading catalog template");
@@ -1374,6 +1379,7 @@ export = new fileRouter.Path("/")
 						},
 					});
 
+					await invalidateFunctionCache(functionId);
 					return ctr.print({
 						status: "OK",
 						data: updatedFile,

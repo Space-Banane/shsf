@@ -1,5 +1,8 @@
 import { createHash } from "crypto";
 import { prisma } from "..";
+import { createLogger } from "./logger";
+
+const log = createLogger("Caching");
 
 export const SHSF_BINARY_TRANSPORT = "base64-bytes-v1";
 
@@ -279,15 +282,12 @@ export function handleFunctionResult(
 }
 
 /**
- * Formats a cached result as the events the streaming client expects: one
- * output chunk followed by the end event, exactly like a fast execution.
+ * Formats a cached result as the events the streaming client expects. Only the
+ * return value is cached, not stdout, so a hit emits just the end event with an
+ * empty output instead of passing the return value off as program output.
  */
 export function buildStreamCacheHitEvents(result: any) {
-	const output = typeof result === "string" ? result : JSON.stringify(result);
-	return [
-		{ type: "output", content: output },
-		{ type: "end", exitCode: 0, output, result, took: [] },
-	];
+	return [{ type: "end", exitCode: 0, output: "", result, took: [] }];
 }
 
 /**
@@ -351,12 +351,18 @@ export async function setFunctionCache(
 
 /**
  * Removes every cached result for a function. A source or settings change
- * makes previously cached results stale regardless of their TTL.
+ * makes previously cached results stale regardless of their TTL. Failure is
+ * logged and swallowed so cache maintenance cannot fail an applied change.
  */
 export async function invalidateFunctionCache(functionId: number) {
-	return await prisma.functionCache.deleteMany({
-		where: {
-			functionId,
-		},
-	});
+	try {
+		return await prisma.functionCache.deleteMany({
+			where: {
+				functionId,
+			},
+		});
+	} catch (err) {
+		log.warn({ err, functionId }, "Failed to invalidate function cache");
+		return { count: 0 };
+	}
 }
