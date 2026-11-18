@@ -44,6 +44,19 @@ describe("parsePagination", () => {
 			limit: DEFAULT_PAGE_SIZE,
 		});
 	});
+
+	it("floors fractional values and caps enormous pages", () => {
+		expect(parsePagination(queries({ page: "2.9", limit: "2.5" }))).toEqual({
+			page: 2,
+			limit: 2,
+			skip: 2,
+			take: 2,
+		});
+		expect(parsePagination(queries({ page: "1e21" }))).toMatchObject({
+			page: 1_000_000,
+			skip: 24_999_975,
+		});
+	});
 });
 
 describe("paginationMeta", () => {

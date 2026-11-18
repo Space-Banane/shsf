@@ -171,7 +171,7 @@ export class FunctionStorageService {
 	async listStorageItems(
 		userId: number,
 		storageName: string,
-		pagination: { skip?: number; take?: number } = {},
+		options: { skip?: number; take?: number; includeMetadata?: boolean } = {},
 	) {
 		const db = this.database;
 		const storage = await this.findStorage(userId, storageName);
@@ -191,9 +191,11 @@ export class FunctionStorageService {
 			db.functionStorageItem.findMany({
 				where,
 				orderBy: [{ key: "asc" }, { id: "asc" }],
-				skip: pagination.skip,
-				take: pagination.take,
-				select: { id: true, key: true, value: true, expiresAt: true },
+				skip: options.skip,
+				take: options.take,
+				select: options.includeMetadata
+					? { id: true, key: true, value: true, expiresAt: true, storageId: true, createdAt: true, updatedAt: true }
+					: { id: true, key: true, value: true, expiresAt: true },
 			}),
 		]);
 
