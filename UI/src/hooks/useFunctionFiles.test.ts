@@ -35,7 +35,6 @@ const setup = (options: Partial<Parameters<typeof useFunctionFiles>[0]> = {}) =>
 			functionId: 1,
 			htmlOnly: false,
 			readOnly: false,
-			busy: false,
 			editorViewState: view,
 			...options,
 		}),
@@ -71,13 +70,11 @@ describe("useFunctionFiles", () => {
 		expect(result.current.canSave).toBe(true);
 	});
 
-	it("blocks saving while a run is in progress or the source is git-managed", () => {
-		for (const options of [{ busy: true }, { readOnly: true }]) {
-			const { result } = setup(options);
-			act(() => result.current.replaceFiles([file(1, "a.py", "a")], "a.py"));
-			act(() => result.current.setCode("changed"));
-			expect(result.current.canSave).toBe(false);
-		}
+	it("blocks saving when the source is git-managed", () => {
+		const { result } = setup({ readOnly: true });
+		act(() => result.current.replaceFiles([file(1, "a.py", "a")], "a.py"));
+		act(() => result.current.setCode("changed"));
+		expect(result.current.canSave).toBe(false);
 	});
 
 	it("saves the open file and clears the unsaved state", async () => {
@@ -89,8 +86,12 @@ describe("useFunctionFiles", () => {
 		act(() => result.current.replaceFiles([file(1, "a.py", "a")], "a.py"));
 		act(() => result.current.setCode("changed"));
 
-		await act(() => result.current.saveActiveFile());
+		let saved = false;
+		await act(async () => {
+			saved = await result.current.saveActiveFile();
+		});
 
+		expect(saved).toBe(true);
 		expect(createOrUpdateFile).toHaveBeenCalledWith(1, { filename: "a.py", code: "changed" });
 		expect(result.current.hasUnsavedChanges).toBe(false);
 		expect(result.current.files[0].content).toBe("changed");
@@ -105,10 +106,45 @@ describe("useFunctionFiles", () => {
 		act(() => result.current.replaceFiles([file(1, "a.py", "a")], "a.py"));
 		act(() => result.current.setCode("changed"));
 
-		await act(() => result.current.saveActiveFile());
+		let saved = true;
+		await act(async () => {
+			saved = await result.current.saveActiveFile();
+		});
 
+		expect(saved).toBe(false);
 		expect(toast.error).toHaveBeenCalledWith("Error saving file: denied");
 		expect(result.current.hasUnsavedChanges).toBe(true);
+	});
+
+	it("persists edits typed while a save is in flight", async () => {
+		let resolveFirst: (value: unknown) => void = () => {};
+		vi.mocked(createOrUpdateFile)
+			.mockImplementationOnce(
+				() => new Promise((resolve) => (resolveFirst = resolve)) as never,
+			)
+			.mockResolvedValueOnce({
+				status: "OK",
+				data: file(1, "a.py", "second"),
+			});
+		const { result } = setup();
+		act(() => result.current.replaceFiles([file(1, "a.py", "a")], "a.py"));
+		act(() => result.current.setCode("first"));
+
+		let pending!: Promise<boolean>;
+		act(() => {
+			pending = result.current.saveActiveFile();
+		});
+		act(() => result.current.setCode("second"));
+		resolveFirst({ status: "OK", data: file(1, "a.py", "first") });
+		await act(async () => {
+			await pending;
+		});
+
+		expect(createOrUpdateFile).toHaveBeenLastCalledWith(1, {
+			filename: "a.py",
+			code: "second",
+		});
+		expect(result.current.hasUnsavedChanges).toBe(false);
 	});
 
 	it("asks before discarding unsaved edits when switching files", async () => {

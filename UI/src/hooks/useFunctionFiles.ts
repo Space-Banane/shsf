@@ -27,8 +27,6 @@ interface Options {
 	htmlOnly: boolean;
 	/** Files come from a git repository and can't be edited here. */
 	readOnly: boolean;
-	/** A run is in progress; saving is paused until it finishes. */
-	busy: boolean;
 	editorViewState: EditorViewStateStore;
 }
 
@@ -43,7 +41,6 @@ export function useFunctionFiles({
 	functionId,
 	htmlOnly,
 	readOnly,
-	busy,
 	editorViewState,
 }: Options) {
 	const confirm = useConfirm();
@@ -70,7 +67,7 @@ export function useFunctionFiles({
 		activeFile && code !== (savedActiveFile?.content ?? ""),
 	);
 	const canSave = Boolean(
-		activeFile && hasUnsavedChanges && !saving && !busy && !readOnly,
+		activeFile && hasUnsavedChanges && !saving && !readOnly,
 	);
 
 	const openFile = useCallback((file: FunctionFile | null) => {
@@ -195,32 +192,41 @@ export function useFunctionFiles({
 	);
 
 	const saveActiveFile = useCallback(async () => {
-		if (functionId === null || !activeFile) return;
+		if (functionId === null || !activeFileRef.current) return false;
 
 		setSaving(true);
 		try {
-			const data = await createOrUpdateFile(functionId, {
-				filename: activeFile.name,
-				code: code || "",
-			});
-			if (data.status === "OK") {
+			// The editor stays editable while the request is in flight, so keep
+			// persisting until the saved text matches what the user sees.
+			for (;;) {
+				const file = activeFileRef.current;
+				if (!file) return false;
+
+				const content = codeRef.current ?? "";
+				const data = await createOrUpdateFile(functionId, {
+					filename: file.name,
+					code: content,
+				});
+				if (data.status !== "OK") {
+					toast.error("Error saving file: " + data.message);
+					return false;
+				}
+
 				setFiles((prev) =>
-					prev.map((file) =>
-						file.id === activeFile.id
-							? { ...file, content: code || "" }
-							: file,
+					prev.map((entry) =>
+						entry.id === data.data.id ? { ...entry, content } : entry,
 					),
 				);
-			} else {
-				toast.error("Error saving file: " + data.message);
+				if (codeRef.current === content) return true;
 			}
 		} catch (error) {
 			console.error("Error saving file:", error);
 			toast.error("An error occurred while saving the file.");
+			return false;
 		} finally {
 			setSaving(false);
 		}
-	}, [activeFile, code, functionId]);
+	}, [functionId]);
 
 	const renameFileTo = useCallback(
 		async (file: FunctionFile, newFilename: string) => {

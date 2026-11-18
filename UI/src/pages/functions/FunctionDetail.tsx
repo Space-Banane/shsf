@@ -68,7 +68,6 @@ function FunctionDetail() {
 		functionId,
 		htmlOnly,
 		readOnly: gitManaged || !canEdit,
-		busy: execution.running,
 		editorViewState: editorView,
 	});
 	const upload = useFileUpload({
@@ -87,6 +86,22 @@ function FunctionDetail() {
 		onFinished: () => void logs.refreshSilently(),
 	});
 	const output = useAutoScroll(execution.consoleOutput);
+
+	// The backend runs the persisted files, so persist pending edits first. A
+	// failed save cancels the run instead of executing an older version.
+	const runExecution = execution.run;
+	const saveActiveFile = files.saveActiveFile;
+	const hasUnsavedChanges = files.hasUnsavedChanges;
+	const handleRun = useCallback(async () => {
+		if (hasUnsavedChanges) {
+			const saved = await saveActiveFile();
+			if (!saved) {
+				toast.error("Run cancelled: your unsaved changes could not be saved.");
+				return;
+			}
+		}
+		await runExecution();
+	}, [hasUnsavedChanges, runExecution, saveActiveFile]);
 
 	useUnsavedChangesGuard(files.hasUnsavedChanges);
 
@@ -306,7 +321,7 @@ function FunctionDetail() {
 								triggers: triggers.triggers,
 							})
 						}
-						onRun={execution.run}
+						onRun={handleRun}
 						canEdit={canEdit}
 						canExecute={canExecute}
 					/>
