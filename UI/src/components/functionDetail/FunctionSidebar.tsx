@@ -46,7 +46,6 @@ export function FunctionSidebar({
 		triggers.length > 0,
 	);
 	const [showTimingDetails, setShowTimingDetails] = useState(false);
-	const [showLogsDetails, setShowLogsDetails] = useState(false);
 
 	const canEdit = can(functionData.access, "edit");
 
@@ -137,8 +136,8 @@ export function FunctionSidebar({
 			<LogsCard
 				logs={logs.logs}
 				isLoadingLogs={logs.isLoading}
-				showDetails={showLogsDetails}
-				onToggleDetails={() => setShowLogsDetails((open) => !open)}
+				showDetails={logs.expanded}
+				onToggleDetails={() => logs.setExpanded((open) => !open)}
 				onRefreshLogs={logs.refresh}
 				onViewLogs={() => logs.setModalOpen(true)}
 				functionId={functionData.id}

@@ -80,9 +80,11 @@ function FunctionDetail() {
 		functionId,
 		!execution.running && execution.exitCode !== null,
 	);
-	const triggers = useFunctionTriggers(functionId, { onRan: logs.refresh });
+	const triggers = useFunctionTriggers(functionId, {
+		onRan: logs.refreshSilently,
+	});
 	const dependencies = useDependencyInstall(functionId, {
-		onFinished: () => void logs.refresh(),
+		onFinished: () => void logs.refreshSilently(),
 	});
 	const output = useAutoScroll(execution.consoleOutput);
 
