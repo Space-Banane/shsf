@@ -72,7 +72,9 @@ model User {
 
 model Session {
   id   Int    @id @default(autoincrement())
-  hash String @db.Text
+  // Session hashes are 64-char hex (sha256 or 32 random bytes). A bounded
+  // VarChar lets MariaDB use the unique index instead of scanning a TEXT column.
+  hash String @unique @db.VarChar(64)
   expiresAt DateTime? // Server-enforced for SSO; local sessions retain their existing lifetime.
 
   userId Int
