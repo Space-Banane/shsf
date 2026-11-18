@@ -80,6 +80,8 @@ model Session {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([expiresAt, createdAt])
 }
 
 model Function {
@@ -350,6 +352,8 @@ model GuestSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   expiresAt DateTime
+
+  @@index([expiresAt])
 }
 
 enum SharePermission {

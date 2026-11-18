@@ -86,6 +86,7 @@ export function startSystemCrons(dependencies: SystemCronDependencies): SystemCr
 		{
 			name: "retention-cleanup",
 			intervalMs: 60 * 60 * 1000,
+			runOnStart: true,
 			run: () => processRetentionCleanup(dependencies),
 		},
 		{
@@ -321,6 +322,9 @@ export async function processStorageCleanup({ prisma }: SystemCronDependencies) 
 }
 
 const RETENTION_DAY_MS = 24 * 60 * 60 * 1000;
+// Local (non-SSO) sessions have no expiresAt column; they are dead once their
+// cookie has expired. Mirrors the 30-day cookie lifetime in the login route.
+const LOCAL_SESSION_MAX_AGE_MS = 30 * RETENTION_DAY_MS;
 
 const retentionLog = createLogger("RETENTION");
 
@@ -330,41 +334,62 @@ type RetentionTarget = {
 	deleteBatch: (ids: number[]) => Promise<number>;
 };
 
+type RetentionOptions = {
+	logDays?: number;
+	auditDays?: number;
+	batchSize?: number;
+};
+
 async function drainRetentionTarget(target: RetentionTarget, batchSize: number): Promise<number> {
 	let deleted = 0;
 	for (;;) {
 		const ids = await target.findBatch(batchSize);
 		if (ids.length === 0) break;
 
-		deleted += await target.deleteBatch(ids);
-		if (ids.length < batchSize) break;
+		const removed = await target.deleteBatch(ids);
+		deleted += removed;
+		// Stop on a short batch or if a full batch deleted nothing, so an
+		// unexpected constraint cannot spin the loop forever.
+		if (removed === 0 || ids.length < batchSize) break;
 	}
 	return deleted;
 }
 
-export async function processRetentionCleanup({ prisma }: SystemCronDependencies) {
+export async function processRetentionCleanup(
+	{ prisma }: SystemCronDependencies,
+	options: RetentionOptions = {},
+) {
 	const now = new Date();
-	const logCutoff = new Date(now.getTime() - env.RETENTION_LOG_DAYS * RETENTION_DAY_MS);
-	const auditCutoff = new Date(now.getTime() - env.RETENTION_AUDIT_DAYS * RETENTION_DAY_MS);
+	const logDays = options.logDays ?? env.RETENTION_LOG_DAYS;
+	const auditDays = options.auditDays ?? env.RETENTION_AUDIT_DAYS;
+	const batchSize = options.batchSize ?? env.RETENTION_BATCH_SIZE;
+	const logCutoff = new Date(now.getTime() - logDays * RETENTION_DAY_MS);
+	const auditCutoff = new Date(now.getTime() - auditDays * RETENTION_DAY_MS);
+	const localSessionCutoff = new Date(now.getTime() - LOCAL_SESSION_MAX_AGE_MS);
 
 	// Every target deletes by primary key in bounded batches so a large backlog
 	// never turns into one long-running lock. Deleting a TriggerLog cascades to
 	// its LogAnalysis row, so this one pass bounds both tables.
-	const targets: RetentionTarget[] = [
-		{
+	const targets: RetentionTarget[] = [];
+
+	if (logDays > 0) {
+		targets.push({
 			label: "execution logs",
 			findBatch: async (take) =>
 				(
 					await prisma.triggerLog.findMany({
 						where: { createdAt: { lt: logCutoff } },
 						select: { id: true },
-						orderBy: { id: "asc" },
+						orderBy: { createdAt: "asc" },
 						take,
 					})
 				).map((row) => row.id),
 			deleteBatch: async (ids) =>
 				(await prisma.triggerLog.deleteMany({ where: { id: { in: ids } } })).count,
-		},
+		});
+	}
+
+	targets.push(
 		{
 			label: "expired sessions",
 			findBatch: async (take) =>
@@ -372,7 +397,21 @@ export async function processRetentionCleanup({ prisma }: SystemCronDependencies
 					await prisma.session.findMany({
 						where: { expiresAt: { lt: now } },
 						select: { id: true },
-						orderBy: { id: "asc" },
+						orderBy: { expiresAt: "asc" },
+						take,
+					})
+				).map((row) => row.id),
+			deleteBatch: async (ids) =>
+				(await prisma.session.deleteMany({ where: { id: { in: ids } } })).count,
+		},
+		{
+			label: "abandoned local sessions",
+			findBatch: async (take) =>
+				(
+					await prisma.session.findMany({
+						where: { expiresAt: null, createdAt: { lt: localSessionCutoff } },
+						select: { id: true },
+						orderBy: { createdAt: "asc" },
 						take,
 					})
 				).map((row) => row.id),
@@ -386,32 +425,35 @@ export async function processRetentionCleanup({ prisma }: SystemCronDependencies
 					await prisma.guestSession.findMany({
 						where: { expiresAt: { lt: now } },
 						select: { id: true },
-						orderBy: { id: "asc" },
+						orderBy: { expiresAt: "asc" },
 						take,
 					})
 				).map((row) => row.id),
 			deleteBatch: async (ids) =>
 				(await prisma.guestSession.deleteMany({ where: { id: { in: ids } } })).count,
 		},
-		{
+	);
+
+	if (auditDays > 0) {
+		targets.push({
 			label: "audit log rows",
 			findBatch: async (take) =>
 				(
 					await prisma.auditLog.findMany({
 						where: { createdAt: { lt: auditCutoff } },
 						select: { id: true },
-						orderBy: { id: "asc" },
+						orderBy: { createdAt: "asc" },
 						take,
 					})
 				).map((row) => row.id),
 			deleteBatch: async (ids) =>
 				(await prisma.auditLog.deleteMany({ where: { id: { in: ids } } })).count,
-		},
-	];
+		});
+	}
 
 	for (const target of targets) {
 		try {
-			const deleted = await drainRetentionTarget(target, env.RETENTION_BATCH_SIZE);
+			const deleted = await drainRetentionTarget(target, batchSize);
 			if (deleted > 0) {
 				retentionLog.info({ target: target.label, deleted }, "Retention cleanup removed rows");
 			}

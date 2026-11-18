@@ -44,7 +44,8 @@ export = new fileRouter.Path("/").http("PATCH", "/api/logout", (http) =>
 					.print({ status: "FAILED", message: "You're not logged in!" });
 			}
 
-			await prisma.session.delete({
+			// deleteMany avoids P2025 if the retention cron removes this row first.
+			await prisma.session.deleteMany({
 				where: {
 					id: session.id,
 				},

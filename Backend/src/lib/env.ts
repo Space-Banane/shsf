@@ -26,9 +26,10 @@ const baseSchema = z.object({
 	RATELIMIT: z.coerce.number().int().nonnegative().default(0),
 	LOG_LEVEL: z.string().default("info"),
 	// Time-based retention for the append-only tables. Windows are measured in
-	// days; expired sessions are always removed regardless of these values.
-	RETENTION_LOG_DAYS: z.coerce.number().int().positive().default(30),
-	RETENTION_AUDIT_DAYS: z.coerce.number().int().positive().default(90),
+	// days and 0 disables pruning for that table. Expired sessions and local
+	// (non-SSO) sessions older than their cookie lifetime are always removed.
+	RETENTION_LOG_DAYS: z.coerce.number().int().nonnegative().max(36_500).default(30),
+	RETENTION_AUDIT_DAYS: z.coerce.number().int().nonnegative().max(36_500).default(90),
 	RETENTION_BATCH_SIZE: z.coerce.number().int().positive().max(10_000).default(500),
 	OPENROUTER_API_KEY: z.string().optional(),
 	// Demo mode is deliberately opt-in. It creates a public, disposable account
