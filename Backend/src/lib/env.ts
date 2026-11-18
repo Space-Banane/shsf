@@ -31,6 +31,14 @@ const baseSchema = z.object({
 	RETENTION_LOG_DAYS: z.coerce.number().int().nonnegative().max(36_500).default(30),
 	RETENTION_AUDIT_DAYS: z.coerce.number().int().nonnegative().max(36_500).default(90),
 	RETENTION_BATCH_SIZE: z.coerce.number().int().positive().max(10_000).default(500),
+	// Manual dependency installs run as background jobs; a stalled package
+	// manager must fail with a clear error instead of running forever.
+	DEPENDENCY_INSTALL_TIMEOUT_MS: z.coerce
+		.number()
+		.int()
+		.positive()
+		.max(3_600_000)
+		.default(600_000),
 	OPENROUTER_API_KEY: z.string().optional(),
 	// Demo mode is deliberately opt-in. It creates a public, disposable account
 	// and sample function data, so it must never be enabled for a real instance.

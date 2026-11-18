@@ -69,13 +69,16 @@ export async function buildPayloadFromPOST(
 export async function installDependencies(
 	functionId: number,
 	functionData: any,
-	files: any[]
+	files: any[],
+	options: { signal?: AbortSignal } = {},
 ): Promise<boolean | 404> {
 	const docker = new Docker();
 	const functionIdStr = String(functionId);
 	const containerName = `shsf_func_${functionIdStr}`;
+	const signal = options.signal;
 
 	try {
+		if (signal?.aborted) throw new Error("Dependency installation aborted");
 		const container = docker.getContainer(containerName);
 		const requirementsFile = files.find(
 			(file) => file.name === "requirements.txt",
@@ -130,12 +133,25 @@ export async function installDependencies(
 
 		// Consume the stream to completion (required for exec to finish)
 		await new Promise<void>((resolve, reject) => {
-			execStream.on("end", () => {
+			const onAbort = () => {
+				execStream.destroy();
+				reject(new Error("Dependency installation aborted"));
+			};
+			if (signal?.aborted) {
+				onAbort();
+				return;
+			}
+			const onEnd = () => {
+				signal?.removeEventListener("abort", onAbort);
 				resolve();
-			});
-			execStream.on("error", (error) => {
+			};
+			const onError = (error: Error) => {
+				signal?.removeEventListener("abort", onAbort);
 				reject(error);
-			});
+			};
+			signal?.addEventListener("abort", onAbort, { once: true });
+			execStream.on("end", onEnd);
+			execStream.on("error", onError);
 			// Drain the stream
 			execStream.resume();
 		});
@@ -152,6 +168,7 @@ export async function installDependencies(
 			return false;
 		}
 	} catch (error) {
+		if (signal?.aborted) throw error;
 		log.error({ err: error }, "Error installing dependencies");
 		return false;
 	}

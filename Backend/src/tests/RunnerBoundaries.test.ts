@@ -23,7 +23,7 @@ vi.mock("dockerode", () => ({ default: class { getContainer = mocks.getContainer
 
 import { prepareRunnerContainer } from "../lib/RunnerContainer";
 import { deleteContainerForFunction } from "../lib/RunnerCleanup";
-import { executeFunction } from "../lib/Runner";
+import { executeFunction, installDependencies } from "../lib/Runner";
 
 beforeEach(async () => {
 	vi.clearAllMocks();
@@ -109,5 +109,52 @@ describe("public invocation", () => {
 		expect(result.result).toEqual({ _shsf: "v2", _headers: { "Content-Type": "text/html; charset=utf-8" }, _code: 200, _res: "<html>hello</html>" });
 		expect(result.exit_code).toBe(0);
 		expect(mocks.getContainer).not.toHaveBeenCalled();
+	});
+});
+
+describe("dependency installs", () => {
+	const functionData = { id: 7, git_url: null, env: null, userId: 1 } as unknown as Function;
+
+	it("succeeds when the exec stream completes with exit code 0", async () => {
+		const stream = new PassThrough();
+		const exec = {
+			start: vi.fn().mockImplementation(async () => {
+				process.nextTick(() => stream.end());
+				return stream;
+			}),
+			inspect: vi.fn().mockResolvedValue({ ExitCode: 0 }),
+		};
+		const container = {
+			inspect: vi.fn().mockResolvedValue({ State: { Running: true } }),
+			exec: vi.fn().mockResolvedValue(exec),
+		};
+		mocks.getContainer.mockReturnValue(container);
+
+		await expect(installDependencies(7, functionData, [])).resolves.toBe(true);
+		expect(exec.inspect).toHaveBeenCalled();
+	});
+
+	it("aborts and stops draining when the signal fires", async () => {
+		const stream = new PassThrough();
+		const exec = {
+			start: vi.fn().mockResolvedValue(stream),
+			inspect: vi.fn(),
+		};
+		const container = {
+			inspect: vi.fn().mockResolvedValue({ State: { Running: true } }),
+			exec: vi.fn().mockResolvedValue(exec),
+		};
+		mocks.getContainer.mockReturnValue(container);
+
+		const controller = new AbortController();
+		const pending = installDependencies(7, functionData, [], {
+			signal: controller.signal,
+		});
+		await vi.waitFor(() => expect(exec.start).toHaveBeenCalled());
+		controller.abort();
+
+		await expect(pending).rejects.toThrow("aborted");
+		expect(stream.destroyed).toBe(true);
+		expect(exec.inspect).not.toHaveBeenCalled();
 	});
 });
