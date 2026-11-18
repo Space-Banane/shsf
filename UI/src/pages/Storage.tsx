@@ -15,6 +15,7 @@ import { Icon } from "../components/ui/Icon";
 import SharedBadge from "../components/ui/SharedBadge";
 import ShareModal from "../components/modals/sharing/ShareModal";
 import { can } from "../services/backend.sharing";
+import type { Pagination } from "../types/Pagination";
 import { useLocation, useSearchParams } from "react-router-dom";
 
 interface StorageExplorerLocationState {
@@ -30,6 +31,8 @@ function StoragePage() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [items, setItems] = useState<StorageItem[]>([]);
+	const [itemPage, setItemPage] = useState(1);
+	const [itemPagination, setItemPagination] = useState<Pagination | null>(null);
 	const [itemLoading, setItemLoading] = useState(false);
 	const [itemError, setItemError] = useState("");
 	const [showCreateModal, setShowCreateModal] = useState(false);
@@ -63,22 +66,24 @@ function StoragePage() {
 		finally { setLoading(false); }
 	};
 
-	const loadItems = async (storage: Storage) => {
+	const loadItems = async (storage: Storage, page: number) => {
 		setItemLoading(true);
 		setItemError("");
 		try {
-			const res = await listStorageItems(storage);
-			if (res.status === "OK") setItems(res.data);
-			else setItemError(res.message || "Failed to load items");
+			const res = await listStorageItems(storage, page);
+			if (res.status === "OK") {
+				setItems(res.data);
+				if (res.pagination) setItemPagination(res.pagination);
+			} else setItemError(res.message || "Failed to load items");
 		} catch { setItemError("Failed to load items"); }
 		finally { setItemLoading(false); }
 	};
 
 	useEffect(() => { loadStorages(); }, []);
 	useEffect(() => {
-		if (selectedStorage) loadItems(selectedStorage);
-		else setItems([]);
-	}, [selectedStorage]);
+		if (selectedStorage) loadItems(selectedStorage, itemPage);
+		else { setItems([]); setItemPagination(null); }
+	}, [selectedStorage, itemPage]);
 
 	// Older links pass the selection in location.state; mirror it into the URL once.
 	useEffect(() => {
@@ -91,6 +96,7 @@ function StoragePage() {
 	}, [hasUrlStorage, hintedStorageId, setSearchParams]);
 
 	const selectStorage = (storage: Storage) => {
+		setItemPage(1);
 		setSearchParams((current) => {
 			const next = new URLSearchParams(current);
 			next.set("storage", String(storage.id));
@@ -139,7 +145,7 @@ function StoragePage() {
 
 					<div className="bg-surface border border-white/[0.07] rounded-xl">
 						<div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.07]">
-							<span className="text-sm text-muted">{items.length} item{items.length !== 1 ? "s" : ""}</span>
+							<span className="text-sm text-muted">{itemPagination?.total ?? items.length} item{(itemPagination?.total ?? items.length) !== 1 ? "s" : ""}</span>
 							<div className="flex gap-2">
 								<button className={btnSecondary} onClick={() => setShowGetItemModal(true)}>
 									Get Item
@@ -207,6 +213,29 @@ function StoragePage() {
 										))}
 									</tbody>
 								</table>
+							</div>
+						)}
+						{itemPagination && (
+							<div className="flex items-center justify-between border-t border-white/[0.07] px-5 py-3">
+								<span className="text-xs text-muted">
+									Page {itemPagination.page} of {itemPagination.totalPages} · {itemPagination.total} items
+								</span>
+								<div className="flex gap-2">
+									<button
+										disabled={itemPagination.page <= 1}
+										onClick={() => setItemPage((page) => Math.max(1, page - 1))}
+										className="rounded border border-white/[0.08] px-3 py-1 text-sm disabled:opacity-40"
+									>
+										Previous
+									</button>
+									<button
+										disabled={itemPagination.page >= itemPagination.totalPages}
+										onClick={() => setItemPage((page) => page + 1)}
+										className="rounded border border-white/[0.08] px-3 py-1 text-sm disabled:opacity-40"
+									>
+										Next
+									</button>
+								</div>
 							</div>
 						)}
 					</div>
@@ -297,18 +326,18 @@ function StoragePage() {
 				}}
 				target={deleteTarget}
 			/>
-			<ClearStorageModal isOpen={showClearModal} onClose={() => setShowClearModal(false)} onSuccess={() => selectedStorage && loadItems(selectedStorage)} selectedStorage={selectedStorage} />
+			<ClearStorageModal isOpen={showClearModal} onClose={() => setShowClearModal(false)} onSuccess={() => selectedStorage && loadItems(selectedStorage, itemPage)} selectedStorage={selectedStorage} />
 			<AddStorageItemModal
 				isOpen={showAddItemModal}
 				onClose={() => { setShowAddItemModal(false); setEditingItem(null); }}
-				onSuccess={() => selectedStorage && loadItems(selectedStorage)}
+				onSuccess={() => selectedStorage && loadItems(selectedStorage, itemPage)}
 				selectedStorage={selectedStorage}
 				initialItem={editingItem}
 			/>
 			<DeleteStorageItemModal
 				isOpen={showDeleteItemModal}
 				onClose={() => { setShowDeleteItemModal(false); setDeleteItemKey(null); }}
-				onSuccess={() => selectedStorage && loadItems(selectedStorage)}
+				onSuccess={() => selectedStorage && loadItems(selectedStorage, itemPage)}
 				selectedStorage={selectedStorage}
 				deleteItemKey={deleteItemKey}
 			/>

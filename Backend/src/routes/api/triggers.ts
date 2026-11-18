@@ -5,6 +5,7 @@ import { OpenAPITags } from "../../lib/openapi";
 import { validateCronExpression } from "../../lib/Cron";
 import { executeFunction } from "../../lib/Runner";
 import { createLogger } from "../../lib/logger";
+import { paginationMeta, parsePagination } from "../../lib/Pagination";
 
 const log = createLogger("triggers");
 
@@ -68,24 +69,33 @@ export = new fileRouter.Path("/")
 					});
 				}
 
-				const triggers = await prisma.functionTrigger.findMany({
-					where: {
-						function: {
-							...functionAccessWhere(authCheck.user.id, "view"),
-						},
+				const { page, limit, skip, take } = parsePagination(ctr.queries);
+				const where = {
+					function: {
+						...functionAccessWhere(authCheck.user.id, "view"),
 					},
-					include: {
-						function: {
-							select: {
-								name: true,
+				};
+				const [total, triggers] = await Promise.all([
+					prisma.functionTrigger.count({ where }),
+					prisma.functionTrigger.findMany({
+						where,
+						orderBy: { id: "asc" },
+						skip,
+						take,
+						include: {
+							function: {
+								select: {
+									name: true,
+								},
 							},
 						},
-					},
-				});
+					}),
+				]);
 
 				return ctr.print({
 					status: "OK",
 					data: triggers,
+					pagination: paginationMeta(page, limit, total),
 				});
 			}),
 	)

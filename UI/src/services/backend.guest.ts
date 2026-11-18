@@ -1,5 +1,6 @@
 import { BASE_URL } from "..";
 import { apiFetch, type ApiFailure } from "./api";
+import type { Pagination } from "../types/Pagination";
 
 const fetch = apiFetch;
 
@@ -41,11 +42,13 @@ export async function createGuestUser(params: {
 // List all guest users for the authenticated owner
 export interface ListGuestUsersResult {
 	guests: GuestUser[];
+	pagination?: Pagination;
 	error?: string;
 }
 
-export async function listGuestUsers(): Promise<ListGuestUsersResult> {
-	const response = await fetch(`${BASE_URL}/api/account/guest/list`, {
+export async function listGuestUsers(page = 1, limit = 25): Promise<ListGuestUsersResult> {
+	const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+	const response = await fetch(`${BASE_URL}/api/account/guest/list?${params}`, {
 		method: "GET",
 		headers: { "Content-Type": "application/json" },
 		credentials: "include",
@@ -54,7 +57,7 @@ export async function listGuestUsers(): Promise<ListGuestUsersResult> {
 	if (json.status === "OK" && Array.isArray(json.guests ?? json.data?.guests)) {
 		// Support both { guests } and { data: { guests } }
 		const guests = json.guests ?? json.data?.guests ?? [];
-		return { guests };
+		return { guests, pagination: json.pagination ?? json.data?.pagination };
 	} else {
 		return { guests: [], error: json.message || "Unknown error" };
 	}

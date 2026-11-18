@@ -1,5 +1,6 @@
 import { BASE_URL } from "..";
 import type { Access, SharePermission } from "../types/Prisma";
+import type { Pagination } from "../types/Pagination";
 import { apiFetch, type ApiFailure } from "./api";
 
 export type ShareResourceType = "namespace" | "function" | "storage";
@@ -35,7 +36,7 @@ export interface AuditEntry {
 	createdAt: string;
 }
 
-type Ok<T> = { status: "OK"; data: T };
+type Ok<T> = { status: "OK"; data: T; pagination?: Pagination };
 type Result<T> = Ok<T> | ApiFailure;
 
 const RANK: Record<Access, number> = { view: 1, execute: 2, edit: 3, owner: 4 };
@@ -60,7 +61,8 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<Result<T>>
 	return response.json();
 }
 
-export const listShares = (type: ShareResourceType, id: number) => call<Share[]>(`/api/shares/${type}/${id}`);
+export const listShares = (type: ShareResourceType, id: number, page = 1, limit = 25) =>
+	call<Share[]>(`/api/shares/${type}/${id}?page=${page}&limit=${limit}`);
 
 export const addShare = (
 	type: ShareResourceType,

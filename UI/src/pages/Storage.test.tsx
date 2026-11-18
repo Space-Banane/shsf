@@ -82,7 +82,7 @@ describe("StoragePage", () => {
 		expect(screen.getByRole("button", { name: "Get Item" })).toBeTruthy();
 		expect(screen.queryByRole("button", { name: "Clear All" })).toBeNull();
 		expect(screen.queryByRole("button", { name: /Add Item/ })).toBeNull();
-		expect(mockedListStorageItems).toHaveBeenCalledWith(shared);
+		expect(mockedListStorageItems).toHaveBeenCalledWith(shared, 1);
 	});
 
 	it("still honours the legacy location.state selection and mirrors it into the URL", async () => {

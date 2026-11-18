@@ -1,5 +1,6 @@
 import { BASE_URL } from "..";
 import { apiFetch } from "./api";
+import type { Pagination } from "../types/Pagination";
 
 const fetch = apiFetch;
 
@@ -52,8 +53,17 @@ export interface AdminStats {
 
 // --- Users ---
 
-export async function adminListUsers(): Promise<{ status: "OK"; users: AdminUser[] } | { status: "FAILED"; message: string }> {
-	const res = await fetch(`${BASE_URL}/api/admin/users`, { credentials: "include" });
+export async function adminListUsers(
+	page = 1,
+	limit = 25,
+	search = "",
+): Promise<
+	| { status: "OK"; users: AdminUser[]; pagination?: Pagination }
+	| { status: "FAILED"; message: string }
+> {
+	const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+	if (search.trim()) params.set("search", search.trim());
+	const res = await fetch(`${BASE_URL}/api/admin/users?${params}`, { credentials: "include" });
 	return res.json();
 }
 
