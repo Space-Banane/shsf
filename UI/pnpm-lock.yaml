@@ -49,6 +49,9 @@ importers:
       jszip:
         specifier: ^3.10.2
         version: 3.10.2
+      monaco-editor:
+        specifier: ^0.57.0
+        version: 0.57.0
       motion:
         specifier: ^14.0.0
         version: 14.0.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)

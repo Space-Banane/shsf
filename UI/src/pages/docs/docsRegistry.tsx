@@ -1,34 +1,4 @@
-import type { FC } from "react";
-import { AccessTokensDocPage } from "./access-tokens";
-import { CallFunctionsDocPage } from "./call-functions";
-import { DocsCloneFunction } from "./clone-function";
-import { CustomCorsDocPage } from "./custom-cors";
-import { CustomResponsesPage } from "./custom-responses";
-import { DataPassingPage } from "./data-passing";
-import { DatabaseComDocPage } from "./db-com";
-import { DockerMountPage } from "./docker-mount";
-import { EnvironmentVariablesPage } from "./environment-variables";
-import ExecutionAliasPage from "./execution-alias";
-import { FfmpegInstallPage } from "./ffmpeg-install";
-import { DocsGettingStarted } from "./getting-started";
-import { DocsGoRuntime } from "./go-runtime";
-import { GuestUsersDocPage } from "./guest-users";
-import { DOCSKICKOFF } from "./kickoff";
-import { LogAnalysisDocPage } from "./log-analysis";
-import { MyFirstFunctionDoc } from "./my-first-function";
-import { DocsNodeJsRuntime } from "./nodejs-runtime";
-import { OpencvInstallPage } from "./opencv-install";
-import { PersistentDataPage } from "./persistent-data";
-import { RawBodyPage } from "./raw-body";
-import { RedirectsPage } from "./redirects";
-import { RoutingDocPage } from "./routing";
-import { SecureHeadersPage } from "./secure-headers";
-import { ServeOnlyHtmlPage } from "./serve-only";
-import { UserInterfacesPage } from "./user-interfaces";
-import { CLIDocPage } from "./cli";
-import { DocsVersionControl } from "./version-control";
-import { TriggersDocPage } from "./triggers";
-import { TroubleshootingDocPage } from "./troubleshooting";
+import { lazy, type ComponentType } from "react";
 
 export const documentationCategories = ["Install", "Create and test", "Configure", "Deploy and operate", "Automate", "Troubleshoot"] as const;
 
@@ -39,7 +9,7 @@ export type DocumentationEntry = {
 	category: (typeof documentationCategories)[number];
 	path: `/docs/${string}`;
 	related: string[];
-	component: FC;
+	component: ComponentType;
 };
 
 type DocumentationDefinition = Omit<DocumentationEntry, "component">;
@@ -77,8 +47,37 @@ const documentationDefinitions: DocumentationDefinition[] = [
 	{ key: "troubleshooting", title: "Troubleshooting", description: "Fix startup failures, HTTP errors from /exec/, CORS problems, and misbehaving functions.", category: "Troubleshoot", path: "/docs/troubleshooting", related: ["getting-started", "secure-headers"] },
 ];
 
-const components: Record<string, FC> = {
-	"getting-started": DocsGettingStarted, "my-first-function": MyFirstFunctionDoc, "data-passing": DataPassingPage, "custom-responses": CustomResponsesPage, "environment-variables": EnvironmentVariablesPage, "secure-headers": SecureHeadersPage, "persistent-data": PersistentDataPage, redirects: RedirectsPage, "raw-body": RawBodyPage, "user-interfaces": UserInterfacesPage, "docker-mount": DockerMountPage, "serve-only": ServeOnlyHtmlPage, "access-tokens": AccessTokensDocPage, cli: CLIDocPage, "db-com": DatabaseComDocPage, routing: RoutingDocPage, "custom-cors": CustomCorsDocPage, "guest-users": GuestUsersDocPage, "execution-alias": ExecutionAliasPage, "ffmpeg-install": FfmpegInstallPage, "go-runtime": DocsGoRuntime, "nodejs-runtime": DocsNodeJsRuntime, kickoff: DOCSKICKOFF, "log-analysis": LogAnalysisDocPage, "version-control": DocsVersionControl, "clone-function": DocsCloneFunction, "opencv-install": OpencvInstallPage, "call-functions": CallFunctionsDocPage, troubleshooting: TroubleshootingDocPage, triggers: TriggersDocPage,
+const components: Record<string, ComponentType> = {
+	"getting-started": lazy(() => import("./getting-started").then(({ DocsGettingStarted }) => ({ default: DocsGettingStarted }))),
+	"my-first-function": lazy(() => import("./my-first-function").then(({ MyFirstFunctionDoc }) => ({ default: MyFirstFunctionDoc }))),
+	"data-passing": lazy(() => import("./data-passing").then(({ DataPassingPage }) => ({ default: DataPassingPage }))),
+	"custom-responses": lazy(() => import("./custom-responses").then(({ CustomResponsesPage }) => ({ default: CustomResponsesPage }))),
+	"environment-variables": lazy(() => import("./environment-variables").then(({ EnvironmentVariablesPage }) => ({ default: EnvironmentVariablesPage }))),
+	"secure-headers": lazy(() => import("./secure-headers").then(({ SecureHeadersPage }) => ({ default: SecureHeadersPage }))),
+	"persistent-data": lazy(() => import("./persistent-data").then(({ PersistentDataPage }) => ({ default: PersistentDataPage }))),
+	redirects: lazy(() => import("./redirects").then(({ RedirectsPage }) => ({ default: RedirectsPage }))),
+	"raw-body": lazy(() => import("./raw-body").then(({ RawBodyPage }) => ({ default: RawBodyPage }))),
+	"user-interfaces": lazy(() => import("./user-interfaces").then(({ UserInterfacesPage }) => ({ default: UserInterfacesPage }))),
+	"docker-mount": lazy(() => import("./docker-mount").then(({ DockerMountPage }) => ({ default: DockerMountPage }))),
+	"serve-only": lazy(() => import("./serve-only").then(({ ServeOnlyHtmlPage }) => ({ default: ServeOnlyHtmlPage }))),
+	"access-tokens": lazy(() => import("./access-tokens").then(({ AccessTokensDocPage }) => ({ default: AccessTokensDocPage }))),
+	cli: lazy(() => import("./cli").then(({ CLIDocPage }) => ({ default: CLIDocPage }))),
+	"db-com": lazy(() => import("./db-com").then(({ DatabaseComDocPage }) => ({ default: DatabaseComDocPage }))),
+	routing: lazy(() => import("./routing").then(({ RoutingDocPage }) => ({ default: RoutingDocPage }))),
+	"custom-cors": lazy(() => import("./custom-cors").then(({ CustomCorsDocPage }) => ({ default: CustomCorsDocPage }))),
+	"guest-users": lazy(() => import("./guest-users").then(({ GuestUsersDocPage }) => ({ default: GuestUsersDocPage }))),
+	"execution-alias": lazy(() => import("./execution-alias")),
+	"ffmpeg-install": lazy(() => import("./ffmpeg-install").then(({ FfmpegInstallPage }) => ({ default: FfmpegInstallPage }))),
+	"go-runtime": lazy(() => import("./go-runtime").then(({ DocsGoRuntime }) => ({ default: DocsGoRuntime }))),
+	"nodejs-runtime": lazy(() => import("./nodejs-runtime").then(({ DocsNodeJsRuntime }) => ({ default: DocsNodeJsRuntime }))),
+	kickoff: lazy(() => import("./kickoff").then(({ DOCSKICKOFF }) => ({ default: DOCSKICKOFF }))),
+	"log-analysis": lazy(() => import("./log-analysis").then(({ LogAnalysisDocPage }) => ({ default: LogAnalysisDocPage }))),
+	"version-control": lazy(() => import("./version-control").then(({ DocsVersionControl }) => ({ default: DocsVersionControl }))),
+	"clone-function": lazy(() => import("./clone-function").then(({ DocsCloneFunction }) => ({ default: DocsCloneFunction }))),
+	"opencv-install": lazy(() => import("./opencv-install").then(({ OpencvInstallPage }) => ({ default: OpencvInstallPage }))),
+	"call-functions": lazy(() => import("./call-functions").then(({ CallFunctionsDocPage }) => ({ default: CallFunctionsDocPage }))),
+	troubleshooting: lazy(() => import("./troubleshooting").then(({ TroubleshootingDocPage }) => ({ default: TroubleshootingDocPage }))),
+	triggers: lazy(() => import("./triggers").then(({ TriggersDocPage }) => ({ default: TriggersDocPage }))),
 };
 
 export const documentation: DocumentationEntry[] = documentationDefinitions.map((entry) => ({ ...entry, component: components[entry.key] }));

@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext, Suspense } from "react";
 import {
 	Navigate,
 	Outlet,
@@ -24,6 +24,7 @@ import { Footer } from "./components/ui/Footer";
 import { NavBar } from "./components/ui/NavBar";
 import { ToastContainer } from "react-toastify";
 import { ConfirmProvider } from "./components/modals/ConfirmModal";
+import { RouteSkeleton } from "./components/ui/RouteSkeleton";
 import { apiFetch } from "./services/api";
 
 const fetch = apiFetch;
@@ -88,7 +89,9 @@ function AppLayout() {
 				<NavBar user={user} loading={loading} refreshUser={refreshUser} />
 				<ToastContainer theme="dark" autoClose={3500} limit={3} />
 				<main key={location.pathname} className="motion-fade-in flex-grow w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:w-11/12 xl:px-0 2xl:w-5/6 2xl:px-0 py-6">
-					<Outlet />
+					<Suspense fallback={<RouteSkeleton />}>
+						<Outlet />
+					</Suspense>
 				</main>
 				<Footer />
 			</div>
