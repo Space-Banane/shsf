@@ -254,12 +254,52 @@ describe("FunctionDetail route", () => {
 		);
 	});
 
-	it("opens the guests dialog from the preopen query param and cleans the URL", async () => {
+	it("opens the guests dialog from the modal query param", async () => {
 		mockBackend();
-		window.history.replaceState({}, "", "/functions/1?preopen=guests");
-		renderRoute("/functions/1?preopen=guests");
+		renderRoute("/functions/1?modal=guests");
 
 		expect(await screen.findByText("guest dialog")).toBeInTheDocument();
+	});
+
+	it("keeps the legacy preopen link working and normalizes the URL", async () => {
+		mockBackend();
+		const router = renderRoute("/functions/1?preopen=guests");
+
+		expect(await screen.findByText("guest dialog")).toBeInTheDocument();
+		await waitFor(() =>
+			expect(router.state.location.search).toBe("?modal=guests"),
+		);
+	});
+
+	it("puts the open dialog in the URL and closes it on Back", async () => {
+		mockBackend();
+		const router = renderRoute();
+		await screen.findByLabelText("editor");
+
+		fireEvent.click(screen.getByRole("button", { name: /Guests/ }));
+		expect(await screen.findByText("guest dialog")).toBeInTheDocument();
+		await waitFor(() =>
+			expect(router.state.location.search).toBe("?modal=guests"),
+		);
+
+		await router.navigate(-1);
+		await waitFor(() =>
+			expect(screen.queryByText("guest dialog")).toBeNull(),
+		);
+		expect(router.state.location.search).toBe("");
+	});
+
+	it("opens a dialog without tripping the unsaved-changes guard", async () => {
+		mockBackend();
+		renderRoute();
+		fireEvent.change(await screen.findByLabelText("editor"), {
+			target: { value: "dirty" },
+		});
+
+		fireEvent.click(screen.getByRole("button", { name: /Guests/ }));
+
+		expect(await screen.findByText("guest dialog")).toBeInTheDocument();
+		expect(confirm).not.toHaveBeenCalled();
 	});
 
 	it("locks run settings and disables HTTP-less state for HTML-only functions", async () => {

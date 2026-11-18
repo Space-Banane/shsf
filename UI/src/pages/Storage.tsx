@@ -16,7 +16,7 @@ import SharedBadge from "../components/ui/SharedBadge";
 import ShareModal from "../components/modals/sharing/ShareModal";
 import { can } from "../services/backend.sharing";
 import type { Pagination } from "../types/Pagination";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 
 interface StorageExplorerLocationState {
 	storageExplorer?: {
@@ -26,7 +26,7 @@ interface StorageExplorerLocationState {
 
 function StoragePage() {
 	const location = useLocation();
-	const navigate = useNavigate();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const [storages, setStorages] = useState<Storage[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
@@ -45,8 +45,11 @@ function StoragePage() {
 	const [showGetItemModal, setShowGetItemModal] = useState(false);
 	const [editingItem, setEditingItem] = useState<StorageItem | null>(null);
 	const [shareTarget, setShareTarget] = useState<Storage | null>(null);
-	const selectedStorageId = (location.state as StorageExplorerLocationState | null)
+	const urlStorageId = Number(searchParams.get("storage"));
+	const hasUrlStorage = Number.isInteger(urlStorageId) && urlStorageId > 0;
+	const hintedStorageId = (location.state as StorageExplorerLocationState | null)
 		?.storageExplorer?.selectedStorageId;
+	const selectedStorageId = hasUrlStorage ? urlStorageId : hintedStorageId;
 	const selectedStorage = typeof selectedStorageId === "number"
 		? storages.find((storage) => storage.id === selectedStorageId) ?? null
 		: null;
@@ -82,11 +85,31 @@ function StoragePage() {
 		else { setItems([]); setItemPagination(null); }
 	}, [selectedStorage, itemPage]);
 
+	// Older links pass the selection in location.state; mirror it into the URL once.
+	useEffect(() => {
+		if (hasUrlStorage || !hintedStorageId) return;
+		setSearchParams((current) => {
+			const next = new URLSearchParams(current);
+			next.set("storage", String(hintedStorageId));
+			return next;
+		}, { replace: true });
+	}, [hasUrlStorage, hintedStorageId, setSearchParams]);
+
 	const selectStorage = (storage: Storage) => {
 		setItemPage(1);
-		navigate(`${location.pathname}${location.search}${location.hash}`, {
-			state: { storageExplorer: { selectedStorageId: storage.id } },
-		});
+		setSearchParams((current) => {
+			const next = new URLSearchParams(current);
+			next.set("storage", String(storage.id));
+			return next;
+		}, { replace: true });
+	};
+
+	const clearSelection = () => {
+		setSearchParams((current) => {
+			const next = new URLSearchParams(current);
+			next.delete("storage");
+			return next;
+		}, { replace: true });
 	};
 
 	const btnSecondary = "px-3 py-1.5 border border-white/[0.07] text-text/70 text-sm font-medium rounded-lg hover:bg-surface-raised hover:text-text hover:border-primary/20 transition-colors";
@@ -99,7 +122,7 @@ function StoragePage() {
 					{/* Storage detail view */}
 					<div className="flex items-center gap-3 mb-6">
 						<button
-							onClick={() => navigate(-1)}
+							onClick={clearSelection}
 							className="p-1.5 text-muted hover:text-text hover:bg-surface rounded-lg transition-colors"
 							aria-label="Back to storages"
 							title="Back to storages"
@@ -298,7 +321,7 @@ function StoragePage() {
 				isOpen={showDeleteModal}
 				onClose={() => { setShowDeleteModal(false); setDeleteTarget(null); }}
 				onSuccess={() => {
-					if (selectedStorage?.id === deleteTarget?.id) navigate("/storage", { replace: true });
+					if (selectedStorage?.id === deleteTarget?.id) clearSelection();
 					loadStorages();
 				}}
 				target={deleteTarget}

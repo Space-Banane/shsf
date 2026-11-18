@@ -13,10 +13,10 @@ const POLL_INTERVAL_MS = 10_000;
 export function useFunctionLogs(
 	functionId: number | null,
 	executionSettled: boolean,
+	modalOpen: boolean,
 ) {
 	const [logs, setLogs] = useState<TriggerLog[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
-	const [modalOpen, setModalOpen] = useState(false);
 	const [expanded, setExpanded] = useState(false);
 	const [documentHidden, setDocumentHidden] = useState(() => document.hidden);
 
@@ -76,8 +76,6 @@ export function useFunctionLogs(
 		isLoading,
 		refresh,
 		refreshSilently,
-		modalOpen,
-		setModalOpen,
 		expanded,
 		setExpanded,
 	};

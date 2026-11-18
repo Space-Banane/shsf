@@ -1,15 +1,12 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useFunctionExecution } from "./useFunctionExecution";
-import {
-	executeFunction,
-	executeFunctionStreaming,
-} from "../services/backend.functions";
+import { apiFetch } from "../services/api";
 
 vi.mock("..", () => ({ BASE_URL: "", PUBLIC_BASE_URL: "" }));
-vi.mock("../services/backend.functions", () => ({
-	executeFunction: vi.fn(),
-	executeFunctionStreaming: vi.fn(),
-}));
+vi.mock("../services/api", () => ({ apiFetch: vi.fn() }));
+
+const mockedApiFetch = vi.mocked(apiFetch);
+const encoder = new TextEncoder();
 
 const htmlResult = {
 	_shsf: "v2",
@@ -17,6 +14,26 @@ const htmlResult = {
 	_res: "<p>page</p>",
 	_code: 200,
 };
+
+function jsonResponse(body: unknown): Response {
+	return { ok: true, status: 200, json: async () => body } as Response;
+}
+
+function streamResponse(events: unknown[]): Response {
+	const payload = encoder.encode(
+		events.map((event) => JSON.stringify(event)).join(""),
+	);
+	return {
+		ok: true,
+		status: 200,
+		body: new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(payload);
+				controller.close();
+			},
+		}),
+	} as Response;
+}
 
 const setup = (resultModalsEnabled = true) =>
 	renderHook(
@@ -26,19 +43,23 @@ const setup = (resultModalsEnabled = true) =>
 	);
 
 describe("useFunctionExecution", () => {
-	beforeEach(() => vi.clearAllMocks());
+	beforeEach(() => {
+		mockedApiFetch.mockReset();
+	});
 
 	it("streams output chunks, then records exit code, timings and a value result", async () => {
-		vi.mocked(executeFunctionStreaming).mockImplementation(async (_id, onChunk) => {
-			onChunk({ type: "output", content: "hello " });
-			onChunk({ type: "output", content: "world" });
-			onChunk({
-				type: "end",
-				exitCode: 0,
-				result: { ok: true },
-				took: [{ timestamp: 1, value: 12, description: "Total execution time" }],
-			});
-		});
+		mockedApiFetch.mockResolvedValue(
+			streamResponse([
+				{ type: "output", content: "hello " },
+				{ type: "output", content: "world" },
+				{
+					type: "end",
+					exitCode: 0,
+					result: { ok: true },
+					took: [{ timestamp: 1, value: 12, description: "Total execution time" }],
+				},
+			]),
+		);
 		const { result } = setup();
 
 		await act(() => result.current.run());
@@ -55,16 +76,16 @@ describe("useFunctionExecution", () => {
 	});
 
 	it("passes run params to the backend only when they are enabled", async () => {
-		vi.mocked(executeFunctionStreaming).mockResolvedValue(undefined);
+		mockedApiFetch.mockResolvedValue(streamResponse([]));
 		const { result } = setup();
 
 		act(() => result.current.setRunParams('{"n":2}'));
 		await act(() => result.current.run());
-		expect(vi.mocked(executeFunctionStreaming).mock.calls[0][2]).toBeUndefined();
+		expect(mockedApiFetch.mock.calls[0][1]?.body).toBeUndefined();
 
 		act(() => result.current.setShowRunParams(true));
 		await act(() => result.current.run());
-		expect(vi.mocked(executeFunctionStreaming).mock.calls[1][2]).toEqual({
+		expect(JSON.parse(String(mockedApiFetch.mock.calls[1][1]?.body))).toEqual({
 			run: { n: 2 },
 		});
 	});
@@ -82,14 +103,16 @@ describe("useFunctionExecution", () => {
 			"Error parsing run parameters: Invalid JSON",
 		);
 		expect(result.current.running).toBe(false);
-		expect(executeFunctionStreaming).not.toHaveBeenCalled();
+		expect(mockedApiFetch).not.toHaveBeenCalled();
 	});
 
 	it("renders HTML results as a popup in classic mode instead of a value modal", async () => {
-		vi.mocked(executeFunction).mockResolvedValue({
-			status: "OK",
-			data: { output: "", exitCode: 0, result: htmlResult },
-		});
+		mockedApiFetch.mockResolvedValue(
+			jsonResponse({
+				status: "OK",
+				data: { output: "", exitCode: 0, result: htmlResult },
+			}),
+		);
 		const { result } = setup();
 		act(() => result.current.setRunMode("classic"));
 
@@ -101,10 +124,12 @@ describe("useFunctionExecution", () => {
 	});
 
 	it("shows no result modals when they are turned off", async () => {
-		vi.mocked(executeFunction).mockResolvedValue({
-			status: "OK",
-			data: { output: "out", exitCode: 0, result: htmlResult },
-		});
+		mockedApiFetch.mockResolvedValue(
+			jsonResponse({
+				status: "OK",
+				data: { output: "out", exitCode: 0, result: htmlResult },
+			}),
+		);
 		const { result } = setup(false);
 		act(() => result.current.setRunMode("classic"));
 
@@ -116,10 +141,12 @@ describe("useFunctionExecution", () => {
 	});
 
 	it("closes open result modals when they get turned off", async () => {
-		vi.mocked(executeFunction).mockResolvedValue({
-			status: "OK",
-			data: { output: "", exitCode: 0, result: "plain" },
-		});
+		mockedApiFetch.mockResolvedValue(
+			jsonResponse({
+				status: "OK",
+				data: { output: "", exitCode: 0, result: "plain" },
+			}),
+		);
 		const { result, rerender } = setup();
 		act(() => result.current.setRunMode("classic"));
 		await act(() => result.current.run());
@@ -130,14 +157,14 @@ describe("useFunctionExecution", () => {
 	});
 
 	it("reports streamed errors and connection failures", async () => {
-		vi.mocked(executeFunctionStreaming).mockImplementationOnce(async (_id, onChunk) => {
-			onChunk({ type: "error", error: "boom" });
-		});
+		mockedApiFetch.mockResolvedValueOnce(
+			streamResponse([{ type: "error", error: "boom" }]),
+		);
 		const { result } = setup();
 		await act(() => result.current.run());
 		expect(result.current.consoleOutput).toBe("\nError: boom");
 
-		vi.mocked(executeFunctionStreaming).mockRejectedValueOnce(new Error("net"));
+		mockedApiFetch.mockRejectedValueOnce(new Error("net"));
 		await act(() => result.current.run());
 		expect(result.current.consoleOutput).toContain("Connection error");
 		expect(result.current.running).toBe(false);
@@ -145,18 +172,24 @@ describe("useFunctionExecution", () => {
 
 	it("aborts the in-flight execution on unmount without touching state", async () => {
 		let signal: AbortSignal | undefined;
-		vi.mocked(executeFunctionStreaming).mockImplementation(
-			(_id, _onChunk, _data, abortSignal) => {
-				signal = abortSignal;
-				return new Promise(() => {});
-			},
-		);
+		mockedApiFetch.mockImplementation((_input, init) => {
+			signal = init?.signal ?? undefined;
+			return new Promise((_resolve, reject) => {
+				signal?.addEventListener("abort", () =>
+					reject(new DOMException("The operation was aborted.", "AbortError")),
+				);
+			});
+		});
 		const { result, unmount } = setup();
 
-		act(() => void result.current.run());
-		await waitFor(() => expect(signal).toBeDefined());
+		let execution: Promise<void> | undefined;
+		act(() => {
+			execution = result.current.run();
+		});
+		expect(signal).toBeDefined();
 		unmount();
 
 		expect(signal?.aborted).toBe(true);
+		await expect(execution).resolves.toBeUndefined();
 	});
 });

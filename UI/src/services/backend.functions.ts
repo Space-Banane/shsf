@@ -58,6 +58,27 @@ interface ExecuteFunctionErrorResponse {
 	error?: string;
 }
 
+export type DependencyInstallStatus = "running" | "succeeded" | "failed";
+
+export interface DependencyInstallJob {
+	id: number;
+	functionId: number;
+	status: DependencyInstallStatus;
+	message: string | null;
+	startedAt: string;
+	finishedAt: string | null;
+}
+
+interface DependencyInstallResponse {
+	status: "OK";
+	job: DependencyInstallJob;
+}
+
+interface DependencyInstallStatusResponse {
+	status: "OK";
+	job: DependencyInstallJob | null;
+}
+
 interface getFunctionLogsOK {
 	status: "OK";
 	data: TriggerLog[];
@@ -259,15 +280,33 @@ async function executeFunction(
 
 async function installDependencies(
 	id: number,
-): Promise<OKResponse | ErrorResponse> {
+): Promise<DependencyInstallResponse | ErrorResponse> {
 	const response = await fetch(`${BASE_URL}/api/function/${id}/pip-install`, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
 		},
 		credentials: "include",
-		timeoutMs: 10 * 60_000,
+		timeoutMs: 30_000,
 	});
+	return await response.json();
+}
+
+async function getDependencyInstallStatus(
+	id: number,
+	jobId?: number,
+): Promise<DependencyInstallStatusResponse | ErrorResponse> {
+	const query = jobId === undefined ? "" : `?jobId=${jobId}`;
+	const response = await fetch(
+		`${BASE_URL}/api/function/${id}/pip-install${query}`,
+		{
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			credentials: "include",
+		},
+	);
 	return await response.json();
 }
 
@@ -321,6 +360,49 @@ async function reinstallOpencv(
 	}
 }
 
+/**
+ * Splits concatenated JSON objects without trusting `}{` as a delimiter:
+ * braces inside string values are ignored, and a `}` / `{` pair split across
+ * chunks is kept in the trailing buffer for the next read.
+ */
+function parseJsonStream(buffer: string): { values: unknown[]; rest: string } {
+	const values: unknown[] = [];
+	let start = -1;
+	let depth = 0;
+	let inString = false;
+	let escaped = false;
+
+	for (let index = 0; index < buffer.length; index++) {
+		const char = buffer[index];
+
+		if (inString) {
+			if (escaped) escaped = false;
+			else if (char === "\\") escaped = true;
+			else if (char === '"') inString = false;
+			continue;
+		}
+
+		if (char === '"') {
+			inString = true;
+		} else if (char === "{") {
+			if (depth === 0) start = index;
+			depth++;
+		} else if (char === "}" && depth > 0) {
+			depth--;
+			if (depth === 0 && start !== -1) {
+				try {
+					values.push(JSON.parse(buffer.substring(start, index + 1)));
+				} catch (error) {
+					console.error("Error parsing JSON:", error);
+				}
+				start = -1;
+			}
+		}
+	}
+
+	return { values, rest: start === -1 ? "" : buffer.substring(start) };
+}
+
 async function executeFunctionStreaming(
 	id: number,
 	onChunk: (data: any) => void,
@@ -340,6 +422,7 @@ async function executeFunctionStreaming(
 				signal,
 				timeoutMs: 15 * 60_000,
 				rawResponse: true,
+				bodyTimeout: true,
 			},
 		);
 
@@ -361,44 +444,26 @@ async function executeFunctionStreaming(
 		const decoder = new TextDecoder();
 		let buffer = "";
 
-		while (true) {
-			const { value, done } = await reader.read();
-			if (done) break;
-
-			const text = decoder.decode(value);
+		const consume = (text: string) => {
 			buffer += text;
+			const { values, rest } = parseJsonStream(buffer);
+			for (const value of values) onChunk(value);
+			buffer = rest;
+		};
 
-			// Process complete JSON objects
-			let startIndex = 0;
-			let endIndex = buffer.indexOf("}{");
+		try {
+			while (true) {
+				const { value, done } = await reader.read();
+				if (done) break;
 
-			while (endIndex !== -1) {
-				// Process the JSON object
-				try {
-					const jsonString = buffer.substring(startIndex, endIndex + 1);
-					const data = JSON.parse(jsonString);
-					onChunk(data);
-				} catch (e) {
-					console.error("Error parsing JSON:", e);
-				}
-
-				// Move to the next JSON object
-				startIndex = endIndex + 1;
-				endIndex = buffer.indexOf("}{", startIndex);
+				consume(decoder.decode(value, { stream: true }));
 			}
 
-			try {
-				// Process any remaining complete JSON
-				if (startIndex < buffer.length) {
-					const jsonString = buffer.substring(startIndex);
-					const data = JSON.parse(jsonString);
-					onChunk(data);
-					buffer = "";
-				}
-			} catch (e) {
-				// Incomplete JSON, keep in buffer
-				buffer = buffer.substring(startIndex);
-			}
+			// Flush any character left in the decoder by a truncated stream.
+			consume(decoder.decode());
+		} finally {
+			await reader.cancel().catch(() => undefined);
+			reader.releaseLock();
 		}
 	} catch (error) {
 		console.error("Error streaming function execution:", error);
@@ -671,6 +736,7 @@ export {
 	executeFunctionStreaming,
 	getLogsByFuncId,
 	installDependencies,
+	getDependencyInstallStatus,
 	reinstallFfmpeg,
 	reinstallOpencv,
 	getFunctionCorsOrigins,

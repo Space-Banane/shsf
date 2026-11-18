@@ -1,36 +1,178 @@
 import { functionAccessWhere } from "../../../lib/Sharing";
-import {
-	API_KEY_HEADER,
-	COOKIE,
-	fileRouter,
-	prisma,
-} from "../../..";
+import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import { OpenAPITags } from "../../../lib/openapi";
-import { installDependencies } from "../../../lib/Runner";
+import { createLogger } from "../../../lib/logger";
+import {
+	getDependencyInstallStatus,
+	startDependencyInstall,
+} from "../../../lib/DependencyInstall";
 import { getFunctionAppDir } from "../../../lib/StoragePaths";
 import * as fsSync from "fs";
 import * as path from "path";
 
-export = new fileRouter.Path("/").http(
-	"POST",
-	"/api/function/{id}/pip-install",
-	(http) =>
+const log = createLogger("functions/pip-install");
+
+export = new fileRouter.Path("/")
+	.http("GET", "/api/function/{id}/pip-install", (http) =>
 		http
 			.document({
 				description:
-					"Install Python dependencies for a function using requirements.txt",
+					"Get the status of the latest dependency installation for a function",
 				tags: ["Functions"] as OpenAPITags[],
-				operationId: "pipInstallFunctionDependencies",
+				operationId: "getFunctionDependencyInstallStatus",
+				parameters: [
+					{
+						in: "path",
+						name: "id",
+						required: true,
+						schema: {
+							type: "integer",
+						},
+						description: "ID of the function",
+					},
+					{
+						in: "query",
+						name: "jobId",
+						required: false,
+						schema: {
+							type: "integer",
+						},
+						description: "Specific install job to look up",
+					},
+				],
 				responses: {
 					200: {
-						description: "Dependencies installed successfully",
+						description: "Install status fetched successfully",
 						content: {
 							"application/json": {
 								schema: {
 									type: "object",
 									properties: {
 										status: { type: "string" },
+										job: {
+											type: "object",
+											nullable: true,
+											properties: {
+												id: { type: "integer" },
+												status: {
+													type: "string",
+													enum: ["running", "succeeded", "failed"],
+												},
+												message: { type: "string", nullable: true },
+												startedAt: { type: "string" },
+												finishedAt: { type: "string", nullable: true },
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+			.onRequest(async (ctr) => {
+				const id = ctr.params.get("id");
+				if (!id) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Missing function id",
+					});
+				}
+				const functionId = parseInt(id);
+				if (isNaN(functionId)) {
+					return ctr.status(ctr.$status.BAD_REQUEST).print({
+						status: 400,
+						message: "Invalid function id",
+					});
+				}
+
+				const authCheck = await checkAuthentication(
+					ctr.cookies.get(COOKIE),
+					ctr.headers.get(API_KEY_HEADER),
+				);
+
+				if (!authCheck.success) {
+					return ctr.status(ctr.$status.UNAUTHORIZED).print({
+						status: "FAILED",
+						code: "AUTHENTICATION_REQUIRED",
+						message: "Your session could not be verified. Sign in and try again.",
+					});
+				}
+
+				const functionData = await prisma.function.findFirst({
+					where: {
+						id: functionId,
+						...functionAccessWhere(authCheck.user.id, "view"),
+					},
+				});
+				if (!functionData) {
+					return ctr.status(ctr.$status.NOT_FOUND).print({
+						status: 404,
+						message: "Function not found",
+					});
+				}
+
+				// Polling a specific job keeps the result tied to the install the
+				// caller started, even if another install is queued meanwhile.
+				const jobIdParam = ctr.queries.get("jobId");
+				let jobId: number | undefined;
+				if (jobIdParam !== null) {
+					jobId = parseInt(jobIdParam);
+					if (isNaN(jobId)) {
+						return ctr.status(ctr.$status.BAD_REQUEST).print({
+							status: 400,
+							message: "Invalid job id",
+						});
+					}
+				}
+
+				return ctr.print({
+					status: "OK",
+					job: await getDependencyInstallStatus(functionId, jobId),
+				});
+			}),
+	)
+	.http("POST", "/api/function/{id}/pip-install", (http) =>
+		http
+			.document({
+				description:
+					"Start installing Python dependencies for a function using requirements.txt",
+				tags: ["Functions"] as OpenAPITags[],
+				operationId: "pipInstallFunctionDependencies",
+				parameters: [
+					{
+						in: "path",
+						name: "id",
+						required: true,
+						schema: {
+							type: "integer",
+						},
+						description: "ID of the function",
+					},
+				],
+				responses: {
+					202: {
+						description: "Dependency installation started",
+						content: {
+							"application/json": {
+								schema: {
+									type: "object",
+									properties: {
+										status: { type: "string" },
+										job: {
+											type: "object",
+											properties: {
+												id: { type: "integer" },
+												status: {
+													type: "string",
+													enum: ["running", "succeeded", "failed"],
+												},
+												message: { type: "string", nullable: true },
+												startedAt: { type: "string" },
+												finishedAt: { type: "string", nullable: true },
+											},
+										},
 									},
 								},
 							},
@@ -112,27 +254,22 @@ export = new fileRouter.Path("/").http(
 					});
 				}
 
-				// Try to install dependencies
 				try {
-					const result = await installDependencies(functionId, functionData, files);
+					const job = await startDependencyInstall(
+						functionId,
+						functionData,
+						files,
+					);
 
-					if (result === 404) {
-						return ctr.status(ctr.$status.NOT_FOUND).print({
-							status: 404,
-							message:
-								"Function has not been executed yet. Run it first and it will install dependencies automatically on its first ever run! After that, use Pip Install to update dependencies, if you have modified the requirements.txt file.",
-						});
-					} else if (result === false) {
-						return ctr.status(ctr.$status.NOT_FOUND).print({
-							status: 404,
-							message: "Could not install dependencies or find requirements.txt!",
-						});
-					}
-
-					return ctr.print({
+					return ctr.status(ctr.$status.ACCEPTED).print({
 						status: "OK",
+						job,
 					});
-				} catch {
+				} catch (error) {
+					log.error(
+						{ err: error, functionId },
+						"Failed to start dependency install",
+					);
 					return ctr.status(ctr.$status.INTERNAL_SERVER_ERROR).print({
 						status: "FAILED",
 						code: "DEPENDENCY_ERROR",
@@ -140,4 +277,4 @@ export = new fileRouter.Path("/").http(
 					});
 				}
 			}),
-);
+	);

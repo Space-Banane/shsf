@@ -1,15 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import StoragePage from "./Storage";
 import { listStorageItems, listStorages } from "../services/backend.storage";
 import type { MockedFunction } from "vitest";
-
-const mockLocation = vi.fn();
-const mockNavigate = vi.fn();
-
-vi.mock("react-router-dom", () => ({
-	useLocation: () => mockLocation(),
-	useNavigate: () => mockNavigate,
-}), { virtual: true });
 
 vi.mock("../services/backend.sharing", () => ({
 	can: (access: string | undefined, need: string) => {
@@ -37,10 +30,18 @@ vi.mock("../services/backend.storage", () => ({
 const mockedListStorages = listStorages as MockedFunction<typeof listStorages>;
 const mockedListStorageItems = listStorageItems as MockedFunction<typeof listStorageItems>;
 
+function renderStorage(initialEntry: string) {
+	const router = createMemoryRouter(
+		[{ path: "/storage", element: <StoragePage /> }],
+		{ initialEntries: [initialEntry] },
+	);
+	render(<RouterProvider router={router} />);
+	return router;
+}
+
 describe("StoragePage", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mockLocation.mockReturnValue({ pathname: "/storage", search: "", hash: "", state: null });
 		mockedListStorages.mockResolvedValue({
 			status: "OK",
 			data: [{ id: 1, name: "storage-one", purpose: "Test storage", user: 1 }],
@@ -48,26 +49,19 @@ describe("StoragePage", () => {
 		mockedListStorageItems.mockResolvedValue({ status: "OK", data: [] });
 	});
 
-	it("adds a history entry when opening a storage and goes back from its detail view", async () => {
-		const { rerender } = render(<StoragePage />);
+	it("selects a storage without adding a history entry and returns to the list in place", async () => {
+		const router = renderStorage("/storage");
 
 		await screen.findByRole("button", { name: /^storage-one/i });
 		fireEvent.click(screen.getByRole("button", { name: /^storage-one/i }));
-		expect(mockNavigate).toHaveBeenCalledWith("/storage", {
-			state: { storageExplorer: { selectedStorageId: 1 } },
-		});
 
-		mockLocation.mockReturnValue({
-			pathname: "/storage",
-			search: "",
-			hash: "",
-			state: { storageExplorer: { selectedStorageId: 1 } },
-		});
-		rerender(<StoragePage />);
 		await screen.findByText("No items in this storage.");
+		expect(router.state.location.search).toBe("?storage=1");
+		expect(router.state.historyAction).toBe("REPLACE");
 
 		fireEvent.click(screen.getByRole("button", { name: "Back to storages" }));
-		expect(mockNavigate).toHaveBeenLastCalledWith(-1);
+		await waitFor(() => expect(router.state.location.search).toBe(""));
+		expect(await screen.findByRole("button", { name: /^storage-one/i })).toBeInTheDocument();
 	});
 
 	it("marks a storage shared with view access, shows its owner, and hides write actions", async () => {
@@ -81,8 +75,7 @@ describe("StoragePage", () => {
 			owner: { id: 2, displayName: "Owner", email: "owner@x.test" },
 		};
 		mockedListStorages.mockResolvedValue({ status: "OK", data: [shared] });
-		mockLocation.mockReturnValue({ pathname: "/storage", search: "", hash: "", state: { storageExplorer: { selectedStorageId: 9 } } });
-		render(<StoragePage />);
+		renderStorage("/storage?storage=9");
 
 		await screen.findByText(/Owned by Owner/);
 		expect(screen.getByText(/Shared · view/i)).toBeTruthy();
@@ -90,6 +83,24 @@ describe("StoragePage", () => {
 		expect(screen.queryByRole("button", { name: "Clear All" })).toBeNull();
 		expect(screen.queryByRole("button", { name: /Add Item/ })).toBeNull();
 		expect(mockedListStorageItems).toHaveBeenCalledWith(shared, 1);
+	});
+
+	it("still honours the legacy location.state selection and mirrors it into the URL", async () => {
+		const router = createMemoryRouter(
+			[{ path: "/storage", element: <StoragePage /> }],
+			{
+				initialEntries: [
+					{
+						pathname: "/storage",
+						state: { storageExplorer: { selectedStorageId: 1 } },
+					},
+				],
+			},
+		);
+		render(<RouterProvider router={router} />);
+
+		await screen.findByText("No items in this storage.");
+		await waitFor(() => expect(router.state.location.search).toBe("?storage=1"));
 	});
 
 	it("offers sharing only on storages the user owns", async () => {
@@ -100,7 +111,7 @@ describe("StoragePage", () => {
 				{ id: 2, name: "theirs", purpose: "", user: 2, shared: true, access: "edit", owner: { id: 2, displayName: "Bob", email: "b@x" } },
 			],
 		});
-		render(<StoragePage />);
+		renderStorage("/storage");
 
 		await screen.findByRole("button", { name: "Share storage mine" });
 		expect(screen.queryByRole("button", { name: "Share storage theirs" })).toBeNull();

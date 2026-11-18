@@ -1,5 +1,5 @@
 import { useContext, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { UserContext } from "../../App";
 import { getNamespaces } from "../../services/backend.namespaces";
@@ -21,11 +21,50 @@ import AIGenerateModal from "../../components/modals/AIGenerateModal";
 import { Icon } from "../../components/ui/Icon";
 import { HelpTooltip } from "../../components/ui/Tooltip";
 
+function parseFunctionFilters(params: URLSearchParams): FunctionListOptions {
+	const page = Number(params.get("page"));
+	const limit = Number(params.get("limit"));
+	const namespaceId = Number(params.get("namespace"));
+	const sort = params.get("sort");
+	const order = params.get("order");
+	const status = params.get("status");
+	return {
+		page: Number.isInteger(page) && page > 0 ? page : 1,
+		limit: Number.isInteger(limit) && limit > 0 ? limit : 25,
+		search: params.get("search") || undefined,
+		namespaceId:
+			Number.isInteger(namespaceId) && namespaceId > 0
+				? namespaceId
+				: undefined,
+		runtime: params.get("runtime") || undefined,
+		tag: params.get("tag") || undefined,
+		status: status === "never-run" || status === "has-run" ? status : "all",
+		sort: sort === "createdAt" || sort === "lastRun" ? sort : "name",
+		order: order === "desc" ? "desc" : "asc",
+	};
+}
+
+function serializeFunctionFilters(filters: FunctionListOptions): URLSearchParams {
+	const params = new URLSearchParams();
+	if (filters.page && filters.page > 1) params.set("page", String(filters.page));
+	if (filters.limit && filters.limit !== 25) params.set("limit", String(filters.limit));
+	if (filters.search) params.set("search", filters.search);
+	if (filters.namespaceId) params.set("namespace", String(filters.namespaceId));
+	if (filters.runtime) params.set("runtime", filters.runtime);
+	if (filters.tag) params.set("tag", filters.tag);
+	if (filters.status && filters.status !== "all") params.set("status", filters.status);
+	if (filters.sort && filters.sort !== "name") params.set("sort", filters.sort);
+	if (filters.order && filters.order !== "asc") params.set("order", filters.order);
+	return params;
+}
+
 function FunctionsList() {
 	const [namespaces, setNamespaces] = useState<Namespace[]>([]);
 	const [functions, setFunctions] = useState<XFunction[]>([]);
 	const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
-	const [filters, setFilters] = useState<FunctionListOptions>({ page: 1, limit: 25, sort: "name", order: "asc", status: "all" });
+	const [searchParams, setSearchParams] = useSearchParams();
+	const filters = useMemo(() => parseFunctionFilters(searchParams), [searchParams]);
+	const [refreshToken, setRefreshToken] = useState(0);
 	const [loading, setLoading] = useState(true);
 	const { user } = useContext(UserContext);
 	const aiEnabled = Boolean(user?.apiKeyConfigured);
@@ -58,10 +97,21 @@ function FunctionsList() {
 			} else toast.error("Error fetching functions: " + functionData.message);
 			setLoading(false);
 		}).catch(() => { toast.error("Unable to load functions."); setLoading(false); });
-	}, [filters]);
+	}, [filters, refreshToken]);
+
+	const setFilters = (update: FunctionListOptions | ((current: FunctionListOptions) => FunctionListOptions)) => {
+		setSearchParams((current) =>
+			serializeFunctionFilters(
+				typeof update === "function"
+					? update(parseFunctionFilters(current))
+					: update,
+			),
+			{ replace: true },
+		);
+	};
 
 	const refreshData = () => {
-		setFilters((current) => ({ ...current }));
+		setRefreshToken((token) => token + 1);
 	};
 
 	const toggleNamespace = (id: number) => {
