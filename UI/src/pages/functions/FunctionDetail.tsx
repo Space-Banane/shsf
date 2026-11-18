@@ -173,8 +173,10 @@ function FunctionDetail() {
 		!execution.running && execution.exitCode !== null,
 		searchParams.get("modal") === "logs",
 	);
+	const clearTriggersError = useCallback(() => setTriggersError(null), []);
 	const triggers = useFunctionTriggers(functionId, {
 		onRan: logs.refreshSilently,
+		onChanged: clearTriggersError,
 	});
 	const dependencies = useDependencyInstall(functionId, {
 		onFinished: () => void logs.refreshSilently(),

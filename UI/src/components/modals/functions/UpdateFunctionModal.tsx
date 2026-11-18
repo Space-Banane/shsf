@@ -81,39 +81,40 @@ function UpdateFunctionModal({
 		imported: false, ai_kicked_off: false,
 	});
 	const initializedFunctionIdRef = useRef<number | null>(null);
-	const [auxError, setAuxError] = useState<string | null>(null);
+	const [imageError, setImageError] = useState<string | null>(null);
+	const [namespaceError, setNamespaceError] = useState<string | null>(null);
 	const [auxReloadKey, setAuxReloadKey] = useState(0);
 
 	useEffect(() => {
 		if (!functionData) return;
 		let active = true;
-		setAuxError(null);
+		setImageError(null);
 		isFunctionImageDeprecated(functionData.id)
 			.then((deprecated) => { if (active) setIsDeprecated(deprecated); })
-			.catch(() => { if (active) setAuxError("Could not load image metadata."); });
+			.catch(() => { if (active) setImageError("Could not load image metadata."); });
 		return () => { active = false; };
 	}, [functionData, auxReloadKey]);
 
 	useEffect(() => {
 		let active = true;
-		setAuxError(null);
+		setImageError(null);
 		getDeprecatedImages()
 			.then((images) => { if (active) setDeprecatedImages(images); })
-			.catch(() => { if (active) setAuxError("Could not load image metadata."); });
+			.catch(() => { if (active) setImageError("Could not load image metadata."); });
 		return () => { active = false; };
 	}, [auxReloadKey]);
 
 	useEffect(() => {
 		if (!isOpen) return;
 		let active = true;
-		setAuxError(null);
+		setNamespaceError(null);
 		getNamespaces()
 			.then((data) => {
 				if (!active) return;
 				if (data.status === "OK") setNamespaces(data.data);
-				else setAuxError(data.message || "Could not load namespaces.");
+				else setNamespaceError(data.message || "Could not load namespaces.");
 			})
-			.catch(() => { if (active) setAuxError("Could not load namespaces."); });
+			.catch(() => { if (active) setNamespaceError("Could not load namespaces."); });
 		return () => { active = false; };
 	}, [isOpen, auxReloadKey]);
 
@@ -308,9 +309,15 @@ function UpdateFunctionModal({
 		<Modal isOpen={isOpen} onClose={handleClose} title="Update Function" maxWidth="lg" isLoading={isLoading}>
 			<div className="space-y-6">
 				<ModalError message={error} />
-				{auxError && (
+				{imageError && (
 					<LoadError
-						message={auxError}
+						message={imageError}
+						onRetry={() => setAuxReloadKey((key) => key + 1)}
+					/>
+				)}
+				{namespaceError && (
+					<LoadError
+						message={namespaceError}
 						onRetry={() => setAuxReloadKey((key) => key + 1)}
 					/>
 				)}

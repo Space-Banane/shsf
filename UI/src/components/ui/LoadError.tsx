@@ -11,7 +11,7 @@ export function LoadError({
 	return (
 		<div
 			role="alert"
-			className={`rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5 ${className}`}
+			className={`pointer-events-auto rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5 ${className}`}
 		>
 			<p className="text-sm text-red-400">{message}</p>
 			<button

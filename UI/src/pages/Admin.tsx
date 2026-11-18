@@ -1283,18 +1283,17 @@ function UpdatesTab() {
 						{showLogs ? "Hide logs" : "Show logs"}
 					</button>
 					{showLogs && (
-						<>
-							{detailError && (
-								<LoadError
-									message={detailError}
-									onRetry={() => setDetailReloadKey((key) => key + 1)}
-									className="mt-2"
-								/>
-							)}
+						detailError ? (
+							<LoadError
+								message={detailError}
+								onRetry={() => setDetailReloadKey((key) => key + 1)}
+								className="mt-2"
+							/>
+						) : (
 							<pre className="mt-2 max-h-72 overflow-auto rounded bg-background/60 p-3 text-xs text-text/70 whitespace-pre-wrap break-words">
 								{logText || "No output captured yet."}
 							</pre>
-						</>
+						)
 					)}
 				</div>
 			)}
