@@ -2,7 +2,8 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import { spawn } from "child_process";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { getRuntimeCommand } from "../lib/RunnerRuntimeAdapter";
 import {
 	getRunnerTransportPaths,
 	handleStorageRpcRequest,
@@ -38,9 +39,20 @@ type TestStorageDb = NonNullable<
 	ConstructorParameters<typeof FunctionStorageService>[0]
 >;
 
+const tempDirs: string[] = [];
+const makeTempDir = async (prefix: string) => {
+	const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+	tempDirs.push(dir);
+	return dir;
+};
+
+afterEach(async () => {
+	await Promise.all(tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })));
+});
+
 describe("RunnerTransport result files", () => {
 	it("reads a valid result file", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-transport-"));
+		const dir = await makeTempDir("shsf-transport-");
 		const paths = getRunnerTransportPaths(dir);
 		await prepareRunnerTransport(paths);
 		await fs.writeFile(paths.resultPath, JSON.stringify({ ok: true }));
@@ -53,7 +65,7 @@ describe("RunnerTransport result files", () => {
 	});
 
 	it("reports missing and malformed result files", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-transport-"));
+		const dir = await makeTempDir("shsf-transport-");
 		const paths = getRunnerTransportPaths(dir);
 		await prepareRunnerTransport(paths);
 
@@ -213,7 +225,7 @@ describe("generated transport scripts", () => {
 	});
 
 	it("terminates a timed-out process while a completion before the deadline succeeds", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-supervisor-"));
+		const dir = await makeTempDir("shsf-supervisor-");
 		const paths = getRunnerTransportPaths(dir);
 		const run = (timeoutSeconds: string, command: string[]) =>
 			new Promise<number | null>((resolve, reject) => {
@@ -236,7 +248,7 @@ describe("generated transport scripts", () => {
 	});
 
 	it("cancels only the execution with the cancellation marker", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-supervisor-"));
+		const dir = await makeTempDir("shsf-supervisor-");
 		const first = getRunnerTransportPaths(path.join(dir, "first"));
 		const second = getRunnerTransportPaths(path.join(dir, "second"));
 		await Promise.all([prepareRunnerTransport(first), prepareRunnerTransport(second)]);
@@ -298,11 +310,205 @@ describe("generated transport scripts", () => {
 	});
 });
 
+type WrapperRuntime = "python" | "node";
+
+function runWrapper(command: string[], cwd: string) {
+	return new Promise<{ status: number | null; stdout: string; stderr: string }>(
+		(resolve, reject) => {
+			const child = spawn(command[0], command.slice(1), { cwd });
+			let stdout = "";
+			let stderr = "";
+			child.stdout.on("data", (chunk) => (stdout += chunk));
+			child.stderr.on("data", (chunk) => (stderr += chunk));
+			child.on("error", reject);
+			child.on("close", (status) => resolve({ status, stdout, stderr }));
+		},
+	);
+}
+
+/**
+ * Runs the real generated wrapper outside a container. The wrapper lives in the
+ * temp app directory instead of `/app`, but the command shape, payload and
+ * result paths come from the same command builder and transport layout that
+ * `RunnerInvocation` uses in production. The process starts from a sibling
+ * working directory so the app directory has to be resolved from the wrapper's
+ * own location.
+ */
+async function runGeneratedWrapper(
+	runtime: WrapperRuntime,
+	source: string,
+	payload: unknown,
+	envFile?: string,
+) {
+	const appDir = await makeTempDir(`shsf-${runtime}-wrapper-`);
+	const startupFile = runtime === "python" ? "main.py" : "index.js";
+	await fs.writeFile(path.join(appDir, startupFile), source);
+	if (envFile) {
+		await fs.writeFile(path.join(appDir, ".shsf_env"), envFile);
+	}
+
+	const paths = getRunnerTransportPaths(path.join(appDir, "execution"));
+	await prepareRunnerTransport(paths);
+	await fs.writeFile(paths.payloadPath, JSON.stringify(payload));
+
+	const runnerPath = path.join(
+		appDir,
+		runtime === "python" ? "_runner.py" : "_runner.sh",
+	);
+	await fs.writeFile(
+		runnerPath,
+		runtime === "python"
+			? generatePythonRunnerScript(startupFile)
+			: generateNodeJsRunnerShScript(),
+	);
+	if (runtime === "node") {
+		await fs.writeFile(
+			path.join(appDir, "_shsf_runner.js"),
+			generateNodeJsRunnerScript(startupFile),
+		);
+	}
+
+	const workDir = path.join(appDir, "work");
+	await fs.mkdir(workDir);
+	const [, , payloadPath, resultPath] = getRuntimeCommand(
+		runtime,
+		paths.payloadPath,
+		paths.resultPath,
+	);
+	const outcome = await runWrapper(
+		["/bin/sh", runnerPath, payloadPath, resultPath],
+		workDir,
+	);
+
+	return { paths, outcome };
+}
+
+describe("generated runner wrappers", () => {
+	it.each([
+		[
+			"python",
+			'def main(data):\n\treturn {"echo": data, "answer": 42}\n',
+			'{"echo": {"question": "life"}, "answer": 42}',
+		],
+		[
+			"node",
+			"exports.main = async (data) => ({ echo: data, answer: 42 });\n",
+			'{"echo":{"question":"life"},"answer":42}',
+		],
+	] as const)(
+		"executes the %s wrapper and writes the exact result file RunnerInvocation reads",
+		async (runtime, source, expectedRaw) => {
+			const { paths, outcome } = await runGeneratedWrapper(runtime, source, {
+				question: "life",
+			});
+
+			expect(outcome.status).toBe(0);
+			await expect(readRunnerResult(paths.resultPath)).resolves.toEqual({
+				status: "ok",
+				raw: expectedRaw,
+				result: { echo: { question: "life" }, answer: 42 },
+			});
+		},
+	);
+
+	it.each([
+		[
+			"python",
+			'import os\n\ndef main(_data):\n\treturn {"marker": os.environ.get("SHSF_TEST_MARKER")}\n',
+			'{"marker": "from_wrapper_app_dir"}',
+		],
+		[
+			"node",
+			"exports.main = async () => ({ marker: process.env.SHSF_TEST_MARKER });\n",
+			'{"marker":"from_wrapper_app_dir"}',
+		],
+	] as const)(
+		"loads the %s entrypoint and environment from the wrapper's app directory",
+		async (runtime, source, expectedRaw) => {
+			const { paths, outcome } = await runGeneratedWrapper(
+				runtime,
+				source,
+				{},
+				"export SHSF_TEST_MARKER=from_wrapper_app_dir\n",
+			);
+
+			expect(outcome.status).toBe(0);
+			await expect(readRunnerResult(paths.resultPath)).resolves.toEqual({
+				status: "ok",
+				raw: expectedRaw,
+				result: { marker: "from_wrapper_app_dir" },
+			});
+		},
+	);
+
+	it.each([
+		[
+			"python",
+			'def main(_data):\n\traise RuntimeError("boom")\n',
+			/Error executing main function or serializing result: boom/,
+		],
+		[
+			"node",
+			'exports.main = async () => { throw new Error("boom"); };\n',
+			/Error in main: boom/,
+		],
+	] as const)(
+		"reports a failing %s entrypoint as a non-zero exit without a result file",
+		async (runtime, source, expectedError) => {
+			const { paths, outcome } = await runGeneratedWrapper(runtime, source, {});
+
+			expect(outcome.status).not.toBe(0);
+			expect(outcome.stderr).toMatch(expectedError);
+			await expect(readRunnerResult(paths.resultPath)).resolves.toEqual({
+				status: "missing",
+				raw: null,
+				result: null,
+			});
+		},
+	);
+
+	it.each([
+		[
+			"python",
+			'def main(_data):\n\tvalue = {}\n\tvalue["self"] = value\n\treturn value\n',
+			/Error executing main function or serializing result: Circular reference detected/,
+		],
+		[
+			"node",
+			"exports.main = async () => ({ big: 1n });\n",
+			/Error in main: Do not know how to serialize a BigInt/,
+		],
+	] as const)(
+		"refuses to persist a non-JSON %s result and exits non-zero",
+		async (runtime, source, expectedError) => {
+			const { paths, outcome } = await runGeneratedWrapper(runtime, source, {});
+
+			expect(outcome.status).not.toBe(0);
+			expect(outcome.stderr).toMatch(expectedError);
+			await expect(readRunnerResult(paths.resultPath)).resolves.toEqual({
+				status: "missing",
+				raw: null,
+				result: null,
+			});
+		},
+	);
+
+	it("keeps Go wrapper execution out of scope", () => {
+		// Decision: the Go wrapper is not executed here. CI runs in
+		// node:24-bookworm, which has no Go toolchain, and adding one solely for
+		// this check is not worth the image cost. The Go wrapper keeps structural
+		// assertions and shares the argv/result-file contract exercised above.
+		const wrapper = generateGoRunnerWrapperCode();
+		expect(wrapper).toContain("resultPath := os.Args[2]");
+		expect(wrapper).toContain("os.Rename(tempPath, resultPath)");
+	});
+});
+
 describe("Node.js runtime scripts", () => {
 	it("runner script embeds the startup file", () => {
 		const script = generateNodeJsRunnerScript("handler.js");
-		expect(script).toContain("handler.js");
-		expect(script).toContain("require('/app/handler.js')");
+		expect(script).toContain("const appDir = __dirname;");
+		expect(script).toContain("require(path.join(appDir, 'handler.js'))");
 	});
 
 	it("runner script handles binary transport normalization", () => {
@@ -314,8 +520,9 @@ describe("Node.js runtime scripts", () => {
 
 	it("shell wrapper sources the env file and delegates to node", () => {
 		const sh = generateNodeJsRunnerShScript();
+		expect(sh).toContain('app_dir="$(cd "$(dirname "$0")" && pwd)"');
 		expect(sh).toContain(".shsf_env");
-		expect(sh).toContain("node /app/_shsf_runner.js");
+		expect(sh).toContain('exec node "$app_dir/_shsf_runner.js" "$@"');
 	});
 
 	it("init body installs npm packages and creates node_modules symlink", () => {
@@ -360,7 +567,7 @@ describe("Python runtime scripts", () => {
 
 describe("callF transport paths", () => {
 	it("includes callfunc request and response dirs", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-callfunc-"));
+		const dir = await makeTempDir("shsf-callfunc-");
 		const paths = getRunnerTransportPaths(dir);
 		expect(paths.callFuncRequestDir).toBe(path.join(dir, "callfunc-requests"));
 		expect(paths.callFuncResponseDir).toBe(path.join(dir, "callfunc-responses"));
@@ -368,7 +575,7 @@ describe("callF transport paths", () => {
 	});
 
 	it("prepareRunnerTransport creates callfunc dirs", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-callfunc-"));
+		const dir = await makeTempDir("shsf-callfunc-");
 		const paths = getRunnerTransportPaths(dir);
 		await prepareRunnerTransport(paths);
 		await expect(fs.access(paths.callFuncRequestDir)).resolves.toBeUndefined();
@@ -378,7 +585,7 @@ describe("callF transport paths", () => {
 
 describe("callF bridge", () => {
 	it("dispatches a callF request to the executor and writes the response", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-callfunc-"));
+		const dir = await makeTempDir("shsf-callfunc-");
 		const reqDir = path.join(dir, "callfunc-requests");
 		const respDir = path.join(dir, "callfunc-responses");
 		await fs.mkdir(reqDir, { recursive: true });
@@ -421,7 +628,7 @@ describe("callF bridge", () => {
 	});
 
 	it("writes a FAILED response when the executor throws", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-callfunc-fail-"));
+		const dir = await makeTempDir("shsf-callfunc-fail-");
 		const reqDir = path.join(dir, "callfunc-requests");
 		const respDir = path.join(dir, "callfunc-responses");
 		await fs.mkdir(reqDir, { recursive: true });
@@ -462,7 +669,7 @@ describe("callF bridge", () => {
 	});
 
 	it("writes a FAILED response for a request missing functionName", async () => {
-		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shsf-callfunc-noname-"));
+		const dir = await makeTempDir("shsf-callfunc-noname-");
 		const reqDir = path.join(dir, "callfunc-requests");
 		const respDir = path.join(dir, "callfunc-responses");
 		await fs.mkdir(reqDir, { recursive: true });
