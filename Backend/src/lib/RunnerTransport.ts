@@ -144,7 +144,7 @@ async function executeStorageRpc(
 				getStringArg(args, "key"),
 			);
 		case "list_items":
-			return service.listStorageItems(userId, getStringArg(args, "storageName"));
+			return (await service.listStorageItems(userId, getStringArg(args, "storageName"))).items;
 		case "delete_item":
 			return service.deleteStorageItem(
 				userId,

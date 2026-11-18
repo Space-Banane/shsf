@@ -11,6 +11,7 @@ import * as bcrypt from "bcrypt";
 import { createLogger } from "../../../lib/logger";
 import { getGuestAccessDisabled } from "../../../lib/DataManager";
 import { isFunctionOwnedByUser } from "../../../lib/GuestFunctionAccess";
+import { paginationMeta, parsePagination } from "../../../lib/Pagination";
 
 const log = createLogger("guest-auth");
 
@@ -99,17 +100,24 @@ export = new fileRouter.Path("/")
 				});
 			}
 
-			const guests = await prisma.guestUser.findMany({
-				where: { guestOwnerId: authCheck.user.id },
-				orderBy: { createdAt: "desc" },
-				include: {
-					_count: {
-						select: {
-							sessions: { where: { expiresAt: { gt: new Date() } } },
+			const { page, limit, skip, take } = parsePagination(ctr.queries);
+			const where = { guestOwnerId: authCheck.user.id };
+			const [total, guests] = await Promise.all([
+				prisma.guestUser.count({ where }),
+				prisma.guestUser.findMany({
+					where,
+					orderBy: { createdAt: "desc" },
+					skip,
+					take,
+					include: {
+						_count: {
+							select: {
+								sessions: { where: { expiresAt: { gt: new Date() } } },
+							},
 						},
 					},
-				},
-			});
+				}),
+			]);
 
 			return ctr.print({
 				status: "OK",
@@ -123,6 +131,7 @@ export = new fileRouter.Path("/")
 					activeSessions: g._count.sessions,
 					_count: undefined, // Remove _count from response
 				})),
+				pagination: paginationMeta(page, limit, total),
 			});
 		}),
 	)

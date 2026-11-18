@@ -28,12 +28,21 @@ function GuestManagement({ isOpen, onClose, onSuccess, functionId }: GuestManage
 			setGuestsError(null);
 			const fetchUsers = async () => {
 				try {
-					const [usersRes, guestsRes] = await Promise.all([
-						listGuestUsers(),
-						listFunctionGuests(functionId),
-					]);
-					if ("error" in usersRes) setGuestsError("Failed to load users");
-					else setAllUsers(usersRes.guests);
+					const collected: GuestUser[] = [];
+					let page = 1;
+					for (;;) {
+						const usersRes = await listGuestUsers(page, 100);
+						if (usersRes.error) {
+							setGuestsError("Failed to load users");
+							return;
+						}
+						collected.push(...usersRes.guests);
+						const total = usersRes.pagination?.total ?? collected.length;
+						if (collected.length >= total) break;
+						page += 1;
+					}
+					const guestsRes = await listFunctionGuests(functionId);
+					setAllUsers(collected);
 					if ("error" in guestsRes) setGuestsError("Failed to load guest users");
 					else setGuestUserIds(guestsRes.guests.map((g) => g.id));
 				} catch {

@@ -9,9 +9,12 @@ import UpdateGuestModal from "../components/modals/guests/UpdateGuestModal";
 import DeleteGuestModal from "../components/modals/guests/DeleteGuestModal";
 import ClearGuestSessionsModal from "../components/modals/guests/ClearGuestSessionsModal";
 import { Icon } from "../components/ui/Icon";
+import type { Pagination } from "../types/Pagination";
 
 export default function GuestUsersPage() {
 	const [guests, setGuests] = useState<GuestUser[]>([]);
+	const [page, setPage] = useState(1);
+	const [pagination, setPagination] = useState<Pagination | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [selectedGuest, setSelectedGuest] = useState<GuestUser | null>(null);
@@ -28,12 +31,13 @@ export default function GuestUsersPage() {
 		setLoading(true);
 		setError(null);
 		try {
-			const res = await listGuestUsers();
+			const res = await listGuestUsers(page);
 			if (res.error) {
 				setError(res.error);
 			} else {
 				const guestsArr = res.guests;
 				setGuests(guestsArr);
+				if (res.pagination) setPagination(res.pagination);
 				if (selectedGuest) {
 					const updated = guestsArr.find((g: GuestUser) => g.id === selectedGuest.id);
 					if (updated) setSelectedGuest(updated);
@@ -64,7 +68,7 @@ export default function GuestUsersPage() {
 		finally { setItemLoading(false); }
 	};
 
-	useEffect(() => { fetchGuests(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+	useEffect(() => { fetchGuests(); }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 	useEffect(() => {
 		if (selectedGuest) loadGuestDetails(selectedGuest);
 		else setFunctionNames([]);
@@ -194,6 +198,29 @@ export default function GuestUsersPage() {
 									</li>
 								))}
 							</ul>
+						)}
+						{pagination && (
+							<div className="flex items-center justify-between border-t border-white/[0.07] px-5 py-3">
+								<span className="text-xs text-muted">
+									Page {pagination.page} of {pagination.totalPages} · {pagination.total} guests
+								</span>
+								<div className="flex gap-2">
+									<button
+										disabled={pagination.page <= 1}
+										onClick={() => setPage((value) => Math.max(1, value - 1))}
+										className="rounded border border-white/[0.08] px-3 py-1 text-sm disabled:opacity-40"
+									>
+										Previous
+									</button>
+									<button
+										disabled={pagination.page >= pagination.totalPages}
+										onClick={() => setPage((value) => value + 1)}
+										className="rounded border border-white/[0.08] px-3 py-1 text-sm disabled:opacity-40"
+									>
+										Next
+									</button>
+								</div>
+							</div>
 						)}
 					</div>
 				</>

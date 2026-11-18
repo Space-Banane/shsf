@@ -14,6 +14,7 @@ import DeleteTriggerModal from "../components/modals/functionTriggers/DeleteTrig
 import CreateTriggerModal from "../components/modals/functionTriggers/CreateTriggerModal";
 import { Link } from "react-router-dom";
 import { Icon } from "../components/ui/Icon";
+import type { Pagination } from "../types/Pagination";
 
 const formatDateTime = (dateValue: string | null) => {
 	if (!dateValue) return null;
@@ -25,6 +26,8 @@ const formatDateTime = (dateValue: string | null) => {
 function CronJobsPage() {
 	const [triggers, setTriggers] = useState<(Trigger & { function: { name: string } })[]>([]);
 	const [functions, setFunctions] = useState<XFunction[]>([]);
+	const [page, setPage] = useState(1);
+	const [pagination, setPagination] = useState<Pagination | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [showEditModal, setShowEditModal] = useState(false);
@@ -36,15 +39,18 @@ function CronJobsPage() {
 		setLoading(true);
 		setError("");
 		try {
-			const [triggerRes, functionRes] = await Promise.all([listAllTriggers(), getFunctions(true)]);
-			if (triggerRes.status === "OK") setTriggers(triggerRes.data);
+			const [triggerRes, functionRes] = await Promise.all([listAllTriggers(page), getFunctions(true)]);
+			if (triggerRes.status === "OK") {
+				setTriggers(triggerRes.data);
+				if (triggerRes.pagination) setPagination(triggerRes.pagination);
+			}
 			else setError(triggerRes.message || "Failed to load triggers");
 			if (functionRes.status === "OK") setFunctions(functionRes.data as unknown as XFunction[]);
 		} catch { setError("Failed to load data"); }
 		finally { setLoading(false); }
 	};
 
-	useEffect(() => { loadData(); }, []);
+	useEffect(() => { loadData(); }, [page]);
 
 	const handleCreateTrigger = async (functionId: number, name: string, description: string, cron: string, data: string, enabled: boolean) => {
 		try {
@@ -207,6 +213,29 @@ function CronJobsPage() {
 							</tbody>
 						</table>
 					</div>
+					{pagination && (
+						<div className="flex items-center justify-between border-t border-white/[0.07] px-5 py-3">
+							<span className="text-xs text-muted">
+								Page {pagination.page} of {pagination.totalPages} · {pagination.total} triggers
+							</span>
+							<div className="flex gap-2">
+								<button
+									disabled={pagination.page <= 1}
+									onClick={() => setPage((value) => Math.max(1, value - 1))}
+									className="rounded border border-white/[0.08] px-3 py-1 text-sm disabled:opacity-40"
+								>
+									Previous
+								</button>
+								<button
+									disabled={pagination.page >= pagination.totalPages}
+									onClick={() => setPage((value) => value + 1)}
+									className="rounded border border-white/[0.08] px-3 py-1 text-sm disabled:opacity-40"
+								>
+									Next
+								</button>
+							</div>
+						</div>
+					)}
 				</div>
 			)}
 

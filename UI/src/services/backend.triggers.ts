@@ -1,5 +1,6 @@
 import { BASE_URL } from "..";
 import { Trigger } from "../types/Prisma";
+import type { Pagination } from "../types/Pagination";
 import {
 	apiFetch,
 	isApiFailure,
@@ -139,8 +140,9 @@ async function updateTrigger(
 	return data;
 }
 
-async function listAllTriggers() {
-	const response = await fetch(`${BASE_URL}/api/triggers`, {
+async function listAllTriggers(page = 1, limit = 25) {
+	const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+	const response = await fetch(`${BASE_URL}/api/triggers?${params}`, {
 		method: "GET",
 		headers: {
 			"Content-Type": "application/json",
@@ -152,6 +154,7 @@ async function listAllTriggers() {
 		| {
 				status: "OK";
 				data: (Trigger & { function: { name: string } })[];
+				pagination?: Pagination;
 		  }
 		| ErrorResponse;
 	return data;

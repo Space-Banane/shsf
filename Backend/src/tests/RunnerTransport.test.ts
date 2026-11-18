@@ -141,42 +141,42 @@ describe("FunctionStorageService", () => {
 		});
 	});
 
-	it("removes expired items and returns parsed valid items", async () => {
-		const expired = {
-			id: 1,
-			key: "old",
-			value: "old",
-			storageId: 10,
-			expiresAt: new Date(Date.now() - 1000),
-			createdAt: new Date(),
-			updatedAt: new Date(),
-		};
+	it("filters expired items in the query and returns parsed paginated items", async () => {
 		const valid = {
 			id: 2,
 			key: "new",
 			value: JSON.stringify({ ok: true }),
-			storageId: 10,
 			expiresAt: null,
-			createdAt: new Date(),
-			updatedAt: new Date(),
 		};
 		const db = {
 			functionStorage: {
 				findFirst: vi.fn().mockResolvedValue({ id: 10, name: "s", user: 42 }),
 			},
 			functionStorageItem: {
-				findMany: vi.fn().mockResolvedValue([expired, valid]),
+				count: vi.fn().mockResolvedValue(1),
+				findMany: vi.fn().mockResolvedValue([valid]),
 				deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
 			},
 		} as unknown as TestStorageDb;
 		const service = new FunctionStorageService(db);
 
-		const result = await service.listStorageItems(42, "s");
+		const result = await service.listStorageItems(42, "s", { skip: 0, take: 25 });
 
-		expect(result).toEqual([{ ...valid, value: { ok: true } }]);
+		expect(result).toEqual({ items: [{ ...valid, value: { ok: true } }], total: 1 });
 		expect(db.functionStorageItem.deleteMany).toHaveBeenCalledWith({
-			where: { id: { in: [1] } },
+			where: { storageId: 10, expiresAt: { lt: expect.any(Date) } },
 		});
+		expect(db.functionStorageItem.findMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: {
+					storageId: 10,
+					OR: [{ expiresAt: null }, { expiresAt: { gte: expect.any(Date) } }],
+				},
+				skip: 0,
+				take: 25,
+				select: { id: true, key: true, value: true, expiresAt: true },
+			}),
+		);
 	});
 });
 

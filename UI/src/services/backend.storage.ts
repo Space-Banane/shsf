@@ -1,6 +1,7 @@
 import { BASE_URL } from "..";
 import { apiFetch, type ApiFailure } from "./api";
 import type { Access, ResourceOwner } from "../types/Prisma";
+import type { Pagination } from "../types/Pagination";
 
 const fetch = apiFetch;
 
@@ -26,12 +27,13 @@ export interface StorageItem {
 	key: string;
 	value: unknown;
 	expiresAt?: string | null;
-	storageId: number;
+	storageId?: number;
 }
 
 interface OKResponse<T = any> {
 	status: "OK";
 	data: T;
+	pagination?: Pagination;
 }
 
 type ErrorResponse = ApiFailure;
@@ -114,9 +116,15 @@ export async function getStorageItem(storage: StorageRef, key: string) {
 }
 
 // List all items in a storage
-export async function listStorageItems(storage: StorageRef) {
+export async function listStorageItems(
+	storage: StorageRef,
+	page = 1,
+	limit = 25,
+) {
+	const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+	if (storage.shared) params.set("owner", String(storage.user));
 	const response = await fetch(
-		storageUrl(storage, "/items"),
+		`${BASE_URL}/api/storage/${encodeURIComponent(storage.name)}/items?${params}`,
 		{
 			method: "GET",
 			headers: { "Content-Type": "application/json" },

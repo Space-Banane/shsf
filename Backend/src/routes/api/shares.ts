@@ -5,6 +5,7 @@ import {
 	type ShareResourceType,
 	audit,
 } from "../../lib/Sharing";
+import { paginationMeta, parsePagination } from "../../lib/Pagination";
 
 const TYPES: ShareResourceType[] = ["namespace", "function", "storage"];
 const FK = { namespace: "namespaceId", function: "functionId", storage: "storageId" } as const;
@@ -66,12 +67,23 @@ export = new fileRouter.Path("/")
 			if ("error" in auth) return auth.error;
 			const target = await parseTarget(ctr, auth.user.id);
 			if ("error" in target) return target.error;
-			const shares = await prisma.resourceShare.findMany({
-				where: { [FK[target.type]]: target.id },
-				select: shareSelect,
-				orderBy: { createdAt: "asc" },
+			const { page, limit, skip, take } = parsePagination(ctr.queries);
+			const where = { [FK[target.type]]: target.id };
+			const [total, shares] = await Promise.all([
+				prisma.resourceShare.count({ where }),
+				prisma.resourceShare.findMany({
+					where,
+					select: shareSelect,
+					orderBy: { createdAt: "asc" },
+					skip,
+					take,
+				}),
+			]);
+			return ctr.print({
+				status: "OK",
+				data: shares,
+				pagination: paginationMeta(page, limit, total),
 			});
-			return ctr.print({ status: "OK", data: shares });
 		}),
 	)
 	// Create or update one grant. Exactly one of email / groupId selects the recipient.

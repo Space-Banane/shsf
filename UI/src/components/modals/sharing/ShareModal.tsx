@@ -36,13 +36,24 @@ function ShareModal({ isOpen, onClose, type, resourceId, resourceName }: ShareMo
 	const [error, setError] = useState("");
 
 	const load = useCallback(async () => {
-		const [shareRes, groupRes] = await Promise.all([listShares(type, resourceId), listShareableGroups()]);
-		if (shareRes.status === "OK") setShares(shareRes.data);
-		else {
-			setShares([]);
-			setError(shareRes.message);
-		}
+		const groupRes = await listShareableGroups();
 		if (groupRes.status === "OK") setGroups(groupRes.data);
+
+		const collected: Share[] = [];
+		let page = 1;
+		for (;;) {
+			const shareRes = await listShares(type, resourceId, page, 100);
+			if (shareRes.status !== "OK") {
+				setShares([]);
+				setError(shareRes.message);
+				return;
+			}
+			collected.push(...shareRes.data);
+			const total = shareRes.pagination?.total ?? collected.length;
+			if (collected.length >= total) break;
+			page += 1;
+		}
+		setShares(collected);
 	}, [type, resourceId]);
 
 	useEffect(() => {

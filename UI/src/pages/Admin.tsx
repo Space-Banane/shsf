@@ -44,6 +44,7 @@ import {
 	type UpdateOperationPhase,
 	type UpdateOperationStatus,
 } from "../services/backend.admin";
+import type { Pagination } from "../types/Pagination";
 
 const fetch = apiFetch;
 
@@ -490,6 +491,8 @@ function UsersTab() {
 	const [users, setUsers] = useState<AdminUser[] | null>(null);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [search, setSearch] = useState("");
+	const [page, setPage] = useState(1);
+	const [pagination, setPagination] = useState<Pagination | null>(null);
 
 	// Create modal
 	const [showCreate, setShowCreate] = useState(false);
@@ -511,13 +514,15 @@ function UsersTab() {
 	const loadUsers = useCallback(async () => {
 		setLoadError(null);
 		try {
-			const data = await adminListUsers();
-			if (data.status === "OK") setUsers(data.users);
-			else setLoadError(data.message);
+			const data = await adminListUsers(page, 25, search);
+			if (data.status === "OK") {
+				setUsers(data.users);
+				if (data.pagination) setPagination(data.pagination);
+			} else setLoadError(data.message);
 		} catch {
 			setLoadError("Failed to load users.");
 		}
-	}, []);
+	}, [page, search]);
 
 	useEffect(() => { loadUsers(); }, [loadUsers]);
 
@@ -594,12 +599,6 @@ function UsersTab() {
 	useShiftEnterSubmit(() => { if (editTarget !== null && !editLoading) handleEdit(); }, editTarget !== null);
 	useShiftEnterSubmit(() => { if (deleteTarget !== null && !deleteLoading) handleDelete(); }, deleteTarget !== null);
 
-	const filtered = (users ?? []).filter(
-		(u) =>
-			u.displayName.toLowerCase().includes(search.toLowerCase()) ||
-			u.email.toLowerCase().includes(search.toLowerCase()),
-	);
-
 	const inputCls = "w-full bg-background/60 border border-primary/20 rounded-lg px-3 py-2 text-text text-sm outline-none focus:border-primary/50 placeholder-text/30";
 	const labelCls = "block text-xs text-text/60 mb-1 font-medium";
 
@@ -610,7 +609,7 @@ function UsersTab() {
 					type="text"
 					placeholder="Search users…"
 					value={search}
-					onChange={(e) => setSearch(e.target.value)}
+					onChange={(e) => { setSearch(e.target.value); setPage(1); }}
 					className="bg-background/60 border border-primary/20 rounded-lg px-3 py-2 text-text text-sm outline-none focus:border-primary/50 w-64 placeholder-text/30"
 				/>
 				<button
@@ -627,11 +626,11 @@ function UsersTab() {
 				<div className="space-y-2">
 					{[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
 				</div>
-			) : filtered.length === 0 ? (
+			) : users.length === 0 ? (
 				<p className="text-text/40 text-sm text-center py-8">{search ? "No users match the search." : "No users found."}</p>
 			) : (
 				<div className="space-y-2">
-					{filtered.map((user) => (
+					{users.map((user) => (
 						<div key={user.id} className={`${cardClass} flex items-center justify-between`}>
 							<div className="flex-1 min-w-0">
 								<div className="flex items-center gap-2 flex-wrap">
@@ -660,6 +659,29 @@ function UsersTab() {
 							</div>
 						</div>
 					))}
+					{pagination && (
+						<div className="flex items-center justify-between pt-2">
+							<span className="text-xs text-text/50">
+								Page {pagination.page} of {pagination.totalPages} · {pagination.total} users
+							</span>
+							<div className="flex gap-2">
+								<button
+									disabled={pagination.page <= 1}
+									onClick={() => setPage((value) => Math.max(1, value - 1))}
+									className="rounded border border-white/10 px-3 py-1 text-sm disabled:opacity-40"
+								>
+									Previous
+								</button>
+								<button
+									disabled={pagination.page >= pagination.totalPages}
+									onClick={() => setPage((value) => value + 1)}
+									className="rounded border border-white/10 px-3 py-1 text-sm disabled:opacity-40"
+								>
+									Next
+								</button>
+							</div>
+						</div>
+					)}
 				</div>
 			)}
 

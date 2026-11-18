@@ -6,6 +6,7 @@ import {
 } from "../../lib/FunctionStorageService";
 import { OpenAPITags } from "../../lib/openapi";
 import { prisma } from "../..";
+import { paginationMeta, parsePagination } from "../../lib/Pagination";
 import {
 	type Access,
 	describeStorageAccess,
@@ -459,11 +460,17 @@ export = new fileRouter.Path("/")
 				if (ownerId === null) return printStorageNotFound(ctr);
 
 				try {
-					const items = await functionStorageService.listStorageItems(
+					const { page, limit, skip, take } = parsePagination(ctr.queries);
+					const { items, total } = await functionStorageService.listStorageItems(
 						ownerId,
 						storageName,
+						{ skip, take },
 					);
-					return ctr.print({ status: "OK", data: items });
+					return ctr.print({
+						status: "OK",
+						data: items,
+						pagination: paginationMeta(page, limit, total),
+					});
 				} catch (storageError) {
 					return printStorageError(ctr, storageError);
 				}

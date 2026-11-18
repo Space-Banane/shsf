@@ -168,28 +168,39 @@ export class FunctionStorageService {
 		return item.value;
 	}
 
-	async listStorageItems(userId: number, storageName: string) {
+	async listStorageItems(
+		userId: number,
+		storageName: string,
+		pagination: { skip?: number; take?: number } = {},
+	) {
 		const db = this.database;
 		const storage = await this.findStorage(userId, storageName);
-		const items = await db.functionStorageItem.findMany({
-			where: { storageId: storage.id },
-		});
 		const now = new Date();
-		const expiredItemIds: number[] = [];
-		const validItems = [];
-		for (const item of items) {
-			if (item.expiresAt && item.expiresAt < now) {
-				expiredItemIds.push(item.id);
-			} else {
-				validItems.push({ ...item, value: parseStoredValue(item.value) });
-			}
-		}
-		if (expiredItemIds.length > 0) {
-			await db.functionStorageItem.deleteMany({
-				where: { id: { in: expiredItemIds } },
-			});
-		}
-		return validItems;
+		const where = {
+			storageId: storage.id,
+			OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+		};
+
+		// Expired rows are never returned, so delete them in one set-based query.
+		await db.functionStorageItem.deleteMany({
+			where: { storageId: storage.id, expiresAt: { lt: now } },
+		});
+
+		const [total, items] = await Promise.all([
+			db.functionStorageItem.count({ where }),
+			db.functionStorageItem.findMany({
+				where,
+				orderBy: [{ key: "asc" }, { id: "asc" }],
+				skip: pagination.skip,
+				take: pagination.take,
+				select: { id: true, key: true, value: true, expiresAt: true },
+			}),
+		]);
+
+		return {
+			items: items.map((item) => ({ ...item, value: parseStoredValue(item.value) })),
+			total,
+		};
 	}
 
 	async deleteStorageItem(userId: number, storageName: string, key: string) {

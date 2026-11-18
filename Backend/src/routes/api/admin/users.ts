@@ -3,6 +3,7 @@ import { API_KEY_HEADER, COOKIE, fileRouter, prisma } from "../../..";
 import { checkAuthentication } from "../../../lib/Authentication";
 import { cleanupFunctionContainer } from "../../../lib/Runner";
 import { createLogger } from "../../../lib/logger";
+import { paginationMeta, parsePagination } from "../../../lib/Pagination";
 
 const log = createLogger("admin/users");
 
@@ -19,27 +20,47 @@ export = new fileRouter.Path("/")
 				if (!authCheck.success) return ctr.status(ctr.$status.UNAUTHORIZED).print({ status: "FAILED", message: authCheck.message });
 				if (authCheck.user.role !== "Admin") return ctr.status(ctr.$status.FORBIDDEN).print({ status: "FAILED", message: "Admins only." });
 
-				const users = await prisma.user.findMany({
-					orderBy: { createdAt: "asc" },
-					select: {
-						id: true,
-						displayName: true,
-						email: true,
-						role: true,
-						allow_docker_mount: true,
-						createdAt: true,
-						updatedAt: true,
-						_count: {
-							select: {
-								functions: true,
-								namespaces: true,
-								sessions: true,
+				const { page, limit, skip, take } = parsePagination(ctr.queries);
+				const search = ctr.queries.get("search")?.trim();
+				const where = search
+					? {
+							OR: [
+								{ displayName: { contains: search } },
+								{ email: { contains: search } },
+							],
+						}
+					: {};
+				const [total, users] = await Promise.all([
+					prisma.user.count({ where }),
+					prisma.user.findMany({
+						where,
+						orderBy: { createdAt: "asc" },
+						skip,
+						take,
+						select: {
+							id: true,
+							displayName: true,
+							email: true,
+							role: true,
+							allow_docker_mount: true,
+							createdAt: true,
+							updatedAt: true,
+							_count: {
+								select: {
+									functions: true,
+									namespaces: true,
+									sessions: true,
+								},
 							},
 						},
-					},
-				});
+					}),
+				]);
 
-				return ctr.print({ status: "OK", users });
+				return ctr.print({
+					status: "OK",
+					users,
+					pagination: paginationMeta(page, limit, total),
+				});
 			}),
 	)
 	// Create a new user (admin action, no password confirmation required)
