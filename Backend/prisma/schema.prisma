@@ -198,6 +198,8 @@ model FunctionFile {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([functionId, name])
 }
 
 model FunctionFolder {
@@ -260,6 +262,7 @@ model TriggerLog {
 
   analysis LogAnalysis?
 
+  @@index([functionId, createdAt])
   @@index([createdAt])
 }
 
@@ -348,6 +351,9 @@ model FunctionStorageItem {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([storageId, key])
+  @@index([expiresAt])
 }
 
 model GuestUser {
@@ -454,6 +460,8 @@ model ResourceShare {
   @@unique([functionId, groupId])
   @@unique([storageId, userId])
   @@unique([storageId, groupId])
+  @@index([userId])
+  @@index([groupId])
 }
 
 // Security-relevant changes (group membership, shares). Never store secrets here.
@@ -467,6 +475,7 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+  @@index([targetType, targetId, createdAt])
 }
 
 enum UpdateOperationStatus {
