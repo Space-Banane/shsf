@@ -25,6 +25,11 @@ const baseSchema = z.object({
 		.default(DEFAULT_INSTANCE_SECRET),
 	RATELIMIT: z.coerce.number().int().nonnegative().default(0),
 	LOG_LEVEL: z.string().default("info"),
+	// Time-based retention for the append-only tables. Windows are measured in
+	// days; expired sessions are always removed regardless of these values.
+	RETENTION_LOG_DAYS: z.coerce.number().int().positive().default(30),
+	RETENTION_AUDIT_DAYS: z.coerce.number().int().positive().default(90),
+	RETENTION_BATCH_SIZE: z.coerce.number().int().positive().max(10_000).default(500),
 	OPENROUTER_API_KEY: z.string().optional(),
 	// Demo mode is deliberately opt-in. It creates a public, disposable account
 	// and sample function data, so it must never be enabled for a real instance.
