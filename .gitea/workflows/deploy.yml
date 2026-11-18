@@ -6,8 +6,13 @@ on:
     pull_request:
         branches: ["main", "dev"]
 
+# Least privilege: this workflow also runs on pull_request, where same-repo
+# branches can execute repository-controlled install scripts (pnpm full-install).
+# A write token there would let a compromised dependency or install hook push
+# branches or tags as the Actions identity, so pull request runs stay read-only.
+# Only generate_openapi_release needs write access and overrides this below.
 permissions:
-    contents: write
+    contents: read
 
 jobs:
     build:
@@ -102,6 +107,10 @@ jobs:
         needs: [build, test-and-lint]
         runs-on: ubuntu-latest
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # Only this job publishes a tag and release, so it is the only one that
+        # needs the write token that the workflow-level default withholds.
+        permissions:
+            contents: write
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
@@ -173,6 +182,7 @@ jobs:
         needs: [build, test-and-lint]
         runs-on: ubuntu-latest
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+        # Authenticates to Harbor with HARBOR_* secrets and needs no Gitea write token.
         steps:
             - name: Checkout
               uses: actions/checkout@v4
