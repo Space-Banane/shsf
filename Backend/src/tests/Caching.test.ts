@@ -80,12 +80,26 @@ describe("getSanitizedPayload", () => {
     });
 
     it("is case-insensitive for header stripping", () => {
-        const payload = { headers: { "X-Forwarded-For": "1.2.3.4" } };
-        // The function uses h.toLowerCase() on the strip list, but the incoming
-        // headers are keyed as-is. Only lowercase keys are stripped.
-        // This test documents the current behaviour: mixed-case keys survive.
-        const result = getSanitizedPayload(payload);
-        expect(result.headers).toHaveProperty("X-Forwarded-For");
+        const mixedCase = {
+            "X-Forwarded-For": "1.2.3.4",
+            "CF-Connecting-IP": "1.2.3.4",
+            "Content-Type": "application/json",
+        };
+        const lowercase = {
+            "x-forwarded-for": "1.2.3.4",
+            "cf-connecting-ip": "1.2.3.4",
+            "content-type": "application/json",
+        };
+
+        const mixedResult = getSanitizedPayload({ headers: mixedCase });
+        const lowerResult = getSanitizedPayload({ headers: lowercase });
+
+        expect(mixedResult.headers).not.toHaveProperty("X-Forwarded-For");
+        expect(mixedResult.headers).not.toHaveProperty("CF-Connecting-IP");
+        expect(mixedResult.headers["Content-Type"]).toBe("application/json");
+        expect(Object.keys(mixedResult.headers).map((h) => h.toLowerCase())).toEqual(
+            Object.keys(lowerResult.headers),
+        );
     });
 });
 

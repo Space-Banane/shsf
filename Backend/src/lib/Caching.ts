@@ -132,8 +132,7 @@ export function getSanitizedPayload(payload: any) {
 
 	const sanitized = { ...payload };
 	if (sanitized.headers) {
-		const headers = { ...sanitized.headers };
-		const toStrip = [
+		const toStrip = new Set([
 			"host",
 			"user-agent",
 			"connection",
@@ -153,8 +152,12 @@ export function getSanitizedPayload(payload: any) {
 			"cf-pseudo-ipv4",
 			"x-forwarded-for",
 			"x-real-ip",
-		];
-		toStrip.forEach((h) => delete headers[h.toLowerCase()]);
+		]);
+		const headers: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(sanitized.headers)) {
+			if (toStrip.has(String(key).toLowerCase())) continue;
+			headers[key] = value;
+		}
 		sanitized.headers = headers;
 	}
 	// source_ip might change even for same request logic
