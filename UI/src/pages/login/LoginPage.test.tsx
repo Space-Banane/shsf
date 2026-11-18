@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { UserContext } from "../../App";
-import LoginPage from "./LoginPage";
+import LoginPage, { getRedirectPath } from "./LoginPage";
 
 const mockNavigate = vi.fn();
 const mockLocation = vi.fn();
@@ -26,6 +26,29 @@ const renderLoginPage = () => render(
 		<LoginPage />
 	</UserContext.Provider>,
 );
+
+describe("getRedirectPath", () => {
+	it("falls back to home without usable redirect state", () => {
+		expect(getRedirectPath(null)).toBe("/");
+		expect(getRedirectPath(undefined)).toBe("/");
+	});
+
+	it("does not redirect back to the login page", () => {
+		expect(getRedirectPath({ from: { pathname: "/login" } })).toBe("/");
+	});
+
+	it("rejects protocol-relative, backslash and absolute targets", () => {
+		expect(getRedirectPath({ from: { pathname: "//evil.test" } })).toBe("/");
+		expect(getRedirectPath({ from: { pathname: "/\\evil.test" } })).toBe("/");
+		expect(getRedirectPath({ from: { pathname: "https://evil.test" } })).toBe("/");
+	});
+
+	it("keeps the search and hash of a safe target", () => {
+		expect(getRedirectPath({
+			from: { pathname: "/functions", search: "?page=2", hash: "#run" },
+		})).toBe("/functions?page=2#run");
+	});
+});
 
 describe("LoginPage manual login", () => {
 	beforeEach(() => {
