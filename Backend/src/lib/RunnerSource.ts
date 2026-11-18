@@ -10,6 +10,20 @@ import { generateGoRunnerWrapperCode, generatePythonRunnerScript, generateGoRunn
 
 const log = createLogger("Runner");
 
+async function writeFileIfChanged(filePath: string, content: string | Buffer): Promise<boolean> {
+	const next = typeof content === "string" ? Buffer.from(content, "utf8") : content;
+	try {
+		const current = await fs.readFile(filePath);
+		if (current.equals(next)) return false;
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+	}
+
+	await fs.mkdir(path.dirname(filePath), { recursive: true });
+	await fs.writeFile(filePath, content);
+	return true;
+}
+
 export async function prepareRunnerSource({ functionData, files, funcAppDir, runtimeType, mark, trace }: {
 	functionData: Function; files: FunctionFile[]; funcAppDir: string;
 	runtimeType: ReturnType<typeof getRuntimeType>; mark: (description: string) => void; trace: (message: string) => void;
@@ -18,58 +32,71 @@ export async function prepareRunnerSource({ functionData, files, funcAppDir, run
 	let initScript = "#!/bin/sh\nset -e\necho '[SHSF INIT] Starting environment setup...'\ncd /app\n";
 	// Skip writing User files when git version control is active (git_url is set)
 	if (!functionData.git_url) {
-		// Write files to disk
+		// Write only files whose content actually changed; unchanged source is
+		// left untouched so a repeat invocation does not rewrite the whole app.
+		let written = 0;
 		await Promise.all(
 			files.map(async (file) => {
 				const filePath = path.join(funcAppDir, file.name);
-				await fs.mkdir(path.dirname(filePath), { recursive: true });
 				let content: string | Buffer = file.content;
 				if (typeof content === "string") {
 					content = replaceApiBaseInContent(content, functionData.namespaceId, functionData.executionId);
 				}
-				await fs.writeFile(filePath, content);
+				if (await writeFileIfChanged(filePath, content)) written++;
 			})
 		);
-		mark(`Write user files (${files.length})`);
+		mark(written > 0 ? `Write user files (${files.length})` : "User files unchanged");
 	} else {
 		log.info({ functionId: functionData.id }, "[GIT] Git source active — skipping DB file writes");
 		mark(`Skip DB file writes (git_url set)`);
 	}
 
 	// For Go runtime, generate the runner wrapper file and go.mod if needed
+	let scriptsChanged = false;
 	if (runtimeType === "golang") {
-		await fs.writeFile(path.join(funcAppDir, "shsf_runner.go"), generateGoRunnerWrapperCode());
+		if (await writeFileIfChanged(path.join(funcAppDir, "shsf_runner.go"), generateGoRunnerWrapperCode())) {
+			scriptsChanged = true;
+		}
 
 		const goModPath = path.join(funcAppDir, "go.mod");
 		if (!fsSync.existsSync(goModPath)) {
 			await fs.writeFile(goModPath, `module shsf_function_${functionData.id}\n\ngo 1.23\n`);
+			scriptsChanged = true;
 		}
 		trace("Go runner wrapper written");
 	}
 
-	// Always generate/update the runner script to accept payload file path as argument
+	// Regenerate the runner scripts only when their generated content changed.
 	if (runtimeType === "python") {
 		const wrapperPath = path.join(funcAppDir, "_runner.py");
-		await fs.writeFile(wrapperPath, generatePythonRunnerScript(startupFile ?? "main"));
-		await fs.chmod(wrapperPath, "755");
+		if (await writeFileIfChanged(wrapperPath, generatePythonRunnerScript(startupFile ?? "main"))) {
+			await fs.chmod(wrapperPath, "755");
+			scriptsChanged = true;
+		}
 		trace("Python runner script written");
 	} else if (runtimeType === "golang") {
 		const wrapperPath = path.join(funcAppDir, "_runner.sh");
-		await fs.writeFile(wrapperPath, generateGoRunnerShScript());
-		await fs.chmod(wrapperPath, "755");
+		if (await writeFileIfChanged(wrapperPath, generateGoRunnerShScript())) {
+			await fs.chmod(wrapperPath, "755");
+			scriptsChanged = true;
+		}
 		trace("Go runner script written");  // intermediate — mark fires after init.sh below
 	} else if (runtimeType === "node") {
 		const jsRunnerPath = path.join(funcAppDir, "_shsf_runner.js");
-		await fs.writeFile(jsRunnerPath, generateNodeJsRunnerScript(startupFile ?? "index.js"));
+		if (await writeFileIfChanged(jsRunnerPath, generateNodeJsRunnerScript(startupFile ?? "index.js"))) {
+			scriptsChanged = true;
+		}
 		const shWrapperPath = path.join(funcAppDir, "_runner.sh");
-		await fs.writeFile(shWrapperPath, generateNodeJsRunnerShScript());
-		await fs.chmod(shWrapperPath, "755");
+		if (await writeFileIfChanged(shWrapperPath, generateNodeJsRunnerShScript())) {
+			await fs.chmod(shWrapperPath, "755");
+			scriptsChanged = true;
+		}
 		trace("Node.js runner scripts written");
 	} else {
 		log.warn({ runtimeType, functionId: functionData.id }, "Runner script generation skipped: unsupported runtime type");
 	}
 
-	// Always generate/update the init.sh script
+	// Regenerate init.sh only when its inputs (flags, function id, templates) changed.
 	if (runtimeType === "python") {
 		initScript += generatePythonInitBody(functionData.id, {
 			ffmpeg_install: functionData.ffmpeg_install,
@@ -86,36 +113,42 @@ export async function prepareRunnerSource({ functionData, files, funcAppDir, run
 
 	initScript +=
 		"\necho '[SHSF INIT] Environment setup finished successfully.'\n";
-	await fs.writeFile(path.join(funcAppDir, "init.sh"), initScript);
-	await fs.chmod(path.join(funcAppDir, "init.sh"), "755");
-	mark("Generate scripts"); // runner script(s) + init.sh
+	const initPath = path.join(funcAppDir, "init.sh");
+	if (await writeFileIfChanged(initPath, initScript)) {
+		await fs.chmod(initPath, "755");
+		scriptsChanged = true;
+	}
+	mark(scriptsChanged ? "Generate scripts" : "Scripts unchanged"); // runner script(s) + init.sh
 
 	const requiresDbCom = files.some((f) => f.content.includes("_db_com") || f.content.includes("dbcom"));
 	if (requiresDbCom) {
+		let helperChanged = false;
 		if (runtimeType === "python") {
-			await fs.writeFile(path.join(funcAppDir, "_db_com.py"), DbComScriptPY);
-			await fs.chmod(path.join(funcAppDir, "_db_com.py"), "755");
+			helperChanged = await writeFileIfChanged(path.join(funcAppDir, "_db_com.py"), DbComScriptPY);
+			if (helperChanged) await fs.chmod(path.join(funcAppDir, "_db_com.py"), "755");
 		} else if (runtimeType === "golang") {
 			const dbComDir = path.join(funcAppDir, "dbcom");
 			await fs.mkdir(dbComDir, { recursive: true });
-			await fs.writeFile(path.join(dbComDir, "dbcom.go"), DbComScriptGO);
+			helperChanged = await writeFileIfChanged(path.join(dbComDir, "dbcom.go"), DbComScriptGO);
 		} else if (runtimeType === "node") {
-			await fs.writeFile(path.join(funcAppDir, "_db_com.js"), DbComScriptJS);
+			helperChanged = await writeFileIfChanged(path.join(funcAppDir, "_db_com.js"), DbComScriptJS);
 		}
-		mark("Storage helper script");
+		if (helperChanged) mark("Storage helper script");
 	}
 
 	// Always inject the callF helper so functions can call each other without
 	// any conditional check — the scripts are small and immediately available.
 	if (runtimeType === "python") {
-		await fs.writeFile(path.join(funcAppDir, "_call_func.py"), CallFuncScriptPY);
-		await fs.chmod(path.join(funcAppDir, "_call_func.py"), "755");
+		const callFuncPath = path.join(funcAppDir, "_call_func.py");
+		if (await writeFileIfChanged(callFuncPath, CallFuncScriptPY)) {
+			await fs.chmod(callFuncPath, "755");
+		}
 	} else if (runtimeType === "golang") {
 		const callFuncDir = path.join(funcAppDir, "callfunc");
 		await fs.mkdir(callFuncDir, { recursive: true });
-		await fs.writeFile(path.join(callFuncDir, "callfunc.go"), CallFuncScriptGO);
+		await writeFileIfChanged(path.join(callFuncDir, "callfunc.go"), CallFuncScriptGO);
 	} else if (runtimeType === "node") {
-		await fs.writeFile(path.join(funcAppDir, "_call_func.js"), CallFuncScriptJS);
+		await writeFileIfChanged(path.join(funcAppDir, "_call_func.js"), CallFuncScriptJS);
 	}
 
 }

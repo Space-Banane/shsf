@@ -1,6 +1,5 @@
 import * as fs from "fs/promises";
 import * as path from "path";
-import { prisma } from "..";
 import {
 	FunctionStorageService,
 	StorageServiceError,
@@ -84,15 +83,6 @@ export async function readRunnerResult(resultPath: string): Promise<
 	} catch (error) {
 		return { status: "malformed", raw, error: error as Error };
 	}
-}
-
-export async function revokeLegacyFunctionDbTokens() {
-	await prisma.accessToken.deleteMany({
-		where: {
-			name: "__function_db_access__",
-			hidden: true,
-		},
-	});
 }
 
 function getStringArg(args: Record<string, unknown>, name: string): string {
