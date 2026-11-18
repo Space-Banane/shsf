@@ -32,6 +32,7 @@ import {
 	Namespace,
 } from "../../../types/Prisma";
 import { InlineCode } from "../../InlineCode";
+import { LoadError } from "../../ui/LoadError";
 
 interface UpdateFunctionModalProps {
 	isOpen: boolean;
@@ -80,23 +81,41 @@ function UpdateFunctionModal({
 		imported: false, ai_kicked_off: false,
 	});
 	const initializedFunctionIdRef = useRef<number | null>(null);
+	const [auxError, setAuxError] = useState<string | null>(null);
+	const [auxReloadKey, setAuxReloadKey] = useState(0);
 
 	useEffect(() => {
-		if (functionData) {
-			isFunctionImageDeprecated(functionData.id).then(setIsDeprecated).catch(() => {});
-		}
-	}, [functionData]);
+		if (!functionData) return;
+		let active = true;
+		setAuxError(null);
+		isFunctionImageDeprecated(functionData.id)
+			.then((deprecated) => { if (active) setIsDeprecated(deprecated); })
+			.catch(() => { if (active) setAuxError("Could not load image metadata."); });
+		return () => { active = false; };
+	}, [functionData, auxReloadKey]);
 
 	useEffect(() => {
-		getDeprecatedImages().then(setDeprecatedImages).catch(() => {});
-	}, []);
+		let active = true;
+		setAuxError(null);
+		getDeprecatedImages()
+			.then((images) => { if (active) setDeprecatedImages(images); })
+			.catch(() => { if (active) setAuxError("Could not load image metadata."); });
+		return () => { active = false; };
+	}, [auxReloadKey]);
 
 	useEffect(() => {
 		if (!isOpen) return;
-		getNamespaces().then((data) => {
-			if (data.status === "OK") setNamespaces(data.data);
-		}).catch(() => {});
-	}, [isOpen]);
+		let active = true;
+		setAuxError(null);
+		getNamespaces()
+			.then((data) => {
+				if (!active) return;
+				if (data.status === "OK") setNamespaces(data.data);
+				else setAuxError(data.message || "Could not load namespaces.");
+			})
+			.catch(() => { if (active) setAuxError("Could not load namespaces."); });
+		return () => { active = false; };
+	}, [isOpen, auxReloadKey]);
 
 	useEffect(() => {
 		if (!isOpen) { initializedFunctionIdRef.current = null; return; }
@@ -289,6 +308,12 @@ function UpdateFunctionModal({
 		<Modal isOpen={isOpen} onClose={handleClose} title="Update Function" maxWidth="lg" isLoading={isLoading}>
 			<div className="space-y-6">
 				<ModalError message={error} />
+				{auxError && (
+					<LoadError
+						message={auxError}
+						onRetry={() => setAuxReloadKey((key) => key + 1)}
+					/>
+				)}
 
 				{hasSourceFlags && (
 					<div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4">

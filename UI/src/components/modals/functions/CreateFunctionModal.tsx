@@ -22,6 +22,7 @@ import {
 	Namespace,
 } from "../../../types/Prisma";
 import { useNavigate } from "react-router-dom";
+import { LoadError } from "../../ui/LoadError";
 
 interface CreateFunctionModalProps {
 	isOpen: boolean;
@@ -57,13 +58,24 @@ function CreateFunctionModal({
 	const [deprecatedImages, setDeprecatedImages] = useState<string[]>([]);
 	const [templates, setTemplates] = useState<DefaultTemplate[]>([]);
 	const [templateId, setTemplateId] = useState("");
+	const [auxError, setAuxError] = useState<string | null>(null);
+	const [auxReloadKey, setAuxReloadKey] = useState(0);
 
 	useEffect(() => {
-		getDeprecatedImages().then(setDeprecatedImages).catch(() => {});
-		loadPossibleDefaults().then((response) => {
-			if (response.status === "OK") setTemplates(response.defaults.filter((template) => template.id.includes("_http_api") || template.id.includes("_webhook") || template.id.includes("_scheduled_job")));
-		}).catch(() => {});
-	}, []);
+		let active = true;
+		setAuxError(null);
+		getDeprecatedImages()
+			.then((images) => { if (active) setDeprecatedImages(images); })
+			.catch(() => { if (active) setAuxError("Could not load image metadata."); });
+		loadPossibleDefaults()
+			.then((response) => {
+				if (!active) return;
+				if (response.status === "OK") setTemplates(response.defaults.filter((template) => template.id.includes("_http_api") || template.id.includes("_webhook") || template.id.includes("_scheduled_job")));
+				else setAuxError("Could not load function templates.");
+			})
+			.catch(() => { if (active) setAuxError("Could not load function templates."); });
+		return () => { active = false; };
+	}, [auxReloadKey]);
 
 	const resetForm = () => {
 		setName(""); setDescription(""); setNamespaceId(null);
@@ -141,6 +153,12 @@ function CreateFunctionModal({
 		<Modal isOpen={isOpen} onClose={handleClose} title="Create Function" maxWidth="lg" isLoading={isLoading}>
 			<div className="space-y-6">
 				<ModalError message={error} />
+				{auxError && (
+					<LoadError
+						message={auxError}
+						onRetry={() => setAuxReloadKey((key) => key + 1)}
+					/>
+				)}
 
 				<ModalSection title="Basic Information">
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">

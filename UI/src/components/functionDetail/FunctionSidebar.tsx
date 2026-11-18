@@ -24,6 +24,8 @@ interface FunctionSidebarProps {
 	upload: ReturnType<typeof useFileUpload>;
 	logs: ReturnType<typeof useFunctionLogs>;
 	triggers: Trigger[];
+	triggersError: string | null;
+	onRetryTriggers: () => void;
 	onRunTrigger: (trigger: Trigger) => void;
 	tooks: TimingEntry[];
 	onOpenModal: (modal: FunctionModal) => void;
@@ -37,6 +39,8 @@ export function FunctionSidebar({
 	upload,
 	logs,
 	triggers,
+	triggersError,
+	onRetryTriggers,
 	onRunTrigger,
 	tooks,
 	onOpenModal,
@@ -112,6 +116,8 @@ export function FunctionSidebar({
 
 			<TriggersCard
 				triggers={triggers}
+				error={triggersError}
+				onRetry={onRetryTriggers}
 				disabled={htmlOnly || !canEdit}
 				disabledReason={HTML_ONLY_REASON}
 				showDetails={showTriggersDetails}
@@ -135,6 +141,7 @@ export function FunctionSidebar({
 			<LogsCard
 				logs={logs.logs}
 				isLoadingLogs={logs.isLoading}
+				error={logs.error}
 				showDetails={logs.expanded}
 				onToggleDetails={() => logs.setExpanded((open) => !open)}
 				onRefreshLogs={logs.refresh}

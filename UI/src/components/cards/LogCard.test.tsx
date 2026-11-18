@@ -8,12 +8,13 @@ vi.mock("../../services/backend.function.logs", () => ({
 }));
 vi.mock("../modals/ConfirmModal", () => ({ useConfirm: () => vi.fn() }));
 
-const renderCard = () => render(
+const renderCard = (overrides: { error?: string | null; onRefreshLogs?: () => void } = {}) => render(
 	<MemoryRouter>
-		<LogsCard logs={[]} isLoadingLogs={false} showDetails onToggleDetails={vi.fn()} onRefreshLogs={vi.fn()} onViewLogs={vi.fn()} functionId={5} />
+		<LogsCard logs={[]} isLoadingLogs={false} showDetails onToggleDetails={vi.fn()} onRefreshLogs={vi.fn()} onViewLogs={vi.fn()} functionId={5} {...overrides} />
 	</MemoryRouter>,
 );
 const ready = { enabled: true, model: "m", keySource: "account" as const, ready: true, reason: null };
+const loadedConfig = { status: "OK" as const, data: { enabled: true, analyze: false, analysis: { ...ready, effective: false } } };
 
 describe("LogsCard analysis opt-in", () => {
 	beforeEach(() => vi.clearAllMocks());
@@ -50,5 +51,30 @@ describe("LogsCard analysis opt-in", () => {
 		renderCard();
 		await screen.findByText("Opted in, but paused: No OpenRouter API key is configured.");
 		expect(screen.getByRole("checkbox", { name: "Analyze new logs with OpenRouter" })).toBeEnabled();
+	});
+
+	it("shows a retry action when the logs could not be loaded", async () => {
+		vi.mocked(getLoggingConfig).mockResolvedValue(loadedConfig);
+		const onRefreshLogs = vi.fn();
+		renderCard({ error: "Could not load execution logs.", onRefreshLogs });
+
+		expect(screen.getByText("Could not load execution logs.")).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+		expect(onRefreshLogs).toHaveBeenCalledTimes(1);
+	});
+
+	it("surfaces a failed logging config load and retries it", async () => {
+		vi.mocked(getLoggingConfig)
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValue(loadedConfig);
+		renderCard();
+
+		expect(await screen.findByText("Could not load log settings.")).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+		await waitFor(() => expect(getLoggingConfig).toHaveBeenCalledTimes(2));
+		await waitFor(() =>
+			expect(screen.queryByText("Could not load log settings.")).toBeNull(),
+		);
 	});
 });

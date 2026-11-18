@@ -8,10 +8,12 @@ import {
 import { TriggerLog } from "../../types/Prisma";
 import { ActionButton } from "../buttons/ActionButton";
 import { useConfirm } from "../modals/ConfirmModal";
+import { LoadError } from "../ui/LoadError";
 
 export function LogsCard({
 	logs,
 	isLoadingLogs,
+	error = null,
 	showDetails,
 	onToggleDetails,
 	onRefreshLogs,
@@ -22,6 +24,7 @@ export function LogsCard({
 }: {
 	logs: TriggerLog[];
 	isLoadingLogs: boolean;
+	error?: string | null;
 	showDetails: boolean;
 	onToggleDetails: () => void;
 	onRefreshLogs: () => void;
@@ -37,26 +40,35 @@ export function LogsCard({
 	const [analysisReady, setAnalysisReady] = useState(false);
 	const [analysisReason, setAnalysisReason] = useState<string | null>(null);
 	const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
+	const [configError, setConfigError] = useState<string | null>(null);
+	const [configReloadKey, setConfigReloadKey] = useState(0);
 
 	useEffect(() => {
 		if (!functionId || disabled) return;
 
 		let mounted = true;
-		getLoggingConfig(functionId).then((res) => {
-			if (!mounted) return;
-			if (res.status === "OK") {
-				setLoggingEnabled(res.data.enabled);
-				setHidePayloadHeaders(Boolean(res.data.hide_payload_headers));
-				setAnalyze(Boolean(res.data.analyze));
-				setAnalysisReady(Boolean(res.data.analysis?.ready));
-				setAnalysisReason(res.data.analysis?.reason ?? null);
-			}
-		});
+		setConfigError(null);
+		getLoggingConfig(functionId)
+			.then((res) => {
+				if (!mounted) return;
+				if (res.status === "OK") {
+					setLoggingEnabled(res.data.enabled);
+					setHidePayloadHeaders(Boolean(res.data.hide_payload_headers));
+					setAnalyze(Boolean(res.data.analyze));
+					setAnalysisReady(Boolean(res.data.analysis?.ready));
+					setAnalysisReason(res.data.analysis?.reason ?? null);
+				} else {
+					setConfigError(res.message || "Could not load log settings.");
+				}
+			})
+			.catch(() => {
+				if (mounted) setConfigError("Could not load log settings.");
+			});
 
 		return () => {
 			mounted = false;
 		};
-	}, [functionId, disabled]);
+	}, [functionId, disabled, configReloadKey]);
 
 	const handleToggleLogging = async (checked: boolean) => {
 		if (!functionId || disabled || isUpdatingConfig) return;
@@ -157,6 +169,13 @@ export function LogsCard({
 
 			{showDetails && (
 				<div className="space-y-3">
+					{error && <LoadError message={error} onRetry={onRefreshLogs} />}
+					{configError && (
+						<LoadError
+							message={configError}
+							onRetry={() => setConfigReloadKey((key) => key + 1)}
+						/>
+					)}
 					<div className="flex items-center justify-between rounded-lg border border-gray-700/50 bg-gray-900/40 px-3 py-2">
 						<span className="text-sm text-gray-300">Logging</span>
 						<label className="relative inline-flex items-center cursor-pointer">

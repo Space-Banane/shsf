@@ -25,6 +25,7 @@ import { NavBar } from "./components/ui/NavBar";
 import { ToastContainer } from "react-toastify";
 import { ConfirmProvider } from "./components/modals/ConfirmModal";
 import { RouteSkeleton } from "./components/ui/RouteSkeleton";
+import { RouteError } from "./components/ui/RouteError";
 import { apiFetch } from "./services/api";
 
 const fetch = apiFetch;
@@ -60,15 +61,21 @@ function ProtectedRoute({ children, adminOnly = false }: { children: React.React
 	const { user, loading, error, refreshUser } = useContext(UserContext);
 	const location = useLocation();
 
-	if (!user && !loading && error) {
+	// Hold protected pages until the session is known, so they never fire
+	// requests against an unresolved (and briefly unauthenticated) session.
+	if (loading && !user) {
+		return <RouteSkeleton />;
+	}
+
+	if (!user && error) {
 		return <UnavailablePage error={error} onRetry={refreshUser} />;
 	}
 
-	if (!user && !loading) {
+	if (!user) {
 		return <Navigate to="/login" state={{ from: location }} replace />;
 	}
 
-	if (!loading && adminOnly && user?.role !== "Admin") {
+	if (adminOnly && user.role !== "Admin") {
 		return <Navigate to="/" replace />;
 	}
 
@@ -109,7 +116,7 @@ function NoMatch() {
 
 export function createAppRoutes() {
 	return createRoutesFromElements(
-		<Route element={<AppLayout />}>
+		<Route element={<AppLayout />} errorElement={<RouteError />}>
 			{routes.map((route) => (
 				<Route
 					key={route.path}

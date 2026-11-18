@@ -213,4 +213,21 @@ describe("useFunctionLogs", () => {
 		expect(result.current.logs).toEqual([{ id: 1 }]);
 		expect(result.current.isLoading).toBe(false);
 	});
+
+	it("surfaces a failed load and clears it after a successful retry", async () => {
+		vi.mocked(getLogsByFuncId).mockResolvedValueOnce({
+			status: 500,
+			message: "logs are down",
+		} as never);
+		const { result } = renderHook(() => useFunctionLogs(1, false, false));
+		act(() => result.current.setExpanded(true));
+		await act(async () => {});
+		expect(result.current.error).toBe("logs are down");
+
+		vi.mocked(getLogsByFuncId).mockResolvedValue({ status: "OK", data: [] });
+		await act(async () => void (await result.current.refresh()));
+
+		expect(getLogsByFuncId).toHaveBeenCalledTimes(2);
+		expect(result.current.error).toBeNull();
+	});
 });

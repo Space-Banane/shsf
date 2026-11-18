@@ -4,12 +4,14 @@ import { cancelBtnClass } from "../Modal";
 import { TriggerLog } from "../../../types/Prisma";
 import TriggerLogCard from "./TriggerLogCard";
 import { deleteSpecificLog } from "../../../services/backend.function.logs";
+import { LoadError } from "../../ui/LoadError";
 
 interface TriggerLogsModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	logs: TriggerLog[];
 	isLoading?: boolean;
+	error?: string | null;
 	functionId: number;
 	onRefresh: () => void;
 }
@@ -19,6 +21,7 @@ function TriggerLogsModal({
 	onClose,
 	logs,
 	isLoading = false,
+	error = null,
 	functionId,
 	onRefresh,
 }: TriggerLogsModalProps) {
@@ -60,6 +63,7 @@ function TriggerLogsModal({
 			isLoading={isLoading}
 		>
 			<div className="space-y-4">
+				{error && <LoadError message={error} onRetry={onRefresh} />}
 				{sortedLogs.length > 0 ? (
 					<div className="space-y-2">
 						{sortedLogs.map((log) => (
@@ -72,7 +76,7 @@ function TriggerLogsModal({
 							/>
 						))}
 					</div>
-				) : (
+				) : error ? null : (
 					<div className="text-center py-10">
 						<p className="text-sm font-medium text-text/60">No execution logs</p>
 						<p className="text-xs text-muted mt-1">

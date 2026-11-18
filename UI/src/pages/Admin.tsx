@@ -4,6 +4,7 @@ import { Navigate } from "react-router-dom";
 import { BASE_URL } from "..";
 import { apiFetch } from "../services/api";
 import { HelpTooltip } from "../components/ui/Tooltip";
+import { LoadError } from "../components/ui/LoadError";
 import { useShiftEnterSubmit } from "../hooks/useShiftEnterSubmit";
 import {
 	getLinkStatus,
@@ -1079,6 +1080,8 @@ function UpdatesTab() {
 	const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [detail, setDetail] = useState<UpdateOperation | null>(null);
+	const [detailError, setDetailError] = useState<string | null>(null);
+	const [detailReloadKey, setDetailReloadKey] = useState(0);
 	const [showLogs, setShowLogs] = useState(false);
 
 	const [checking, setChecking] = useState(false);
@@ -1126,14 +1129,25 @@ function UpdatesTab() {
 	useEffect(() => {
 		if (!showLogs || !operationId) return;
 		let cancelled = false;
+		setDetailError(null);
 		const fetchDetail = () => getUpdateOperation(operationId)
-			.then((r) => { if (!cancelled && r.status === "OK") setDetail(r.operation); })
-			.catch(() => undefined);
+			.then((r) => {
+				if (cancelled) return;
+				if (r.status === "OK") {
+					setDetail(r.operation);
+					setDetailError(null);
+				} else {
+					setDetailError(r.message || "Could not load update logs.");
+				}
+			})
+			.catch(() => {
+				if (!cancelled) setDetailError("Could not load update logs.");
+			});
 		void fetchDetail();
 		if (!running) return () => { cancelled = true; };
 		const id = setInterval(fetchDetail, POLL_MS);
 		return () => { cancelled = true; clearInterval(id); };
-	}, [showLogs, operationId, running, operation?.phase]);
+	}, [showLogs, operationId, running, operation?.phase, detailReloadKey]);
 
 	const handleCheck = async () => {
 		setChecking(true);
@@ -1269,9 +1283,18 @@ function UpdatesTab() {
 						{showLogs ? "Hide logs" : "Show logs"}
 					</button>
 					{showLogs && (
-						<pre className="mt-2 max-h-72 overflow-auto rounded bg-background/60 p-3 text-xs text-text/70 whitespace-pre-wrap break-words">
-							{logText || "No output captured yet."}
-						</pre>
+						<>
+							{detailError && (
+								<LoadError
+									message={detailError}
+									onRetry={() => setDetailReloadKey((key) => key + 1)}
+									className="mt-2"
+								/>
+							)}
+							<pre className="mt-2 max-h-72 overflow-auto rounded bg-background/60 p-3 text-xs text-text/70 whitespace-pre-wrap break-words">
+								{logText || "No output captured yet."}
+							</pre>
+						</>
 					)}
 				</div>
 			)}

@@ -115,6 +115,25 @@ describe("FunctionDetail route", () => {
 		expect(screen.getByText("Saved")).toBeInTheDocument();
 	});
 
+	it("surfaces a failed trigger load and reloads it on retry", async () => {
+		mockBackend();
+		vi.mocked(getTriggers)
+			.mockResolvedValueOnce({ status: 500, message: "triggers are down" } as never)
+			.mockResolvedValueOnce({
+				status: "OK",
+				data: [{ id: 7, name: "nightly", cron: "0 0 * * *" }],
+			} as never);
+		renderRoute();
+
+		expect(await screen.findByText("triggers are down")).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+		await waitFor(() => expect(getTriggers).toHaveBeenCalledTimes(2));
+		await waitFor(() => expect(screen.queryByText("triggers are down")).toBeNull());
+		fireEvent.click(screen.getByText("Triggers"));
+		expect(await screen.findByText("nightly")).toBeInTheDocument();
+	});
+
 	it("shows a not-found state when the function can't be loaded", async () => {
 		vi.mocked(getFunctionById).mockResolvedValue({ status: 404, message: "gone" } as never);
 		vi.mocked(getFiles).mockResolvedValue({ status: "OK", data: [] });

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import CreateFunctionModal from "./CreateFunctionModal";
-import { createFunction } from "../../../services/backend.functions";
+import { createFunction, getDeprecatedImages } from "../../../services/backend.functions";
 
 vi.mock("../../..", () => ({ BASE_URL: "" }));
 vi.mock("../../../services/backend.functions", () => ({
@@ -31,4 +31,23 @@ it("validates the form, then creates a function and opens its editor", async () 
 	await waitFor(() => expect(screen.getByText("Function editor")).toBeInTheDocument());
 	expect(createFunction).toHaveBeenCalledWith(expect.objectContaining({ name: "hello", namespaceId: 2 }));
 	expect(onSuccess).toHaveBeenCalledTimes(1);
+});
+
+it("surfaces a failed metadata load and retries it", async () => {
+	vi.mocked(getDeprecatedImages)
+		.mockRejectedValueOnce(new Error("offline"))
+		.mockResolvedValue([]);
+	render(
+		<MemoryRouter>
+			<CreateFunctionModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} namespaces={[]} />
+		</MemoryRouter>,
+	);
+
+	expect(await screen.findByText("Could not load image metadata.")).toBeInTheDocument();
+	fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+	await waitFor(() => expect(getDeprecatedImages).toHaveBeenCalledTimes(2));
+	await waitFor(() =>
+		expect(screen.queryByText("Could not load image metadata.")).toBeNull(),
+	);
 });
