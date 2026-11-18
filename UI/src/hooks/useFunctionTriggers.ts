@@ -24,7 +24,10 @@ export interface TriggerInput {
  */
 export function useFunctionTriggers(
 	functionId: number | null,
-	{ onRan }: { onRan?: () => void | Promise<void> } = {},
+	{
+		onRan,
+		onChanged,
+	}: { onRan?: () => void | Promise<void>; onChanged?: () => void } = {},
 ) {
 	const [triggers, setTriggers] = useState<Trigger[]>([]);
 
@@ -37,6 +40,7 @@ export function useFunctionTriggers(
 					toast.error("Error creating trigger: " + response.message);
 					return false;
 				}
+				onChanged?.();
 				const reloaded = await getTriggers(functionId);
 				if (reloaded.status === "OK") setTriggers(reloaded.data);
 				return true;
@@ -46,7 +50,7 @@ export function useFunctionTriggers(
 				return false;
 			}
 		},
-		[functionId],
+		[functionId, onChanged],
 	);
 
 	const update = useCallback(
@@ -63,6 +67,7 @@ export function useFunctionTriggers(
 						trigger.id === triggerId ? response.data : trigger,
 					),
 				);
+				onChanged?.();
 				return true;
 			} catch (error) {
 				console.error("Error updating trigger:", error);
@@ -70,7 +75,7 @@ export function useFunctionTriggers(
 				return false;
 			}
 		},
-		[functionId],
+		[functionId, onChanged],
 	);
 
 	const remove = useCallback(
@@ -85,6 +90,7 @@ export function useFunctionTriggers(
 				setTriggers((prev) =>
 					prev.filter((trigger) => trigger.id !== triggerId),
 				);
+				onChanged?.();
 				return true;
 			} catch (error) {
 				console.error("Error deleting trigger:", error);
@@ -92,7 +98,7 @@ export function useFunctionTriggers(
 				return false;
 			}
 		},
-		[functionId],
+		[functionId, onChanged],
 	);
 
 	const run = useCallback(

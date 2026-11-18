@@ -134,6 +134,7 @@ function FunctionDetail() {
 	const [namespace, setNamespace] = useState<Namespace | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [loadFailed, setLoadFailed] = useState(false);
+	const [triggersError, setTriggersError] = useState<string | null>(null);
 	const [resultModalsEnabled, setResultModalsEnabled] = useState(true);
 
 	// Only trust the loaded name when it belongs to the id in the URL, so the
@@ -172,8 +173,10 @@ function FunctionDetail() {
 		!execution.running && execution.exitCode !== null,
 		searchParams.get("modal") === "logs",
 	);
+	const clearTriggersError = useCallback(() => setTriggersError(null), []);
 	const triggers = useFunctionTriggers(functionId, {
 		onRan: logs.refreshSilently,
+		onChanged: clearTriggersError,
 	});
 	const dependencies = useDependencyInstall(functionId, {
 		onFinished: () => void logs.refreshSilently(),
@@ -240,6 +243,7 @@ function FunctionDetail() {
 
 		setLoading(true);
 		setLoadFailed(false);
+		setTriggersError(null);
 		try {
 			const [functionResult, filesResult, foldersResult, triggersResult] =
 				await Promise.all([
@@ -277,6 +281,7 @@ function FunctionDetail() {
 				setTriggers(triggersResult.data);
 			} else {
 				console.error("Error fetching triggers:", triggersResult.message);
+				setTriggersError(triggersResult.message || "Could not load triggers.");
 			}
 		} catch (error) {
 			console.error("Error fetching data:", error);
@@ -290,6 +295,23 @@ function FunctionDetail() {
 	useEffect(() => {
 		void loadData();
 	}, [loadData]);
+
+	const reloadTriggers = useCallback(async () => {
+		if (functionId === null) return;
+
+		setTriggersError(null);
+		try {
+			const result = await getTriggers(functionId);
+			if (result.status === "OK") {
+				setTriggers(result.data);
+			} else {
+				setTriggersError(result.message || "Could not load triggers.");
+			}
+		} catch (error) {
+			console.error("Error fetching triggers:", error);
+			setTriggersError("Could not load triggers.");
+		}
+	}, [functionId, setTriggers]);
 
 	// `?preopen=guests` still works for links created before dialogs were URL-backed.
 	useEffect(() => {
@@ -381,6 +403,8 @@ function FunctionDetail() {
 					upload={upload}
 					logs={logs}
 					triggers={triggers.triggers}
+					triggersError={triggersError}
+					onRetryTriggers={() => void reloadTriggers()}
 					onRunTrigger={(trigger) => void triggers.run(trigger)}
 					tooks={execution.tooks}
 					onOpenModal={openModal}

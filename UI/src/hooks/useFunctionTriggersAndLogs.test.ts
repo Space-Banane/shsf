@@ -32,7 +32,8 @@ describe("useFunctionTriggers", () => {
 	it("reloads the list after creating a trigger", async () => {
 		vi.mocked(createTrigger).mockResolvedValue({ status: "OK", data: { id: 3 } });
 		vi.mocked(getTriggers).mockResolvedValue({ status: "OK", data: [trigger(3)] });
-		const { result } = renderHook(() => useFunctionTriggers(1));
+		const onChanged = vi.fn();
+		const { result } = renderHook(() => useFunctionTriggers(1, { onChanged }));
 
 		let ok = false;
 		await act(async () => {
@@ -42,6 +43,7 @@ describe("useFunctionTriggers", () => {
 		expect(ok).toBe(true);
 		expect(createTrigger).toHaveBeenCalledWith(1, input);
 		expect(result.current.triggers).toEqual([trigger(3)]);
+		expect(onChanged).toHaveBeenCalledTimes(1);
 	});
 
 	it("toasts and reports failure when the backend rejects a create", async () => {
@@ -64,7 +66,8 @@ describe("useFunctionTriggers", () => {
 			data: trigger(2, "renamed"),
 		});
 		vi.mocked(deleteTrigger).mockResolvedValue({ status: "OK", message: "" });
-		const { result } = renderHook(() => useFunctionTriggers(1));
+		const onChanged = vi.fn();
+		const { result } = renderHook(() => useFunctionTriggers(1, { onChanged }));
 		act(() => result.current.setTriggers([trigger(1), trigger(2)]));
 
 		await act(async () => void (await result.current.update(2, input)));
@@ -72,6 +75,7 @@ describe("useFunctionTriggers", () => {
 
 		await act(async () => void (await result.current.remove(1)));
 		expect(result.current.triggers.map((t) => t.id)).toEqual([2]);
+		expect(onChanged).toHaveBeenCalledTimes(2);
 	});
 
 	it("runs a trigger, toasts success and notifies the caller", async () => {
@@ -212,5 +216,22 @@ describe("useFunctionLogs", () => {
 		await act(async () => {});
 		expect(result.current.logs).toEqual([{ id: 1 }]);
 		expect(result.current.isLoading).toBe(false);
+	});
+
+	it("surfaces a failed load and clears it after a successful retry", async () => {
+		vi.mocked(getLogsByFuncId).mockResolvedValueOnce({
+			status: 500,
+			message: "logs are down",
+		} as never);
+		const { result } = renderHook(() => useFunctionLogs(1, false, false));
+		act(() => result.current.setExpanded(true));
+		await act(async () => {});
+		expect(result.current.error).toBe("logs are down");
+
+		vi.mocked(getLogsByFuncId).mockResolvedValue({ status: "OK", data: [] });
+		await act(async () => void (await result.current.refresh()));
+
+		expect(getLogsByFuncId).toHaveBeenCalledTimes(2);
+		expect(result.current.error).toBeNull();
 	});
 });

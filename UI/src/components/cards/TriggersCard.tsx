@@ -1,8 +1,11 @@
 import { Trigger } from "../../types/Prisma";
 import { ActionButton } from "../buttons/ActionButton";
+import { LoadError } from "../ui/LoadError";
 
 export function TriggersCard({
 	triggers,
+	error = null,
+	onRetry,
 	showDetails,
 	onToggleDetails,
 	onCreateTrigger,
@@ -13,6 +16,8 @@ export function TriggersCard({
 	disabledReason,
 }: {
 	triggers: Trigger[];
+	error?: string | null;
+	onRetry?: () => void;
 	showDetails: boolean;
 	onToggleDetails: () => void;
 	onCreateTrigger: () => void;
@@ -38,6 +43,10 @@ export function TriggersCard({
 				</h2>
 				<span className="text-primary text-lg">{showDetails ? "📂" : "📁"}</span>
 			</div>
+
+			{error && onRetry && (
+				<LoadError message={error} onRetry={onRetry} className="mb-3" />
+			)}
 
 			{showDetails && (
 				<div className="space-y-3">
@@ -85,7 +94,7 @@ export function TriggersCard({
 								</div>
 							))}
 						</div>
-					) : (
+					) : error ? null : (
 						<div className="text-center py-4">
 							<div className="text-3xl mb-1">⏰</div>
 							<p className="text-text/60 text-xs">No triggers</p>

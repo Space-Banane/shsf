@@ -186,6 +186,7 @@ export function FunctionModals({
 				onClose={onClose}
 				logs={logs.logs}
 				isLoading={logs.isLoading}
+				error={logs.error}
 				functionId={functionData.id}
 				onRefresh={logs.refresh}
 			/>

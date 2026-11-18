@@ -17,6 +17,7 @@ export function useFunctionLogs(
 ) {
 	const [logs, setLogs] = useState<TriggerLog[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 	const [expanded, setExpanded] = useState(false);
 	const [documentHidden, setDocumentHidden] = useState(() => document.hidden);
 
@@ -29,11 +30,14 @@ export function useFunctionLogs(
 				const logsData = await getLogsByFuncId(functionId);
 				if (logsData.status === "OK") {
 					setLogs(logsData.data);
+					setError(null);
 				} else {
 					console.error("Error fetching logs:", logsData.message);
+					setError(logsData.message || "Could not load execution logs.");
 				}
-			} catch (error) {
-				console.error("Error fetching logs:", error);
+			} catch (fetchError) {
+				console.error("Error fetching logs:", fetchError);
+				setError("Could not load execution logs.");
 			} finally {
 				if (showSpinner) setIsLoading(false);
 			}
@@ -45,6 +49,10 @@ export function useFunctionLogs(
 	const refresh = useCallback(() => fetchLogs(true), [fetchLogs]);
 	/** Background refresh; never toggles the loading spinner. */
 	const refreshSilently = useCallback(() => fetchLogs(false), [fetchLogs]);
+
+	useEffect(() => {
+		setError(null);
+	}, [functionId]);
 
 	useEffect(() => {
 		const onVisibilityChange = () => setDocumentHidden(document.hidden);
@@ -74,6 +82,7 @@ export function useFunctionLogs(
 	return {
 		logs,
 		isLoading,
+		error,
 		refresh,
 		refreshSilently,
 		expanded,

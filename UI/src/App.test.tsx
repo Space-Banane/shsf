@@ -66,6 +66,14 @@ describe("app router auth gate", () => {
 		expect(screen.getByText("page:/functions")).toBeInTheDocument();
 	});
 
+	it("holds protected content behind a placeholder until auth resolves", () => {
+		const router = renderRoute("/functions", { loading: true });
+
+		expect(router.state.location.pathname).toBe("/functions");
+		expect(screen.queryByText("page:/functions")).not.toBeInTheDocument();
+		expect(screen.getByRole("status", { name: "Loading page" })).toBeInTheDocument();
+	});
+
 	it("does not render the admin page for a signed-in non-admin", () => {
 		const router = renderRoute("/admin", { user: makeUser("User") });
 
