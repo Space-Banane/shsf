@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { BASE_URL } from "../..";
 import { AppRoute, routes } from "../../Routes";
 import { Icon } from "./Icon";
@@ -22,8 +22,8 @@ export function NavBar({
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 	const [isAdmin, setIsAdmin] = useState(user?.role === "Admin");
 	const documentationLinks = [
-		{ name: "SHSF Docs", path: "/docs" },
-		{ name: "API Reference", path: "/api/openapi.json" },
+		{ name: "SHSF Docs", path: "/docs", external: false },
+		{ name: "API Reference", path: "/api/openapi.json", external: true },
 	];
 
 	useEffect(() => {
@@ -88,14 +88,14 @@ export function NavBar({
 			<div className="w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 xl:w-11/12 xl:px-0 2xl:w-5/6 2xl:px-0">
 				<div className="flex h-16 items-center justify-between">
 					{/* Logo */}
-					<a href="/" className="flex items-center gap-2 shrink-0 group">
+					<Link to="/" className="flex items-center gap-2 shrink-0 group">
 						<span className="text-primary font-extrabold text-2xl leading-none group-hover:text-primary/90 transition-colors">
 							{"{}"}
 						</span>
 						<span className="text-primary font-bold text-xl leading-none group-hover:text-primary/90 transition-colors">
 							SHSF
 						</span>
-					</a>
+					</Link>
 
 					{/* Desktop nav */}
 					<nav className="hidden md:flex items-center gap-1 flex-1 ml-6">
@@ -119,22 +119,32 @@ export function NavBar({
 										</button>
 										<div className="absolute left-0 top-full z-50 hidden pt-1.5 group-hover:block">
 											<div className="motion-popover min-w-[11rem] rounded-lg border border-white/[0.07] bg-surface-raised py-1 shadow-2xl shadow-black/40">
-												{documentationLinks.map((link) => (
-													<a
-														key={link.path}
-														href={link.path}
-														className="block px-4 py-2 text-sm text-text/75 hover:bg-white/[0.06] hover:text-text transition-colors"
-													>
-														{link.name}
-													</a>
-												))}
+												{documentationLinks.map((link) =>
+													link.external ? (
+														<a
+															key={link.path}
+															href={link.path}
+															className="block px-4 py-2 text-sm text-text/75 hover:bg-white/[0.06] hover:text-text transition-colors"
+														>
+															{link.name}
+														</a>
+													) : (
+														<Link
+															key={link.path}
+															to={link.path}
+															className="block px-4 py-2 text-sm text-text/75 hover:bg-white/[0.06] hover:text-text transition-colors"
+														>
+															{link.name}
+														</Link>
+													),
+												)}
 											</div>
 										</div>
 									</div>
 								)}
-								<a href={route.path} className={navLinkClass(route.path)}>
+								<Link to={route.path} className={navLinkClass(route.path)}>
 									{route.name}
-								</a>
+								</Link>
 							</Fragment>
 						))}
 					</nav>
@@ -181,21 +191,21 @@ export function NavBar({
 											onClick={() => setIsDropdownOpen(false)}
 										/>
 										<div className="motion-popover absolute right-0 z-50 mt-1.5 w-48 rounded-lg border border-white/[0.07] bg-surface-raised py-1 shadow-2xl shadow-black/40">
-											<a
-												href="/account"
+											<Link
+												to="/account"
 												className="flex items-center gap-2.5 px-4 py-2 text-sm text-text/80 hover:bg-white/[0.06] hover:text-text transition-colors"
 											>
 												<Icon name="user" className="w-4 h-4 text-muted" />
 												Account
-											</a>
+											</Link>
 											{isAdmin && (
-												<a
-													href="/admin"
+												<Link
+													to="/admin"
 													className="flex items-center gap-2.5 px-4 py-2 text-sm text-text/80 hover:bg-white/[0.06] hover:text-text transition-colors"
 												>
 													<Icon name="shield-check" className="w-4 h-4 text-muted" />
 													Admin
-												</a>
+												</Link>
 											)}
 											<hr className="border-white/[0.07] my-1" />
 											<button
@@ -213,12 +223,12 @@ export function NavBar({
 								)}
 							</div>
 						) : (
-							<a
-								href="/login"
+							<Link
+								to="/login"
 								className="px-4 py-1.5 bg-primary/15 border border-primary/30 hover:bg-primary/25 text-primary rounded-lg text-sm font-medium transition-colors"
 							>
 								Login
-							</a>
+							</Link>
 						)}
 					</div>
 				</div>
@@ -230,30 +240,40 @@ export function NavBar({
 					{navRoutes.map((route, index) => (
 						<Fragment key={route.path}>
 							{index === 1 &&
-								documentationLinks.map((link) => (
-									<a
-										key={link.path}
-										href={link.path}
-										className={mobileLinkClass(link.path)}
-									>
-										{link.name}
-									</a>
-								))}
-							<a href={route.path} className={mobileLinkClass(route.path)}>
+								documentationLinks.map((link) =>
+									link.external ? (
+										<a
+											key={link.path}
+											href={link.path}
+											className={mobileLinkClass(link.path)}
+										>
+											{link.name}
+										</a>
+									) : (
+										<Link
+											key={link.path}
+											to={link.path}
+											className={mobileLinkClass(link.path)}
+										>
+											{link.name}
+										</Link>
+									),
+								)}
+							<Link to={route.path} className={mobileLinkClass(route.path)}>
 								{route.name}
-							</a>
+							</Link>
 						</Fragment>
 					))}
 					<hr className="border-white/[0.07] my-2" />
 					{user ? (
 						<>
-							<a href="/account" className={mobileLinkClass("/account")}>
+							<Link to="/account" className={mobileLinkClass("/account")}>
 								Account
-							</a>
+							</Link>
 							{isAdmin && (
-								<a href="/admin" className={mobileLinkClass("/admin")}>
+								<Link to="/admin" className={mobileLinkClass("/admin")}>
 									Admin
-								</a>
+								</Link>
 							)}
 							<button
 								onClick={handleLogout}
@@ -263,9 +283,9 @@ export function NavBar({
 							</button>
 						</>
 					) : (
-						<a href="/login" className={mobileLinkClass("/login")}>
+						<Link to="/login" className={mobileLinkClass("/login")}>
 							Login
-						</a>
+						</Link>
 					)}
 				</div>
 			)}
