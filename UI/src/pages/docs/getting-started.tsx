@@ -113,8 +113,8 @@ IS_DEMO=false`}</code>
 				</li>
 			</ul>
 			<p>
-				Optional: <code>OPENROUTER_API_KEY</code> (instance-wide key for log
-				analysis) and <code>LOG_LEVEL</code> (default <code>info</code>).
+				Optional: <code>OPENROUTER_API_KEY</code> (instance-wide fallback key for
+				AI features and log analysis) and <code>LOG_LEVEL</code> (default <code>info</code>).
 			</p>
 
 			<Callout variant="danger" title="Change INSTANCE_SECRET before production">

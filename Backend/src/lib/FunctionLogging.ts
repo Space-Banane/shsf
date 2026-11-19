@@ -16,7 +16,7 @@ interface LoggingConfigEnabled {
 
     hide_payload_headers?: boolean;
 
-    analyze?: boolean; // Opt-in: send sanitized new logs to OpenRouter Decisions (see LogAnalysis.ts)
+    analyze?: boolean; // Opt-in: send sanitized new logs to the configured AI provider (see LogAnalysis.ts)
 }
 
 interface LoggingConfigDisabled {

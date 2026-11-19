@@ -20,8 +20,8 @@ describe("LogAnalysis components", () => {
 		expect(container).toBeEmptyDOMElement();
 		rerender(<LogAnalysisBadge analysis={{ ...completed, status: "pending", attentionPriority: null }} />);
 		expect(screen.getByText("Analysis queued")).toBeInTheDocument();
-		rerender(<LogAnalysisBadge analysis={{ ...completed, status: "failed", attentionPriority: null, error: "OpenRouter rejected the API key." }} />);
-		expect(screen.getByText("Analysis failed")).toHaveAttribute("title", "OpenRouter rejected the API key.");
+		rerender(<LogAnalysisBadge analysis={{ ...completed, status: "failed", attentionPriority: null, error: "The AI provider rejected the API key." }} />);
+		expect(screen.getByText("Analysis failed")).toHaveAttribute("title", "The AI provider rejected the API key.");
 		rerender(<LogAnalysisBadge analysis={completed} />);
 		expect(screen.getByText("P8 · failure signal")).toBeInTheDocument();
 	});
@@ -39,8 +39,8 @@ describe("LogAnalysis components", () => {
 	it("explains unavailable details and never-analyzed logs", () => {
 		const { rerender } = render(<LogAnalysisDetails analysis={null} />);
 		expect(screen.getByText(/Not analyzed/)).toBeInTheDocument();
-		rerender(<LogAnalysisDetails analysis={{ ...completed, status: "skipped", error: "No OpenRouter API key is configured." }} />);
-		expect(screen.getByText("Analysis unavailable: No OpenRouter API key is configured.")).toBeInTheDocument();
+		rerender(<LogAnalysisDetails analysis={{ ...completed, status: "skipped", error: "No AI provider is configured. Add one under AI generation." }} />);
+		expect(screen.getByText("Analysis unavailable: No AI provider is configured. Add one under AI generation.")).toBeInTheDocument();
 	});
 
 	it("keeps the dashboard usable with no analysis data", () => {

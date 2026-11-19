@@ -65,7 +65,7 @@ export interface PhaseSummary {
 
 export type LogAnalysisStatus = "pending" | "running" | "completed" | "skipped" | "failed" | "disabled";
 
-/** Advisory OpenRouter Decisions result. Never overrides exitCode. */
+/** Advisory AI analysis result. Never overrides exitCode. */
 export interface ExecutionLogAnalysis {
 	status: LogAnalysisStatus;
 	failureProbability: number | null;

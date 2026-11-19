@@ -23,7 +23,7 @@ describe("LogsCard analysis opt-in", () => {
 		vi.mocked(getLoggingConfig).mockResolvedValue({ status: "OK", data: { enabled: true, analyze: false, analysis: { ...ready, enabled: false, ready: false, reason: "Log analysis is turned off for this account.", effective: false } } });
 		renderCard();
 		await screen.findByRole("link", { name: "account settings" });
-		expect(screen.getByRole("checkbox", { name: "Analyze new logs with OpenRouter" })).toBeDisabled();
+		expect(screen.getByRole("checkbox", { name: "Analyze new logs with AI" })).toBeDisabled();
 	});
 
 	it("opts the function in and shows the effective state", async () => {
@@ -31,7 +31,7 @@ describe("LogsCard analysis opt-in", () => {
 		vi.mocked(updateLoggingConfig).mockResolvedValue({ status: "OK", message: "ok" });
 		renderCard();
 		await screen.findByText("Off. Logs stay on this server.");
-		fireEvent.click(screen.getByRole("checkbox", { name: "Analyze new logs with OpenRouter" }));
+		fireEvent.click(screen.getByRole("checkbox", { name: "Analyze new logs with AI" }));
 		await waitFor(() => expect(updateLoggingConfig).toHaveBeenCalledWith(5, { analyze: true }));
 		await screen.findByText(/Sanitized logs from new runs are sent/);
 	});
@@ -40,17 +40,17 @@ describe("LogsCard analysis opt-in", () => {
 		vi.mocked(getLoggingConfig).mockResolvedValue({ status: "OK", data: { enabled: true, analyze: true, analysis: { ...ready, effective: true } } });
 		vi.mocked(updateLoggingConfig).mockResolvedValue({ status: "OK", message: "ok" });
 		renderCard();
-		const analyze = await screen.findByRole("checkbox", { name: "Analyze new logs with OpenRouter" });
+		const analyze = await screen.findByRole("checkbox", { name: "Analyze new logs with AI" });
 		await waitFor(() => expect(analyze).toBeChecked());
 		fireEvent.click(screen.getAllByRole("checkbox")[0]);
 		await waitFor(() => expect(analyze).not.toBeChecked());
 	});
 
 	it("explains when an opted-in function is paused", async () => {
-		vi.mocked(getLoggingConfig).mockResolvedValue({ status: "OK", data: { enabled: true, analyze: true, analysis: { ...ready, ready: false, reason: "No OpenRouter API key is configured.", effective: false } } });
+		vi.mocked(getLoggingConfig).mockResolvedValue({ status: "OK", data: { enabled: true, analyze: true, analysis: { ...ready, ready: false, reason: "No AI provider is configured. Add one under AI generation.", effective: false } } });
 		renderCard();
-		await screen.findByText("Opted in, but paused: No OpenRouter API key is configured.");
-		expect(screen.getByRole("checkbox", { name: "Analyze new logs with OpenRouter" })).toBeEnabled();
+		await screen.findByText("Opted in, but paused: No AI provider is configured. Add one under AI generation.");
+		expect(screen.getByRole("checkbox", { name: "Analyze new logs with AI" })).toBeEnabled();
 	});
 
 	it("shows a retry action when the logs could not be loaded", async () => {

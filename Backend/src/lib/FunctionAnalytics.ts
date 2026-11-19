@@ -77,7 +77,7 @@ export interface ExecutionAnalyticsItem {
 	phaseTimings: ExecutionTimingPhase[];
 	errorType: string | null;
 	ratelimit: ExecutionRateLimitAnalytics | null;
-	/** Advisory OpenRouter decision; null means the log was never queued for analysis. */
+	/** Advisory AI decision; null means the log was never queued for analysis. */
 	analysis: ExecutionLogAnalysis | null;
 }
 

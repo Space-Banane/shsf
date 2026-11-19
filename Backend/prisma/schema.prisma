@@ -51,7 +51,7 @@ model User {
   aiProviderCapabilities String? @db.Text
   account_env   String? @db.Text // Account-wide environment variables in JSON format
 
-  // Opt-in OpenRouter Decisions log analysis. Off by default; no model is assumed.
+  // Opt-in AI log analysis. Off by default; no model is assumed.
   logAnalysisEnabled Boolean @default(false)
   logAnalysisModel   String? @db.VarChar(256)
 
@@ -277,7 +277,7 @@ enum LogAnalysisStatus {
   disabled
 }
 
-// Advisory OpenRouter Decisions result for one TriggerLog. Never rewrites the log's own result.
+// Advisory AI analysis result for one TriggerLog. Never rewrites the log's own result.
 model LogAnalysis {
   id           Int        @id @default(autoincrement())
   triggerLogId Int        @unique

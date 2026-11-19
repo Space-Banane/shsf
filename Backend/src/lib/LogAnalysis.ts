@@ -1,22 +1,28 @@
 /*
-Opt-in advisory log analysis through OpenRouter's Decisions API.
+Opt-in advisory log analysis through the account's configured AI provider.
 
 Flow: persistFunctionExecutionLog -> enqueueLogAnalysis (pending row) -> SystemCrons
-"log-analysis" job -> processLogAnalysisQueue -> createDecision. The LogAnalysis row is
+"log-analysis" job -> processLogAnalysisQueue -> createAnalysis. The LogAnalysis row is
 the durable queue, so pending work survives restarts. Nothing here touches the TriggerLog's
 own result; deterministic execution status stays authoritative.
 */
 import { createHash } from "node:crypto";
 import type { LogAnalysis, Prisma, PrismaClient, User } from "@prisma/client";
-import { DEFAULT_AI_PROVIDER_ENDPOINT } from "./AIProvider";
-import { decryptSecret } from "./GitOps";
+import { DEFAULT_AI_PROVIDER_MODEL, getAIProvider, type AIProvider } from "./AIProvider";
 import { parseStoredEnvironmentVariables } from "./EnvironmentVariables";
-import { createDecision, DecisionsError, type DecisionsRequest, type DecisionsResponse } from "./OpenRouterDecisions";
+import {
+	AnalysisError,
+	buildAnalysisRequest as buildProviderRequest,
+	createAnalysis,
+	type AnalysisPayload,
+	type AnalysisRequest,
+	type AnalysisTransport,
+} from "./LogAnalysisProvider";
 import { createLogger } from "./logger";
 
 const log = createLogger("LogAnalysis");
 
-export const LOG_ANALYSIS_INPUT_VERSION = 1;
+export const LOG_ANALYSIS_INPUT_VERSION = 2;
 export const MAX_LOG_CHARS = 8_000;
 export const MAX_ATTEMPTS = 3;
 // ponytail: instance-wide cap of 5 requests per 10s tick (~30/min); per-user budgets if one tenant floods it.
@@ -97,47 +103,17 @@ export function extractAnalysisInput(logs: string, result: string | null): Analy
 	};
 }
 
-const PRIORITY_LEVELS = [
-	"1: Informational. Routine output, nothing to do.",
-	"2: Minor noise such as debug output or harmless warnings.",
-	"3: Low. Warnings worth a look eventually.",
-	"4: Low-moderate. Recoverable errors or retries that succeeded.",
-	"5: Moderate. Degraded behavior or handled errors users may notice.",
-	"6: Elevated. A real error affecting this execution's output.",
-	"7: High. Clear malfunction likely to recur on every call.",
-	"8: High. Failure with data loss, broken integrations, or security-relevant errors.",
-	"9: Urgent. Crash, timeout, or outage-level failure.",
-	"10: Critical. Widespread or security-critical failure needing immediate action.",
-];
-
-export function buildDecisionsRequest(model: string, input: AnalysisInput, configuredSecrets: string[]): DecisionsRequest {
-	return {
-		model,
-		state: {
-			logs: truncateLogText(sanitizeLogText(input.logs, configuredSecrets)),
-			exit_code: input.exitCode,
-			error_type: input.errorType,
-			duration_seconds: input.durationSeconds,
-		},
-		questions: {
-			failure: {
-				type: "noul",
-				instructions: "Does this serverless function execution log indicate a function failure or an actionable malfunction?",
-				criteria: {
-					true: "The log shows an error, exception, crash, timeout, or behavior the function owner should fix.",
-					false: "The log shows normal operation, expected output, or harmless warnings.",
-				},
-			},
-			attention: {
-				type: "score",
-				instructions: "How much attention should the function owner pay to this execution?",
-				criteria: PRIORITY_LEVELS,
-			},
-		},
-	};
+/** Builds the analysis request after sanitizing and truncating the log. */
+export function buildAnalysisRequest(model: string, input: AnalysisInput, configuredSecrets: string[]): AnalysisRequest {
+	return buildProviderRequest(model, {
+		logs: truncateLogText(sanitizeLogText(input.logs, configuredSecrets)),
+		exit_code: input.exitCode,
+		error_type: input.errorType,
+		duration_seconds: input.durationSeconds,
+	});
 }
 
-export function hashAnalysisState(request: DecisionsRequest): string {
+export function hashAnalysisState(request: AnalysisRequest): string {
 	return createHash("sha256").update(JSON.stringify(request.state)).digest("hex");
 }
 
@@ -148,39 +124,48 @@ export interface NormalizedDecision {
 	attentionConfidence: number | null;
 }
 
-/** Score answers are an expected index (0-9) over PRIORITY_LEVELS; priority is that index + 1. */
-export function normalizeDecision(response: DecisionsResponse): NormalizedDecision {
-	const failure = response.answers.failure;
-	const attention = response.answers.attention;
-	if (failure?.type !== "noul" || attention?.type !== "score" || !("score" in attention)) {
-		throw new DecisionsError("malformed", "OpenRouter returned answers that do not match the requested questions.");
-	}
-	const failureProbability = (failure as { noul: number }).noul;
+export function normalizeAnalysis(answers: AnalysisPayload): NormalizedDecision {
 	return {
-		failureProbability,
-		failureDetected: failureProbability >= FAILURE_THRESHOLD,
-		attentionPriority: Math.min(10, Math.max(1, Math.round(attention.score) + 1)),
-		attentionConfidence: typeof attention.confidence === "number" ? attention.confidence : null,
+		failureProbability: answers.failure_probability,
+		failureDetected: answers.failure_probability >= FAILURE_THRESHOLD,
+		attentionPriority: Math.min(10, Math.max(1, Math.round(answers.attention_priority))),
+		attentionConfidence: answers.confidence ?? null,
 	};
 }
 
 // ---------- configuration ----------
 
-type KeyFields = Pick<User, "aiProviderEndpoint" | "aiProviderApiKey" | "openRouterKey">;
-type SettingsFields = KeyFields & Pick<User, "logAnalysisEnabled" | "logAnalysisModel">;
+type ProviderFields = Pick<User, "aiProviderEndpoint" | "aiProviderModel" | "aiProviderApiKey" | "aiProviderCapabilities" | "openRouterKey">;
+type SettingsFields = ProviderFields & Pick<User, "logAnalysisEnabled" | "logAnalysisModel">;
 
-/** The account's own OpenRouter key when its AI provider is OpenRouter, otherwise the instance key. */
-export function resolveOpenRouterKey(
-	user: KeyFields,
+export interface ResolvedLogAnalysisProvider {
+	provider: AIProvider;
+	model: string;
+	keySource: "account" | "instance";
+}
+
+/**
+ * Uses the account's AI provider (endpoint, key, model, capabilities, TLS options) or the
+ * instance OpenRouter key as a fallback. The optional logAnalysisModel overrides the provider model.
+ */
+export function resolveLogAnalysisProvider(
+	user: SettingsFields,
 	instanceKey: string | undefined,
 	instanceSecret: string,
-): { apiKey: string; source: "account" | "instance" } | null {
-	if (user.aiProviderApiKey && (user.aiProviderEndpoint ?? DEFAULT_AI_PROVIDER_ENDPOINT) === DEFAULT_AI_PROVIDER_ENDPOINT) {
-		const apiKey = decryptSecret(user.aiProviderApiKey, instanceSecret);
-		if (apiKey) return { apiKey, source: "account" };
+): ResolvedLogAnalysisProvider | null {
+	let provider: AIProvider | null;
+	try {
+		provider = getAIProvider(user, instanceKey, instanceSecret);
+	} catch {
+		// An undecryptable stored key is reported as unavailable rather than crashing the caller.
+		return null;
 	}
-	if (user.openRouterKey) return { apiKey: user.openRouterKey, source: "account" };
-	return instanceKey ? { apiKey: instanceKey, source: "instance" } : null;
+	if (!provider) return null;
+	return {
+		provider,
+		model: user.logAnalysisModel || provider.model,
+		keySource: user.aiProviderApiKey || user.openRouterKey ? "account" : "instance",
+	};
 }
 
 export interface LogAnalysisAvailability {
@@ -196,27 +181,29 @@ export function getLogAnalysisAvailability(
 	instanceKey: string | undefined,
 	instanceSecret: string,
 ): LogAnalysisAvailability {
-	const keySource = resolveOpenRouterKey(user, instanceKey, instanceSecret)?.source ?? null;
-	const model = user.logAnalysisModel || null;
+	const resolved = resolveLogAnalysisProvider(user, instanceKey, instanceSecret);
+	const model = resolved?.model ?? user.logAnalysisModel ?? null;
+	const keySource = resolved?.keySource ?? null;
 	const reason = !user.logAnalysisEnabled
 		? "Log analysis is turned off for this account."
-		: !model
-			? "No Decisions model is configured."
-			: !keySource
-				? "No OpenRouter API key is configured."
-				: null;
+		: !resolved
+			? "No AI provider is configured. Add one under AI generation."
+			: null;
 	return { enabled: user.logAnalysisEnabled, model, keySource, ready: reason === null, reason };
 }
 
-/** Verifies the key can reach the Decisions endpoint with this model. Costs one tiny request. */
-export async function validateLogAnalysisModel(apiKey: string, model: string, fetchImpl: typeof fetch = fetch): Promise<void> {
-	const response = await createDecision(apiKey, buildDecisionsRequest(model, {
+/** Verifies the provider can answer with this model. Costs one tiny request. */
+export async function validateLogAnalysis(
+	provider: AIProvider,
+	model: string,
+	requestImpl?: AnalysisTransport,
+): Promise<void> {
+	await createAnalysis({ ...provider, model }, buildProviderRequest(model, {
 		logs: "SHSF configuration check: function started and returned OK.",
-		exitCode: 0,
-		errorType: null,
-		durationSeconds: 0.1,
-	}, []), fetchImpl);
-	normalizeDecision(response);
+		exit_code: 0,
+		error_type: null,
+		duration_seconds: 0.1,
+	}), requestImpl);
 }
 
 // ---------- queue ----------
@@ -227,10 +214,11 @@ type AnalysisPrisma = Pick<PrismaClient, "function" | "logAnalysis" | "triggerLo
 export async function enqueueLogAnalysis(prisma: AnalysisPrisma, triggerLogId: number, functionId: number): Promise<void> {
 	const owner = await prisma.function.findUnique({
 		where: { id: functionId },
-		select: { user: { select: { logAnalysisEnabled: true, logAnalysisModel: true } } },
+		select: { user: { select: { logAnalysisEnabled: true, logAnalysisModel: true, aiProviderModel: true } } },
 	});
-	const model = owner?.user.logAnalysisModel;
-	if (!owner?.user.logAnalysisEnabled || !model) return;
+	const user = owner?.user;
+	if (!user?.logAnalysisEnabled) return;
+	const model = user.logAnalysisModel || user.aiProviderModel || DEFAULT_AI_PROVIDER_MODEL;
 	await prisma.logAnalysis.upsert({
 		where: { triggerLogId },
 		create: { triggerLogId, model },
@@ -242,14 +230,14 @@ interface ProcessDependencies {
 	prisma: AnalysisPrisma;
 	instanceKey: string | undefined;
 	instanceSecret: string;
-	fetchImpl?: typeof fetch;
+	requestImpl?: AnalysisTransport;
 	now?: () => Date;
 }
 
 export async function processLogAnalysisQueue(deps: ProcessDependencies): Promise<void> {
 	const now = deps.now?.() ?? new Date();
 	// A row left "running" (crash, restart, failed result write) may already have been billed by
-	// OpenRouter, which has no idempotency key, so it is never resent.
+	// the provider, which has no idempotency key, so it is never resent.
 	await deps.prisma.logAnalysis.updateMany({
 		where: { status: "running", startedAt: { lt: new Date(now.getTime() - STALE_RUNNING_MS) } },
 		data: { status: "failed", completedAt: now, error: "Analysis was interrupted and not retried to avoid a duplicate charge." },
@@ -288,7 +276,9 @@ async function analyzeOne(id: number, deps: ProcessDependencies, now: Date): Pro
 									logAnalysisEnabled: true,
 									logAnalysisModel: true,
 									aiProviderEndpoint: true,
+									aiProviderModel: true,
 									aiProviderApiKey: true,
+									aiProviderCapabilities: true,
 									openRouterKey: true,
 									account_env: true,
 								},
@@ -309,27 +299,28 @@ async function analyzeOne(id: number, deps: ProcessDependencies, now: Date): Pro
 		await finish({ status: "disabled", error: "Log analysis was turned off before this log was analyzed." });
 		return;
 	}
-	const key = resolveOpenRouterKey(user, deps.instanceKey, deps.instanceSecret);
-	if (!key) {
-		await finish({ status: "skipped", error: "No OpenRouter API key is configured." });
+	const resolved = resolveLogAnalysisProvider(user, deps.instanceKey, deps.instanceSecret);
+	if (!resolved) {
+		await finish({ status: "skipped", error: "No AI provider is configured. Add one under AI generation." });
 		return;
 	}
+	const provider = { ...resolved.provider, model: job.model || resolved.model };
 
 	const secrets = [
 		...parseStoredEnvironmentVariables(user.account_env),
 		...parseStoredEnvironmentVariables(fn.env),
 	].map((entry) => entry.value);
 	if (fn.secure_header) secrets.push(fn.secure_header);
-	secrets.push(key.apiKey);
+	secrets.push(provider.apiKey);
 
-	const request = buildDecisionsRequest(job.model, extractAnalysisInput(job.triggerLog.logs, job.triggerLog.result), secrets);
-	let response: DecisionsResponse;
+	const request = buildAnalysisRequest(provider.model, extractAnalysisInput(job.triggerLog.logs, job.triggerLog.result), secrets);
+	let response: Awaited<ReturnType<typeof createAnalysis>>;
 	let normalized: NormalizedDecision;
 	try {
-		response = await createDecision(key.apiKey, request, deps.fetchImpl);
-		normalized = normalizeDecision(response);
+		response = await createAnalysis(provider, request, deps.requestImpl);
+		normalized = normalizeAnalysis(response.answers);
 	} catch (error) {
-		const failure = error instanceof DecisionsError ? error : new DecisionsError("network", "Unexpected analysis error.");
+		const failure = error instanceof AnalysisError ? error : new AnalysisError("network", "Unexpected analysis error.");
 		log.warn({ analysisId: id, kind: failure.kind, status: failure.status }, "Log analysis attempt failed");
 		if (failure.retryable && job.attempts < MAX_ATTEMPTS) {
 			await deps.prisma.logAnalysis.update({
@@ -354,9 +345,9 @@ async function analyzeOne(id: number, deps: ProcessDependencies, now: Date): Pro
 			...normalized,
 			decision: response.answers as Prisma.InputJsonValue,
 			providerModel: response.model,
-			costUsd: response.usage.cost ?? null,
-			inputTokens: response.usage.input_tokens,
-			outputTokens: response.usage.output_tokens,
+			costUsd: response.usage.costUsd,
+			inputTokens: response.usage.inputTokens,
+			outputTokens: response.usage.outputTokens,
 		});
 }
 

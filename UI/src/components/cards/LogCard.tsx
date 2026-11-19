@@ -204,7 +204,7 @@ export function LogsCard({
 					</div>
 					<div className="rounded-lg border border-gray-700/50 bg-gray-900/40 px-3 py-2">
 						<div className="flex items-center justify-between">
-							<span className="text-sm text-gray-300" id={`analyze-label-${functionId}`}>Analyze new logs with OpenRouter</span>
+							<span className="text-sm text-gray-300" id={`analyze-label-${functionId}`}>Analyze new logs with AI</span>
 							<label className="relative inline-flex items-center cursor-pointer">
 								<input
 									type="checkbox"
