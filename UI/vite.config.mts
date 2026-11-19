@@ -30,7 +30,10 @@ export default defineConfig({
 	test: {
 		globals: true,
 		environment: "jsdom",
-		setupFiles: "./src/setupTests.ts",
+		// Reuse the worker's jsdom setup across files; each file still gets a
+		// fresh VM context, so module and DOM state stay isolated.
+		pool: "vmThreads",
+		setupFiles: ["./src/setupVmWebGlobals.ts", "./src/setupTests.ts"],
 		include: ["src/**/*.{test,spec}.{ts,tsx,js,jsx}"],
 	},
 });
