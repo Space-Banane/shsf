@@ -38,7 +38,7 @@ export = new fileRouter.Path("/")
 											properties: {
 												enabled: { type: "boolean" },
 												hide_payload_headers: { type: "boolean" },
-												analyze: { type: "boolean", description: "Per-function opt-in for OpenRouter log analysis" },
+												analyze: { type: "boolean", description: "Per-function opt-in for AI log analysis" },
 												analysis: {
 													type: "object",
 													description: "Account-level availability; analysis is effective only when analyze and analysis.ready are both true",
@@ -124,7 +124,7 @@ export = new fileRouter.Path("/")
 								properties: {
 									enabled: { type: "boolean" },
 									hide_payload_headers: { type: "boolean" },
-									analyze: { type: "boolean", description: "Opt this function in to OpenRouter log analysis for new logs" },
+									analyze: { type: "boolean", description: "Opt this function in to AI log analysis for new logs" },
 								},
 							},
 						},

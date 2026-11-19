@@ -7,8 +7,8 @@ import { DEFAULT_AI_PROVIDER_ENDPOINT, DEFAULT_AI_PROVIDER_MODEL, getAIProvider,
 import { encryptSecret } from "../../../lib/GitOps";
 import { getAllowAIProviderInternal } from "../../../lib/DataManager";
 import { env } from "../../../lib/env";
-import { getLogAnalysisAvailability, resolveOpenRouterKey, validateLogAnalysisModel } from "../../../lib/LogAnalysis";
-import { DecisionsError } from "../../../lib/OpenRouterDecisions";
+import { getLogAnalysisAvailability, resolveLogAnalysisProvider, validateLogAnalysis } from "../../../lib/LogAnalysis";
+import { AnalysisError } from "../../../lib/LogAnalysisProvider";
 
 export = new fileRouter.Path("/")
 	.http("GET", "/api/account/settings", (http) =>
@@ -79,7 +79,7 @@ export = new fileRouter.Path("/")
 	.http("PATCH", "/api/account/settings", (http) =>
 		http
 			.document({
-				description: "Update account settings (OpenRouter API key, account env vars)",
+				description: "Update account settings (AI provider, log analysis, account env vars)",
 				tags: ["User"] as OpenAPITags[],
 				operationId: "updateOpenRouterKey",
 				requestBody: {
@@ -197,23 +197,24 @@ export = new fileRouter.Path("/")
 					updatePayload.aiProviderCapabilities = data.openRouterKey ? JSON.stringify({ tools: true, json: true }) : null;
 				}
 				if (data.logAnalysis !== undefined) {
-					const model = data.logAnalysis.model ?? authCheck.user.logAnalysisModel ?? "";
+					// Validate against the provider being saved in this same request, if any.
+					const resolved = resolveLogAnalysisProvider({ ...authCheck.user, ...updatePayload }, env.OPENROUTER_API_KEY, INSTANCE_SECRET);
+					const model = (data.logAnalysis.model ?? authCheck.user.logAnalysisModel ?? resolved?.model ?? "").trim();
 					if (data.logAnalysis.enabled) {
-						const key = resolveOpenRouterKey(authCheck.user, env.OPENROUTER_API_KEY, INSTANCE_SECRET);
-						const problem = !model
-							? "Enter a Decisions-compatible model before enabling log analysis."
-							: !key
-								? "Add an OpenRouter API key under AI generation (or ask your admin to set OPENROUTER_API_KEY) before enabling log analysis."
+						const problem = !resolved
+							? "Add an AI provider under AI generation before enabling log analysis."
+							: !model
+								? "Enter an analysis model before enabling log analysis."
 								: null;
 						if (problem) {
 							return ctr.status(ctr.$status.BAD_REQUEST).print({ status: "FAILED", message: problem });
 						}
 						try {
-							await validateLogAnalysisModel(key!.apiKey, model);
+							await validateLogAnalysis({ ...resolved!.provider, model }, model);
 						} catch (error) {
 							return ctr.status(ctr.$status.BAD_REQUEST).print({
 								status: "FAILED",
-								message: `Log analysis check failed: ${error instanceof DecisionsError ? error.message : "OpenRouter could not be reached."}`,
+								message: `Log analysis check failed: ${error instanceof AnalysisError ? error.message : "The AI provider could not be reached."}`,
 							});
 						}
 					}

@@ -25,7 +25,7 @@
 - **Cron triggers** — schedule functions with standard cron expressions; manual re-runs supported from the UI
 - **Web editor** — Monaco-based in-browser code editor with multi-file support
 - **AI code generation** — generate function code from a prompt using your own [OpenRouter](https://openrouter.ai) API key
-- **Log analysis (opt-in)** — advisory failure and 1–10 priority signals for new execution logs via OpenRouter's Decisions API; off by default, sanitized before sending (see `/docs/log-analysis`)
+- **Log analysis (opt-in)** — advisory failure and 1–10 priority signals for new execution logs via your configured AI provider; off by default, sanitized before sending (see `/docs/log-analysis`)
 - **Response caching** — payload-keyed cache with configurable TTL (1 s – 24 h)
 - **Git-backed source** — link any function to a Git repository with optional periodic auto-pull
 - **Persistent storage** — per-user key-value storage accessible across function invocations (with optional TTL)
@@ -77,7 +77,7 @@ The second command writes a random `INSTANCE_SECRET` (required in production). T
 | `REACT_APP_API_URL` | Full URL to the backend API |
 | `CORS_URLS` | Additional comma-separated CORS origins |
 | `INSTANCE_SECRET` | Secret used to encrypt credentials at rest. Production requires a non-default value of at least 32 characters; use `openssl rand -hex 32`. |
-| `OPENROUTER_API_KEY` | Optional instance-wide OpenRouter key, used for AI generation and for log analysis when a user has no OpenRouter key of their own |
+| `OPENROUTER_API_KEY` | Optional instance-wide OpenRouter key, used as the AI provider fallback for AI generation and log analysis when a user has no provider of their own |
 | `IS_DEMO` | Set to `true` only for a disposable public demo; seeds `demo@shsf.local` / `demo-password` and an example function |
 
 The default `DATABASE_URL` points at a host named `db`. If you have no external database, start the bundled `db` service with `--profile db` (below); its credentials match the default URL, and the backend waits for it to be healthy. Migrations run automatically on startup.

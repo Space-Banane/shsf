@@ -108,24 +108,24 @@ describe("Account log analysis settings", () => {
 		expect(screen.getByText(/Old logs are never sent/)).toBeInTheDocument();
 		const enable = screen.getByRole("button", { name: "Turn on log analysis" });
 		expect(enable).toBeDisabled();
-		fireEvent.change(screen.getByLabelText("Decisions model"), { target: { value: "vendor/decider" } });
+		fireEvent.change(screen.getByLabelText("Analysis model"), { target: { value: "vendor/decider" } });
 		fireEvent.click(enable);
 		await waitFor(() => expect(updateAccountSettings).toHaveBeenCalledWith({ logAnalysis: { enabled: true, model: "vendor/decider" } }));
-		await screen.findByText(/On for this account using vendor\/decider with the instance OpenRouter key/);
+		await screen.findByText(/On for this account using vendor\/decider with the instance AI provider key/);
 		expect(screen.getByRole("button", { name: "Turn off log analysis" })).toBeInTheDocument();
 	});
 
 	it("shows actionable configuration errors from the server", async () => {
 		vi.mocked(getAccountSettings).mockResolvedValue({ status: "OK", data: { accountEnvironment: [], aiProvider: null, logAnalysis: { enabled: false, model: "bad/model", keySource: null, ready: false, reason: "Log analysis is turned off for this account." } } });
-		vi.mocked(updateAccountSettings).mockResolvedValue({ status: "FAILED", message: "Log analysis check failed: The configured model is not available on the Decisions API." });
+		vi.mocked(updateAccountSettings).mockResolvedValue({ status: "FAILED", message: "Log analysis check failed: The configured analysis model is not available on the AI provider." });
 		render(<MemoryRouter><AccountPage /></MemoryRouter>);
 		fireEvent.click(await screen.findByRole("button", { name: "Turn on log analysis" }));
-		await screen.findByText(/configured model is not available/);
+		await screen.findByText(/configured analysis model is not available/);
 	});
 
 	it("explains why an enabled account is not running", async () => {
-		vi.mocked(getAccountSettings).mockResolvedValue({ status: "OK", data: { accountEnvironment: [], aiProvider: null, logAnalysis: { enabled: true, model: "m", keySource: null, ready: false, reason: "No OpenRouter API key is configured." } } });
+		vi.mocked(getAccountSettings).mockResolvedValue({ status: "OK", data: { accountEnvironment: [], aiProvider: null, logAnalysis: { enabled: true, model: "m", keySource: null, ready: false, reason: "No AI provider is configured. Add one under AI generation." } } });
 		render(<MemoryRouter><AccountPage /></MemoryRouter>);
-		await screen.findByText("On, but not running: No OpenRouter API key is configured.");
+		await screen.findByText("On, but not running: No AI provider is configured. Add one under AI generation.");
 	});
 });

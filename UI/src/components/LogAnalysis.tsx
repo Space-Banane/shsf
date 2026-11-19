@@ -113,7 +113,7 @@ export function LogAnalysisPanel({ summary, compact = false }: { summary: LogAna
 		<section aria-label="Log analysis" className="rounded-xl border border-white/[0.07] bg-surface p-5">
 			<div className="flex flex-wrap items-baseline justify-between gap-2">
 				<h2 className={compact ? "text-base font-semibold text-primary" : "text-xl font-bold text-primary"}>Log analysis</h2>
-				<p className="text-xs text-muted">Advisory AI triage via OpenRouter. Success rate above uses exit codes only.</p>
+				<p className="text-xs text-muted">Advisory AI triage via your configured provider. Success rate above uses exit codes only.</p>
 			</div>
 			<div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
 				<Metric label="Analyzed" value={String(summary.analyzed)} />
