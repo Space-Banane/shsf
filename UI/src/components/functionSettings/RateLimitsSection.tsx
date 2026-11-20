@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
-import { copyTextToClipboard } from "../../../utils/clipboard";
-import Modal from "../Modal";
-import { cancelBtnClass, primaryBtnClass } from "../Modal";
-import { useShiftEnterSubmit } from "../../../hooks/useShiftEnterSubmit";
+import { copyTextToClipboard } from "../../utils/clipboard";
+import { primaryBtnClass } from "../modals/Modal";
+import { useShiftEnterSubmit } from "../../hooks/useShiftEnterSubmit";
+import { SettingsSection } from "./FormPrimitives";
 import {
 	ExecutionRateLimitIdentity,
 	getRateLimitConfig,
 	RateLimitConfig,
 	RateLimitPolicy,
 	updateRateLimitConfig,
-} from "../../../services/backend.function.ratelimit";
+} from "../../services/backend.function.ratelimit";
 
 const IDENTITY_OPTIONS: {
 	value: ExecutionRateLimitIdentity;
@@ -329,19 +329,19 @@ function TonePill({
 	);
 }
 
-interface RateLimitConfigModalProps {
-	isOpen: boolean;
-	onClose: () => void;
+interface RateLimitsSectionProps {
 	functionId: number;
-	onSaved?: () => void | Promise<void>;
+	/** Set when the function cannot be configured; the editor is then hidden. */
+	disabledReason?: string;
+	/** Only the section shown to the user should react to Ctrl+Enter. */
+	active: boolean;
 }
 
-function RateLimitConfigModal({
-	isOpen,
-	onClose,
+export function RateLimitsSection({
 	functionId,
-	onSaved,
-}: RateLimitConfigModalProps) {
+	disabledReason,
+	active,
+}: RateLimitsSectionProps) {
 	const [isLoading, setIsLoading] = useState(false);
 	const [isSaving, setIsSaving] = useState(false);
 	const [enabled, setEnabled] = useState(false);
@@ -354,6 +354,7 @@ function RateLimitConfigModal({
 		origin: "",
 	});
 	const [rawJson, setRawJson] = useState("");
+	const disabled = Boolean(disabledReason);
 
 	const activePolicy = useMemo(
 		() => policies.find((policy) => policy.id === activePolicyId) ?? null,
@@ -378,7 +379,7 @@ function RateLimitConfigModal({
 	};
 
 	useEffect(() => {
-		if (!isOpen || !functionId) {
+		if (!functionId || disabled) {
 			return;
 		}
 
@@ -414,7 +415,7 @@ function RateLimitConfigModal({
 		return () => {
 			mounted = false;
 		};
-	}, [isOpen, functionId]);
+	}, [functionId, disabled]);
 
 	const validationError = useMemo(() => {
 		if (!enabled) {
@@ -571,8 +572,6 @@ function RateLimitConfigModal({
 					loadConfig(res.data);
 				}
 				toast.success("Rate limit settings saved");
-				await onSaved?.();
-				onClose();
 			} else {
 				toast.error("Failed to save rate limits: " + res.message);
 			}
@@ -589,16 +588,31 @@ function RateLimitConfigModal({
 		() => {
 			void handleSave();
 		},
-		isOpen && !isLoading && !isSaving,
+		active && !disabled && !isLoading && !isSaving,
 	);
 
+	if (disabled) {
+		return (
+			<SettingsSection title="Rate limits">
+				<p className="text-sm text-muted">{disabledReason}</p>
+			</SettingsSection>
+		);
+	}
+
+	if (isLoading) {
+		return (
+			<SettingsSection title="Rate limits">
+				<div className="flex items-center justify-center py-12">
+					<div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+				</div>
+			</SettingsSection>
+		);
+	}
+
 	return (
-		<Modal
-			isOpen={isOpen}
-			onClose={onClose}
-			title="Rate Limits"
-			maxWidth="xl"
-			isLoading={isLoading || isSaving}
+		<SettingsSection
+			title="Rate limits"
+			description="Ordered policies that rate-limit the function globally or by request identity."
 		>
 			<div className="space-y-6">
 				<div className="flex flex-col gap-4 rounded-xl border border-primary/15 bg-background/20 p-4 lg:flex-row lg:items-start lg:justify-between">
@@ -613,8 +627,8 @@ function RateLimitConfigModal({
 							<TonePill label={`${identityCount} identity`} />
 						</div>
 						<p className="text-sm text-text/75">
-							Use ordered policies to rate-limit the function globally or by request
-							identity. Earlier policies evaluate first.
+							Use ordered policies to rate-limit the function globally or by
+							request identity. Earlier policies evaluate first.
 						</p>
 					</div>
 					<label className="flex items-center gap-3 rounded-lg border border-primary/10 bg-background/30 px-3 py-2 text-sm text-text">
@@ -1085,7 +1099,9 @@ function RateLimitConfigModal({
 										</button>
 										<button
 											type="button"
-											onClick={handleCopyJson}
+											onClick={() => {
+												void handleCopyJson();
+											}}
 											className="rounded-lg border border-primary/15 bg-background/30 px-3 py-2 text-sm text-text hover:border-primary/30"
 										>
 											Copy JSON
@@ -1106,24 +1122,16 @@ function RateLimitConfigModal({
 				<div className="flex items-center justify-end gap-3 pt-2 border-t border-primary/10">
 					<button
 						type="button"
-						onClick={onClose}
-						disabled={isSaving}
-						className={cancelBtnClass}
-					>
-						Cancel
-					</button>
-					<button
-						type="button"
-						onClick={handleSave}
+						onClick={() => {
+							void handleSave();
+						}}
 						disabled={isSaving}
 						className={primaryBtnClass}
 					>
-						Save Rate Limits
+						{isSaving ? "Saving..." : "Save Rate Limits"}
 					</button>
 				</div>
 			</div>
-		</Modal>
+		</SettingsSection>
 	);
 }
-
-export default RateLimitConfigModal;

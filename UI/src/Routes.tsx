@@ -8,6 +8,7 @@ const FunctionsList = React.lazy(() => import("./pages/functions/FunctionsList")
 const DocsPage = React.lazy(() => import("./pages/index/docs").then((module) => ({ default: module.DocsPage })));
 const AccountPage = React.lazy(() => import("./pages/Account").then((module) => ({ default: module.AccountPage })));
 const FunctionDetail = React.lazy(() => import("./pages/functions/FunctionDetail"));
+const FunctionSettings = React.lazy(() => import("./pages/functions/FunctionSettings"));
 const AccessTokensPage = React.lazy(() => import("./pages/AccessTokens"));
 const StoragePage = React.lazy(() => import("./pages/Storage"));
 const CronJobsPage = React.lazy(() => import("./pages/CronJobs"));
@@ -76,6 +77,12 @@ export const routes: AppRoute[] = [
 		path: "/functions/:id",
 		name: "Function",
 		component: FunctionDetail,
+		requireAuth: true,
+	},
+	{
+		path: "/functions/:id/settings",
+		name: "Function Settings",
+		component: FunctionSettings,
 		requireAuth: true,
 	},
 	{

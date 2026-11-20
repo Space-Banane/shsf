@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ActionButton } from "../buttons/ActionButton";
-import RateLimitConfigModal from "../modals/functions/RateLimitConfigModal";
 import { getRateLimitConfig, RateLimitConfig } from "../../services/backend.function.ratelimit";
 
 function getPolicyCount(config: RateLimitConfig | null) {
@@ -77,8 +77,8 @@ export function RateLimitCard({
 	disabledReason?: string;
 }) {
 	const [isLoading, setIsLoading] = useState(false);
-	const [showModal, setShowModal] = useState(false);
 	const [config, setConfig] = useState<RateLimitConfig | null>(null);
+	const navigate = useNavigate();
 
 	useEffect(() => {
 		void loadRateLimitSummary(
@@ -94,88 +94,81 @@ export function RateLimitCard({
 	const identityCount = useMemo(() => getIdentityCount(config), [config]);
 
 	return (
-		<>
-			<div
-				className={`bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4 relative ${
-					disabled ? "opacity-50 pointer-events-none select-none grayscale" : ""
-				}`}
-			>
-				<div className="flex items-start justify-between gap-3 mb-3">
-					<div>
-						<h2 className="text-lg font-bold text-primary flex items-center gap-2">
-							<span>🚦</span>
-							Rate Limits
-						</h2>
-						<p className="text-text/60 text-xs mt-1">
-							Configure ordered policies, blocking behavior, and request matching.
-						</p>
-					</div>
-					<div
-						className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
-							config?.enabled
-								? "bg-emerald-500/10 text-emerald-300 border-emerald-400/20"
-								: "bg-gray-800/60 text-gray-400 border-gray-700/60"
-						}`}
-					>
-						{isLoading ? "Loading" : config?.enabled ? "Enabled" : "Disabled"}
-					</div>
+		<div
+			className={`bg-gradient-to-br from-gray-900/50 to-gray-800/50 border border-primary/20 rounded-lg p-4 relative ${
+				disabled ? "opacity-50 pointer-events-none select-none grayscale" : ""
+			}`}
+		>
+			<div className="flex items-start justify-between gap-3 mb-3">
+				<div>
+					<h2 className="text-lg font-bold text-primary flex items-center gap-2">
+						<span>🚦</span>
+						Rate Limits
+					</h2>
+					<p className="text-text/60 text-xs mt-1">
+						Configure ordered policies, blocking behavior, and request matching.
+					</p>
 				</div>
-
-				<div className="grid grid-cols-3 gap-2 mb-4">
-					<div className="rounded-lg border border-primary/10 bg-background/30 p-2">
-						<p className="text-[11px] uppercase tracking-wide text-text/45">
-							Policies
-						</p>
-						<p className="text-sm font-semibold text-text mt-1">{policyCount}</p>
-					</div>
-					<div className="rounded-lg border border-primary/10 bg-background/30 p-2">
-						<p className="text-[11px] uppercase tracking-wide text-text/45">
-							Observe
-						</p>
-						<p className="text-sm font-semibold text-text mt-1">{observeCount}</p>
-					</div>
-					<div className="rounded-lg border border-primary/10 bg-background/30 p-2">
-						<p className="text-[11px] uppercase tracking-wide text-text/45">
-							Identity
-						</p>
-						<p className="text-sm font-semibold text-text mt-1">{identityCount}</p>
-					</div>
+				<div
+					className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+						config?.enabled
+							? "bg-emerald-500/10 text-emerald-300 border-emerald-400/20"
+							: "bg-gray-800/60 text-gray-400 border-gray-700/60"
+					}`}
+				>
+					{isLoading ? "Loading" : config?.enabled ? "Enabled" : "Disabled"}
 				</div>
-
-				<div className="space-y-3">
-					<div className="rounded-lg border border-primary/10 bg-background/20 px-3 py-2">
-						<p className="text-xs text-text/70">
-							{config?.enabled
-								? "Open the modal to edit policy order, per-route matching, and observe mode."
-								: "Rate limiting is currently off. Open the modal to enable and configure it."}
-						</p>
-					</div>
-					<ActionButton
-						icon="⚙️"
-						label="Configure"
-						variant="secondary"
-						onClick={() => setShowModal(true)}
-						disabled={disabled || !functionId}
-					/>
-				</div>
-
-				{disabled && disabledReason && (
-					<div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg z-10 pointer-events-none">
-						<span className="text-xs text-white text-center px-2">
-							{disabledReason}
-						</span>
-					</div>
-				)}
 			</div>
 
-			<RateLimitConfigModal
-				isOpen={showModal}
-				onClose={() => setShowModal(false)}
-				functionId={functionId}
-				onSaved={() =>
-					loadRateLimitSummary(functionId, disabled, setIsLoading, setConfig)
-				}
-			/>
-		</>
+			<div className="grid grid-cols-3 gap-2 mb-4">
+				<div className="rounded-lg border border-primary/10 bg-background/30 p-2">
+					<p className="text-[11px] uppercase tracking-wide text-text/45">
+						Policies
+					</p>
+					<p className="text-sm font-semibold text-text mt-1">{policyCount}</p>
+				</div>
+				<div className="rounded-lg border border-primary/10 bg-background/30 p-2">
+					<p className="text-[11px] uppercase tracking-wide text-text/45">
+						Observe
+					</p>
+					<p className="text-sm font-semibold text-text mt-1">{observeCount}</p>
+				</div>
+				<div className="rounded-lg border border-primary/10 bg-background/30 p-2">
+					<p className="text-[11px] uppercase tracking-wide text-text/45">
+						Identity
+					</p>
+					<p className="text-sm font-semibold text-text mt-1">{identityCount}</p>
+				</div>
+			</div>
+
+			<div className="space-y-3">
+				<div className="rounded-lg border border-primary/10 bg-background/20 px-3 py-2">
+					<p className="text-xs text-text/70">
+						{config?.enabled
+							? "Open the settings page to edit policy order, per-route matching, and observe mode."
+							: "Rate limiting is currently off. Open the settings page to enable and configure it."}
+					</p>
+				</div>
+				<ActionButton
+					icon="⚙️"
+					label="Configure"
+					variant="secondary"
+					onClick={() =>
+						navigate(
+							`/functions/${functionId}/settings?section=rate-limits`,
+						)
+					}
+					disabled={disabled || !functionId}
+				/>
+			</div>
+
+			{disabled && disabledReason && (
+				<div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg z-10 pointer-events-none">
+					<span className="text-xs text-white text-center px-2">
+						{disabledReason}
+					</span>
+				</div>
+			)}
+		</div>
 	);
 }
