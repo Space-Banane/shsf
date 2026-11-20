@@ -29,6 +29,7 @@ interface FunctionSidebarProps {
 	onRunTrigger: (trigger: Trigger) => void;
 	tooks: TimingEntry[];
 	onOpenModal: (modal: FunctionModal) => void;
+	onOpenSettings: () => void;
 }
 
 export function FunctionSidebar({
@@ -44,6 +45,7 @@ export function FunctionSidebar({
 	onRunTrigger,
 	tooks,
 	onOpenModal,
+	onOpenSettings,
 }: FunctionSidebarProps) {
 	const [showTriggersDetails, setShowTriggersDetails] = useState(
 		triggers.length > 0,
@@ -57,7 +59,7 @@ export function FunctionSidebar({
 			<FunctionActionsCard
 				functionData={functionData}
 				envDisabled={htmlOnly}
-				onOpenSettings={() => onOpenModal({ type: "settings" })}
+				onOpenSettings={onOpenSettings}
 				onOpenEnv={() => onOpenModal({ type: "env" })}
 				onOpenGuests={() => onOpenModal({ type: "guests" })}
 				onOpenVersionControl={() => onOpenModal({ type: "git" })}

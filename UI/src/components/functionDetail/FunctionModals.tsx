@@ -12,7 +12,6 @@ import TriggerLogsModal from "../modals/functionTriggers/TriggerLogsModal";
 import DependencyManagerModal from "../modals/functionDetail/DependencyManagerModal";
 import GitVersionControlModal from "../modals/functions/GitVersionControlModal";
 import UpdateEnvModal from "../modals/functions/UpdateEnvModal";
-import UpdateFunctionModal from "../modals/functions/UpdateFunctionModal";
 import GuestManagement from "../modals/guests/GuestManagement";
 import ShareModal from "../modals/sharing/ShareModal";
 import type { useFunctionFiles } from "../../hooks/useFunctionFiles";
@@ -126,13 +125,6 @@ export function FunctionModals({
 						: Promise.resolve(false)
 				}
 				filename={modal?.type === "deleteFile" ? modal.file.name : ""}
-			/>
-			<UpdateFunctionModal
-				isOpen={modal?.type === "settings"}
-				onClose={onClose}
-				onSuccess={onFunctionChanged}
-				functionData={functionData}
-				lastLogs={logs.logs}
 			/>
 			<UpdateEnvModal
 				isOpen={modal?.type === "env"}

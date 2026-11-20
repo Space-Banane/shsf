@@ -88,6 +88,7 @@ function renderRoute(url = "/functions/1") {
 	const router = createMemoryRouter(
 		[
 			{ path: "/functions/:id", element: <FunctionDetail /> },
+			{ path: "/functions/:id/settings", element: <div>routed settings</div> },
 			{ path: "/functions", element: <div>functions list</div> },
 		],
 		{ initialEntries: ["/functions", url] , initialIndex: 1 },
@@ -300,6 +301,14 @@ describe("FunctionDetail route", () => {
 		await waitFor(() =>
 			expect(router.state.location.search).toBe("?modal=guests"),
 		);
+	});
+
+	it("redirects the legacy settings modal link to the routed settings page", async () => {
+		mockBackend();
+		const router = renderRoute("/functions/1?modal=settings");
+
+		expect(await screen.findByText("routed settings")).toBeInTheDocument();
+		expect(router.state.location.pathname).toBe("/functions/1/settings");
 	});
 
 	it("puts the open dialog in the URL and closes it on Back", async () => {

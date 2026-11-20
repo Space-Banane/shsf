@@ -2,7 +2,6 @@ import type { FunctionFile, Trigger } from "../../types/Prisma";
 
 /** Which dialog is open on the function page, with the target it acts on. */
 export type FunctionModal =
-	| { type: "settings" }
 	| { type: "env" }
 	| { type: "guests" }
 	| { type: "git" }

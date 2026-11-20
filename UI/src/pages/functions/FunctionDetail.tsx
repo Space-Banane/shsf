@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import type { OnMount } from "@monaco-editor/react";
 import { UserContext } from "../../App";
@@ -57,7 +57,6 @@ function parseFunctionModal(
 ): FunctionModal | null {
 	const type = params.get("modal");
 	switch (type) {
-		case "settings":
 		case "env":
 		case "guests":
 		case "git":
@@ -129,6 +128,7 @@ function FunctionDetail() {
 	const functionId = id ? parseInt(id) : null;
 	const { user } = useContext(UserContext);
 	const [searchParams, setSearchParams] = useSearchParams();
+	const navigate = useNavigate();
 
 	const [functionData, setFunctionData] = useState<XFunction | null>(null);
 	const [namespace, setNamespace] = useState<Namespace | null>(null);
@@ -325,6 +325,12 @@ function FunctionDetail() {
 		setSearchParams(params, { replace: true });
 	}, [searchParams, setSearchParams]);
 
+	// `?modal=settings` predates the routed settings page; keep old links working.
+	useEffect(() => {
+		if (searchParams.get("modal") !== "settings" || functionId === null) return;
+		navigate(`/functions/${functionId}/settings`, { replace: true });
+	}, [functionId, navigate, searchParams]);
+
 	const updateEnvironment = async (env: { name: string; value: string }[]) => {
 		if (functionId === null) return false;
 
@@ -408,6 +414,9 @@ function FunctionDetail() {
 					onRunTrigger={(trigger) => void triggers.run(trigger)}
 					tooks={execution.tooks}
 					onOpenModal={openModal}
+					onOpenSettings={() =>
+						navigate(`/functions/${functionData.id}/settings`)
+					}
 				/>
 
 				<div className="flex-1 min-w-0 space-y-4">
