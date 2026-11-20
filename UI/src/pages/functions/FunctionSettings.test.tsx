@@ -202,6 +202,37 @@ describe("FunctionSettings route", () => {
 		expect(getRateLimitConfig).toHaveBeenCalledTimes(1);
 	});
 
+	it.each([
+		["network", "Network/CORS"],
+		["caching", "Caching"],
+		["access", "Access"],
+	])("deep links to the %s section", async (section, title) => {
+		renderRoute(`/functions/1/settings?section=${section}`);
+
+		expect(
+			await screen.findByRole("heading", { name: title, level: 2 }),
+		).toBeInTheDocument();
+	});
+
+	it("recovers from a failed rate-limit load instead of saving defaults", async () => {
+		vi.mocked(getRateLimitConfig)
+			.mockRejectedValueOnce(new Error("boom"))
+			.mockResolvedValue({ status: "OK", data: { enabled: false } } as never);
+		renderRoute("/functions/1/settings?section=rate-limits");
+
+		expect(
+			await screen.findByText(/Failed to load rate limits/),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Save Rate Limits" }),
+		).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+		expect(await screen.findByText("Rate limiting")).toBeInTheDocument();
+		expect(getRateLimitConfig).toHaveBeenCalledTimes(2);
+	});
+
 	it("disables saving for read-only shares", async () => {
 		mockBackend({ access: "view" } as never);
 		renderRoute();

@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import { can } from "../../services/backend.sharing";
 import { getFunctionById, updateFunction } from "../../services/backend.functions";
 import { usePageTitle } from "../../hooks/usePageTitle";
+import { isHtmlOnlyFunction } from "../../utils/functionFiles";
 import { primaryBtnClass } from "../../components/modals/Modal";
 import { AccessSection } from "../../components/functionSettings/AccessSection";
 import { CachingSection } from "../../components/functionSettings/CachingSection";
@@ -190,9 +191,7 @@ function FunctionSettings() {
 
 	const canEdit = can(functionData.access, "edit");
 	const isOwner = can(functionData.access, "owner");
-	const htmlOnly =
-		!!functionData.startup_file &&
-		functionData.startup_file.trim().toLowerCase().endsWith(".html");
+	const htmlOnly = isHtmlOnlyFunction(functionData);
 	const disabled = saving || !canEdit;
 	const dirty = !draftsEqual(draft, savedDraft);
 	const disabledReason = htmlOnly

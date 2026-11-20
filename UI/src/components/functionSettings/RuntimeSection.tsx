@@ -52,14 +52,16 @@ export function RuntimeSection({
 	useEffect(() => {
 		let active = true;
 		setMetadataError(null);
-		Promise.all([
-			isFunctionImageDeprecated(functionId),
-			getDeprecatedImages(),
-		])
-			.then(([deprecated, images]) => {
-				if (!active) return;
-				setIsDeprecated(deprecated);
-				setDeprecatedImages(images);
+		isFunctionImageDeprecated(functionId)
+			.then((deprecated) => {
+				if (active) setIsDeprecated(deprecated);
+			})
+			.catch(() => {
+				if (active) setMetadataError("Could not load image metadata.");
+			});
+		getDeprecatedImages()
+			.then((images) => {
+				if (active) setDeprecatedImages(images);
 			})
 			.catch(() => {
 				if (active) setMetadataError("Could not load image metadata.");
@@ -67,7 +69,7 @@ export function RuntimeSection({
 		return () => {
 			active = false;
 		};
-	}, [functionId, metadataReloadKey]);
+	}, [functionId, currentImage, metadataReloadKey]);
 
 	const handleDockerMountChange = async (checked: boolean) => {
 		if (!checked) {

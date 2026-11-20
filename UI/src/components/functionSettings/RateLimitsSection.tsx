@@ -344,6 +344,8 @@ export function RateLimitsSection({
 }: RateLimitsSectionProps) {
 	const [isLoading, setIsLoading] = useState(false);
 	const [isSaving, setIsSaving] = useState(false);
+	const [loadError, setLoadError] = useState<string | null>(null);
+	const [reloadKey, setReloadKey] = useState(0);
 	const [enabled, setEnabled] = useState(false);
 	const [policies, setPolicies] = useState<PolicyDraft[]>([]);
 	const [activePolicyId, setActivePolicyId] = useState("");
@@ -385,6 +387,7 @@ export function RateLimitsSection({
 
 		let mounted = true;
 		setIsLoading(true);
+		setLoadError(null);
 
 		void (async () => {
 			try {
@@ -396,11 +399,11 @@ export function RateLimitsSection({
 				if (res.status === "OK") {
 					loadConfig(res.data);
 				} else {
-					toast.error("Failed to load rate limits: " + res.message);
+					setLoadError("Failed to load rate limits: " + res.message);
 				}
 			} catch (error: any) {
 				if (mounted) {
-					toast.error(
+					setLoadError(
 						"Failed to load rate limits: " +
 							(error?.message ?? "Unknown error"),
 					);
@@ -415,7 +418,7 @@ export function RateLimitsSection({
 		return () => {
 			mounted = false;
 		};
-	}, [functionId, disabled]);
+	}, [functionId, disabled, reloadKey]);
 
 	const validationError = useMemo(() => {
 		if (!enabled) {
@@ -556,7 +559,7 @@ export function RateLimitsSection({
 	};
 
 	const handleSave = async () => {
-		if (!functionId || isSaving) {
+		if (!functionId || isSaving || loadError) {
 			return;
 		}
 		if (validationError) {
@@ -588,7 +591,7 @@ export function RateLimitsSection({
 		() => {
 			void handleSave();
 		},
-		active && !disabled && !isLoading && !isSaving,
+		active && !disabled && !isLoading && !isSaving && !loadError,
 	);
 
 	if (disabled) {
@@ -604,6 +607,25 @@ export function RateLimitsSection({
 			<SettingsSection title="Rate limits">
 				<div className="flex items-center justify-center py-12">
 					<div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+				</div>
+			</SettingsSection>
+		);
+	}
+
+	// Without the stored config the editor would save over it, so surface the
+	// failure and let the user retry instead of showing default values.
+	if (loadError) {
+		return (
+			<SettingsSection title="Rate limits">
+				<div className="flex flex-col items-start gap-3">
+					<p className="text-sm text-red-400">{loadError}</p>
+					<button
+						type="button"
+						onClick={() => setReloadKey((key) => key + 1)}
+						className="text-sm px-3 py-1.5 border border-white/[0.07] text-muted hover:text-text hover:bg-white/[0.04] rounded-lg transition-colors"
+					>
+						Retry
+					</button>
 				</div>
 			</SettingsSection>
 		);
